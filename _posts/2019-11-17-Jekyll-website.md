@@ -4,7 +4,7 @@ title: "探索Jekyll静态网站构建"
 date: 2019-11-17 01:44:39 +0800
 categories: Jekyll
 tags: Jekyll
-render_with_liquid: false
+# render_with_liquid: false
 ---
 
 使用Jekyll搭建静态网站是一件容易上手，非常优雅且令人愉悦的事情，甚至让我这个服务端程序猿产生了能搞一搞前端的错觉:D
@@ -66,20 +66,22 @@ win-pichu@DESKTOP-T467619:~/gems/gems/minima-2.5.1 $ tree
 Jekyll使用[Liquid](https://shopify.github.io/liquid/)模板语言来处理模板。
 
 Liquid有三个主要部分：
-- Object：`{{page.title}}`，双括号，用于引用变量，使用该变量值；
-- Tag：`if page.show_sidebar`（不能引用完整的tag代码，要不然Liquid会替换。。。怎么处理？），大括号加百分号，用于逻辑控制，相当于html里嵌入代码；
-- Filter：`{{ "hi" | capitalize }}`，竖线，对内容进行处理，A变成B；
+- Object：`{% raw %}{{page.title}}{% endraw %}`，双括号，用于引用变量，使用该变量值；
+- Tag：`{% raw %}{% if page.show_sidebar %}{% endraw %}`，大括号加百分号，用于逻辑控制，相当于html里嵌入代码；
+- Filter：`{% raw %}{{ "hi" | capitalize }}{% endraw %}`，竖线，对内容进行处理，A变成B；
 
 ### Front Matter
 页头，Liquid只处理有页头的页面。页头是两行三横线，里面可以使用[YAML](https://yaml.org/)定义一些变量：
 ```
+{% raw %}
 ---
 name: puppylpg
 ---
 
 <h1>{{ page.name | downcase }}</h1>
+{% endraw %}
 ```
-所有定义在页头里的变量，在Liquid中都可以使用`page`变量访问，比如上面定义的name的访问方式就是`{{ page.name }}`。
+所有定义在页头里的变量，在Liquid中都可以使用`page`变量访问，比如上面定义的name的访问方式就是`{% raw %}{{ page.name }}{% endraw %}`。
 
 参阅：
 - https://jekyllrb.com/docs/liquid/
@@ -91,6 +93,7 @@ layout就是上面说的网页模板，放在`_layouts`目录下。
 ### `_layout/default.html`
 看一下minima的一个根模板（`_layout/default.html`）：
 ```
+{% raw %}
 <!DOCTYPE html>
 <html lang="{{ page.lang | default: site.lang | default: "en" }}">
 
@@ -111,6 +114,7 @@ layout就是上面说的网页模板，放在`_layouts`目录下。
   </body>
 
 </html>
+{% endraw %}
 ```
 body标签之间的就是网页内容，模板中body大致有三块内容：
 - body开头引用了header.html；
@@ -124,6 +128,7 @@ header.html和footer.html里分别放着导航栏和页脚。
 ### `_layout/home.html`
 看一下另一个模板home（`_layout/home.html`）：
 ```
+{% raw %}
 ---
 layout: default
 ---
@@ -158,10 +163,11 @@ layout: default
   {%- endif -%}
 
 </div>
+{% endraw %}
 ```
 home的页头定义了自己使用的模板是default（default就是上面介绍的一个layout）。
 
-也就是说，home是一个模板，它首先复用了default.html模板的内容，然后自己又定义了一些内容。自己定义的这些内容会去替换default.html的`{{ content }}`的内容。
+也就是说，home是一个模板，它首先复用了default.html模板的内容，然后自己又定义了一些内容。自己定义的这些内容会去替换default.html的`{% raw %}{{ content }}{% endraw %}`的内容。
 
 home定义的元素主要分为两部分：
 - 输出使用该模板的网页的content；
@@ -176,6 +182,7 @@ home定义的元素主要分为两部分：
 ### `_layouts/page.html`
 page和home模板一样，也是继承了default的模板，内容甚至更简单一些：
 ```
+{% raw %}
 ---
 layout: default
 ---
@@ -190,11 +197,13 @@ layout: default
   </div>
 
 </article>
+{% endraw %}
 ```
 
 ### `_layouts/post.html`
 post模板同理：
 ```
+{% raw %}
 ---
 layout: default
 ---
@@ -222,6 +231,7 @@ layout: default
 
   <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
 </article>
+{% endraw %}
 ```
 页面略复杂，大致包括：
 - page title；
@@ -235,6 +245,7 @@ layout: default
 ### 使用layout
 比如使用Jekyll初始化网站之后默认生成的博客`Welcome to Jekyll!`就使用了post layout，它的Front Matter YAML就是这么写的：
 ```
+{% raw %}
 ---
 layout: post
 title:  "Welcome to Jekyll!"
@@ -242,6 +253,7 @@ date:   2019-11-16 02:08:37 +0800
 categories: jekyll update
 ---
 blabla...
+{% endraw %}
 ```
 最终的效果如图所示：
 TODO IMAGE
@@ -260,7 +272,7 @@ TODO IMAGE
 感觉最重要的就是_layouts和_includes，其他还有assets，_sass等，用来控制样式，放置一些静态资源如图片之类的，有兴趣可以了解一下。
 
 # 工程结构
-在{% post_url 2019-11-16-build-github-pages-Debian %}中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
+在[搭建个人GitHub Pages（Debian 9 Stretch）]({% post_url 2019-11-16-build-github-pages-Debian %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
 ```
 .
 ├ 404.html
@@ -277,9 +289,6 @@ TODO IMAGE
 └ _site
 ```
 
-参阅：
-- https://jekyllrb.com/docs/liquid/tags/#linking-to-posts
-
 ## `_posts`
 这里是专门放置文档的地方。因为我们会使用模板写文章，且模板只需要给出content和一些其他的信息如author、title等，所以现在写文章就很方便，只需要指定：
 - 使用的是哪个模板；
@@ -290,6 +299,7 @@ TODO IMAGE
 
 比如Jekyll的样例文章：
 ```
+{% raw %}
 ---
 layout: post
 title:  "Welcome to Jekyll!"
@@ -319,6 +329,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 [jekyll-docs]: https://jekyllrb.com/docs/home
 [jekyll-gh]:   https://github.com/jekyll/jekyll
 [jekyll-talk]: https://talk.jekyllrb.com/
+{% endraw %}
 ```
 - 用的模板是post.html；
 - 用的标题和日期。如果标题不指定，会使用文件名日期后的字符串作为标题，如`bananas`；
@@ -329,6 +340,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 
 在`home.html`模板中，已经给出了方法：
 ```
+{% raw %}
   {%- if site.posts.size > 0 -%}
     <h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
     <ul class="post-list">
@@ -347,8 +359,12 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
       </li>
       {%- endfor -%}
     </ul>
+
+    <p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
+  {%- endif -%}
+{% endraw %}
 ```
-`site.posts`在Jekyll中代表所有发表在`_posts`下的文章。通过`for post in site.post`就可以遍历所有文章，并访问每个文章的date、title、excerpt等信息。
+`site.posts`在Jekyll中代表所有发表在`_posts`下的文章。通过`{% raw %}{% for post in site.post %}{% endraw %}`就可以遍历所有文章，并访问每个文章的date、title、excerpt等信息。
 
 这也是是用了`home.html`模板的页面也会显示所有文章的原因。
 
@@ -362,6 +378,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 
 ## `index.markdown`
 ```
+{% raw %}
 ---
 # Feel free to add content and custom Front Matter to this file.
 # To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
@@ -370,11 +387,13 @@ title: Home
 list_title: puppylpg wanna say -
 ---
 Welcome to puppylpg's home website, pika~
+{% endraw %}
 ```
 index页面使用的模板是`home.html`，所以会列出所有的文章目录。
 
 ## `about.markdown`
 ```
+{% raw %}
 ---
 layout: page
 title: About
@@ -393,6 +412,7 @@ You can find the source code for Jekyll at GitHub:
 
 
 [jekyll-organization]: https://github.com/jekyll
+{% endraw %}
 ```
 about使用的是page模板，路径是/about。关于路径，下面会介绍。
 
@@ -440,6 +460,7 @@ permalink: /:categories/:year/:month/:day/:title:output_ext
 哪些页面回增加到导航栏里？
 看导航栏header.html的源码：
 ```
+{% raw %}
 <header class="site-header" role="banner">
 
   <div class="wrapper">
@@ -470,6 +491,7 @@ permalink: /:categories/:year/:month/:day/:title:output_ext
     {%- endif -%}
   </div>
 </header>
+{% endraw %}
 ```
 最后一部分，遍历page_paths，把那些有title的page的title放上去。
 
@@ -490,17 +512,40 @@ TODO:
 - https://desiredpersona.com/disqus-comments-jekyll/
 - 
 
-# 关于引用tag代码的问题
+# 关于引用的代码中有Liquid tag的问题
 想引用一下layout模板的代码，但是代码里的Liquid tag竟然会被Liquid替换掉……即使使用markdown的代码引用格式，也不奏效……
 
-目前只能在YAML中粗暴的使用：
+在Jekyll 4.0+ 中，可以在YAML中粗暴的使用：
 ```
 render_with_liquid: false
 ```
-来禁止对本文档的tag进行渲染。但是这样一来需要渲染的地方就很尴尬了……
+来禁止对本文档的tag进行渲染。
 
-所以，TODO
+这一做法粒度太粗，而且GitHub目前使用的Jekyll不到4.0。
+
+使用[`raw`](https://shopify.github.io/liquid/tags/raw/)这个tag即可。
+
+（但是这一篇文章就是介绍Liquid的filter和tag的，一个个加`raw...endraw`，我快疯了。。。）
 
 参阅：
+- https://shopify.github.io/liquid/tags/raw/
 - https://jekyllrb.com/docs/liquid/tags/
+
+# 站内引用
+使用`post_url` tag：
+```
+{% raw %}
+{% post_url 2010-07-21-name-of-post %}
+{% endraw %}
+```
+会显示站内另一篇文章的路径。如果想把它变成链接，外面再套一层markdown语法即可：
+```
+{% raw %}
+[name]({% post_url 2010-07-21-name-of-post %})
+{% endraw %}
+```
+
+参阅：
+- https://jekyllrb.com/docs/liquid/tags/#linking-to-posts
+
 
