@@ -8,3 +8,8 @@
         - 添加两篇关于在Debian用Jekyll搭建网站，及Jekyll使用的文章；
         - 将一些原始的Jekyll模板替换为自己的信息；
 
+## v0.0.3(2019-11-17)
+    * bugfix
+        - 使用Liquid raw tag禁止渲染代码中的tag；
+        - 站内引用；
+
