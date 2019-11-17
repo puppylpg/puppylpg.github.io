@@ -24,12 +24,18 @@ email: shininglhb@163.com
 description: >- # this means to ignore newlines until "baseurl:"
     To Beyond and Infinity!
 baseurl: "" # the subpath of your site, e.g. /blog
-url: "puppylpg.github.io" # the base hostname & protocol for your site, e.g. http://example.com
+url: "https://puppylpg.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: puppylpg
 github_username: puppylpg 
 lang: zh-Hans
+
+# show excerpts with posts
 show_excerpts: true
 
+# navigation bar items
+header_pages:
+        - about.md;
+        - index.md;
 # Build settings
 theme: minima
 plugins:
