@@ -11,6 +11,9 @@ tags: Jekyll
 
 使用Jekyll搭建网站，只需要考虑页面内容即可，Jekyll现有的一些主题能很好的构建整个网站框架。这里以Jekyll默认的minima为例，简单分析一下框架的内容。
 
+1. Table of Contents, ordered                    
+{:toc}
+
 # 网站架构
 分析minima之前，可以先想象一下一个普通网页应该有的样子：
 - navigation bar：上方应该是一个导航栏；
@@ -53,14 +56,17 @@ win-pichu@DESKTOP-T467619:~/gems/gems/minima-2.5.1 $ tree
 ├ LICENSE.txt
 ├ README.md
 └ _sass
-    ├ minima
-    │   ├ _base.scss
-    │   ├ _layout.scss
-    │   └ _syntax-highlighting.scss
-    └ minima.scss
+	├ minima
+	│   ├ _base.scss
+	│   ├ _layout.scss
+	│   └ _syntax-highlighting.scss
+	└ minima.scss
 
 5 directories, 22 files
 ```
+
+参阅：
+- https://jekyllrb.com/docs/structure/
 
 ## Liquid
 Jekyll使用[Liquid](https://shopify.github.io/liquid/)模板语言来处理模板。
@@ -101,15 +107,15 @@ layout就是上面说的网页模板，放在`_layouts`目录下。
 
   <body>
 
-    {%- include header.html -%}
+	{%- include header.html -%}
 
-    <main class="page-content" aria-label="Content">
-      <div class="wrapper">
-        {{ content }}
-      </div>
-    </main>
+	<main class="page-content" aria-label="Content">
+	  <div class="wrapper">
+		{{ content }}
+	  </div>
+	</main>
 
-    {%- include footer.html -%}
+	{%- include footer.html -%}
 
   </body>
 
@@ -135,31 +141,31 @@ layout: default
 
 <div class="home">
   {%- if page.title -%}
-    <h1 class="page-heading">{{ page.title }}</h1>
+	<h1 class="page-heading">{{ page.title }}</h1>
   {%- endif -%}
 
   {{ content }}
 
   {%- if site.posts.size > 0 -%}
-    <h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
-    <ul class="post-list">
-      {%- for post in site.posts -%}
-      <li>
-        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-        <span class="post-meta">{{ post.date | date: date_format }}</span>
-        <h3>
-          <a class="post-link" href="{{ post.url | relative_url }}">
-            {{ post.title | escape }}
-          </a>
-        </h3>
-        {%- if site.show_excerpts -%}
-          {{ post.excerpt }}
-        {%- endif -%}
-      </li>
-      {%- endfor -%}
-    </ul>
+	<h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
+	<ul class="post-list">
+	  {%- for post in site.posts -%}
+	  <li>
+		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+		<span class="post-meta">{{ post.date | date: date_format }}</span>
+		<h3>
+		  <a class="post-link" href="{{ post.url | relative_url }}">
+			{{ post.title | escape }}
+		  </a>
+		</h3>
+		{%- if site.show_excerpts -%}
+		  {{ post.excerpt }}
+		{%- endif -%}
+	  </li>
+	  {%- endfor -%}
+	</ul>
 
-    <p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
+	<p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
   {%- endif -%}
 
 </div>
@@ -189,11 +195,11 @@ layout: default
 <article class="post">
 
   <header class="post-header">
-    <h1 class="post-title">{{ page.title | escape }}</h1>
+	<h1 class="post-title">{{ page.title | escape }}</h1>
   </header>
 
   <div class="post-content">
-    {{ content }}
+	{{ content }}
   </div>
 
 </article>
@@ -210,23 +216,23 @@ layout: default
 <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
 
   <header class="post-header">
-    <h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
-    <p class="post-meta">
-      <time class="dt-published" datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
-        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-        {{ page.date | date: date_format }}
-      </time>
-      {%- if page.author -%}
-        • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card" itemprop="name">{{ page.author }}</span></span>
-      {%- endif -%}</p>
+	<h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
+	<p class="post-meta">
+	  <time class="dt-published" datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
+		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+		{{ page.date | date: date_format }}
+	  </time>
+	  {%- if page.author -%}
+		• <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card" itemprop="name">{{ page.author }}</span></span>
+	  {%- endif -%}</p>
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    {{ content }}
+	{{ content }}
   </div>
 
   {%- if site.disqus.shortname -%}
-    {%- include disqus_comments.html -%}
+	{%- include disqus_comments.html -%}
   {%- endif -%}
 
   <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
@@ -342,25 +348,25 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 ```
 {% raw %}
   {%- if site.posts.size > 0 -%}
-    <h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
-    <ul class="post-list">
-      {%- for post in site.posts -%}
-      <li>
-        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-        <span class="post-meta">{{ post.date | date: date_format }}</span>
-        <h3>
-          <a class="post-link" href="{{ post.url | relative_url }}">
-            {{ post.title | escape }}
-          </a>
-        </h3>
-        {%- if site.show_excerpts -%}
-          {{ post.excerpt }}
-        {%- endif -%}
-      </li>
-      {%- endfor -%}
-    </ul>
+	<h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
+	<ul class="post-list">
+	  {%- for post in site.posts -%}
+	  <li>
+		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+		<span class="post-meta">{{ post.date | date: date_format }}</span>
+		<h3>
+		  <a class="post-link" href="{{ post.url | relative_url }}">
+			{{ post.title | escape }}
+		  </a>
+		</h3>
+		{%- if site.show_excerpts -%}
+		  {{ post.excerpt }}
+		{%- endif -%}
+	  </li>
+	  {%- endfor -%}
+	</ul>
 
-    <p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
+	<p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
   {%- endif -%}
 {% endraw %}
 ```
@@ -437,14 +443,15 @@ config文件可以配置很多东西，比如：
 bundle exec jekyll serve
 ```
 
-# env
+# 其他操作汇总
+## env
 TODO
 
 参阅：
 - https://jekyllrb.com/docs/step-by-step/10-deployment/#environments
 - https://jekyllrb.com/docs/configuration/environments/
 
-# 页面路径
+## 页面路径
 每个页面都有路径。可以通过页面Front Matter的`permalink`指定路径，这样页面源文件和最终编译后的页面的目录就不用非得对应了。
 
 也可以在`_config.yml`中指定permalink的格式。默认好像是：
@@ -456,7 +463,7 @@ permalink: /:categories/:year/:month/:day/:title:output_ext
 参阅：
 - https://jekyllrb.com/docs/permalinks/
 
-# 导航条里的条目
+## 导航条里的条目
 哪些页面回增加到导航栏里？
 看导航栏header.html的源码：
 ```
@@ -464,31 +471,31 @@ permalink: /:categories/:year/:month/:day/:title:output_ext
 <header class="site-header" role="banner">
 
   <div class="wrapper">
-    {%- assign default_paths = site.pages | map: "path" -%}
-    {%- assign page_paths = site.header_pages | default: default_paths -%}
-    <a class="site-title" rel="author" href="{{ "/" | relative_url }}">{{ site.title | escape }}</a>
+	{%- assign default_paths = site.pages | map: "path" -%}
+	{%- assign page_paths = site.header_pages | default: default_paths -%}
+	<a class="site-title" rel="author" href="{{ "/" | relative_url }}">{{ site.title | escape }}</a>
 
-    {%- if page_paths -%}
-      <nav class="site-nav">
-        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
-        <label for="nav-trigger">
-          <span class="menu-icon">
-            <svg viewBox="0 0 18 15" width="18px" height="15px">
-              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
-            </svg>
-          </span>
-        </label>
+	{%- if page_paths -%}
+	  <nav class="site-nav">
+		<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+		<label for="nav-trigger">
+		  <span class="menu-icon">
+			<svg viewBox="0 0 18 15" width="18px" height="15px">
+			  <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+			</svg>
+		  </span>
+		</label>
 
-        <div class="trigger">
-          {%- for path in page_paths -%}
-            {%- assign my_page = site.pages | where: "path", path | first -%}
-            {%- if my_page.title -%}
-            <a class="page-link" href="{{ my_page.url | relative_url }}">{{ my_page.title | escape }}</a>
-            {%- endif -%}
-          {%- endfor -%}
-        </div>
-      </nav>
-    {%- endif -%}
+		<div class="trigger">
+		  {%- for path in page_paths -%}
+			{%- assign my_page = site.pages | where: "path", path | first -%}
+			{%- if my_page.title -%}
+			<a class="page-link" href="{{ my_page.url | relative_url }}">{{ my_page.title | escape }}</a>
+			{%- endif -%}
+		  {%- endfor -%}
+		</div>
+	  </nav>
+	{%- endif -%}
   </div>
 </header>
 {% endraw %}
@@ -507,12 +514,12 @@ page_paths来自哪儿？根据上面的`assign` tag的定义，page_paths优先
 - https://shopify.github.io/liquid/tags/variable/
 - https://jekyllrb.com/docs/variables/#site-variables
 
-# 增加评论系统
+## 增加评论系统
 TODO: 
 - https://desiredpersona.com/disqus-comments-jekyll/
 - 
 
-# 关于引用的代码中有Liquid tag的问题
+## 关于引用的代码中有Liquid tag的问题
 想引用一下layout模板的代码，但是代码里的Liquid tag竟然会被Liquid替换掉……即使使用markdown的代码引用格式，也不奏效……
 
 在Jekyll 4.0+ 中，可以在YAML中粗暴的使用：
@@ -531,7 +538,7 @@ render_with_liquid: false
 - https://shopify.github.io/liquid/tags/raw/
 - https://jekyllrb.com/docs/liquid/tags/
 
-# 站内引用
+## 站内引用
 使用`post_url` tag：
 ```
 {% raw %}
@@ -548,4 +555,45 @@ render_with_liquid: false
 参阅：
 - https://jekyllrb.com/docs/liquid/tags/#linking-to-posts
 
+
+## 添加目录
+Jekyll使用[Kramdown](https://kramdown.gettalong.org/)将markdown解析为html。
+
+而在Kramdown中，添加Table of Contents的方法是使用：
+```
+{:toc}
+```
+同时，前面必须跟上序号或者非序号来制定目录带不带序号。
+
+比如：
+```
+1. blabla
+{:toc}
+```
+这是一个有序号的目录`blabla`不重要，它会被目录取代。
+
+```
+* blabla
+{:toc}
+```
+这是一个没有序号的目录`blabla`不重要，它也会被目录取代。
+
+如果不想将某个标题加入目录，在这个标题下面加上`{:.no_toc}`即可，比如：
+```
+# Header
+{:.no_toc}
+```
+
+参阅：
+- http://www.seanbuscay.com/blog/jekyll-toc-markdown/
+- https://kramdown.gettalong.org/converter/html.html#toc
+
+# 总结
+折腾了两天之后，不得不感叹前端的东西果然是丰富多彩。比如想给网站添加sidebar，里面放文章的目录内容。虽然sidebar大差不差勉强算是搞定了，但是很多细节还需要去处理，尤其是toc在这里并不能生成目录，还得想办法去解决。
+
+折腾前端也是耗时间的一件事。而现在的我要学的东西还很多，也不能在前端这儿一直耗着。所以先这样吧，反正目前网站看起来凑合能用了。其他的比如字体，sidebar，图片之类的东西，用一段时间之后再修改一些东西吧，反正一直慢慢用着改着，挺好的。
+
+多看几个官方网站：
+- minima的官网：https://github.com/jekyll/minima/blob/master/README.md
+- Jekyll的官网：https://jekyllrb.com/
 

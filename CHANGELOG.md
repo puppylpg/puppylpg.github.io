@@ -13,3 +13,9 @@
         - 使用Liquid raw tag禁止渲染代码中的tag；
         - 站内引用；
 
+## v0.0.4(2019-11-17)
+    * 功能
+        - 增加目录toc；
+        - 修改navigation bar的内容；
+
+

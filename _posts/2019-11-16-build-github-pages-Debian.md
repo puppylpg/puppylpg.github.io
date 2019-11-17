@@ -8,6 +8,9 @@ tags: [op, Jekyll]
 
 使用github搭建个人站，比如https://puppylpg.github.io，是一件很炫酷的事情。而且不用自己花钱买服务器，我还能说什么好，只能叫一声GitHub爸爸。
 
+1. Table of Contents, ordered                    
+{:toc}
+
 # 搭建流程
 在github上搭建个人站总共分为两步：
 1. 使用Jekyll搭建本地离线网站；
@@ -132,5 +135,4 @@ GitHub默认用master分支，repo的根目录，上述repo就是这种结构，
 
 参阅：
 - https://help.github.com/en/github/working-with-github-pages/setting-up-a-github-pages-site-with-jekyll
-
 
