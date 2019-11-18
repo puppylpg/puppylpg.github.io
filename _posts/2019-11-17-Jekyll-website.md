@@ -627,6 +627,38 @@ Jekyll使用[Kramdown](https://kramdown.gettalong.org/)将markdown解析为html�
 - http://www.seanbuscay.com/blog/jekyll-toc-markdown/
 - https://kramdown.gettalong.org/converter/html.html#toc
 
+## 添加Google Analytics
+想知道网站的访问情况，用户特征等等信息，可以使用Google Analytics进行统计。本质上这就是个回调函数，一旦有人访问，就给Google Analytics发这些信息，Google会记录下来做统计。
+
+所以关键在于生成一个专属于自己的回调函数。
+
+1. 使用Google账号去Google Anayltics[注册](https://analytics.google.com/analytics/web/?authuser=0#/provision/SignUp/)一下，生成专属code和用户id；
+2. 把code加入网站的每个网页里。
+
+Jekyll的minima主题已经做好模板了，回调函数写在google-analytics.html，会被引入每个网页的head里，所以我们唯一要做的就是添上回调函数里确实的user id。
+
+只需要编辑`_config.yml`，加入：
+```
+# google analytics
+google_analytics: <Your user id>
+```
+即可。
+
+> 如果不以`JEKYLL_ENV=production`编译运行本地离线网站，这些回调函数是不会加入网页的。也就是说，这样可以避免自己自测网站的时候也向Google发送数据，影响统计信息。
+
+参阅：
+- http://lukemorrow.me/2018/05/28/adding-google-analytics.html
+- https://michaelsoolee.com/google-analytics-jekyll/
+
+## 添加seo
+既然如此，那把SEO（Search Engine Optimization，搜索引擎优化）也打开吧，希望能吸引更多用户。
+
+流程比较简单，按照github [jekyll-seo-tag](https://github.com/jekyll/jekyll-seo-tag)说的搞一下就行了。
+
+参阅：
+- https://github.com/jekyll/jekyll-seo-tag
+- http://pizn.github.io/2012/01/16/the-seo-for-jekyll-blog.html
+
 # 总结
 折腾了两天之后，不得不感叹前端的东西果然是丰富多彩。比如想给网站添加sidebar，里面放文章的目录内容。虽然sidebar大差不差勉强算是搞定了，但是很多细节还需要去处理，尤其是toc在这里并不能生成目录，还得想办法去解决。
 

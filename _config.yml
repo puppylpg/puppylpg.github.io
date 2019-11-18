@@ -32,6 +32,9 @@ lang: zh-Hans
 # show excerpts with posts
 show_excerpts: true
 
+# google analytics
+google_analytics: UA-152831658-1
+
 # navigation bar items
 header_pages:
         - about.md
@@ -40,6 +43,7 @@ header_pages:
 theme: minima
 plugins:
   - jekyll-feed
+  - jekyll-seo-tag
 
 # Disqus Comments
 disqus:
