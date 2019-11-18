@@ -25,5 +25,6 @@
         - 修改README.md，添加使用方法；
         - 使用`page.header_pages`自定义导航栏。需要定义一个YAML的array（之前错加上分号了）；
         - 增加图片；
+        - 添加Google Analytics和seo插件；
 
 
