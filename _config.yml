@@ -34,8 +34,8 @@ show_excerpts: true
 
 # navigation bar items
 header_pages:
-        - about.md;
-        - index.md;
+        - about.md
+        - index.md
 # Build settings
 theme: minima
 plugins:

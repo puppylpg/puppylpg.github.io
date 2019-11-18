@@ -25,14 +25,14 @@ tags: Jekyll
 # minima结构
 遵循上面的思路，简单探索一下minima-2.5.1的结构。
 
-首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径：
+首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[搭建个人GitHub Pages（Debian 9 Stretch）]({% post_url 2019-11-16-build-github-pages-Debian %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
 ```
-➜  puppylpg.github.io git:(master) ✗ bundle show minima
-/home/win-pichu/gems/gems/minima-2.5.1
+» bundle show minima
+/home/win-pichu/Codes/Java/puppylpg.github.io/vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
 ```
 然后到该路径下，看一下minima的目录结构：
 ```
-win-pichu@DESKTOP-T467619:~/gems/gems/minima-2.5.1 $ tree
+$ tree
 .
 ├ assets
 │   ├ main.scss
@@ -262,12 +262,13 @@ blabla...
 {% endraw %}
 ```
 最终的效果如图所示：
-TODO IMAGE
+![Jekyll welcome blog](/assets/screenshots/Jekyll_welcome_blog.png )
 
 和上面介绍的post layout的页面结构一致。
 
 参阅：
 - https://jekyllrb.com/docs/step-by-step/04-layouts/
+- https://jekyllrb.com/docs/posts/#including-images-and-resources
 
 ## include
 之前介绍default layout的时候，说它引入了header.html和footer.html。include是防止重复的另一种机制，类似于写代码的时候把一段代码封装成了一个函数，需要用的时候某一小段模板的时候，include一下就行了。
@@ -382,7 +383,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 
 `_site`就是一个完整的静态网站。如果把它拷到Apach服务器上，一个静态网站就可以直接访问了。
 
-## `index.markdown`
+## `index.md`
 ```
 {% raw %}
 ---
@@ -397,7 +398,7 @@ Welcome to puppylpg's home website, pika~
 ```
 index页面使用的模板是`home.html`，所以会列出所有的文章目录。
 
-## `about.markdown`
+## `about.md`
 ```
 {% raw %}
 ---
@@ -435,21 +436,40 @@ config文件可以配置很多东西，比如：
 参阅：
 - https://jekyllrb.com/docs/configuration/
 
-## `Gemfile`
-使用Gemfile最大的作用就是指定Jekyll和其他gem的版本，这样通过`bundler`就可以使用Gemfile中指定的这些版本的gem构建工程，保证构建的一致性。
+## `Gemfile` & `Gemfile.lock`
+使用Gemfile最大的作用就是指定工程使用的依赖（gem）的版本，通过`bundler`就可以使用Gemfile中指定的这些版本的gem构建工程，保证构建的一致性。
 
 构建方式：
-```
-bundle exec jekyll serve
-```
+- 安装gem：`bundle install`；
+- 更新某个gem：`buldle update <gem>`；
+
+安装或者更新完gem后，会生成`Gemfile.lock`，它是最后一次执行完构建后，一切都没啥问题的gem和版本。所以它相当于是当前系统使用依赖（及版本）的一个快照。
+
+（Gemfile一般定义的是一个gem的范围，比如使用大于2.0版的Jekyll等等，而Gemfile.lock记录了最后一次成功构建时使用的Jekyll的具体版本，比如2.1.1。）
+
+- https://bundler.io/v1.7/rationale.html#checking-your-code-into-version-control
 
 # 其他操作汇总
 ## env
-TODO
+指定一些环境变量。
+
+比如`JEKYLL_ENV`，默认是development。在Liquid中，该变量通过`jekyll.environment`访问。所以我们可以加一些只有线上环境才会有的代码：
+```
+{% raw %}
+{% if jekyll.environment == "production" %}
+  <script src="my-analytics-script.js"></script>
+{% endif %}
+{% endraw %}
+```
+然后在开发环境中，指定`JEKYLL=production`，编译启动server，看看代码的效果是否符合预期：
+```
+JEKYLL_ENV=production bundle exec jekyll serve
+```
 
 参阅：
 - https://jekyllrb.com/docs/step-by-step/10-deployment/#environments
 - https://jekyllrb.com/docs/configuration/environments/
+- https://jekyllrb.com/docs/usage/
 
 ## 页面路径
 每个页面都有路径。可以通过页面Front Matter的`permalink`指定路径，这样页面源文件和最终编译后的页面的目录就不用非得对应了。
@@ -463,64 +483,83 @@ permalink: /:categories/:year/:month/:day/:title:output_ext
 参阅：
 - https://jekyllrb.com/docs/permalinks/
 
-## 导航条里的条目
-哪些页面回增加到导航栏里？
-看导航栏header.html的源码：
+## 自定义导航栏里的条目
+哪些页面会增加到导航栏里？
+
+默认情况下所有工程根目录下的文件都会加入导航条。如果工程内有CHANGELOG.md，它也会在导航栏里。
+
+导航栏的逻辑还是看一下header.html的源码：
 ```
 {% raw %}
 <header class="site-header" role="banner">
 
   <div class="wrapper">
-	{%- assign default_paths = site.pages | map: "path" -%}
-	{%- assign page_paths = site.header_pages | default: default_paths -%}
-	<a class="site-title" rel="author" href="{{ "/" | relative_url }}">{{ site.title | escape }}</a>
+    {%- assign default_paths = site.pages | map: "path" -%}
+    {%- assign page_paths = site.header_pages | default: default_paths -%}
+    <a class="site-title" rel="author" href="{{ "/" | relative_url }}">{{ site.title | escape }}</a>
 
-	{%- if page_paths -%}
-	  <nav class="site-nav">
-		<input type="checkbox" id="nav-trigger" class="nav-trigger" />
-		<label for="nav-trigger">
-		  <span class="menu-icon">
-			<svg viewBox="0 0 18 15" width="18px" height="15px">
-			  <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
-			</svg>
-		  </span>
-		</label>
+    {%- if page_paths -%}
+      <nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
 
-		<div class="trigger">
-		  {%- for path in page_paths -%}
-			{%- assign my_page = site.pages | where: "path", path | first -%}
-			{%- if my_page.title -%}
-			<a class="page-link" href="{{ my_page.url | relative_url }}">{{ my_page.title | escape }}</a>
-			{%- endif -%}
-		  {%- endfor -%}
-		</div>
-	  </nav>
-	{%- endif -%}
+        <div class="trigger">
+          {%- for path in page_paths -%}
+            {%- assign my_page = site.pages | where: "path", path | first -%}
+            {%- if my_page.title -%}
+            <a class="page-link" href="{{ my_page.url | relative_url }}">{{ my_page.title | escape }}</a>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </nav>
+    {%- endif -%}
   </div>
 </header>
 {% endraw %}
 ```
-最后一部分，遍历page_paths，把那些有title的page的title放上去。
+可以看到最后输出的是那些`site.pages`中，path为`page_paths`的页面。
 
-page_paths来自哪儿？根据上面的`assign` tag的定义，page_paths优先设置为`site.header_pages`，否则就使用默认的`site.pages`。
+`page_paths`又是啥？`assign page_paths = site.header_pages | default: default_paths`，优先取`site.header_pages`，如果该变量不存在，默认是default_paths。而default_paths的定义是`default_paths = site.pages | map: "path"`，也就是`site.pages`包含的page。
 
-`site.header_pages`应该是需要我们在`_config.yml`中自定义的变量。所以默认就是`site.pages`的值。
+默认情况下`site.header_pages`并不存在，所以最后输出的就是`site.pages`中的所有页面。
 
-> `site.pages`: A list of all Pages.
-
-因此，默认所有有title的page都会放在导航栏里。
+如果我们自定义了`site.header_pages`的内容，那最终的导航栏就是我们定义什么就输出什么。所以在`_config.yml`中增加以下内容内容：
+```
+# navigation bar items
+header_pages:
+        - about.md
+        - index.md
+```
+这样导航栏里就只有about和index两个页面的`page.title`了。
 
 参阅：
+- https://shopify.github.io/liquid/filters/map/
+- https://shopify.github.io/liquid/filters/where/
 - https://shopify.github.io/liquid/tags/variable/
 - https://jekyllrb.com/docs/variables/#site-variables
+- https://www.tahirtaous.com/exclude-pages-jekyll-navigation-menu-minima-theme/
+- https://stackoverflow.com/questions/25452429/excluding-page-from-jekyll-navigation-bar
 
 ## 增加评论系统
-TODO: 
-- https://desiredpersona.com/disqus-comments-jekyll/
-- 
+```
+# Disqus Comments
+disqus:
+        # Leave shortname blank to disable comments site-wide.
+        # Disable comments for any post by adding `comments: false` to that post's YAML Front Matter.
+        shortname: <your-shortname>
+```
+在一个中文网站里接入了国外的评论系统，应该注定我的网站是不会有人评论的吧……
 
-## 关于引用的代码中有Liquid tag的问题
-想引用一下layout模板的代码，但是代码里的Liquid tag竟然会被Liquid替换掉……即使使用markdown的代码引用格式，也不奏效……
+- https://desiredpersona.com/disqus-comments-jekyll/
+
+## 引用的代码中有Liquid tag，导致代码被替换了
+在这篇文章中我想引用一下layout模板的代码，但是代码里的Liquid tag竟然会被Liquid替换掉……即使使用markdown的代码引用格式，也不奏效……
 
 在Jekyll 4.0+ 中，可以在YAML中粗暴的使用：
 ```
@@ -596,4 +635,5 @@ Jekyll使用[Kramdown](https://kramdown.gettalong.org/)将markdown解析为html�
 多看几个官方网站：
 - minima的官网：https://github.com/jekyll/minima/blob/master/README.md
 - Jekyll的官网：https://jekyllrb.com/
+- `githup-pages`：https://github.com/github/pages-gem
 
