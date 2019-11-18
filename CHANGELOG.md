@@ -18,4 +18,12 @@
         - 增加目录toc；
         - 修改navigation bar的内容；
 
+## v0.1.0(2019-11-18)
+    * 功能
+        - 和GitHub Pages的依赖同步：使用Jekyll 3.8.5，使用github-pages指定的所有依赖；
+        - 使用bundler将所有需要的gem安装在工程本地；
+        - 修改README.md，添加使用方法；
+        - 使用`page.header_pages`自定义导航栏。需要定义一个YAML的array（之前错加上分号了）；
+        - 增加图片；
+
 
