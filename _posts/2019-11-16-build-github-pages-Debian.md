@@ -2,8 +2,8 @@
 layout: post
 title: "搭建个人GitHub Pages（Debian 9 Stretch）"
 date: 2019-11-16 16:13:19 +0800
-categories: [op, Jekyll]
-tags: [op, Jekyll]
+categories: [Jekyll]
+tags: [Jekyll]
 ---
 
 使用github搭建个人站，比如https://puppylpg.github.io，是一件很炫酷的事情。而且不用自己花钱买服务器，我还能说什么好，只能叫一声GitHub爸爸。

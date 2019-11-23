@@ -3,6 +3,6 @@
 # To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
 layout: home
 title: Home
-list_title: puppylpg wanna say -
+list_title: Latest Blogs
 ---
 Welcome to puppylpg's home website, pika~
