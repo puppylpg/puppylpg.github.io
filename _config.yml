@@ -37,8 +37,9 @@ google_analytics: UA-152831658-1
 
 # navigation bar items
 header_pages:
-        - about.md
+        - tags.md
         - index.md
+        - about.md
 # Build settings
 theme: minima
 plugins:
