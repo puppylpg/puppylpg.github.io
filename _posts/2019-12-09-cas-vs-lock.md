@@ -136,15 +136,83 @@ public class CasCounter {
 
 但是真实情况是，更多的时候还有计算任务，这样对共享变量的访问频率变会降低，通常CAS更高效。
 
-# JVM里的CAS - 原子变量类 AtomicXxx
-直接利用了硬件对并发的支持。
+# JVM里的CAS类 - 原子变量类：AtomicXxx
+JVM里的CAS原子变量类直接利用了硬件对并发的支持。
 
-另外虽然比如AtomicInteger extends Number，但是并没有extends Integer，因为Integer是基本类型的包装类，不可变。而AtomicInteger是可修改的。所以没有在AtomicInteger等类中override hashCode和equals等，也不应该拿它们做散列容器的key。
+## 底层CAS支持
+以AtomicInteger为例，它提供的compareAndSet复合操作：
+```
+    /**
+     * Atomically sets the value to the given updated value
+     * if the current value {@code ==} the expected value.
+     *
+     * @param expect the expected value
+     * @param update the new value
+     * @return {@code true} if successful. False return indicates that
+     * the actual value was not equal to the expected value.
+     */
+    public final boolean compareAndSet(int expect, int update) {
+        return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+    }
+```
+该操作使用了unsafe的compareAndSwapInt，这是一个native方法：
+```
+public final native boolean compareAndSwapInt(Object var1, long var2, int var4, int var5);
+```
+> Unsafe是位于sun.misc包下的一个类，主要提供一些用于执行低级别、不安全操作的方法，如直接访问系统内存资源、自主管理内存资源等，这些方法在提升Java运行效率、增强Java语言底层资源操作能力方面起到了很大的作用。
+> 
+> 具体可参考[Java魔法类：Unsafe应用解析](https://tech.meituan.com/2019/02/14/talk-about-java-magic-class-unsafe.html)
+
+Unsafe提供的CAS操作有：
+- compareAndSwapObject(Object o, long offset, Object expected, Object update);
+- compareAndSwapInt(Object o, long offset, int expected, int update);
+- compareAndSwapLong(Object o, long offset, long expected, long update);
+
+**offset指的是AtomicInteger的value字段在AtomicInteger对象中的内存偏移地址**：
+```
+    static {
+        try {
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicInteger.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+```
+在使用的时候，通过object和valueOffset可以定位value这个字段的内存地址，然后取该内存的值判断是否和expected相同，相同则将其更新为update。
+
+## 拓展原子复合操作
+有了基础的CAS操作，可以利用其搞一些原子的复合操作。
+
+比如AtomicInteger的getAndAdd，就是一个原子复合操作：
+```
+    /**
+     * Atomically adds the given value to the current value.
+     *
+     * @param delta the value to add
+     * @return the previous value
+     */
+    public final int getAndAdd(int delta) {
+        return unsafe.getAndAddInt(this, valueOffset, delta);
+    }
+```
+它使用的是unsafe的getAndAddInt，而这个方法就是使用unsafe自身的CAS操作compareAndSwapInt实现的：
+```
+    public final int getAndAddInt(Object object, long valueOffset, int delta) {
+        int oldValue;
+        do {
+            oldValue = this.getIntVolatile(object, valueOffset);
+        } while(!this.compareAndSwapInt(object, valueOffset, oldValue, oldValue + delta));
+
+        return oldValue;
+    }
+```
+其他原子复合操作例如getAndIncrement、getAndSet等都是使用底层CAS实现的**非阻塞算法**。
+
+另外虽然AtomicInteger extends Number，但是并没有extends Integer，因为Integer是基本类型的包装类，不可变。而AtomicInteger是可修改的。所以没有在AtomicInteger等类中override hashCode和equals等，也不应该拿它们做散列容器的key。
 
 # 可伸缩性
 程序除了运行快慢，还有“处理能力”的衡量标准，即在资源一定时，能完成的工作量。可伸缩性指当增加资源时，程序的处理能力能相应增加。
 
-但是**竞争与可伸缩性是背道而驰的**，**CAS能提高竞争的效率，从而提高程序的可伸缩性**。但是只有完全消除竞争，才能实现真正的可伸缩性。比如如果不是都必须使用同一个全局变量（eg：计数器）每个线程使用ThreadLocal保存原本争用的变量才是最高效的（有一种用空间换效率的感觉）。
+但是**竞争与可伸缩性是背道而驰的**，**CAS能提高竞争的效率，从而提高程序的可伸缩性**。但是只有完全消除竞争，才能实现真正的可伸缩性。eg：如果不是所有线程都必须使用同一个全局变量（eg：计数器），那么每个线程使用ThreadLocal保存原本争用的变量，使之不再需要争用，才是最高效的实现（有一种用空间换效率的感觉）。
 
 > 共享资源是线程增加时影响更大的处理能力的瓶颈。
 
