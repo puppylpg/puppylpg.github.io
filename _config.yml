@@ -41,6 +41,8 @@ header_pages:
         - index.md
         - about.md
 # Build settings
+timezone: Asia/Shanghai
+markdown: kramdown
 theme: minima
 plugins:
   - jekyll-feed
