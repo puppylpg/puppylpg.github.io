@@ -6,7 +6,7 @@ categories: [Jekyll]
 tags: [Jekyll]
 ---
 
-使用github搭建个人站，比如https://puppylpg.github.io，是一件很炫酷的事情。而且不用自己花钱买服务器，我还能说什么好，只能叫一声GitHub爸爸。
+使用Github搭建个人站，比如https://puppylpg.github.io，是一件很炫酷的事情。以后有什么所思所学都可以发布在自己的网站上，很是方便。（同时为了丰富网站的内容，还会经常不自觉地开始学习:D，简直是进步神器~）。最重要的是，这一切还不用自己花钱买服务器 :D
 
 1. Table of Contents, ordered                    
 {:toc}
