@@ -6,7 +6,7 @@ categories: Java lock concurrency
 tags: Java lock concurrency
 ---
 
-之前在[锁]({% post_url 2019-12-09-cas-vs-lock %})和[CAS vs. 锁]({% post_url 2019-12-10-lock %})中，对Java中提供的各种锁以及CAS进行了比较。这里通过一个具体的例子，来简单验证一下之前的分析，加深一下对这些锁的理解。
+之前在[锁]({% post_url 2019-12-10-lock %})和[CAS vs. 锁]({% post_url 2019-12-09-cas-vs-lock %})中，对Java中提供的各种锁以及CAS进行了比较。这里通过一个具体的例子，来简单验证一下之前的分析，加深一下对这些锁的理解。
 
 大概介绍了这么多锁同步机制：
 - 内置锁synchronized；
@@ -41,8 +41,6 @@ public interface Counter {
     void increment();
 }
 ```
-
-> [Counter.java](https://github.com/puppylpg/java-examples/blob/master/src/main/java/example/concurrency/synchronization/lock/counters/Counter.java)
 
 ## Dirty
 这是一种错误的实现。不加任何同步措施直接修改共享变量必然得不到正确的结果。放在这里只是用来作为一个基准：完全无锁情况下读写变量次数及总时间消耗。
@@ -163,7 +161,7 @@ public class ReadWriteLockDefault implements Counter {
 ```
 
 ## Lock + 公平策略
-默认的ReentrantLock使用的是非公平策略（synchronized也是非公平策略），效率更高（原因同样见[锁]({% post_url 2019-12-09-cas-vs-lock %})）。
+默认的ReentrantLock使用的是非公平策略（synchronized也是非公平策略），效率更高（原因同样见[锁]({% post_url 2019-12-10-lock %})）。
 
 这里再加一个公平策略的ReentrantLock，看看性能是不是真的差很多：
 ```

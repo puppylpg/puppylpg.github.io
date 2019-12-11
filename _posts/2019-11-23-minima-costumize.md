@@ -242,6 +242,29 @@ site.tags[1]: array of posts in this tag
 - https://jekyllrb.com/docs/posts/#categories-and-tags
 - https://gist.github.com/Phlow/57eb457898e4ac4c4a20
 
+# 使用自定义时区显示时间
+发表的文章，在Front Matter中加入date：
+```
+date: 2019-12-10 02:11:29 +0800
+```
+本地Jekyll编译后的内容为：
+```
+<time class="dt-published" datetime="2019-12-10T02:11:29+08:00" itemprop="datePublished">Dec 10, 2019</time>
+```
+但是发布到Github Pages上之后，会被编译为：
+```
+<time class="dt-published" datetime="2019-12-09T18:11:29+00:00" itemprop="datePublished">Dec 9, 2019</time>
+```
+也就是说我们指定时间并带上时区之后，Jekyll还是会按照机器本身的TimeZone去编译，比如2019-12-10 02:11:29 +0800，代表东八区（UTC+8）2019-12-10的凌晨两点，它就是UTC的2019-12-09的下午18点。
+
+在GitHub Pages编译我的post的时候，由于我没有指定想要使用的时区，它应该是就按系统的UTC时区编译了。
+在我自己的电脑上，本地的Jekyll是按照我本地系统的时区东八区来编译的。
+
+所以：**指定一个带时区的时间，只不过是准确地表述了一个时间点罢了**，具体最终按哪个时区显示，还要看设置的timezone，或者如果不设置，就看编译的机器所使用的时区。**如果指定时区的时候连时区都不带，准确来说，这个时间是不合理的**。比如我说2019-01-01 10点，具体是哪一刻的时间点呢？不知道，因为世界上24个时区，有24个这种时间点，所以只有带上时区，才知道我指的是具体哪一个时间点。
+
+解决办法：
+`_config.yml`中加入：`timezone: Asia/Shanghai`设定想要使用东八区即可。
+
 # 添加Google Analytics
 想知道网站的访问情况，用户特征等等信息，可以使用Google Analytics进行统计。本质上这就是个回调函数，一旦有人访问，就给Google Analytics发这些信息，Google会记录下来做统计。
 
