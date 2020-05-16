@@ -2,8 +2,8 @@
 layout: post
 title: "序列化 - protobuf"
 date: 2020-5-15 03:09:06 +0800
-categories: protobuf Serialization
-tags: protobuf Serialization
+categories: protobuf serialization
+tags: protobuf serialization
 ---
 
 https://developers.google.com/protocol-buffers/docs/overview
@@ -224,16 +224,18 @@ field number如此重要，那么新协议把旧协议的一个repeated string�
 - 速度快：直接读字节、翻译字节就够了，不用像xml一样读完所有字节，构建结构树。
 
 # 感想
+## 数据结构决定灵活度 - List vs. Map
 序列化的决策方式，决定了实现的优缺点：
-1. 上面举例的普通序列化方式，序列化和反序列化使用了一个默认的约定顺序，所以导致两个操作顺序必须一模一样、字段没有值的时候也必须write一个值，比如false，代表这个字段没值；
-2. json使用name作为序列化反序列化的约定，同name就是同一个field，所以顺序可以不定，比较自由，但是一个name如果不用了，不能删掉。否则如果后续别人新加了同样的一个name字段，新老协议在相互转换的时候name的含义不一致了，其实就出错了；
-3. protobuf使用field number作为序列化反序列化的约定，有点儿像json，也比较自由，序列化和反序列化时操作的字段顺序可以不定。同样field number如果不用了，也不要删，或者说可以删，但必须声明为reserved也不让后来者用。
+1. 上面举例的普通序列化方式，共同保持了相同的字段顺序，**保存字段的方式有点儿像数组**，字段顺序不可变更。而且，字段没有值的时候也必须write一个值，比如false，代表这个字段值不存在；
+2. json使用name-value pair作为序列化反序列化的约定，**保存字段的方式类似于map**。所以不存在字段的顺序问题。同name就是同一个field，但是一个name如果不用了，不能删掉。否则如果后续别人新加了同样的一个name字段，新老协议在相互转换的时候name的含义不一致了，其实就出错了；
+3. protobuf使用field number-value作为序列化反序列化的约定，**保存字段的方式类似于map**，也不存在字段的顺序问题。同样field number如果不用了，也不要删，或者说可以删，但必须声明为reserved也不让后来者用。
 
+## 数据结构决定效率
 在同样存储一个数字的实现上，不同的实现方式差别也很大：
-1. 普通序列化方式再存储数字时，就是直接序列化该数字；
-2. protobuf使用了自定义的Varint，用边长编码存储数字，平均下来体积要小很多。使用sint32采用ZigZag的方式存储负值，又是一个很大的改进。
+1. 普通序列化方式在存储数字时，就是直接序列化该数字；
+2. protobuf使用了自定义的Varint，用变长编码存储数字，平均下来体积要小很多。使用sint32采用ZigZag的方式存储负值，又是一个很大的改进。
 
-这些决策和实现综合起来，序列化的效率大大提高了。
+这些对序列化的灵活度和存储效率影响极大。
 
 还有一个不错的中文参阅：
 - https://www.ibm.com/developerworks/cn/linux/l-cn-gpb/
