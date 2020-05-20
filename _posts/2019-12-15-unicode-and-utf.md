@@ -279,8 +279,16 @@ Java中的char（或者它的包装类Character）**一开始是基于原始的U
 ```
 因此接收char的方法判断会出错（因为判断的实际上不是这个字符，而是被截断的字符）。但是**接收int的方法不会截断该字符**。
 
+## c的char 1byte，java的char 2byte
+- c诞生的时候，ASCII看起来是够的。所以1byte够了；
+- java诞生的时候，UCS-2，65536，2byte看起来是够的，所以用了2byte；
+- 结果都不够，现在Unicode已经扩充到17个面板了。话说回来，如果现在让我设计一门语言，也许我内部的char用4byte表示了呢。然后N年后，外星人也来了，当把他们的语言也编进来的时候，他们会觉得4byte又不够表示了，他们肯定会问，为什么我的char不用8byte表示……
+
+Ref:
+- https://stackoverflow.com/a/9354024/7676237
+
 ## string.lentgh()
-**Java的String可以理解为char数组**，char是UTF-16编码的，所以String也是UTF-16编码的。
+Java的String可以理解为char数组，**实际上，String底层就是封装了一个char数组，用来保存数据**。char是UTF-16编码的，所以String也是UTF-16编码的。
 
 String的length方法返回的是**Unicode code units的个数**：
 > Returns the length of this string. The length is equal to the number of Unicode code units in the string.
