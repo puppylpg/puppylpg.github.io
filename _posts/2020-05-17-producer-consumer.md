@@ -216,7 +216,11 @@ public class SleepyBoundedBuffer<V> extends BasedBoundedBuffer<V> {
 
 **Java中每个对象都可以作为一个锁，也是一个条件队列**。Object的wait/notify/notifyAll方法构成了条件队列的API。
 
-> 想调用某个对象的条件队列的任何一个方法（wait/notify/notifyAll），必须先持有该对象的锁，否则会抛出`java.lang.IllegalMonitorStateException`，因为“判断条件队列的状态”和“操作其状态” 必须绑定在一起，从而将一个复合操作变成原子操作。
+> 想调用某个对象的条件队列的任何一个方法（wait/notify/notifyAll），必须先持有该对象的锁，否则会抛出`java.lang.IllegalMonitorStateException`。对象的内置锁与其条件队列是相互关联的，想调用它的条件队列的方法，必须先持有该对象的锁。**只有能检查状态（必须获取该对象锁），才能调用wait等待某条件发生；只有能修改状态（必须获取该对象锁），才能调用signal从条件等待中释放另一个线程。**
+
+> wait/notify实际上应该属于一个“条件变量”（condition variable）比如mutex，**先获取该锁，再互斥操作临界资源**。Java则把这个condition variable的功能放到了Object里，所以所有的对象都可以成为锁。**一般在Java里，让临界资源充当锁。所以锁和临界资源合为一体了。** C++则是有一个单独的condition variable实现：https://en.cppreference.com/w/cpp/thread/condition_variable
+
+> 如果世界上没有条件变量机制，cpu就只能轮询等待某条件成立。
 
 ## wait
 释放锁，并等待被唤醒。
