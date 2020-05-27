@@ -7,7 +7,7 @@ tags: REST HttpMessageConverter
 # render_with_liquid: false
 ---
 
-构建RESTful服务（算了，还是说RESTful服务比较顺口）的时候，HttpMessageConverter可以完成消息发出前的序列化、消息收到后的反序列化，是的RESTful server或者RESTful client可以不用太关心消息的序列化反序列化，专心构建业务逻辑即可。
+构建RESTful服务（算了，还是说RESTful服务比较顺口）的时候，HttpMessageConverter可以完成消息发出前的序列化、消息收到后的反序列化，使得我们在构建RESTful server或者RESTful client的时候可以不用太关心消息的序列化反序列化，专心构建业务逻辑即可。
 
 1. Table of Contents, ordered                    
 {:toc}
@@ -82,7 +82,9 @@ HttpMessageConverter的使用基本可以总结为如下几条：
         ProtobufHttpMessageConverter protobufConverter = new ProtobufHttpMessageConverter();
         RestTemplate restTemplate = new RestTemplate(Collections.singletonList(protobufConverter));
 ```
-但需要注意的是，这么做会清空默认注册的那些converter。所以自己注册converter的时候，一定要把需要的converter全部手动注册上。
+这样就可以把自定义的converter添加到RestTemplate的converter列表里。
+
+> 如果使用`setMessageConverters`方法，需要注意RestTemplate会先清掉自己的converts，再设置手动设置的converters。所以调用set方法注册converter的时候，一定要把需要的converter全部手动注册上。
 
 ## 选择converter
 如何选择converter，主要是根据请求头的信息。
