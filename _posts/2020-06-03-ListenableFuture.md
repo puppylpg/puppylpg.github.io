@@ -18,7 +18,11 @@ JDK里的Future在[ListenableFutureExplained](https://github.com/google/guava/wi
 
 Future是一个约定：一个放置任务结果的地方。在任务结束后，任务的执行结果会放在Future里，供可访问Future的线程获取任务结果。
 
-所以Future定的这个约定一定有人来执行，这个执行人就是ExecutorService。ExecutorService的submit方法提交一个Runnable/Callable任务，并创建一个Future。**最终，在任务完成之后，ExecutorService会遵照约定，将任务结果放入Future。**
+Future定下的这个约定在Future的实现类（RunnableFuture的实现类）FutureTask里达成的：**FutureTask的run方法封装了任务的run/call方法！** 当任务执行结束时（无论成功还是异常），其结果或异常都会被set到FutureTask的Object outcome里。当对该Future调用get方法时，get的就是这个outcome。**这就是为什么FutureTask一定是一个Runnable子类，它必须能异步执行任务，该任务会先搞定原有task，再做一些后处理（set结果到某个地方等）。**
+
+> 所以当我们异步执行任务时，执行的并不是原有的Runnable/Callable，而是FutureTask的run，这个run是异步执行的，并且会去调用Runnable/Callable task的任务执行方法。
+
+最终执行FutureTask的执行者是ExecutorService。ExecutorService的submit方法提交一个Runnable/Callable任务（**FutureTask的run任务**），由于FutureTask的run任务会将原有task的结果放入outcome，该契约达成。
 
 ## ListenableFuture &. ListeningExecutorService
 Guava里的ListeableFuture拓展了JDK中的Future，新增了一个方法：
@@ -27,23 +31,20 @@ void addListener(Runnable listener, Executor executor);
 ```
 可以给Future注册一些回调函数。这里ListenableFuture也做出了一个约定：当任务执行完毕时，会调用回调函数。
 
-同样ListenableFuture的约定也得有人来执行。这个人不会是JDK里的ExecutorService，因为ExecutorService根本不知道有ListenableFuture这个东西，也无从执行这个约定。所以Guava还定义了ListenableFuture约定的执行者：ListeningExecutorService。
+类比Future的实现类FutureTask，ListenableFuture执行完Runnable/Callable task会调用回调这一约定，也是在ListenableFuture的实现类的run()方法里搞定的。（不过Guava实现的比较复杂，使用了多个类，但大意就是这样）
 
-ListeningExecutorService拓展了ExecutorService接口，新增了返回ListenableFuture的submit方法。同时ListeningExecutorService的所有实现类也都会在任务完成后，调用注册到ListenableFuture里的回调函数。
+返回ListenableFuture这种事情，JDK里的ExecutorService肯定做不到（因为ExecutorService根本不知道有ListenableFuture这个东西）。所以Guava还定义了返回ListenableFuture的执行者：ListeningExecutorService。
+
+ListeningExecutorService拓展了ExecutorService接口，新增了返回ListenableFuture的submit方法。
 
 # 兑现
 想兑现约定需要两步：
-1. 返回ListenableFuture；
-2. 调用ListenableFuture的回调；
+1. 对于ListeningExecutorService：返回ListenableFuture；
+2. 对于ListenableFuture：调用注册在自己里面的回调；
 
 ## 返回ListenableFuture
-其实ListeningExecutorService和ExecutorService基本上差不太多，区别在于：
-- 返回的必须是ListenableFuture而不是普通Future；
-- 在任务执行完之后，调用所有ListenableFuture里注册的回调函数；
+其实ListeningExecutorService和ExecutorService基本上差不太多，主要是要实现一个返回ListenableFuture的submit方法。所以在实际实现上，Guava里的ListeningExecutorService的实现类继承了JDK里的ExecutorService的实现类，只是override了某些方法。
 
-所以在实际实现上，Guava里的ListeningExecutorService的实现类继承了JDK里的ExecutorService的实现类，只是override了某些方法。
-
-## 返回ListenableFuture
 在JDK的ExecutorService抽象实现AbstractExecutorService里，创建Future对象是通过`protected newTaskFor()`方法来实现的，所以ListeningExecutorService的抽象实现AbstractListeningExecutorService只需要override newTaskFor方法，返回ListenableFuture就行了。
 
 此时我不得不感慨JDK代码的精妙之处：
@@ -73,10 +74,10 @@ ListeningExecutorService拓展了ExecutorService接口，新增了返回Listenab
 ```
 **所以将共有逻辑抽出来封装成函数，不仅让本类的代码可复用，日后改起来更简单（只改一处即可），也让继承类（子类）在修改这部分逻辑时更简单（只override这一处即可）。**
 
-## 执行回调
-这个其实比较简单，回调注册到ListenableFuture之后，一般回放在一个list里，需要调用回调的时候，遍历并执行这个list就好。
+## ListenableFuture执行回调
+这个其实比较简单，回调注册到ListenableFuture之后，一般会放在一个list里，需要调用回调的时候，遍历并执行这个list就好。
 
-问题在于什么时候需要回调？任务完成（成功或者抛出异常）之后。但实际上ExecutorService只是执行了任务（的run方法），之后就不管了。没有所谓的afterDone逻辑。所以实际实现时，执行回调这一步骤是放在ListenableFuture的实现方法run()里的：
+问题在于什么时候需要回调？Runnable/Callable任务完成（成功或者抛出异常）之后。**和FutureTask的run类似（执行原有task任务，set结果到outcome），ListenableFuture在此基础上多做了一步：执行回调**：
 ```
     @Override
     public void run() {
@@ -92,13 +93,12 @@ ListeningExecutorService拓展了ExecutorService接口，新增了返回Listenab
       }
     }
 ```
-也就是说，**执行完任务，就直接执行回调了。** 
 
-> ListenableFuture实际上拓展的是RunnableFuture接口（所以也拓展了Future接口）。但是**RunnableFuture才是真正的任务（Runnable）+结果（Future）**。实际上JDK里Future的实现类FutureTask实现的就是RunnableFuture接口。有任务（Runnable），ExecutorService才能执行该任务嘛！
+其实还有一种更简单的方式：ListenableFuture不就是比RunnableFuture多了一个调用回调嘛，在RunnableFuture的实现类FutureTask的run里，它执行了任务，设置了结果，并调用了done()方法（当然done方法对于FutureTask来说啥也没干，是空的），Guava也搞了个`ListenableFutureTask extends FutureTask`，除了实现addListener接口（把callback放入list），还override了done()方法（调用回调）。简简单单就搞定了。（但是为啥通过MoreExecutors.listeningDecorator获取的ListeningExecutorService返回的是另一个ListenableFuture的实现，而不是简简单单的ListenableFutureTask，我也不知道。可能另一种实现更健壮吧）
 
-仔细想想，**将回调放在任务之后一起执行，又引入了一个新问题**：如果回调执行时间过长怎么办？岂不是相当于延长了任务执行时间，导致任务迟迟不能返回（Future.isDone()）？
+仔细想想，**将回调放在原有的Runnable/Callable任务之后一起执行，又引入了一个新问题**：如果回调执行时间过长怎么办？岂不是相当于延长了任务执行时间，导致任务迟迟不能返回（Future.isDone()）？
 
-所以在complete函数的实现里，执行这些回调是通过指定的Executor异步完成的。这样就不耽误执行任务的线程的结束。至于这个Executor是谁，看ListenableFuture的`addListener(Runnable, Executor)`方法，是可以给这些回调任务指定Executor的。
+所以在complete函数的实现里，**执行这些回调是通过（指定的）Executor异步完成的**。这样就不耽误执行任务的线程结束，及时返回任务执行结果。至于这个Executor是谁，看ListenableFuture的`addListener(Runnable, Executor)`方法，是可以给这些回调任务指定Executor的。
 
 # FutureCallable - 更高级的回调形式
 在ListenableFuture里，增加的回调是一个Runnable。Guava还提供了一个类：`CallbackListener implements Runnable`。也就是说CallbackListener是可以作为回调注册到ListenableFuture里的（因为它是Runnable）。
@@ -232,6 +232,107 @@ ListeningExecutorService拓展了ExecutorService接口，新增了返回Listenab
 
 如果不等3s，main thread结束，但是task已经提交了，所以exiting pool会最多等10s（注册在shutdown hook里的awaitTermination()方法的作用），等任务完成。但是由于也在shutdown hook里注册了shutdown()方法，**所以线程池不再接收新的任务了（callback任务），所以callback不会被执行**。
 
+# 其他
+## ListenableFutureTask
+上面提到了这是继承了JDK FutureTask的ListenableFuture的实现类。该类提供了创建它的方法工具类方法：
+```
+  public static <V> ListenableFutureTask<V> create(Callable<V> callable) {
+    return new ListenableFutureTask<V>(callable);
+  }
+
+  public static <V> ListenableFutureTask<V> create(Runnable runnable, @Nullable V result) {
+    return new ListenableFutureTask<V>(runnable, result);
+  }
+```
+同样，该类的构造函数不是public的，Guava不让直接new。
+
+## Future转ListenableFuture
+Guava建议从源码层面，修改旧的返回Future的代码，让它返回ListenableFuture。但是如果万不得已，不能修改原来的代码，又想将一个返回Future的API返回的Future转成ListenableFuture，Guava还提供了一个重量级转换方式：
+```
+JdkFutureAdapters.listenInPoolThread(Future)
+```
+它实际上将Future转成了另一个ListenableFuture的实现类：ListenableFutureAdapter。
+
+看名字就知道，它是一个封装了Future的Wrapper，所有有关Future的方法都交给了底层的Future处理。自己只实现了ListenableFuture接口中新增的addListener方法。
+
+那么问题来了：之前的ListenableFuture的实现类除了要实现addListener接口之外，还要做一件事：override done()方法，这样任务完成时，就能执行回调接口了。ListenableFutureAdapter既然把方法原封不动委托给了底层的Future，自然并没有新增的调用回调这一步骤。那回调是什么时候被调用的？
+
+看它的addListener的实现：
+```
+    @Override
+    public void addListener(Runnable listener, Executor exec) {
+      executionList.add(listener, exec);
+
+      // When a listener is first added, we run a task that will wait for the delegate to finish,
+      // and when it is done will run the listeners.
+      if (hasListeners.compareAndSet(false, true)) {
+        if (delegate.isDone()) {
+          // If the delegate is already done, run the execution list immediately on the current
+          // thread.
+          executionList.execute();
+          return;
+        }
+
+        // TODO(lukes): handle RejectedExecutionException
+        adapterExecutor.execute(
+            new Runnable() {
+              @Override
+              public void run() {
+                try {
+                  /*
+                   * Threads from our private pool are never interrupted. Threads from a
+                   * user-supplied executor might be, but... what can we do? This is another reason
+                   * to return a proper ListenableFuture instead of using listenInPoolThread.
+                   */
+                  getUninterruptibly(delegate);
+                } catch (Throwable e) {
+                  // ExecutionException / CancellationException / RuntimeException / Error
+                  // The task is presumably done, run the listeners.
+                }
+                executionList.execute();
+              }
+            });
+      }
+    }
+```
+- 如果添加listener的时候任务已完成，执行所有的回调；
+- 如果添加listener的时候任务还没完成，使用一个新的线程池，发起一个异步任务，专门等future完成，如果future完成，再发起执行所有的listener的流程（但是这个线程池不执行listener。实际listener由哪个线程池来执行，取决于注册listener的时候，指定让哪个线程池来执行该listener）：
+```
+  public static <V> V getUninterruptibly(Future<V> future) throws ExecutionException {
+    boolean interrupted = false;
+    try {
+      while (true) {
+        try {
+          return future.get();
+        } catch (InterruptedException e) {
+          interrupted = true;
+        }
+      }
+    } finally {
+      if (interrupted) {
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+```
+这个发起新的监视Future是否完成、完成就执行listener的线程池可以在构建ListenableFutureAdapter时传入：
+```
+    ListenableFutureAdapter(Future<V> delegate, Executor adapterExecutor) {
+      this.delegate = checkNotNull(delegate);
+      this.adapterExecutor = checkNotNull(adapterExecutor);
+    }
+```
+否则使用默认的线程池：
+```
+    private static final ThreadFactory threadFactory =
+        new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("ListenableFutureAdapter-thread-%d")
+            .build();
+    private static final Executor defaultAdapterExecutor =
+        Executors.newCachedThreadPool(threadFactory);
+```
+所以现在知道Guava认为这种转换方式heavyweight的原因了：ListenableFutureAdapter内部是用了一个新的线程池，每当有新的回调注册到ListenableFutureAdapter上的时候，这个线程池都要提交一个新的任务：监视Future是否完成、完成则发起回调流程（由注册每个回调时指定的线程池实际执行回调任务）。
+
 # 参阅
 - https://github.com/google/guava/wiki/ListenableFutureExplained
-
