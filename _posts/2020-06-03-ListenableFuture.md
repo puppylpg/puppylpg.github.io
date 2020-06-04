@@ -2,8 +2,8 @@
 layout: post
 title: "ListenableFuture"
 date: 2020-06-03 02:30:06 +0800
-categories: Java Guava Future ListenableFuture
-tags: Java Guava Future ListenableFuture
+categories: Java Guava Future ListenableFuture async
+tags: Java Guava Future ListenableFuture async
 ---
 
 ListenableFuture是Guava里拓展了Future的接口，增加了回调行为。所以要比Future更强大。Guava建议使用ListenableFuture取代Future。而且，看ListenableFuture的实现过程，也能让人获益良多。
@@ -232,7 +232,7 @@ ListeningExecutorService拓展了ExecutorService接口，新增了返回Listenab
 
 如果不等3s，main thread结束，但是task已经提交了，所以exiting pool会最多等10s（注册在shutdown hook里的awaitTermination()方法的作用），等任务完成。但是由于也在shutdown hook里注册了shutdown()方法，**所以线程池不再接收新的任务了（callback任务），所以callback不会被执行**。
 
-# 其他
+# 创建ListenableFuture
 ## ListenableFutureTask
 上面提到了这是继承了JDK FutureTask的ListenableFuture的实现类。该类提供了创建它的方法工具类方法：
 ```
@@ -246,7 +246,18 @@ ListeningExecutorService拓展了ExecutorService接口，新增了返回Listenab
 ```
 同样，该类的构造函数不是public的，Guava不让直接new。
 
-## Future转ListenableFuture
+> 但是这样新建的ListenableFuture得想办法执行啊，要不然直接调用get是会block的。不执行怎么会有结果……
+
+## Futures.immediateFuture(V)
+直接返回一个ListenableFuture。感觉写Demo的时候用这个生成ListenableFuture会比较方便。
+
+该方法实际上一个ImmediateSuccessfulFuture。**它只实现了ListenableFuture接口，没有实现RunnableFuture或者实现Runnable接口，因为它不需要发起一个异步任务，去异步完成task并设置value。**
+
+所以它的实现很简单：
+- get方法直接return创建时指定的value就行了（再次印证：**不需要执行任务，所以不需要实现Runnable接口**）；
+- addListener：在listener add进来的时候直接执行就行了。因为没有task要执行，所以task肯定是已完成状态。
+
+# Future转ListenableFuture
 Guava建议从源码层面，修改旧的返回Future的代码，让它返回ListenableFuture。但是如果万不得已，不能修改原来的代码，又想将一个返回Future的API返回的Future转成ListenableFuture，Guava还提供了一个重量级转换方式：
 ```
 JdkFutureAdapters.listenInPoolThread(Future)
@@ -334,5 +345,172 @@ JdkFutureAdapters.listenInPoolThread(Future)
 ```
 所以现在知道Guava认为这种转换方式heavyweight的原因了：ListenableFutureAdapter内部是用了一个新的线程池，每当有新的回调注册到ListenableFutureAdapter上的时候，这个线程池都要提交一个新的任务：监视Future是否完成、完成则发起回调流程（由注册每个回调时指定的线程池实际执行回调任务）。
 
+# 链式调用ListenableFuture
+ListenableFuture由于可以注册listener，可以做到JDK的Future不能做到的行为：
+- 一个ListenableFuture结束后，触发另一些回调行为；
+- 一堆ListenableFuture结束后，触发一个ListenableFuture的执行；
+
+## 把ListenableFuture作为回调，构成链式调用的ListenableFuture
+之所以能这么做，因为ListenableFuture的某些实现（比如ListenableFutureTask）本身可能就是一个实现了Runnable的类，所以可以把ListenableFuture当做回调注册到另一个ListenableFuture上：
+```
+        // run task
+        ListenableFuture<String> hello = service.submit(
+                () -> {
+                    Thread.sleep(1 * 1000);
+                    System.out.println("Task: I say hello");
+                    return "Hello";
+                });
+
+        // Task
+        ListenableFutureTask<String> world = ListenableFutureTask.create(
+                () -> {
+                    Thread.sleep(1 * 1000);
+                    System.out.println("ListenableFuture as a callback: I say world");
+                    return "World";
+                });
+
+        hello.addListener(world, service);
+```
+
+## 给ListenableFuture的结果添加动作，修改其结果 - `Futures.transform(ListenableFuture, Function, Executor)`/`Futures.transformAsync(Listenable, AsyncFunction, Executor)`
+上面的情况只是在ListenableFuture结束后触发回调，但是回调并不能改变原始ListenableFuture的值。想想如果要改变原来的值，返回一个新的值，应该怎么做？
+
+很显然，要在初始结果上执行动作，必须先获取初始结果，再用动作改变初始结果（或返回新的值）。
+
+ListenableFuture触发callback这一要求，使得它的实现只需要override done()方法，调用一下callback就可以了。done()方法标志了task的结束，但是done方法并没有将task的结果作为传进来。不过这也好办：override done()，并get到task的结果，再使用动作修改该结果就行了。
+
+Futures提供的transForm/transFormAsync正是一种简便的方式。其实它的底层就是返回一个新的ListenableFuture实现，该实现在任务完成后获取future结果，并执行响应同步/异步动作。
+
+下面的例子，原始ListenableFuture返回了Hello，同步动作拼接一个World，返回一个新的ListenableFuture。异步动作再在新返回的ListenableFuture上添加一个新动作：拼接感叹号。
+```
+        // exiting thread pool
+        ListeningExecutorService service = MoreExecutors.listeningDecorator(
+                MoreExecutors.getExitingExecutorService(
+                        (ThreadPoolExecutor) Executors.newFixedThreadPool(10),
+                        10, TimeUnit.SECONDS
+                )
+        );
+
+        // run task
+        ListenableFuture<String> hello = service.submit(
+                () -> {
+                    Thread.sleep(1 * 1000);
+                    System.out.println("Task: I say hello");
+                    return "Hello";
+                });
+
+        ListenableFuture<String> helloWorld = Futures.transform(hello, new Function<String, String>() {
+            @Nullable
+            @Override
+            public String apply(@Nullable String input) {
+                return input + "World";
+            }
+        }, service);
+
+        AsyncFunction<String, String> f = input -> Futures.immediateFuture(input + "!!!!!");
+
+        ListenableFuture<String> helloWorld2 = Futures.transformAsync(helloWorld, f, service);
+
+
+        // add callback for this task
+        Futures.addCallback(
+                // this task
+                helloWorld2,
+                // callback for this task
+                new FutureCallback<String>() {
+                    @Override
+                    public void onSuccess(String explosion) {
+                        System.out.println("Call back: " + explosion);
+                    }
+                    @Override
+                    public void onFailure(Throwable thrown) {
+                        System.out.println(thrown.getMessage()); // escaped the explosion!
+                    }
+                },
+                // use this pool to run callback
+                service);
+```
+当然，这个AsyncFunction实现的并没有异步的味道，换成下面的实现也许更合适：
+```
+        AsyncFunction<String, String> f = input -> service.submit(
+                () -> {
+                    Thread.sleep(1 * 1000);
+                    return input + "!!!!!";
+                });
+```
+
+## 在一系列ListenableFuture完成后，触发新的ListenableFuture，使用他们的结果
+适用场景：**在一堆异步动作全部完成后，再执行某一动作。**
+
+创建了三个异步ListenableFuture，拼接起来为新的ListenableFuture（返回值为三个ListenableFuture的返回值组成的List，按序）。最后给这个汇总的ListenableFuture注册个callback，输出这个list join起来的值：
+```
+        // exiting thread pool
+        ListeningExecutorService service = MoreExecutors.listeningDecorator(
+                MoreExecutors.getExitingExecutorService(
+                        (ThreadPoolExecutor) Executors.newFixedThreadPool(10),
+                        10, TimeUnit.SECONDS
+                )
+        );
+
+        ListenableFuture<String> hello = Futures.immediateFuture("Hello");
+        // ListenableFutureTask.create创建出来的ListenableFuture必须想办法调用.....要不然不会执行啊
+        // 不能跟人家immediate future比，人家又不需要执行......
+        ListenableFutureTask<String> world = ListenableFutureTask.create(() -> "World");
+        hello.addListener(world, service);
+
+        ListenableFuture<String> symbol = service.submit(() -> {
+            Thread.sleep(1000);
+            return "!!!!!";
+        });
+
+        ListenableFuture<List<String>> allResults = Futures.allAsList(hello, world, symbol);
+
+        // add callback for this task
+        Futures.addCallback(
+                // this task
+                allResults,
+                // callback for this task
+                new FutureCallback<List<String>>() {
+                    @Override
+                    public void onSuccess(List<String> results) {
+                        System.out.println("Use callback to collect the result: " + String.join("-", results));
+                    }
+                    @Override
+                    public void onFailure(Throwable thrown) {
+                        System.out.println(thrown.getMessage()); // escaped the explosion!
+                    }
+                },
+                // use this pool to run callback
+                service);
+
+        // main thread wait at least 3s to exit
+        // mainly to wait callback to be added into exiting thread pool
+        Thread.currentThread().join(3000);
+    }
+```
+
+# Futures
+差不过也把Futures工具类里的方法说完了，再全面总结一下吧。
+
+注册回调：
+- addCallback：方便地注册callback到ListenableFuture上的方法，可以注册个FutureCallback，而不是一个简单的Runnable；
+
+汇总（异步）执行结果：
+- allAsList：汇总ListenableFuture们的执行结果；
+- successfulAsList
+
+快速生成demoListenableFuture：
+- immediateCancelledFuture/immediateFailedFuture/immediateFuture：目前觉得这些是适合写demo时生成ListenableFuture的好方式；
+
+转换ListenableFuture的结果（链式增加执行动作）：
+- transform
+- transFormAsync
+
+其他的需要用或者用到了再说吧。
+
+# 总结
+通过对ListenableFuture的学习和对源码的阅读，感觉异步这一块儿变得相当通透了！Guava牛逼（破音）~
+
 # 参阅
 - https://github.com/google/guava/wiki/ListenableFutureExplained
+
