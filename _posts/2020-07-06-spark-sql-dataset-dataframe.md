@@ -125,4 +125,95 @@ RDD[String]转RDD[Row]的时候和RDD[String]转RDD[T]（T是一个case class）
 # IO
 - https://spark.apache.org/docs/latest/sql-data-sources.html
 
+## load
+```
+sparkSession.read.format("xxx").load(path)
+```
+spark load file的时候必须指定类型，比如全限定名`org.apache.spark.sql.parquet`，但是对于内置的格式，使用简写也可以，比如json/parquest/csv/text/avro等。
+
+load之前还能指定一些option选项，比如：
+```
+spark.read.format("csv")
+    .option("header", "true")
+    .option("seq", ";")
+    .load(path)
+```
+告诉spark读的时候有header，分隔符不是逗号而是分号。
+
+所有的csv的option可参考：
+- https://docs.databricks.com/data/data-sources/read-avro.html
+
+spark的源代码中也可以窥见对这些option的使用：
+- https://github.com/apache/spark/blob/v2.1.0/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/csv/CSVOptions.scala#L74
+
+所有的datasource文档见：
+- https://docs.databricks.com/data/data-sources/index.html
+
+读的时候支持filter和递归读取模式
+```
+val testGlobFilterDF = spark.read.format("parquet")
+  .option("recursiveFileLookup", "true")
+  .option("pathGlobFilter", "*.parquet") // json file should be filtered out
+  .load("examples/src/main/resources/dir1")
+```
+
+## save
+```
+dataset.write.format("xxx").save(path)
+```
+
+一般存储的时候会指定模式，可以用Enum类也可以直接用plain text：
+- SaveMode.Overwrite/"overwrite"：文件已存在则覆盖，一般用这个；
+- SaveMode.Append/"append"
+- SaveMode.ErrorIfExists/"error"/"errorifexists"：**默认情况**，如果文件已存在，报错；
+- SaveMode.Ignore/"ignore"：如果文件已存在，忽略。既不overwrite也不error。
+
+# DataFrameWriter: partitionBy/bucketBy/sortBy
+都是DataFrameWriter里的方法。
+
+```
+val df = Seq((2012, 8, "Batman", 9.8),
+    (2012, 8, "Hero", 8.7),
+    (2012, 7, "Robot", 5.5),
+    (2011, 7, "Git", 2.0))
+    .toDF("year", "month", "title", "rating")
+
+df.write.mode("overwrite").partitionBy("year", "month").format("avro").save("/tmp/test_dataset")
+```
+文件会以如下形式存放：
+```
+dbfs:/tmp/test_dataset/year=2011/
+dbfs:/tmp/test_dataset/year=2012/
+```
+读的时候**指定到根目录就行了**：
+```
+val data = spark.read.format("avro").load("/tmp/test_dataset")
+```
+这样存放和直接存Dataset，在读取后没啥区别，不过看起来在hdfs上更“条理化”了。
+
+# 时间（格式）转换
+- https://spark.apache.org/docs/latest/sql-ref-datetime-pattern.html
+- https://spark.apache.org/docs/latest/sql-ref-functions-builtin.html#date-and-timestamp-functions
+
+# UDF
+- https://docs.databricks.com/spark/latest/spark-sql/udf-scala.html
+- https://spark.apache.org/docs/latest/api/scala/org/apache/spark/sql/functions$.html#udf[RT](f:()=%3ERT)(implicitevidence$3:reflect.runtime.universe.TypeTag[RT]):org.apache.spark.sql.expressions.UserDefinedFunction
+- https://spark.apache.org/docs/latest/api/scala/org/apache/spark/sql/expressions/UserDefinedFunction.html
+
+**应用于DataFrame的column的函数（column-based function）**，除了spark定义的那些以外，用户还能根据自己的需求自定义一些操作DataFrame的函数。
+
+定义一个udf很简单：
+1. 定义一个普通函数；
+2. 使用udf()包装一下这个函数；
+
+这个udf就能应用于Column了。
+
+注意udf不支持可变参数，即普通函数的参数个数不能是无限个。在spark里内置了零参数udf一直到10参数udf。这种定义方式有点儿暴力啊……
+
+```
+import org.apache.spark.sql.functions.{col, udf}
+val squared = udf((s: Long) => s * s)
+display(spark.range(1, 20).select(squared(col("id")) as "id_squared"))
+```
+
 
