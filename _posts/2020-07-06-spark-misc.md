@@ -97,6 +97,101 @@ scala> val avrodf = spark.read.format("com.databricks.spark.avro").load("/home/p
 avrodf: org.apache.spark.sql.DataFrame = [guid: string, abtest: string ... 50 more fields]
 ```
 
+# 创建DataFrame和RDD
+## DataFrame - SparkSession
+- range()：快速创建一个DataFrame，有多种重载方法。
+
+```
+scala> spark.range(start = 0, end = 10, step = 3).show
++---+
+| id|
++---+
+|  0|
+|  3|
+|  6|
+|  9|
++---+
+```
+
+- createDataFrame(rowRDD: RDD[Row], schema: StructType)：注意这个是DataFrame
+- createDataset[T](data: RDD[T])(implicit arg0: Encoder[T])：注意这个是Dataset
+
+RDD转DataFrame的两种方式，要么RDD存的是Row，手动指定schema；要么RDD存的是T，自动使用T的Encoder将RDD转为Dataset。
+
+> 这个T的Encoder可以自动提供，比如复杂类case class，也可以spark提供，比如基础类型的Encoder，自定义的类，又不是case class，只能自己提供了。。。
+
+```
+import spark.implicits._
+case class Person(name: String, age: Long)
+val data = Seq(Person("Michael", 29), Person("Andy", 30), Person("Justin", 19))
+val ds = spark.createDataset(data)
+
+ds.show()
+// +-------+---+
+// |   name|age|
+// +-------+---+
+// |Michael| 29|
+// |   Andy| 30|
+// | Justin| 19|
+// +-------+---+
+```
+
+- createDataset[T](data: Seq[T])(implicit arg0: Encoder[T])
+
+上述方法的另一种形式，只不过不是RDD，而是Seq。一般T如果是基础类型，就可以很方便地在spark shell中创建Dataset。
+
+```
+scala> spark.createDataset(1 to 5).show
++-----+
+|value|
++-----+
+|    1|
+|    2|
+|    3|
+|    4|
+|    5|
++-----+
+```
+> range那个生成的DataFrame是id，createDataset是value，因为它不只可以用int。
+
+- read：返回DataFrameReader，使用里面的各种load方法加在各种格式的数据，返回DataFrame。
+
+## RDD - SparkContext
+- range()：类似于SparkSession里的range，不过只有一个方法，没那么多重载。
+
+```
+scala> sc.range(0, 10).toDF.show
++-----+
+|value|
++-----+
+|    0|
+|    1|
+|    2|
+|    3|
+|    4|
+|    5|
+|    6|
+|    7|
+|    8|
+|    9|
++-----+
+```
+
+- parallelize[T](seq: Seq[T], numSlices: Int = defaultParallelism)：类似于通过Seq createDataset。
+
+```
+scala> sc.parallelize(1 to 5).toDF.show
++-----+
+|value|
++-----+
+|    1|
+|    2|
+|    3|
+|    4|
+|    5|
++-----+
+```
+
 # Configuration
 spark如果要读hdfs，一定要有：
 - hdfs-site.xml：hdfs的配置，client需要用，比如namenode、datanode的位置，replicas=3等；
@@ -115,4 +210,5 @@ spark的配置里可以设置HADOOP_CONF_DIR。相当于给spark指定了上述�
 
 - MRUnit;
 - hadoop-minicluster;
+
 

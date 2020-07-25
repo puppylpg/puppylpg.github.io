@@ -178,6 +178,13 @@ scala> avrodf.rdd.map(x => x.toString).toDF.show(2, false)
 ```
 此时df的column只有一个：value。
 
+或者直接搞一个Tuple：
+```
+val whodf = whoami.map{
+    map => (map.getOrElse("guid", ""), map.getOrElse("action", ""), map.getOrElse("unit", ""), map.getOrElse("type", ""), map.getOrElse("date", ""), map.getOrElse("keyfrom", ""))
+}.toDF("guid", "action", "unit", "type", "date", "keyfrom")
+```
+
 另外，如果将一个df转为另一个df，后者也是需要Encoder的。比如这里给Dataset[Map[K, V]]定义了一个Encoder：
 ```
 // No pre-defined encoders for Dataset[Map[K,V]], define explicitly
