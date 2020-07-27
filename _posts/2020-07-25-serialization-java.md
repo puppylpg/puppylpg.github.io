@@ -6,12 +6,53 @@ categories: java serialization
 tags: java serialization
 ---
 
-Java序列化框架是一种Java专有的非通用的序列化方案，这是和protobuf、avro、json等通用序列号框架的根本区别。除此之外，Java的序列化更慢、序列化后的体积更大，所以即使是在Java里，应用也没以上通用序列框架广泛。
+Java序列化框架是一种Java专有的非通用的序列化方案，这是和protobuf、avro、json等通用序列化框架的根本区别。除此之外，Java的序列化更慢、序列化后的体积更大，所以即使是在Java里，应用也没以上通用序列化框架广泛。
 
 1. Table of Contents, ordered
 {:toc}
 
 # Java如何序列化反序列化
+序列化样例：
+```
+        String location = "/tmp/people.ser";
+
+        try {
+            FileOutputStream fos = new FileOutputStream(location);
+            ObjectOutputStream oos = new ObjectOutputStream(fos);
+
+            oos.writeObject(inputStudent);
+
+            oos.close();
+            fos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+```
+反序列化样例：
+```
+        try {
+            FileInputStream fis = new FileInputStream(location);
+            ObjectInputStream ois = new ObjectInputStream(fis);
+
+            // readObject() -> ClassNotFoundExcception
+            // For a JVM to be able to deserialize an object,
+            // it must be able to find the bytecode for the class
+            Student resStudent = (Student)ois.readObject();
+
+            // SerializeDemo.Student(name=Lily, age=18, think=null, dreams=[eat, play])
+            System.out.println(resStudent);
+
+            ois.close();
+            fis.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+```
+
 ## 序列化 - write
 - DataOutput：定义了写基本类型的接口，比如writeChar/Int/Boolean/Byte等；
 - ObjectOutput：定义了写Object的接口，继承DataOutput接口；
@@ -94,6 +135,54 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 - 类的serial version id（实现了Serializable接口，就得有这个id）；
 - 其他很多辅助信息；
 
+最后使用defaultWriteFields方法真正序列化对象的时候：
+```
+    /**
+     * Fetches and writes values of serializable fields of given object to
+     * stream.  The given class descriptor specifies which field values to
+     * write, and in which order they should be written.
+     */
+    private void defaultWriteFields(Object obj, ObjectStreamClass desc)
+        throws IOException
+    {
+        Class<?> cl = desc.forClass();
+        if (cl != null && obj != null && !cl.isInstance(obj)) {
+            throw new ClassCastException();
+        }
+
+        desc.checkDefaultSerialize();
+
+        int primDataSize = desc.getPrimDataSize();
+        if (primVals == null || primVals.length < primDataSize) {
+            primVals = new byte[primDataSize];
+        }
+        desc.getPrimFieldValues(obj, primVals);
+        bout.write(primVals, 0, primDataSize, false);
+
+        ObjectStreamField[] fields = desc.getFields(false);
+        Object[] objVals = new Object[desc.getNumObjFields()];
+        int numPrimFields = fields.length - objVals.length;
+        desc.getObjFieldValues(obj, objVals);
+        for (int i = 0; i < objVals.length; i++) {
+            if (extendedDebugInfo) {
+                debugInfoStack.push(
+                    "field (class \"" + desc.getName() + "\", name: \"" +
+                    fields[numPrimFields + i].getName() + "\", type: \"" +
+                    fields[numPrimFields + i].getType() + "\")");
+            }
+            try {
+                writeObject0(objVals[i],
+                             fields[numPrimFields + i].isUnshared());
+            } finally {
+                if (extendedDebugInfo) {
+                    debugInfoStack.pop();
+                }
+            }
+        }
+    }
+```
+按照类描述里的内容，决定写那些field，按什么顺序写field。所以还是靠的反射。
+
 所以：
 - Java序列化后的体积为什么比其他序列化（avro、protobuf、json）框架大？**因为写了很多额外信息**；
 - Java序列化的速度为什么比其他序列化框架慢？**因为写的东西多，做的检查多，执行步骤多**；
@@ -102,6 +191,10 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 其他序列化框架写了啥？
 - json一般就写了属性和对应的数据。当然也可能加入其他metadata，比如fastjson还可能写入了属性的实际类型信息（方便对多态反序列化）；
 - avro、protobuf一类的写的是字节，而且写的东西更少。比如protobuf只写属性代号和属性值，连属性名都不序列化。属性名在反序列化的时候根据代号去schema里查。所以序列化后的一坨字节很小，而且只有他们这些框架本身能理解；
+
+当然还有其他优化操作：
+- avro是先写一个schema，写对象的时候只写各个value的内容，按照schema字段的顺序写的，免去了写key。protobuf是写id：value的键值对，每个id对应一个字段，且用不可修改。反序列化的时候，按照代码的id去序列化为相应字段；
+- avro和protobuf都需要先编译schema生成schema定义的对象的专用代码，然后用该对象的专用代码去序列化反序列化对象。Java序列化则不单独为某对象生成相应的序列和反序列化代码，而是使用反射，这应该也是Java序列化更慢一些的原因。（不过好处是Java不需要提前单独编译类似protobuf/avro的schema生成相应代码）
 
 Ref：
 - protobuf序列化：https://puppylpg.github.io/protobuf/serialization/2020/05/15/serialization-protobuf.html
@@ -145,4 +238,3 @@ Ref:
 1. Java序列化不能跨语言；
 2. Java序列化体积大速度慢是有原因的；
 3. Java序列化为Java的自主序列化和反序列化做了很多事情，远不是其他序列化平台那样直接写数据那么简单。
-
