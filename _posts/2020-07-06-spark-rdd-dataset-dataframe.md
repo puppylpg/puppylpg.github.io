@@ -264,21 +264,21 @@ val peopleDF = spark.createDataFrame(rowRDD, schema)
  * Encoders are generally created automatically through implicits from a `SparkSession`, or can be
  * explicitly created by calling static methods on [[Encoders]].
  *
- * {{{
+ * 
  *   import spark.implicits._
  *
  *   val ds = Seq(1, 2, 3).toDS() // implicitly provided (spark.implicits.newIntEncoder)
- * }}}
+ * 
 ```
 Java不能用隐式转化，所以就很清晰：
 ```
  * == Java ==
  * Encoders are specified by calling static methods on [[Encoders]].
  *
- * {{{
+ * 
  *   List<String> data = Arrays.asList("abc", "abc", "xyz");
  *   Dataset<String> ds = context.createDataset(data, Encoders.STRING());
- * }}}
+ * 
 ```
 当然，熟悉之后你也可以说比scala更麻烦……
 

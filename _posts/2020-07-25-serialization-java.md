@@ -62,8 +62,8 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 1. writeObject(Object)
 2. writeObject0
 3. writeOrdinaryObject
-4. writeSerialData
-5. invokeWriteObject或者defaultWriteFields
+4. writeSerialData或者writeExternalData
+5. 如果是writeSerialData，继续调用invokeWriteObject或者defaultWriteFields
 
 玄机都藏在这几步里：
 
@@ -193,13 +193,22 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 - avro、protobuf一类的写的是字节，而且写的东西更少。比如protobuf只写属性代号和属性值，连属性名都不序列化。属性名在反序列化的时候根据代号去schema里查。所以序列化后的一坨字节很小，而且只有他们这些框架本身能理解；
 
 当然还有其他优化操作：
-- avro是先写一个schema，写对象的时候只写各个value的内容，按照schema字段的顺序写的，免去了写key。protobuf是写id：value的键值对，每个id对应一个字段，且用不可修改。反序列化的时候，按照代码的id去序列化为相应字段；
+- avro是先写一个schema，写对象的时候只写各个value的内容，按照schema字段的顺序写的，免去了写key。protobuf是写id：value的键值对，每个id对应一个字段，且不可修改。反序列化的时候，按照代码的id去序列化为相应字段；
 - avro和protobuf都需要先编译schema生成schema定义的对象的专用代码，然后用该对象的专用代码去序列化反序列化对象。Java序列化则不单独为某对象生成相应的序列和反序列化代码，而是使用反射，这应该也是Java序列化更慢一些的原因。（不过好处是Java不需要提前单独编译类似protobuf/avro的schema生成相应代码）
 
 Ref：
 - protobuf序列化：https://puppylpg.github.io/protobuf/serialization/2020/05/15/serialization-protobuf.html
 - fastjson的一些序列化：https://hollis.blog.csdn.net/article/details/107150646；
 - Java原生序列化为什么慢：https://my.oschina.net/u/1787735/blog/1919855
+
+### Externalizable - @Deprecated
+曾经Java序列化巨慢（1.3之后就好多了），所以Java提供了Externalizable接口，由用户自定义readExternal/writeExternal接口，而不是Java用反射序列化反序列化Java类里的field。这样会快一些，但是所有的逻辑都是用户自己维护了，如果增删字段，也要修改这些方法。
+
+这就是序列化的时候，调用writeExternal方法所做的事。
+
+> Java序列化优化之后，就没太必要用这个了。不过可以作为一种拓展吧。
+
+- https://stackoverflow.com/a/818093/7676237
 
 ### 自定义序列化方式
 在序列化最后真正写数据的时候，invokeWriteObject里还有这样的代码：
@@ -213,9 +222,12 @@ writeObjectMethod.invoke(obj, new Object[]{ out })
 ```
 该方法来自于：
 ```
-                        writeObjectMethod = getPrivateMethod(cl, "writeObject",
-                            new Class<?>[] { ObjectOutputStream.class },
-                            Void.TYPE);
+writeObjectMethod = getPrivateMethod(
+    cl, 
+    "writeObject",
+    new Class<?>[] { ObjectOutputStream.class },
+    Void.TYPE
+);
 ```
 被写对象的writeObject！
 
@@ -238,3 +250,4 @@ Ref:
 1. Java序列化不能跨语言；
 2. Java序列化体积大速度慢是有原因的；
 3. Java序列化为Java的自主序列化和反序列化做了很多事情，远不是其他序列化平台那样直接写数据那么简单。
+
