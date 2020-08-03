@@ -134,6 +134,19 @@ Exception in thread "main" com.fasterxml.jackson.databind.exc.UnrecognizedProper
 
 所以说，只要人类看不见，就不会逼逼赖赖了:D
 
+说到这里，不禁想到了Java多态的本身：运行时，如果一个Son1赋值给Father的引用，理论上来讲只知道这是一个Father对象，实际上它可能是Son1也可能是Son2，那么调用具体的方法时，为什么Java能准确地调用Son1的override方法呢？
+
+根据上面序列化的经验，可以猜想Java一定像json序列化一样，将子类型也记录了下来，才能在调用的时候找到真正的子类型：
+1. 每个.class字节码文件在被ClassLoader加载之后都会在jvm中生成一个唯一的Class对象，该Class类型的对象含有该类的所有信息，比如类名、方法、field、构造函数等；
+2. 每一个该类new出来的对象，都有一个指向上述Class对象的引用。可通过Object的`public final native Class<?> getClass()`方法获得Class对象；
+3. 获取到了一个object的Class对象之后，关于这个object的一切类相关的信息都可以通过Class对象取得了。
+
+> 这不是多态的实际实现，但说明了一个对象的实际类型实际上都是可以被检索到的。
+
+所以Java也是通过记录所有对象的类信息，以在运行时实时决定该对象类型，并在多态时调用合适的override方法。
+
+**因此，解决多态问题的唯一途径就是记录下该对象究竟是哪一个子类型，无论是序列化时的多态还是运行时的多态！**
+
 # 附：示例代码
 ```
 package example.jackson;
