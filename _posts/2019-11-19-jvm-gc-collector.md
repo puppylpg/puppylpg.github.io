@@ -293,9 +293,20 @@ jvm用三种颜色标识对象：
 **RSet避免了对整个老年代的扫描**。
 
 ### 阶段
-类似CMS，也是四阶段。参考：https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html
+根据oracle的描述：
+- https://docs.oracle.com/javase/9/gctuning/garbage-first-garbage-collector.htm#JSGCT-GUID-ED3AB6D3-FD9B-4447-9EDF-983ED2F7A573
+- https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html
 
+[](https://docs.oracle.com/javase/9/gctuning/img/jsgct_dt_001_grbgcltncyl.png)
+
+1. **young**：正常情况下，只标记回收新生代；
+2. **mixed**：老年代达到`-XX:InitiatingHeapOccupancyPercent`指定的比例之后，标记阶段也会标记老年代。回收完新生代之后，就会回收老年代；
+3. **full**：如果内存耗尽了，会进行一次Full GC，整个heap都要清理一遍，包括H区；
 mixed collection会同时回收young gen和old gen。**收集old gen时不再需要RSet，而是对整个old gen进行标记**。默认heap使用45%时开始一次mixed collection：
+
+也就是说，一开始犯不着搞老年代，只需要搞搞新生代就腾出足够的空间了。如果老年代占用比例过高，清完新生代之后再清清老年代。如果清老年代也不能腾出足够的空间，就要整个heap全部筛选一遍。
+
+> 不知怎么的想到了外卖：很多新来的骑手不到一周就离职了。所以如果要回收装备给新来的骑手用，只需要从最近一周入职的骑手里排查，回收这些人中离职的那些人的装备就行了——排查最少的人，回收最多的装备，性价比很高。（虽然排查入职大于一周以上的那些人，还能再回收一部分装备，但是没必要这么折腾，反正收收新生代的就够用了。）如果待了一周以上的人达到一定比例，再去从他们离职的人中回收装备。（已经有一段时间不从他们手里回收了，现在回收一次应该也能收不少。）如果都回收了，收上来的装备还不够用，只能全体排查一遍，把所有离职的人的装备都收上来——能回收最多的装备，但是性价比要比从新生代回收低得多。
 
 > As mentioned previously, both young and old regions are garbage collected in a mixed collection. To collect old regions, G1 does a complete marking of the live objects in the heap. Such a marking is done by a concurrent marking phase.
 
@@ -323,8 +334,21 @@ mixed collection会同时回收young gen和old gen。**收集old gen时不再需
 # Z collector
 - https://wiki.openjdk.java.net/display/zgc/Main
 
+# 垃圾收集器总结
+学一个东西，如果能知道它是怎么来的，一定更能注意到这项技术的特点，印象深刻，学的时候也会轻松许多。
+
+垃圾收集最朴素的思想就是标记存活对象，留下这些对象，其他对象所在的内存区域直接覆盖掉即可。如果单线程stop the world的方式去搞，便不会有什么问题，垃圾收集就是一件很简单的事情。唯一的缺陷，就是这么做相对较慢。程序停一下？高并发服务端并不能接受。
+
+怎么优化？先把单线程搞成多线程的，分而治之，清理起来速度就快了。但是这个时候只是gc垃圾收集线程之间的并行（parallel），并不是gc垃圾收集线程和应用程序线程之间的并发（concurrency），程序还是要停一下。
+
+CMS相较于之前的并行收集器，真正迈入了并发：gc垃圾收集线程收集的时候，应用程序线程也可以继续工作。但是后者会干扰前者，导致个别对象标记不准确：要么漏标存活对象，要么错误将垃圾对象标记为存活对象。后者无伤大雅，前者一定要解决掉，所以在并发标记之后再stop the world一下，理一理并发标记期间被应用程序线程修改的对象。虽然还是要STW，但是相对于并行收集器从到到尾都在STW，并发收集器只是最大限度地进行了并发，只不得不停了一小段时间。
+
+G1类似CMS，但是随着硬件的发展，server程序的内存也越来越大，房子大了东西多了打扫起来也就更慢了。怎么缩短收集的时间？除了动作麻利点儿以外，提出了新的策略：大房子分成小块，如果给的时间不够清理完整个heap，那就优先清理垃圾最多的块。这样在有限的时间内，也能尽最大可能腾出较多的空间。
+
+**另外分代是个很二八的理念，和Garbge First的思想类似：用最少的努力，排查最少的区域，回收最多的空间**。实在排查不出来，再去老年代。如果还不行，就full gc。
+
 # 其他
-## Minor GC vs. Major GC
+## Minor GC vs. Major GC （该理论更适合CMS）
 - Minor GC：新生代GC，很频繁，也很快；
 - Major GC / Full GC：老年代GC，一般伴随Minor GC，一般比Minor GC慢十倍以上；
 
@@ -377,5 +401,4 @@ eg:
 ```
 java -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=10 -XX:G1MaxNewSizePercent=75 G1test.jar
 ```
-
 
