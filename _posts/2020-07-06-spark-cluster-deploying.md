@@ -79,6 +79,20 @@ spark.serializer        org.apache.spark.serializer.KryoSerializer
 
 **spark-submit指定`--verbose`可看出配置到底来自哪里。**
 
+spark-submit的`--conf, -c PROP=VALUE`是一种比较特殊的配置，可以指定任意的spark configuration，这些configuration可能太过常用，直接挑出来单独搞个配置项了，比如：
+```
+    --conf spark.driver.extraJavaOptions="-Djava.io.tmpdir=/disk1/liuhaibo/tmp" \
+    --driver-java-options '-Djava.io.tmpdir=/disk1/liuhaibo/tmp' \
+```
+效果是一样的。
+
+可以使用`spark-submit.sh --help`来查看：
+```
+  --conf, -c PROP=VALUE       Arbitrary Spark configuration property.
+  
+  --driver-java-options       Extra Java options to pass to the driver.
+```
+
 ## 依赖
 ### `--jars`：说实话没必要
 指定jar包，逗号分隔。jar包会被发送到cluster。
@@ -122,5 +136,4 @@ Status: ALIVE
 ## yarn
 
 > Unlike other cluster managers supported by Spark in which the master’s address is specified in the --master parameter, in YARN mode the ResourceManager’s address is picked up from the Hadoop configuration. Thus, the --master parameter is yarn.
-
 
