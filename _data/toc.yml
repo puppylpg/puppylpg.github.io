@@ -1,0 +1,13 @@
+- title: pokedex
+  url: /
+  links:
+    - title: "Documentation"
+      url: "docs"
+    - title: "Articles"
+      url: "articles"
+    - title: "Tags"
+      url: "tags"
+    - title: "Recently"
+      url: "recently"
+    - title: "About"
+      url: "about"
