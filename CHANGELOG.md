@@ -36,3 +36,6 @@
     * bugfix
         - 设置timezone，blog能按照设置的时区编译显示时间了；
 
+## v1.0.0(2020-08-28)
+    * 功能
+        - 使用[docsy-jekyll](https://jekyll-themes.com/docsy-jekyll/)替换默认的minima主题；
