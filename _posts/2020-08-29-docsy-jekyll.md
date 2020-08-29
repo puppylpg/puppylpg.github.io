@@ -206,12 +206,19 @@ bundle exec jekyll serve --port 4444
 原因：网页引用了jquery：https://code.jquery.com/jquery-3.3.1.min.js，但是在中国该网址直连不了。所以我下载了jquery（两个js文件），直接引用本地的jquery就行了：
 1. 下载jquery，上传到`assets/js`：即`assets/js/jquery-3.3.1/jquery-3.3.1.js`和`assets/js/jquery-3.3.1/jquery-3.3.1.min.js`；
 2. 查找使用了jquery的地方`grep -r "https://code.jquery.com/jquery-3.3.1.min.js" . --exclude-dir=_site`：发现只有`_include/head.html`和`_include/toc.html`用了；
-3. 替换为引用本地的jquery：修改`src="https://code.jquery.com/jquery-3.3.1.min.js"`为`src="{{ site.baseurl }}/assets/js/jquery-3.3.1/jquery-3.3.1.min.js"`；
+3. 替换为引用本地的jquery：修改`src="https://code.jquery.com/jquery-3.3.1.min.js"`为{% raw%}`src="{{ site.baseurl }}/assets/js/jquery-3.3.1/jquery-3.3.1.min.js"`{% endraw %}；
 
 # 定制
 首先考虑一下当前模板`_layout`需不需要定制。目前我感觉还挺好，暂时不用动了。
 
-其次，页面的navigation bar或者sidebar一般是需要定制的。这个可以修改`_include`下的navigation或者sidebar，看他们的实现，可能引用了`_data`里的变量，所以可能修改一下变量就达到自定义的目的了。
+其次，页面的navigation bar或者sidebar一般是需要定制的。这个可以修改`_include`下的header或者sidebar，看他们的实现，可能引用了`_data`里的变量，所以可能修改一下变量就达到自定义的目的了。
+
+目前：
+- `_include/header`：页面头部，里面的导航条目是`_data/navigation.yml`配置的；
+- `_include/sidebar`：左边栏，内容配置在`_data/toc.yml`；
+- `_include/editable`：右边栏的上部，用于快速修改页面对应的github里的文件；
+- `_include/toc`：右边栏的下部，editable下面，放置目录；
+
 
 网页的单独页面（比如about或者tag）都是在`pages`目录下单独定义的，按照自己的需求增删页面内容、修改页面结构，稍微改改基本就可以了。
 
