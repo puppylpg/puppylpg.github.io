@@ -1,9 +1,13 @@
+- title: Tech
+  url: tech
+- title: Snippet
+  url: snippets
 - title: Docs
   url: docs
-- title: Articles
-  url: articles
 - title: Tags
   url: tags
+- title: Recently
+  url: recently
 - title: About
   url: about
   

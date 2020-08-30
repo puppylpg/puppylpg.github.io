@@ -81,6 +81,9 @@ collections:
   docs:
     output: true
     permalink: /:collection/:path
+  snippets:
+    output: true
+    permalink: /:collection/:path
 
 # Defaults
 defaults:
@@ -91,13 +94,19 @@ defaults:
       layout: page
   -
     scope:
+      path: "_snippets"
+      type: "snippets"
+    values:
+      layout: page
+  -
+    scope:
       path: ""
       type: "pages"
     values:
       layout: "page"
   -
     scope:
-      path: "posts"
+      path: "_posts"
       type: "posts"
     values:
       layout: "post"
