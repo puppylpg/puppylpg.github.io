@@ -84,10 +84,10 @@ post由于是Jekyll内定的collection，不受上述之约，有没有设置out
 
 - https://jekyllrb.com/docs/collections/
 
-## `pages` `_posts`
-`pages`/`_posts`/`_drafts`是jekyll支持的三个主要内容呈现形式。
+## `pages`/`posts`/`drafts` - 三个Jekyll默认的Collection
+`pages`是最基础的内容，**工程里的任何html页面、markdown文件**（会被转成html）都会成为一个独立的页面，**url就是它的路径名。如果是markdown文件，可以在Front Matter里通过permalink指定其url**。（其实就是编译成html后放在url指定的位置）
 
-page是最基础的内容，**工程里的任何html页面、markdown文件**（会被转成html）都会成为一个独立的页面，url就是它的路径名。如果是markdown文件，可以在Front Matter里通过permalink指定其url。（其实就是编译成html后放在url指定的位置）
+> `pages`不需要像`posts`、`drafts`一样有预定义好的`_posts`和`_drafts`文件夹，因为工程下所有的html/markdown都属于`pages`。
 
 这里docsy-jekyll使用了一个独立的pages文件夹来统一放置page。当然这个文件夹取任何名字都行（因为**工程里的任何html页面**都是page）。
 ```
@@ -104,13 +104,14 @@ This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy
 ```
 这里使用permalink指定了url为about，否则就是它的路径pages/about。
 
-`_posts`和`_draft`属于jekyll支持的collection，比如拥有`page`变量，可以直接访问一个page的各个属性。具体参考官方文档。
+- https://jekyllrb.com/docs/pages/
+
+`_posts`和`_drafts`是`posts`和`drafts`对应的文件夹。
 
 > In addition to any collections you create yourself, the posts collection is hard-coded into Jekyll. It exists whether you have a _posts directory or not. This is something to note when iterating through site.collections as you may need to filter it out.
 
 > You may wish to use filters to find your collection: {{ site.collections | where: "label", "myCollection" | first }}
 
-- https://jekyllrb.com/docs/pages/
 - https://jekyllrb.com/docs/posts/
 
 ## `_site`
@@ -136,12 +137,17 @@ defaults:
       layout: "page"
   -
     scope:
-      path: "posts"
+      path: "_posts"
       type: "posts"
     values:
       layout: "post"
 ```
-使用path和type限定文件目录和类型，使用values给符合的文件添加Front Matter属性。
+- scope：对谁设定defaults；
+    + path：限定文件的目录，空字符串代表整个工程。必填；
+    + type：限定文件的类型，`pages`/`posts`/`drafts`或者其他collection。可选；
+- values：给符合的文件添加哪些Front Matter属性；
+
+> layout page和collection pages之间并没有什么关系，我们只是配置对所有的pages都应用page layout，仅此而已。
 
 - https://jekyllrb.com/docs/configuration/
 - https://jekyllrb.com/docs/configuration/options/
