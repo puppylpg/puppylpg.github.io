@@ -1,41 +1,38 @@
 ---
 layout: page
-title: Docsy Jekyll Theme
+title: Pikapi
 permalink: /
 ---
 
-# Welcome to Docsy Jekyll
+# Welcome to {{ site.title }}
 
-This is a starter template for a docsy jekyll theme.
+This is [puppylpg](http://github.com/{{ site.github_user }})'s official website, pika~
 
-![assets/img/docsy-jekyll.png](assets/img/docsy-jekyll.png)
+![hello]({{ site.url }}/assets/screenshots/pikachu-hello.png)
 
-## Purpose
+This website is where I share all my interests with you. Hope you enjoy it.
 
-GitHub pages uses Jekyll natively, so when I make documentation, I typically
-look for Jekyll templates. Why? Using Jekyll means that I can use markdown,
-and allow for users to easily contribute, and build automatically just by
-way of pushing to a master branch (or general GitHub pages).
-I found Docsy, a beautiful Hugo template, but it requires hugo with GoLang
-which doesn't render natively on GitHub pages. For this reason, I've spent
-some time creating a custom Jekyll template that is (almost) as beautiful,
-and includes all the features that I might want.
+- [Tech]({{ site.url }}/tech): is where I put technology blogs when I think I have a understand about some tech;
+- [Docs]({{ site.url }}/docs): life is limited and half boring only with technology. I do need more books or thoughts to enrich myself;
+- [Snippet]({{ site.url }}/snippets): is a collection of small pieces whenever I wanna say something, though most of them will be about tech I think;
+- [Tags]({{ site.url }}/tags): to group my articles by tags, for the purpose of convenience;
+- [Recently]({{ site.url }}/recently): recent tech blogs you can see;
 
-## Features
+I like cartoons, especially:
+- [Yu-Gi-Oh! 遊☆戯☆王](https://www.konami.com/yugioh/);
+- [Dragon Ball](http://www.dragonballz.com/);
+- [Pokémon](https://www.pokemon.com/us/) mainly for [Pikachu](https://www.pokemon.com/us/pokedex/pikachu);
 
-What are these features? You should see the {% include doc.html name="Getting Started" path="getting-started" %}
-guide for a complete summary. Briefly:
+These are all fantistic cartoons that accompany my whole childhood.
 
- - *User interaction* including consistent permalinks, links to ask questions via GitHub issues, and edit the file on GitHub directly.
- - *Search* across posts, documentation, and other site pages, with an ability to exclude from search.
- - *External Search* meaning an ability to link any page tag to trigger an external search.
- - *Documentation* A documentation collection that was easy to organize on the filesystem, render with nested headings for the user, and refer to in markdown.
- - *Pages* A separate folder for more traditional pages (e.g, about).
- - *Navigation*: Control over the main navigation on the left of the page, and automatic generation of table of contents for each page on the right.
- - *News* A posts feed for news and updates, along with an archive (organized by year).
- - *Templates* or specifically, "includes" that make it easy to create an alert, documentation link, or other content.
- - *Continuous Integration* recipes to preview the site
+As for games:
+- [Halo](https://www.halowaypoint.com/en-us) attracts me in recent two years;
+- [CS:GO](https://blog.counter-strike.net/) is the game I have ever palyed for the longest time;
+- [To the moon](https://freebirdgames.com/to_the_moon/) moves me deeply;
 
+Interested in the other games I play? Try to find them on my [steam](https://steamcommunity.com/profiles/76561198251761676/).
 
-For features, getting started with development, see the {% include doc.html name="Getting Started" path="getting-started" %} page. Would you like to request a feature or contribute?
-[Open an issue]({{ site.repo }}/issues)
+Now at my age, I restart to love to read books(not only tech books) just like when I was a chind, diving into book stores for a whole day, despite of tiredness. I perfer to pay more attention to Chinese ancient books recently, and will list them once I finish any one from now on:
+- [《儒林外史》](https://www.shicimingju.com/book/rulinwaishi.html);
+
+May we grow up together, living happily, living wonderfully, living meanfully.

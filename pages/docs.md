@@ -6,14 +6,17 @@ permalink: /docs/
 
 # Documentation
 
-Welcome to the {{ site.title }} Documentation pages! Here you can quickly jump to a 
-particular page.
+Welcome to the {{ site.title }} Documentation pages! 
+
+人生不应只是技术，这几年基本除了技术书都不看其他的东西了。缺少了阅读的人生有点干涸，
+所以单开一栏，追寻小时候一头扎进书店一泡一天的快乐。
+这里记录着我的一些其他值得一提的感想、见识，应该都是读书得来的：
 
 <div class="section-index">
     <hr class="panel-line">
-    {% for post in site.docs  %}        
+    {% for doc in site.docs  %}        
     <div class="entry">
-    <h5><a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></h5>
-    <p>{{ post.description }}</p>
+    <h5><a href="{{ doc.url | prepend: site.baseurl }}">{{ doc.title }}</a></h5>
+    <p>{{ doc.description }}</p>
     </div>{% endfor %}
 </div>
