@@ -14,9 +14,11 @@ Welcome to the {{ site.title }} Documentation pages!
 
 <div class="section-index">
     <hr class="panel-line">
-    {% for doc in site.docs  %}        
+    {% assign sorted = site.docs | sort: 'date' | reverse %}
+    {% for doc in sorted  %}
     <div class="entry">
-    <h5><a href="{{ doc.url | prepend: site.baseurl }}">{{ doc.title }}</a></h5>
+    <h3><a href="{{ doc.url | prepend: site.baseurl }}">{{ doc.title }}</a></h3>
+    <span class="post-date">{{ snippet.date | date: "%B %d, %Y" }}</span><br>
     <p>{{ doc.description }}</p>
     </div>{% endfor %}
 </div>

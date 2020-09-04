@@ -39,3 +39,7 @@
 ## v1.0.0(2020-08-28)
     * 功能
         - 使用[docsy-jekyll](https://jekyll-themes.com/docsy-jekyll/)替换默认的minima主题；
+
+## v1.1.0(2020-09-04)
+    * 功能
+        - 按照时间逆序排列collection的文章；
