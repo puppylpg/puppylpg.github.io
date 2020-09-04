@@ -13,9 +13,11 @@ Welcome to the {{ site.title }} snippet pages!
 
 <div class="section-index">
     <hr class="panel-line">
-    {% for snippet in site.snippets  %}        
+    {% assign sorted = site.snippets | sort: 'date' | reverse %}
+    {% for snippet in sorted  %}        
     <div class="entry">
-    <h5><a href="{{ snippet.url | prepend: site.baseurl }}">{{ snippet.title }}</a></h5>
+    <h3><a href="{{ snippet.url | prepend: site.baseurl }}">{{ snippet.title }}</a></h3>
+    <span class="post-date">{{ snippet.date | date: "%B %d, %Y" }}</span><br>
     <p>{{ snippet.description }}</p>
     </div>{% endfor %}
 </div>
