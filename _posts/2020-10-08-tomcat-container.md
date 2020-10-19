@@ -751,3 +751,13 @@ Engine也有默认匹配的server，一般设置为localhost。参考`StandardEn
 ```
 这里Engine的默认Host地址设置的是localhost，唯一的一个Host的name设置的也是localhost。所以这个Host就是默认host。
 
+# 文件位置
+Context除了setPath，还有一个setDocBase。Host有一个appBase，Engine有一个engineBase。
+
+这三个base和path无关。path说的是uri和组件的映射关系。base说的是文件的放置位置：
+- engine base默认是 **`catalina.base`，后者默认为`catalina.home`**；
+- app base默认为 **`webapps`**；
+- doc base默认为**Context的路径，即Context所在的文件夹，或者war包的名称**；
+
+Tomcat加载类、资源等，就是**按照`<engine base>/<app base>/<doc base>`的层级**确定资源位置。
+
