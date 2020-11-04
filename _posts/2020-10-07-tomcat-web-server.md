@@ -11,6 +11,51 @@ Tomcat是一个Servlet容器，Servlet首先是一个web服务器。先来看一
 1. Table of Contents, ordered
 {:toc}
 
+# Tcp
+web服务器其实就是通过http协议收发数据的服务器。Http基于Tcp协议。
+
+Java socket编程通过Socket（ip+port）来建立连接，通过TCP/IP协议发送数据。
+
+为什么需要socket？假设一台机器用一个ip来标识，上面可能运行了多个程序，仅用一个ip无法区分这么多程序，所以每个程序监听自己的端口，**通过ip和程序舰艇的port，也就是socket，成为了寻找一个程序位置的方法，使用socket这个特殊的地址，便能连接到确定的程序上**。
+
+> 通过套接字，不同计算机上的两个程序可以发送、接收字节流，达到通信的目的。
+
+在Java中，套接字是Socket类。Socket有两个重要的方法：
+- getInputStream；
+- getOutputStream；
+
+用于获取InputStream和OutputStream，向Socket中写入、从Socket读取数据。
+
+## tcp server
+**client发起请求连接server，server不负责联系客户端。client或者server都可以提前关闭连接。** 
+
+所以Java还有一个ServerSocket类，用于服务器监听客户端请求。使用ServerSocket的**accept方法**可以阻塞式等待client的请求。返回一个Socket，供server读写请求和响应。
+
+所以server要先初始化一个ServerSocket：
+```
+// 初始化server socket
+ServerSocket server = new ServerSocket(8080);
+```
+然后监听该socket，获取tcp连接：
+```
+Socket socket = server.accept();
+```
+接下来就可以处理该Socket了，主要就是获取它的InputStream读消息，然后获取OutputStream往里写返回消息。
+
+## tcp client
+tcp client通过tcp协议和tcp server沟通。
+
+client首先通过socket连上server：
+```
+// server在本机上，所以ip是127.0.0.1，
+Socket client = new Socket("127.0.0.1", 8080);
+// 设置一下socket timeout
+client.setSoTimeout(1000);
+```
+接下来要做的和server读写socket一样，也是获取socket的OutputStream往里写数据，发给server，再获取socket的InputStream，从里面读server发回的响应。
+
+> 唯一的区别就是server先获取InputStream读消息，再获取OutputStream写消息。client则是先获取OutputStream写消息，再获取InputStream读消息。
+
 # Http
 web server和client（browser）是通过http协议交互的。
 
@@ -36,16 +81,15 @@ http请求包括：
 
 关于Http协议，参考[HTTP]({% post_url 2020-10-07-http %})。
 
-# Socket
-web服务器和client使用http协议通信，通信是通过套接字完成的（ip + port）。通过套接字，不同计算机上的两个程序可以发送、接收字节流，达到通信的目的。
+既然web服务器和client使用http协议通信，自然也是经过了tcp协议的封装的，所以要使用socket编程。
 
-在Java中，套接字是Socket类。Socket有两个重要的方法：
-- getInputStream；
-- getOutputStream；
+## http server
+**Http服务器相比tcp服务器，多了对http协议的处理。读写还是基于tcp的**：
+1. 从socket读出的数据要解析为http request；
+2. 往socket写的返回数据，必须是http response格式的。
 
-用于获取InputStream和OutputStream，向Socket中写入、从Socket读取数据。
-
-**http活动总是由client发起，向server发送http请求，server不负责联系客户端。client或者server都可以提前关闭连接。** 所以Java还有一个ServerSocket类，用于服务器监听客户端请求。使用ServerSocket的**accept方法**可以阻塞式等待client的请求。返回一个Socket，供server读写http request/reponse。
+## http client
+**http client一般不需要像tcp client一样单独写一个**，因为浏览器本身就是一个http client，所以直接用浏览器发送http请求就行了。
 
 # 一个原始的web服务器
 这是一个最原始的web服务器：
