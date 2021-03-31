@@ -2,8 +2,8 @@
 layout: post
 title: "Redis - 数据库功能和持久化"
 date: 2021-01-12 01:59:11 +0800
-categories: Redis
-tags: Redis
+categories: Redis Linux
+tags: Redis Linux
 ---
 
 Redis的数据库功能，和数据库的持久化。
