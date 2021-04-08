@@ -136,6 +136,98 @@ public class CasCounter {
 
 但是真实情况是，更多的时候还有计算任务，这样对共享变量的访问频率变会降低，通常CAS更高效。
 
+## ABA问题
+**CAS虽然compare and swap整个过程是原子操作，但是和它之前的操作不是原子的**，在做这个操作之前，可能休眠了，原值先被其他线程改成了其他值，又被改了回去。这一来一回的改动，该线程是不知道的。
+
+**对于数值类场景，一般没什么关系**。比如：
+1. 查到原来的余额是50；
+2. 现在又存50，所以想compareAndSet(50, 100)；
+
+即使在1和2之前忽然先执行了两笔操作+1000再-1000，再去执行2，也没什么毛病。
+
+**但对于引用类的场景，这种“只要值不变就没事儿”的情况就不成立了**。比如链表为A -> B -> A，一开始有三个，如果删掉开头的A，再删掉B，此时链表开头还是A，不能说开头还是A所以链表没变。
+
+想解决ABA问题：
+1. 使用锁。检查、set（此时没必要使用compareAndSet了）两个动作变成原子操作；
+2. 加个版本号，得以感知是否发生了变动。
+
+Java提供了`AtomicStampedReference<V>`，它的compareAndSet就比`AtomicReference<V>`多了校验版本的功能。这个stamp就是版本号：
+```
+    public boolean compareAndSet(V   expectedReference,
+                                 V   newReference,
+                                 int expectedStamp,
+                                 int newStamp) {
+        Pair<V> current = pair;
+        return
+            expectedReference == current.reference &&
+            expectedStamp == current.stamp &&
+            ((newReference == current.reference &&
+              newStamp == current.stamp) ||
+             casPair(current, Pair.of(newReference, newStamp)));
+    }
+```
+不过这个stamp的增加不是程序自动维护的，而是由用户去设置……它的set和compareAndSet都要提供一个新的stamp……一般设置为`#getStamp() + 1`。但是为毛要这么设计？程序自己维护自动自增不好吗？
+
+参考：
+- https://www.cnblogs.com/549294286/p/3766717.html
+
+## 使用AtomicStampedReference的坑
+jdk有一堆AtomicXXX，AtomicReference是最通用的那一个。比如AtomicInteger可以算是AtomicReference的特例。但是AtomicStampedXXX只有AtomicStampedReference一个，如果想存带stamp的int，应该是用`AtomicStampedReference<Integer>`。但是，如果要获取其当前存储的值，无比用Integer而非int：
+```
+Integer now = xxx.getReference()
+```
+如果用int接收，则**发生了拆箱**。如果拆箱之后再调用copareAndSet：
+```
+xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
+```
+此时由于该函数接收的第一个参数类型为Integer，所以**又会发生装箱**。
+
+装箱
+```
+    public static Integer valueOf(int i) {
+        if (i >= IntegerCache.low && i <= IntegerCache.high)
+            return IntegerCache.cache[i + (-IntegerCache.low)];
+        return new Integer(i);
+    }
+```
+-128~127的Integer是被IntegerCache这个东西cache好的：
+```
+    private static class IntegerCache {
+        static final int low = -128;
+        static final int high;
+        static final Integer cache[];
+
+        static {
+            // high value may be configured by property
+            int h = 127;
+            String integerCacheHighPropValue =
+                sun.misc.VM.getSavedProperty("java.lang.Integer.IntegerCache.high");
+            if (integerCacheHighPropValue != null) {
+                try {
+                    int i = parseInt(integerCacheHighPropValue);
+                    i = Math.max(i, 127);
+                    // Maximum array size is Integer.MAX_VALUE
+                    h = Math.min(i, Integer.MAX_VALUE - (-low) -1);
+                } catch( NumberFormatException nfe) {
+                    // If the property cannot be parsed into an int, ignore it.
+                }
+            }
+            high = h;
+
+            cache = new Integer[(high - low) + 1];
+            int j = low;
+            for(int k = 0; k < cache.length; k++)
+                cache[k] = new Integer(j++);
+
+            // range [-128, 127] must be interned (JLS7 5.1.7)
+            assert IntegerCache.high >= 127;
+        }
+
+        private IntegerCache() {}
+    }
+```
+所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。AtomicStampedReference的compareAndSet是使用`==`来进行饮用比较的，不是值比较。**所以用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为返回false而拒绝更新**。
+
 # JVM里的CAS类 - 原子变量类：AtomicXxx
 JVM里的CAS原子变量类直接利用了硬件对并发的支持。
 
