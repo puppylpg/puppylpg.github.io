@@ -182,7 +182,7 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
 ```
 此时由于该函数接收的第一个参数类型为Integer，所以**又会发生装箱**。
 
-装箱
+装箱：
 ```
     public static Integer valueOf(int i) {
         if (i >= IntegerCache.low && i <= IntegerCache.high)
@@ -226,7 +226,10 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
         private IntegerCache() {}
     }
 ```
-所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。AtomicStampedReference的compareAndSet是使用`==`来进行饮用比较的，不是值比较。**所以用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为返回false而拒绝更新**。
+所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。AtomicStampedReference的compareAndSet是使用`==`来进行引用比较的，不是值比较。
+
+**所以用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为引用比较返回false而拒绝更新**。
+
 
 # JVM里的CAS类 - 原子变量类：AtomicXxx
 JVM里的CAS原子变量类直接利用了硬件对并发的支持。

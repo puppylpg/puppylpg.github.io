@@ -13,6 +13,7 @@ tags: IO NIO AIO
 
 IO模型：
 - Blocking IO: [Java IO]({% post_url 2020-10-28-java-io %})；
+- BIO服务器实现: [（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})；
 - Non-Blocking IO: [Java NIO]({% post_url 2020-10-29-java-nio %})；
 - BIO和NIO的形象类比: [Http Server线程模型：NIO vs. BIO]({% post_url 2019-11-25-http-server-nio-bio %})；
 - Java NIO所使用的os的底层机制：[epoll]({% post_url 2021-04-01-epoll %})；
