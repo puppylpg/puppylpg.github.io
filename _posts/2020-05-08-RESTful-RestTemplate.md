@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "RESTful"
+title: "RESTful - RestTemplate"
 date: 2020-05-08 00:21:43 +0800
-categories: REST
-tags: REST
+categories: REST RestTemplate POST
+tags: REST RestTemplate POST
 # render_with_liquid: false
 ---
 
@@ -36,16 +36,38 @@ Request -> [Controller Mapping] ->  Controller -[Data]-> Message Conversion ->  
 
 **SpringMVC服务一般是用于构建给人看的网页，所以返回数据被视图渲染为html。对于非人类的使用者（eg：client），资源的表述应该用xml或者json，主要是方便被服务解析。**
 
-## HTTP Message Converter HTTP消息转换器
-Controller产生数据之后，DispatcherServlet不再需要将模型数据传送给视图，**首先没有了模型Model，其次也没有视图View，只有控制器产生的数据，再使用消息转换器转换为一定格式的数据**。
+# http post 格式
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST
 
-Spring自动注册了几个消息转换器，比如MappingJackson2HttpMessageConverter，只要：
-- Jackson2库在classpath上；
+server收到的http post请求的 **请求体** 是什么格式的？通过Content-Type来标识。
 
-此时如果请求的Accept header表明可以接收"application/json"，就会使用该消息转换器将数据转换为json。
+它可以是：
+- `application/x-www-form-urlencoded`：键值对，并urlencode后的内容；
+- `application/json`：json格式；
+- `application/x-protobuf`：protobuf格式；
+- `application/pdf`
+- `application/xml`
+- `text/plain`：普通文本；
+- `text/html`：html文本；
 
-## `@ResponseBody` - 将返回值转换为格式化消息
-方法只管return对象，由消息转换器自动将其转换为格式化消息。
+等等各种奇奇怪怪的标准的格式。
+
+但是restful服务能收的，一个是结构化的，比如json、xml、protobuf等等。plain这种没什么用，没法解析格式。也不会接收html，那是给人看的。
+
+怎么知道收到的post的请求体是哪种格式？看它的Content-Type就行了。
+
+那么怎么知道对方愿意接收哪种格式的响应体？看request的Accept。
+
+# body格式自动转换
+
+如果对方发过来的是json，想接收protobuf，那么我们没收到一个请求都要把它从json反序列化为java object，每次返回都要把java object序列化为protobuf吗？
+
+的确如此，**但不必我们亲手做**。只需要通过下面的注解标注一下，springboot就会自动做这两种转换了。
+
+> **实际是通过HTTP消息转换器（HTTP Message Converter）来完成转换的。**
+
+## `@ResponseBody` - 将返回值转换为相应格式的响应体
+我们的方法只管return java对象，springboot（消息转换器）会自动将其转换为格式化消息。
 ```
     @RequestMapping(value = "/{id}", method = RequestMethod.GET, produces = "application/json")
     @ResponseStatus(HttpStatus.OK)
@@ -57,11 +79,11 @@ Spring自动注册了几个消息转换器，比如MappingJackson2HttpMessageCon
         return user;
     }
 ```
-@RequestMapping的producers：只处理Header的Accept为application/json的请求，所以该方法返回json。
+这里，**`@RequestMapping`的`producers`**：表明我们只返回json格式的数据。request的Accept应该说它接收json，这个方法的返回才能被client理解。
 
 > 可以使用Jackson Annotations对对象的属性进行标注，以改变转换时的属性名等。
 
-## `@RequestBody` - 将来自客户端的资源转换为对象
+## `@RequestBody` - 将来自客户端的请求体转换为对象
 免去了接收json，再序列化为对象的工作。
 ```
     @RequestMapping(value = "/add", method = RequestMethod.POST, consumes = "application/json", produces = "application/json")
@@ -70,16 +92,16 @@ Spring自动注册了几个消息转换器，比如MappingJackson2HttpMessageCon
         return userDao.add(user);
     }
 ```
-@RequestMapping的consumers：只处理Header的Content-Type为application/json的请求，即只将发过来的json转为对象。
+同理，**`@RequestMapping`的`consumers`**：表明只处理Header的Content-Type为application/json的请求，即只将发过来的json转为对象。
 
 同时该方法的@ResponseBody表明返回json。
 
 ## `@RestController` 
-类里所有的方法都不用标注`@ResponseBody`了，类也不用标注`@Controller`了，因为@RestController的注解定义上已经标注了这两个注解。
+其实就是`@Controller` + `@ResponseBody`。类上只要标注了它，类不用标注`@Controller`了，所有的方法都不用标注`@ResponseBody`了。因为@RestController的注解定义上已经标注了这两个注解。
 
-> 但是`@RequestBody`该写还是得写的。
+> **但是`@RequestBody`该写还是得写的**。
 
-# 不止返回body
+# 不止body，还想返回status
 ## `@ResponseStatus`
 给返回的HTTP消息设置status code：
 ```
@@ -110,8 +132,35 @@ public class GlobalExceptionHandler {
 
 > 这个UserNotFoundException一般定义为extends RuntimeException，就不用将异常加在方法签名里了。
 
-## `ResponseEntity<T>`
-status code + header + body的组合体。代表整个HTTP response。
+# 甚至还想自定义返回的header
+
+## `HttpEntity<T>`
+`HttpEntity<T>`代表`ResponseEntity<T>`和`RequestEntity<T>`的公共部分：
+1. header;
+2. body;
+
+所以构造HttpEntity只需要header和body两个（木有status code，继承它的ResponseEntity才加了status code）：
+```
+	/**
+	 * Create a new {@code HttpEntity} with the given body and headers.
+	 * @param body the entity body
+	 * @param headers the entity headers
+	 */
+	public HttpEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers) {
+		this.body = body;
+		HttpHeaders tempHeaders = new HttpHeaders();
+		if (headers != null) {
+			tempHeaders.putAll(headers);
+		}
+		this.headers = HttpHeaders.readOnlyHttpHeaders(tempHeaders);
+	}
+```
+
+## `ResponseEntity<T>` extends `HttpEntity<T>`
+**status code + header + body的组合体**。代表整个HTTP response：
+- status code;
+- header + body ( = HttpEntity);
+
 ```
 	/**
 	 * Create a new {@code HttpEntity} with the given body, headers, and status code.
@@ -144,7 +193,13 @@ status code + header + body的组合体。代表整个HTTP response。
 ```
 对于异常，也配个全局异常拦截器。
 
-# REST client
+## `RequestEntity<T>` extends `HttpEntity<T>`
+代表整个http request。RequestEntity包含：
+- url；
+- method；
+- header + body ( = HttpEntity);
+
+# `RestTemplate`
 REST client请求资源的样板代码：
 - new HttpClient;
 - new HttpGet(set Header Accept application/json);
@@ -154,7 +209,64 @@ REST client请求资源的样板代码：
 
 Spring使用RestTemplate将这些步骤全封装了！正如JdbcTemplate！
 
-方法：
+## 注入
+springboot没有的自动配置机制没有直接配置RestTemplate，而是配置了RestTemplateBuilder：
+```
+	@Bean
+	@Lazy
+	@ConditionalOnMissingBean
+	public RestTemplateBuilder restTemplateBuilder(ObjectProvider<HttpMessageConverters> messageConverters,
+			ObjectProvider<RestTemplateCustomizer> restTemplateCustomizers,
+			ObjectProvider<RestTemplateRequestCustomizer<?>> restTemplateRequestCustomizers) {
+		RestTemplateBuilder builder = new RestTemplateBuilder();
+		HttpMessageConverters converters = messageConverters.getIfUnique();
+		if (converters != null) {
+			builder = builder.messageConverters(converters.getConverters());
+		}
+		builder = addCustomizers(builder, restTemplateCustomizers, RestTemplateBuilder::customizers);
+		builder = addCustomizers(builder, restTemplateRequestCustomizers, RestTemplateBuilder::requestCustomizers);
+		return builder;
+	}
+```
+builder接收一个`ObjectProvider<HttpMessageConverter<?>> converters`，看名字是一堆converters的封装。它也是自动配置：
+```
+    @Bean
+    @Lazy
+    @ConditionalOnMissingBean
+    public RestTemplateBuilder restTemplateBuilder(ObjectProvider<HttpMessageConverters> messageConverters, ObjectProvider<RestTemplateCustomizer> restTemplateCustomizers, ObjectProvider<RestTemplateRequestCustomizer<?>> restTemplateRequestCustomizers) {
+        RestTemplateBuilder builder = new RestTemplateBuilder(new RestTemplateCustomizer[0]);
+        HttpMessageConverters converters = (HttpMessageConverters)messageConverters.getIfUnique();
+        if (converters != null) {
+            builder = builder.messageConverters(converters.getConverters());
+        }
+
+        builder = this.addCustomizers(builder, restTemplateCustomizers, RestTemplateBuilder::customizers);
+        builder = this.addCustomizers(builder, restTemplateRequestCustomizers, RestTemplateBuilder::requestCustomizers);
+        return builder;
+    }
+```
+接收`ObjectProvider<HttpMessageConverter<?>> converters`，接收单个的converter。
+
+如果我们自己配置一个converter：
+```
+    @Bean
+    ProtobufHttpMessageConverter protobufHttpMessageConverter() {
+        return new ProtobufHttpMessageConverter();
+    }
+```
+这个converter就会通过上面的机制自动注入RestTemplateBuilder。
+
+实际使用的时候可以在类里注入builder，再构建出RestTemplate：
+```
+    RestTemplate restTemplate;
+    
+    @Autowired
+    public RestfulServer(RestTemplateBuilder restTemplateBuilder) {
+        this.restTemplate = restTemplateBuilder.build();
+    }
+```
+
+## 方法
 - getForObject;
 - postForObject;
 - put;
@@ -163,6 +275,7 @@ Spring使用RestTemplate将这些步骤全封装了！正如JdbcTemplate！
 **上面ForObject的方法都有ForEntity的版本。不止返回body，还有header和status code。**
 
 ## exchange - 请求中带请求头
+它比较灵活，我们可以将整个请求给拆碎开来，分别作为参数传入，比如url + method + (header + body = HttpEntity)：
 ```
 public <T> ResponseEntity<T> exchange(String url, HttpMethod method,
 			@Nullable HttpEntity<?> requestEntity, Class<T> responseType, Map<String, ?> uriVariables)
@@ -178,7 +291,7 @@ public <T> ResponseEntity<T> exchange(String url, HttpMethod method,
         return userEntity.getBody();
     }
 ```
-但**exchange方法主要是为了使用HttpEntity<T>设置请求的header的**：
+但 **exchange方法主要是为了使用`HttpEntity<T>`同时自定义请求的header**：
 ```
     /**
      * 请求设置header信息。
@@ -201,38 +314,3 @@ public <T> ResponseEntity<T> exchange(String url, HttpMethod method,
     }
 ```
 **exchange的各种重载方法返回值只有ResponseEntity类型**。
-
-HttpEntity只需要header和body两个（木有status code，继承它的ResponseEntity才加了status code）：
-```
-	/**
-	 * Create a new {@code HttpEntity} with the given body and headers.
-	 * @param body the entity body
-	 * @param headers the entity headers
-	 */
-	public HttpEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers) {
-		this.body = body;
-		HttpHeaders tempHeaders = new HttpHeaders();
-		if (headers != null) {
-			tempHeaders.putAll(headers);
-		}
-		this.headers = HttpHeaders.readOnlyHttpHeaders(tempHeaders);
-	}
-```
-## `RequestEntity<T>`
-exchange还有一个发送`RequestEntity<T>`的版本：
-```
-	@Override
-	public <T> ResponseEntity<T> exchange(RequestEntity<?> requestEntity, ParameterizedTypeReference<T> responseType)
-			throws RestClientException {
-
-		Type type = responseType.getType();
-		RequestCallback requestCallback = httpEntityCallback(requestEntity, type);
-		ResponseExtractor<ResponseEntity<T>> responseExtractor = responseEntityExtractor(type);
-		return nonNull(doExecute(requestEntity.getUrl(), requestEntity.getMethod(), requestCallback, responseExtractor));
-	}
-```
-毕竟RequestEntity一个就包含：
-- url；
-- method；
-- header + body ( = HttpEntity);
-
