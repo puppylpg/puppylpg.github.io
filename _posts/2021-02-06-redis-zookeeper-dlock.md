@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Reids - 分布式锁 vs. zookeeper"
+title: "Redis - 分布式锁 vs. zookeeper"
 date: 2021-02-06 22:24:36 +0800
 categories: Redis zookeeper lock
 tags: Redis zookeeper lock
