@@ -22,7 +22,7 @@ tags: java serialization jackson json
 1. Table of Contents, ordered
 {:toc}
 
-# 传的信息不够
+# 传的信息不够：不能手写`List<Student>.class`
 但是如果要反序列化的是一个泛型类该怎么办？
 
 想把一个list json反序列化为java对象：
@@ -43,7 +43,9 @@ List<Student> list = new ObjectMapper().readValue(studentStr, List.class);
 
 第二点是因为List是个泛型类，它的实际类型是额外需要告知Jackson的。
 
-# Jackson的解决办法
+所以核心就是一个问题：**怎么获取`List<Student>.class`这个东西**！
+
+# Jackson的解决办法：用非手写的方式获取`List<Student>.class`
 Jackson还提供了和上述方法对应的另一个中方法：
 ```
 public <T> T readValue(String content, TypeReference valueTypeRef)
@@ -115,7 +117,7 @@ System.out.println(s.getClass().getSuperclass().getSuperclass());
 // null
 System.out.println(Object.class.getSuperclass());
 ```
-**s是extends Object的一个匿名类**，它的父类是Object，Object的父类是null。
+**s是extends Object的一个匿名子类**，它的父类是Object，Object的父类是null。
 
 - https://stackoverflow.com/questions/10468806/curly-braces-in-new-expression-e-g-new-myclass
 
@@ -176,7 +178,7 @@ System.out.println(pType.getRawType());
 
 这就是一个典型的用法：**泛型的匿名子类 + ParameterizedType**。
 
-# TypeReference
+# TypeReference：所有塞到我形参里的东西，都可以用`getType()`取出来
 jackson的TypeReference就是这么使用的典型。它的java doc是这么举例的：
 
 > Usage is by sub-classing: here is one way to instantiate reference to generic type `List<Integer>`:
@@ -198,7 +200,10 @@ TypeReference只不过是把上述获取泛型参数的代码简单包装了一�
 
     public Type getType() { return _type; }
 ```
-它的初始化方法，就是利用了上面的知识：先获取匿名子类的带泛型的父类。然后获取它的泛型参数，把这个参数存到`_type`属性里。
+它的初始化方法，就是利用了上面的知识：
+1. 先获取匿名子类的带泛型的父类：`TypeReference<xxx>`；
+2. 然后获取它的泛型参数`xxx`，把这个参数存到`_type`属性里；
+3. 只要调用`getType()`，就能获取`xxx`。
 
 示例：
 ```
@@ -208,7 +213,7 @@ TypeReference只不过是把上述获取泛型参数的代码简单包装了一�
         // 输出：java.util.List<java.lang.String>
         System.out.println(type.getType());
 ```
-**TypeReference的意义就是：之前需要辛辛苦苦获取ParameterizedType，现在一个`getType()`方法就搞定了**。
+**TypeReference的意义就是：无论想要什么类型，管他是`String.class`还是`List<Student>.class`，只要放到TypeReference的形参里，现在一个`getType()`方法就都能取得了**。
 
 有了这个ParameterizedType之后，Jackson自然能抽出它的raw type和arguments，用于反序列化：
 ```

@@ -397,7 +397,7 @@ RejectedExecutionHandler就是对这一行为的定义。该接口比较简单�
         }
 ```
 
-- 自定义一个CallerBlocksPolicy：如果提交任务的线程发现交不了了，就卡着（线程挂起），直到有队列有了新的位置，可以提交进去位置。
+- ~~自定义一个`CallerBlocksPolicy`~~：如果提交任务的线程发现交不了了，就卡着（线程挂起），直到有队列有了新的位置，可以提交进去位置。
 ```
         RejectedExecutionHandler callerBlocksPolicy = (r, executor) -> {
             executor.getQueue().put(r);
@@ -407,6 +407,13 @@ RejectedExecutionHandler就是对这一行为的定义。该接口比较简单�
 
 参考：
 - https://stackoverflow.com/a/10353250/7676237
+
+**不推荐这种策略**：主要原因是ExecutorService里的BlockingQueue本质上是由线程池管理的。如果手动操作这个BlockingQueue，会影响线程池的状态。比如：如果此时线程池里的线程为0，我们put一个任务进去，线程池并不会创建线程消费它，最终主线程卡在put上，而线程池也不知道去消费它。所以这里的手动放置破坏了线程池本身“优先创建线程，线程数够了才放入queue”的行为。
+
+- https://stackoverflow.com/a/3518588/7676237
+
+而且，ExecutorService接口本身没有`getQueue()`方法，该方法是ThreadPoolExecutor独有的。说明接口没想保留queue给使用者。同时，该方法的javadoc也做了如下说明：
+> Returns the task queue used by this executor. **Access to the task queue is intended primarily for debugging and monitoring**. This queue may be in active use. Retrieving the task queue does not prevent queued tasks from executing.
 
 ## submit和execute
 execute是Executor的方法，submit是ExecutorService。submit返回Future，但是execute返回void。
@@ -604,4 +611,5 @@ ExecutorService service = Executors.unconfigurableExecutorService(executor);
 [ListenableFuture]({% post_url 2020-06-03-ListenableFuture %})
 
 - https://www.baeldung.com/thread-pool-java-and-guava
+
 
