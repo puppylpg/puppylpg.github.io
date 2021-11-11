@@ -3,7 +3,7 @@ layout: post
 title: "Linux - inode与文件描述符"
 date: 2021-11-10 20:46:42 +0800
 categories: Linux inode fd
-tags: LInux inode fd
+tags: Linux inode fd
 ---
 
 编程、理解各种组件的一些原理（比如redis），都涉及到os上的很多概念。梳理一下常用的概念。
