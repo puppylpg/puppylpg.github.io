@@ -220,6 +220,31 @@ PropertyValues postProcessPropertyValues(PropertyValues pvs, PropertyDescriptor[
 
 由于ApplicationContext是BeanFactory的更高级实现，基于BeanFactory。所以如果spring容器用的是ApplicationContext，还可以在容器启动之后，进行上图那一通操作之前，做一些配置信息加工处理的工作。
 
+```
+graph TD
+
+T[bean工厂后处理操作] --> A[实例化前操作]
+style T fill:#f9f,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
+
+A --> B[实例化]
+
+B --> C[实例化后操作]
+
+C --> D[属性值处理]
+
+D --> E[设置属性]
+
+E --> F[Aware]
+
+F --> G[初始化之前做一些处理]
+
+G --> H[初始化操作]
+
+H --> I[初始化之后做一些处理]
+
+I --> Z[销毁前操作]
+```
+
 在ApplicationContext启动后，**恰恰是所有bean的配置都被加载了，同时还没有bean被实例化。此时，所有bean的配置都可以被修改。**
 ```
 void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException;
@@ -347,40 +372,53 @@ xml config：
 
 ## ApplicationContext
 ```
-public class AnnotationApplicationContext {
-
-	 public static void main(String[] args) {
-		ApplicationContext ctx = new AnnotationConfigApplicationContext(Beans.class);
-		Car car = ctx.getBean("car",Car.class);
-	}
-}
-```
-
-bean annotation config：
-```
 package com.smart.context;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import com.smart.Car;
+import org.springframework.context.support.AbstractApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-@Configuration
-public class Beans {
+public class AnnotationApplicationContext {
+	public static void main(String[] args) {
+//		ApplicationContext ctx = new AnnotationConfigApplicationContext(Beans.class);
 
-	@Bean(name = "car")
-	public Car buildCar() {
-		Car car = new Car();
-		car.setBrand("红旗CA72");
-		car.setMaxSpeed(200);
-		return car;
+
+		/**
+		 * 那些{@link org.springframework.beans.factory.config.BeanPostProcessor}等得被声明为bean
+		 * 然后就不用再有注册他们到容器的动作了。
+		 * 
+		 * 而{@link org.springframework.beans.factory.BeanFactory}必须有手动add bean post processor的调用动作
+		 */
+		ApplicationContext ctx = new ClassPathXmlApplicationContext("com/smart/context/beans.xml");
+		Car car =ctx.getBean("car",Car.class);
 	}
 }
+```
+
+bean xml config：
+```
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+       http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+   <bean id="car" class="com.smart.Car"
+         p:brand="红旗CA72"
+         p:maxSpeed="200"/>
+   <bean id="myBeanPostProcessor" class="com.smart.context.MyBeanPostProcessor"/>
+   <bean id="myBeanFactoryPostProcessor" class="com.smart.context.MyBeanFactoryPostProcessor"/>
+</beans>
 ```
 
 使用ApplicationContext启动容器非常简单：
 1. 不需要手动load resource，容器会自动选择合适的加载方式加载；
-2. **不需要手动注册，会自动使用反射识别出配置中的BeanPostProcessor、InstantiationAwareBeanPostProcessor、BeanFactoryPostProcessor，自动注册到容器上**。
+2. 不需要手动注册bean post process等，**只要把他们声明为bean**，就会自动使用反射识别出配置中的BeanPostProcessor、InstantiationAwareBeanPostProcessor、BeanFactoryPostProcessor，自动注册到容器上。
+
+> **自动注册到容器的前提是必须得把他们声明为bean**。并不是说只要把类文件写出来了就行了。没有声明为bean，spring容器就还是不知道有这么个东西。
 
 所以开发的时候自然是使用更高级的ApplicationContext，而不是BeanFactory。
 
