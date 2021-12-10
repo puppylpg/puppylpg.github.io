@@ -2,8 +2,8 @@
 layout: post
 title: "折腾小服务器 - netdata与nginx"
 date: 2021-12-08 01:46:47 +0800
-categories: Linux nginx socket
-tags: Linux nginx socket
+categories: Linux nginx socket curl network
+tags: Linux nginx socket curl network
 ---
 
 给服务器装个监控。
@@ -134,7 +134,7 @@ server {
     }
 }
 ```
-> yaml配置非常舒适。
+> 比xml舒适一些。
 
 然后在`etc/nginx/sites-enabled/`下创建一个它的软连接，重启nginx或者reload配置就启用新配置了。
 
@@ -144,7 +144,7 @@ server {
 
 **最后还有重要的一步：在DNS服务商那里配置`netdata.puppylpg.xyz`这个域名能访问到nginx。一般nginx直接部署在服务器80端口，所以也就是让域名能解析为服务器的ip**，要不然用户输入`netdata.puppylpg.xyz`根本连不上nginx，nginx配置的再好也没用了。
 
-而这里，我使用的是CNAME配置，指向服务器的域名`puppylpg.xyz`：
+由于只有一台服务器，nginx也部署在这个服务器上，地址就是`puppylpg.xyz`，所以`netdata.puppylpg.xyz`指向`puppylpg.xyz`就行了。这里使用了CNAME：
 ```
 ≥ dig CNAME netdata.puppylpg.xyz +short
 puppylpg.xyz.
@@ -245,9 +245,127 @@ server {
 ```
 1. 上游服务依然是指向netdata服务，并取名为netdata；
 2. `server_name`这次直接用了服务器域名，而不是特意配的域名；
-3. `location`指向`/netdata`路径；
+3. `location`指向`/netdata`路径或者`/netdata/xxx`；
+
+这个配置稍微复杂了点儿，首先是301重定向，如果访问路径是`/netdata`，就重定向到`/netdata/`：
+```
+    location = /netdata {
+        return 301 /netdata/;
+    }
+```
+
+然后是模糊匹配，所以路径为`/netdata/xxx`的请求，都会达到netdata这个上游服务：
+```
+    location ~ /netdata/(?<ndpath>.*) {
+        proxy_redirect off;
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Server $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+        proxy_pass_request_headers on;
+        proxy_set_header Connection "keep-alive";
+        proxy_store off;
+        proxy_pass http://netdata/$ndpath$is_args$args;
+
+        gzip on;
+        gzip_proxied any;
+        gzip_types *;
+    }
+```
 
 现在，使用`puppylpg.xyz/netdata`也可以访问netdata了。不过我还是更倾向于配置一个专有域名，好记也好看。
+
+可以使用curl看看这样配置的nginx发生了什么。首先看看有没有发生301重定向：
+```
+⇒  curl --dump-header - puppylpg.xyz/netdata --user <user name>:<password> 
+HTTP/1.1 301 Moved Permanently
+Server: nginx/1.18.0
+Date: Thu, 09 Dec 2021 09:28:21 GMT
+Content-Type: text/html
+Content-Length: 169
+Location: http://puppylpg.xyz/netdata/
+Connection: keep-alive
+
+<html>
+<head><title>301 Moved Permanently</title></head>
+<body>
+<center><h1>301 Moved Permanently</h1></center>
+<hr><center>nginx/1.18.0</center>
+</body>
+</html>
+```
+确实返回的是301重定向，Location header表明，将`/netdata`重定向到了`/netdata/`。
+
+> 这里用到了用户名密码认证，因为后面配置了nginx认证。
+
+或者使用`-L`支持重定向，加上`-v`查看详情：
+```
+⇒  curl -L puppylpg.xyz/netdata --user <user name>:<password> -v
+*   Trying 104.225.232.103:80...
+* Connected to puppylpg.xyz (104.225.232.103) port 80 (#0)
+* Server auth using Basic with user '<user name>'
+
+> GET /netdata HTTP/1.1
+> Host: puppylpg.xyz
+> Authorization: Basic cGlxxxYQ==
+> User-Agent: curl/7.74.0
+> Accept: */*
+>
+
+* Mark bundle as not supporting multiuse
+
+< HTTP/1.1 301 Moved Permanently
+< Server: nginx/1.18.0
+< Date: Thu, 09 Dec 2021 09:42:54 GMT
+< Content-Type: text/html
+< Content-Length: 169
+< Location: http://puppylpg.xyz/netdata/
+< Connection: keep-alive
+<
+
+* Ignoring the response-body
+* Connection #0 to host puppylpg.xyz left intact
+* Issue another request to this URL: 'http://puppylpg.xyz/netdata/'
+* Found bundle for host puppylpg.xyz: 0x55a040e4d8a0 [serially]
+* Can not multiplex, even if we wanted to!
+* Re-using existing connection! (#0) with host puppylpg.xyz
+* Connected to puppylpg.xyz (104.225.232.103) port 80 (#0)
+* Server auth using Basic with user '<user name>'
+
+> GET /netdata/ HTTP/1.1
+> Host: puppylpg.xyz
+> Authorization: Basic cGlxxxYQ==
+> User-Agent: curl/7.74.0
+> Accept: */*
+>
+
+* Mark bundle as not supporting multiuse
+
+< HTTP/1.1 200 OK
+< Server: nginx/1.18.0
+< Date: Thu, 09 Dec 2021 09:42:55 GMT
+< Content-Type: text/html; charset=utf-8
+< Content-Length: 40048
+< Connection: keep-alive
+< Access-Control-Allow-Origin: *
+< Access-Control-Allow-Credentials: true
+< Cache-Control: public
+< Expires: Fri, 10 Dec 2021 09:42:55 GMT
+<
+<!doctype html><html lang="en"><head><title>netdata dashboard</title>太长不贴了
+```
+1. curl请求`/netdata`，**Authentication header表明使用的是basic认证**。nginx返回301重定向；
+2. curl再请求`/netdata/`，依然使用basic认证。这次nginx返回netdata的网页了；
+
+> **还能很明显看到，http header后面一定紧跟一个空行**。
+
+curl使用认证：
+- https://stackoverflow.com/a/3044340/7676237
+- https://curl.se/docs/httpscripting.html
+
+关于basic认证，参考下面的内容。
 
 当然也可以不用nginx，使用apache：
 - apache配置反向代理：https://learn.netdata.cloud/docs/agent/running-behind-apache
@@ -276,6 +394,44 @@ server {
 现在，再使用nginx访问netdata就要输入用户名和密码了：
 1. `netdata.puppylpg.xyz`;
 2. `puppylpg.xyz/netdata`;
+
+关于认证方式，参考：
+- http basic认证：https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization#basic_authentication
+- http的其他认证方式：https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization#directives
+- http认证的流程：https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
+- basic auth：https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme
+
+**但是basic认证是不安全的，仅仅是base64了一下`username:password`**：
+> As the user ID and password are passed over the network as clear text (it is base64 encoded, but base64 is a reversible encoding), the basic authentication scheme is not secure. **HTTPS/TLS should be used with basic authentication**. Without these additional security enhancements, basic authentication should not be used to protect sensitive or valuable information.
+
+from curl tutorial：
+> You need to pay attention that this kind of HTTP authentication is not what is usually done and requested by user-oriented websites these days. They tend to use forms and cookies instead.
+
+事实上，无论是使用wireshark抓包还是使用浏览器的控制台查看请求，都能看到base64的用户名和密码。所以https是必须的！
+
+### 配置https
+http-over-tls，说来话长，新写了一篇[折腾小服务器 - nginx与https]({% post_url 2021-12-11-vps-nginx-https %})
+
+### nginx与netdata之间的https
+- https://learn.netdata.cloud/docs/agent/running-behind-nginx#encrypt-the-communication-between-nginx-and-netdata
+
+按理说nginx和netdata一般都在同一机器或者内网集群，不需要再使用https。但万一nginx和netdata在两台主机通过公网访问，那最好nginx和netdata之间也开启https连接。
+
+从1.16.0开始，netdata支持https了，所以直接配置TLS的文件：
+```
+[web]
+    ssl key = /etc/netdata/ssl/key.pem
+    ssl certificate = /etc/netdata/ssl/cert.pem
+```
+然后配置nginx，告诉nginx和netdata之间的通信需要用https：
+```
+proxy_set_header X-Forwarded-Proto https;
+proxy_pass https://localhost:19999;
+```
+就ok了。整个流程和client与nginx之间使用https类似。
+
+- https://learn.netdata.cloud/docs/agent/web/server#enabling-tls-support
+- https://www.netdata.cloud/blog/release-1-16/
 
 ### 关闭远程访问
 但还有一种访问netdata的方式没有使用nginx，所以还是不需要认证的：
@@ -405,8 +561,64 @@ netdata提供了一个很好的预估所需存储空间的工具：
 
 虽然没啥卵用，但标题确实好看了不少。
 
-## plugin - TBD
-插件好像也挺丰富强大的，等慢慢探索吧。
+# 配置collector
+netdata靠各种collector来收集各种各样的metric，每个collector针对特定的应用/场景，使用提前设定的配置，收集相应文件/端口的数据。
+
+> 妥妥的IPC。
+
+比如nginx collector默认收集`/var/log/nginx/access.log`来统计nginx的访问情况。如果nginx做了自定义配置，没有把accesslog放在这儿，那nginx collector的配置也要对应做一些修改。如果大家都是默认情况，那直接启动就能正常工作了。
+
+- how to collect: https://learn.netdata.cloud/docs/collect/how-collectors-work
+- 统一配置：https://learn.netdata.cloud/docs/collect/enable-configure
+
+netdata现在推荐使用Go版的collector：
+- 所有可用的collector：https://learn.netdata.cloud/docs/agent/collectors/collectors
+
+每次新配置完一个collector，都要记得重启netdata。
+
+## nginx
+监控nginx的连接、请求之类的。
+
+- https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/nginx/
+
+配置完后，`/etc/netdata/go.d`下就会有一个collector的配置`nginx.conf`。
+
+## tcp
+监控端口的连接时长、延迟等。
+
+- https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/portcheck/
+
+监控netdata的19999端口和ssh的端口都还不错，但是监控shadowsocks的几个端口都没有看出来端倪。以后再研究研究。
+
+## docker
+### docker engine
+监控docker engine，但好像是监测docker engine的pull/push/build次数的……emmm
+
+- https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/docker_engine/
+
+docker默认使用unix domain socket，所以还要开个端口暴露metric。docker默认可以配置端口暴露给prometheus监控。所以collector也就从这个端口手机数据：
+- https://docs.docker.com/config/daemon/prometheus/
+
+通过tcp连上了：
+```
+netdata » sudo netstat -anp | grep :9323                                                                 /etc/netdata
+tcp        0      0 127.0.0.1:9323          0.0.0.0:*               LISTEN      745066/dockerd
+tcp        0      0 127.0.0.1:9323          127.0.0.1:39256         ESTABLISHED 745066/dockerd
+tcp        0      0 127.0.0.1:39256         127.0.0.1:9323          ESTABLISHED 747981/go.d.plugin
+tcp        0      0 127.0.0.1:40178         127.0.0.1:9323          ESTABLISHED 747981/go.d.plugin
+tcp        0      0 127.0.0.1:9323          127.0.0.1:40178         ESTABLISHED 745066/dockerd
+```
+
+### docker container - TODO
+- https://learn.netdata.cloud/docs/agent/collectors/collectors#containers-and-vms
+- 使用cgroups监控：https://learn.netdata.cloud/docs/agent/collectors/cgroups.plugin
+
+然后就科普了一下什么是cgroups…… **netdata真乃学linux的利器……毕竟你都懂怎么去获取linux的各种metrics了，说明你已经对linux的各种机制都很熟悉了……**
+
+## springboot
+还有一个使用actuator暴露的metric来监控springboot服务的……真的牛逼……然后就可以看到springboot jvm的内存监控了。
+
+- https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/springboot2/
 
 # 感想
 1. 其实很多理论，比如DNS、反向代理，买个域名配一配实际部署一下就知道哪些是哪些了；
