@@ -412,6 +412,63 @@ from curl tutorial：
 ### 配置https
 http-over-tls，说来话长，新写了一篇[折腾小服务器 - nginx与https]({% post_url 2021-12-11-vps-nginx-https %})
 
+### http转https
+- 没配https之前，https://netdata.puppylpg.xyz是无法访问的，因为nginx没有监听443端口；
+- 配完https之后，http://netdata.puppylpg.xyz就转到了nginx的默认配置的80端口监听，nginx默认界面，而不是netdata服务了；
+
+如何配置http自动跳转https？可以参考上面公司的nginx配置：
+```
+server {
+    # nginx listens to this
+    listen 80;
+    listen 443 ssl;
+
+    # use password to access
+    auth_basic "Protected";
+    auth_basic_user_file passwords;
+
+    # the virtual host name of this
+    server_name netdata.puppylpg.xyz;
+    ssl_certificate /etc/nginx/puppylpg-ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/puppylpg-ssl/key.pem;
+
+    if ($scheme = http ) {
+        return 307 https://$host$request_uri;
+    }
+
+    location / {
+        // ...
+    }
+}
+```
+同时监听80和443，既可以处理http，又可以处理https。同时配置http为307跳，转到https。
+
+curl需要使用`--insecure`，不然也是证书验证不通过，拒绝访问。不知道为啥https不支持HEAD方法，所以使用了GET，同时只显示header：
+```
+puppylpg ❯ curl -I http://netdata.puppylpg.xyz --insecure -u <username:password>
+HTTP/1.1 307 Temporary Redirect
+Server: nginx/1.18.0
+Date: Sat, 11 Dec 2021 08:56:30 GMT
+Content-Type: text/html
+Content-Length: 171
+Connection: keep-alive
+Location: https://netdata.puppylpg.xyz/
+
+puppylpg ❯ curl -IXGET https://netdata.puppylpg.xyz --insecure -u <username:password>
+HTTP/1.1 200 OK
+Server: nginx/1.18.0
+Date: Sat, 11 Dec 2021 08:30:49 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 40048
+Connection: keep-alive
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+Cache-Control: public
+Expires: Sun, 12 Dec 2021 08:30:49 GMT
+
+```
+http果然返回307，https直接返回。此时浏览器里再输入http，就会自动跳转到https了。
+
 ### nginx与netdata之间的https
 - https://learn.netdata.cloud/docs/agent/running-behind-nginx#encrypt-the-communication-between-nginx-and-netdata
 
