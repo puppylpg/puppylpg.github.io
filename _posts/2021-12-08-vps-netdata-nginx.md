@@ -134,7 +134,7 @@ server {
     }
 }
 ```
-> 比xml舒适一些。
+> 比xml舒适一些。nginx的配置详情，可以参考[Nginx]({% post_url 2021-12-12-nginx %})
 
 然后在`etc/nginx/sites-enabled/`下创建一个它的软连接，重启nginx或者reload配置就启用新配置了。
 
@@ -645,7 +645,9 @@ netdata现在推荐使用Go版的collector：
 
 - https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/portcheck/
 
-监控netdata的19999端口和ssh的端口都还不错，但是监控shadowsocks的几个端口都没有看出来端倪。以后再研究研究。
+监控netdata的19999端口和ssh的端口都还不错，~~但是监控shadowsocks的几个端口都没有看出来端倪。以后再研究研究。~~ 破案了，shadowsocks绑定的是公网ip网卡，没有绑定localhost，而配置的时候把host直接写成localhost了。**以后一定要好好看清服务到底绑定了哪个网卡**。
+
+update every被我改成300s一次了，感觉没必要一直监听端口是不是能正常连接。
 
 ## docker
 ### docker engine
