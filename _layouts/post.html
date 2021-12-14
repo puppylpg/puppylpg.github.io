@@ -7,8 +7,4 @@ layout: page
 <span class="post-date" style="font-style: italic;">{{ page.date | date: "%B %d, %Y" }}</span>
 {{ content }}
 
-{% if site.disqus.shortname %}
-  {% include disqus_comments.html %}
-{% endif %}
-
 {% include scrolltop.html %}

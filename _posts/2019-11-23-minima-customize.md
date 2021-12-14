@@ -109,6 +109,11 @@ header_pages:
 - https://stackoverflow.com/questions/25452429/excluding-page-from-jekyll-navigation-bar
 
 # 增加评论系统
+评论使用disqus，还挺有意思的。
+
+网站绑定一个shortname，是自己在disqus下注册的site。所有的评论都发往那个site，按照url分组。相当于数据库保存评论这部分交给disqus来做了。当打开这个页面的时候，会向disqus请求该页面所有的评论。这样就给静态网站添加了评论功能。
+
+config里填写自己site的shortname：
 ```
 # Disqus Comments
 disqus:
@@ -116,9 +121,15 @@ disqus:
         # Disable comments for any post by adding `comments: false` to that post's YAML Front Matter.
         shortname: <your-shortname>
 ```
-在一个中文网站里接入了国外的评论系统，应该注定我的网站是不会有人评论的吧……
-
+然后引入一个disqus的评论区，include到模板里就好：
 - https://desiredpersona.com/disqus-comments-jekyll/
+
+> 在一个中文网站里接入了国外的评论系统，应该注定我的网站是不会有人评论的吧……
+
+disqus的评论是以页面url来分组的。如果页面url变了，能把之前的评论签到新url下吗？可以。具体可以参考disqus文档。
+
+disqus测试的时候会不显示，只在信任的域名上生效。具体可以参阅：
+- https://help.disqus.com/en/articles/1717301-i-m-receiving-the-message-we-were-unable-to-load-disqus
 
 # 引用的代码中有Liquid tag，导致代码被替换了
 在这篇文章中我想引用一下layout模板的代码，但是代码里的Liquid tag竟然会被Liquid替换掉……即使使用markdown的代码引用格式，也不奏效……

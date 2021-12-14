@@ -45,6 +45,9 @@
                     <p>{{ child.description }}</p>
                  </div>{% endfor %}
               </div>{% endif %}
+              {% if site.disqus.shortname %}
+                {% include disqus_comments.html %}
+              {% endif %}
               {% include feedback.html %}
            </div>
           </main>
