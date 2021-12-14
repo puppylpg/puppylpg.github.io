@@ -325,6 +325,8 @@ jekyll有插件[jekyll-seo-tag](https://github.com/jekyll/jekyll-seo-tag)专门�
 ```
 基本把这个网页、作者、摘要等信息描述的比较全了。比如以后再搜索puppylpg，相信这些页面出现的概率就大大增加了。
 
+> 其实docsy的页面include的`head.html`，已经手动把这些meta tag写的差不多了。不过还是seo插件生成的更全面一些。
+
 参阅：
 - https://github.com/jekyll/jekyll-seo-tag
 - http://pizn.github.io/2012/01/16/the-seo-for-jekyll-blog.html
