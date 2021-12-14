@@ -291,8 +291,41 @@ google_analytics: <Your user id>
 # 添加seo
 既然如此，那把SEO（Search Engine Optimization，搜索引擎优化）也打开吧，希望能吸引更多用户。
 
-流程比较简单，按照github [jekyll-seo-tag](https://github.com/jekyll/jekyll-seo-tag)说的搞一下就行了。
+网页的`<head>` tag里可以放很多`<meta>` tag，表明网页的基本信息。它因为在head里，所以网页上不可见，但可以被程序解析，用来帮助搜索引擎更好地给网页建立索引，从而在用户搜索时更好地搜到这个网页：
+- https://www.w3schools.com/tags/tag_meta.asp
+
+所以好好写meta标签对自己的网站能更好的被搜索到大有裨益。
+
+jekyll有插件[jekyll-seo-tag](https://github.com/jekyll/jekyll-seo-tag)专门来帮忙生成meta标签：
+1. 安装插件：https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/installation.md
+2. 插件会生成哪些tag：https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
+
+装完之后，本地启动，查看网页源代码，果然在`<head>`里多了以下标签：
+```
+<!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>折腾小服务器 - nginx与https | Pokédex puppylpg</title>
+<meta name="generator" content="Jekyll v3.9.0" />
+<meta property="og:title" content="折腾小服务器 - nginx与https" />
+<meta name="author" content="puppylpg" />
+<meta property="og:locale" content="zh_Hans" />
+<meta name="description" content="之前折腾小服务器 - netdata与nginx使用nginx代理netdata服务，用nginx配置了简单的basic认证。但http是明文传输的，所以很容易就能在http header里发现用户名和密码，这就不太能接受了。因此配置https势在必行。" />
+<meta property="og:description" content="之前折腾小服务器 - netdata与nginx使用nginx代理netdata服务，用nginx配置了简单的basic认证。但http是明文传输的，所以很容易就能在http header里发现用户名和密码，这就不太能接受了。因此配置https势在必行。" />
+<link rel="canonical" href="http://localhost:4444/2021/12/11/vps-nginx-https/" />
+<meta property="og:url" content="http://localhost:4444/2021/12/11/vps-nginx-https/" />
+<meta property="og:site_name" content="Pokédex puppylpg" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-12-11T04:51:37+08:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="折腾小服务器 - nginx与https" />
+<meta name="twitter:site" content="@" />
+<meta name="twitter:creator" content="@puppylpg" />
+<script type="application/ld+json">
+{"description":"之前折腾小服务器 - netdata与nginx使用nginx代理netdata服务，用nginx配置了简单的basic认证。但http是明文传输的，所以很容易就能在http header里发现用户名和密码，这就不太能接受了。因此配置https势在必行。","headline":"折腾小服务器 - nginx与https","dateModified":"2021-12-11T04:51:37+08:00","datePublished":"2021-12-11T04:51:37+08:00","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4444/2021/12/11/vps-nginx-https/"},"url":"http://localhost:4444/2021/12/11/vps-nginx-https/","author":{"@type":"Person","name":"puppylpg"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+```
+基本把这个网页、作者、摘要等信息描述的比较全了。比如以后再搜索puppylpg，相信这些页面出现的概率就大大增加了。
 
 参阅：
 - https://github.com/jekyll/jekyll-seo-tag
 - http://pizn.github.io/2012/01/16/the-seo-for-jekyll-blog.html
+

@@ -613,6 +613,9 @@ netdata提供了一个很好的预估所需存储空间的工具：
 
 这么算下来，512m够我存半年的metric了，可以了。
 
+单个plugin的update every可以比global大，不可以比global小，否则按照global的频率收集：
+- https://learn.netdata.cloud/docs/configure/common-changes#reduce-the-data-collection-frequency
+
 ## hostname
 配置tab页的名称。默认使用hostname：`pokemon.localdomain`，不太好看，所以改掉了：`hostname = puppylpg's VPS`。但并不影响实际的hostaname值。
 
