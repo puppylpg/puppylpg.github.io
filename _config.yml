@@ -74,6 +74,9 @@ permalink: /:year/:month/:day/:title/
 markdown: kramdown
 exclude: [_site, CHANGELOG.md, LICENSE, README.md, vendor]
 
+plugins:
+  - jekyll-seo-tag
+
 # Collections
 collections:
   docs:
