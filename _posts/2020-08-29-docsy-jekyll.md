@@ -9,7 +9,7 @@ tags: Jekyll
 之前利用github pages提供的便利，使用jekyll创建了个人静态网站：
 - [搭建个人GitHub Pages（Debian 9 Stretch）]({% post_url 2019-11-16-build-github-pages-Debian %})
 - [探索Jekyll静态网站结构]({% post_url 2019-11-17-Jekyll-website %})
-- [minima主题拓展]({% post_url 2019-11-23-minima-costumize %})
+- [minima主题拓展]({% post_url 2019-11-23-minima-customize %})
 
 jekyll的默认主题是minima，一个看起来十分干净整洁的主题。从学习的角度来讲，由于没有花里胡哨的组件，minima挺适合学习前端或者jekyll。
 

@@ -34,33 +34,33 @@ tags: Jekyll
 ```
 $ tree
 .
-├ assets
-│   ├ main.scss
-│   └ minima-social-icons.svg
-├ _includes
-│   ├ disqus_comments.html
-│   ├ footer.html
-│   ├ google-analytics.html
-│   ├ header.html
-│   ├ head.html
-│   ├ icon-github.html
-│   ├ icon-github.svg
-│   ├ icon-twitter.html
-│   ├ icon-twitter.svg
-│   └ social.html
-├ _layouts
-│   ├ default.html
-│   ├ home.html
-│   ├ page.html
-│   └ post.html
-├ LICENSE.txt
-├ README.md
-└ _sass
-	├ minima
-	│   ├ _base.scss
-	│   ├ _layout.scss
-	│   └ _syntax-highlighting.scss
-	└ minima.scss
+├── assets
+│   ├── main.scss
+│   └── minima-social-icons.svg
+├── _includes
+│   ├── disqus_comments.html
+│   ├── footer.html
+│   ├── google-analytics.html
+│   ├── header.html
+│   ├── head.html
+│   ├── icon-github.html
+│   ├── icon-github.svg
+│   ├── icon-twitter.html
+│   ├── icon-twitter.svg
+│   └── social.html
+├── _layouts
+│   ├── default.html
+│   ├── home.html
+│   ├── page.html
+│   └── post.html
+├── LICENSE.txt
+├── README.md
+└── _sass
+	├── minima
+	│   ├── _base.scss
+	│   ├── _layout.scss
+	│   └── _syntax-highlighting.scss
+	└── minima.scss
 
 5 directories, 22 files
 ```
@@ -282,18 +282,18 @@ blabla...
 在[搭建个人GitHub Pages（Debian 9 Stretch）]({% post_url 2019-11-16-build-github-pages-Debian %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
 ```
 .
-├ 404.html
-├ about.markdown
-├ _config.yml
-├ Gemfile
-├ Gemfile.lock
-├ index.markdown
-├ _posts
-│   ├ 2019-11-16-build-github-pages-Debian.md
-│   ├ 2019-11-16-keep-alive.md
-│   └ 2019-11-16-welcome-to-jekyll.markdown
-├ README.md
-└ _site
+├── 404.html
+├── about.markdown
+├── _config.yml
+├── Gemfile
+├── Gemfile.lock
+├── index.markdown
+├── _posts
+│   ├── 2019-11-16-build-github-pages-Debian.md
+│   ├── 2019-11-16-keep-alive.md
+│   └── 2019-11-16-welcome-to-jekyll.markdown
+├── README.md
+└── _site
 ```
 
 ## `_posts`
@@ -450,7 +450,7 @@ config文件可以配置很多东西，比如：
 - https://bundler.io/v1.7/rationale.html#checking-your-code-into-version-control
 
 # minima主题拓展
-minima是Jekyll默认且最基本的主题，如果想增加更多的定制，可以参阅[minima主题拓展]({% post_url 2019-11-23-minima-costumize %})
+minima是Jekyll默认且最基本的主题，如果想增加更多的定制，可以参阅[minima主题拓展]({% post_url 2019-11-23-minima-customize %})
 
 # 总结
 折腾了两天之后，不得不感叹前端的东西果然是丰富多彩。比如想给网站添加sidebar，里面放文章的目录内容。虽然sidebar大差不差勉强算是搞定了，但是很多细节还需要去处理，尤其是toc在这里并不能生成目录，还得想办法去解决。
