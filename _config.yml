@@ -18,7 +18,7 @@ title: Pokédex puppylpg
 author: puppylpg
 email: shininglhb@163.com
 description: >- # this means to ignore newlines until "baseurl:"
-            To Beyond and Infinity!
+            puppylpg's knowledge base. To Beyond and Infinity!
 
 # DO NOT CHANGE THE LINE OF THIS FILE without editing .circleci/circle_urls.sh
 baseurl: "" # the subpath of your site, e.g. /blog
