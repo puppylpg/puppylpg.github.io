@@ -35,4 +35,6 @@ Interested in the other games I play? Try to find them on my [steam](https://ste
 Now at my age, I restart to love to read books(not only tech books) just like when I was a chind, diving into book stores for a whole day, despite of tiredness. I perfer to pay more attention to Chinese ancient books recently, and will list them once I finish any one from now on:
 - [《儒林外史》](https://www.shicimingju.com/book/rulinwaishi.html);
 
-May we grow up together, living happily, living wonderfully, living meanfully.
+May we grow up together, living happily, living wonderfully, living meaningfully.
+
+And more: sleep well.

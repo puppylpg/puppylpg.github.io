@@ -336,7 +336,14 @@ jekyll有插件[jekyll-seo-tag](https://github.com/jekyll/jekyll-seo-tag)专门�
 ```
 基本把这个网页、作者、摘要等信息描述的比较全了。比如以后再搜索puppylpg，相信这些页面出现的概率就大大增加了。
 
-> 其实docsy的页面include的`head.html`，已经手动把这些meta tag写的差不多了。不过还是seo插件生成的更全面一些。
+其实docsy的页面include的`head.html`，已经手动把这些meta tag写的差不多了。不过还是seo插件生成的更全面一些。比如还能生成json-ld的机构化数据：
+- https://developers.google.com/search/docs/advanced/structured-data/intro-structured-data?hl=zh-cn
+
+更多seo信息，可以参考google的指南：
+- https://developers.google.com/search/docs/beginner/seo-starter-guide?hl=zh-cn
+
+SEO指的是“对网站进行搜索引擎优化”，绝非给网页起个好标题，加点儿meta标签这么简单，还需要考虑网站结构、网页结构、图片使用等等。如果是想推广自己网站的站长，可以看看《谷歌搜索引擎优化初学者指南》：
+- https://static.googleusercontent.com/media/www.google.com/zh-CN//intl/zh-CN/webmasters/docs/search-engine-optimization-starter-guide-zh-cn.pdf
 
 参阅：
 - https://github.com/jekyll/jekyll-seo-tag
