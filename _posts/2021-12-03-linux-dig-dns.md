@@ -168,9 +168,10 @@ m.root-servers.net.     511286  IN      AAAA    2001:dc3::35
 # DNS记录的类型
 - `A`：记录着该域名和ip（ipv4）的对应关系；
 - `AAAA`：同上，ipv6；
-- `NS`：**Name Server，该域名的域名服务器地址，可以用来查该域名的下一级的所有域名**；
+- `NS`：**Name Server，该域名的域名服务器地址，可以用来查该域名的下一级的所有（或部分，取决于NS服务提供商的具体部署情况）域名**；
 - `MX`：Mail Exchange，该域名对应的电子邮件服务器的地址；
-- `CNAME`：Canonical，规范名称。可以理解为 **当前域名指向的域名**；
+- `CNAME`：**Canonical Name record，规范名称，或者说真实名称**。可以理解为 **当前域名指向的域名**；
+- `TXT`：记录自定义的text内容；
 
 ## `dig <domain>`
 获取域名的A记录，CNAME记录：
@@ -200,7 +201,9 @@ puppylpg.xyz.           0       IN      A       104.225.232.103
 ```
 
 ## `dig MX <domain>`
-获取域名记录的邮件服务器：
+用于获取域名记录的邮件服务器。电子邮件用一种特殊的DNS记录称为MX记录（Mail Exchange）。如果你发一封邮件给1234@qq.com,发送方服务器会对@分隔符后面的http://qq.com做一个MX记录查询，DNS返回的查询结果举个例子是receive.qq.com,发送方服务器就会连上http://receive.qq.com的特定端口（如25）开始传输邮件。
+
+没设置，所以没答案：
 ```
 ~ % dig MX puppylpg.xyz
 
@@ -218,7 +221,7 @@ puppylpg.xyz.           0       IN      A       104.225.232.103
 ;; WHEN: Wed Dec 01 21:25:04 CST 2021
 ;; MSG SIZE  rcvd: 30
 ```
-没设置，所以没答案。**因此如果给`xxx@puppylpg.xyz`发邮件，会无处可发**。
+**因此如果给`xxx@puppylpg.xyz`发邮件，会无处可发**。
 
 可以在域名服务商提供的域名的管理页面添加MX记录。我给它加了163的邮件接收服务器的地址，之后再查：
 ```
@@ -273,7 +276,81 @@ Ref：
 - https://en.wikipedia.org/wiki/TXT_record
 
 ## `dig CNAME <domain>`
-查询CNAME记录。其实没必要，因为dig直接查domain，会把CNAME和A都显示出来。
+CNAME是Canonical Name的缩写，指的是“真实名称”。一个比较易混的点：cname指的是右边的域名是真实名称，左边的是alias。比如：
+```
+netdata.puppylpg.xyz.	CNAME	puppylpg.xyz.
+```
+指的是netdata.puppylpg.xyz指向的“真实名称”是puppylpg.xyz，也就是说pupyplpg.xyz才是CNAME。
+
+### 使用场景
+[wikipedia](https://en.wikipedia.org/wiki/CNAME_record)举的cname的例子就是使用nginx做反向代理的场景：
+- puppylpg.xyz使用A记录指向一个ip；
+- netdata.puppylpg.xyz指向puppylpg.xyz；
+
+### 任意指向
+CNAME可以是任何网站，但未必能访问成功。比如可以配一个du.puppylpg.xyz指向www.baidu.com，此时du.puppylpg.xyz就是www.baidu.com：
+```
+~ dig du.puppylpg.xyz
+
+; <<>> DiG 9.16.15-Debian <<>> du.puppylpg.xyz
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 7409
+;; flags: qr rd ad; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 0
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;du.puppylpg.xyz.               IN      A
+
+;; ANSWER SECTION:
+du.puppylpg.xyz.        0       IN      CNAME   www.baidu.com.
+www.baidu.com.          0       IN      CNAME   www.a.shifen.com.
+www.a.shifen.com.       0       IN      A       220.181.38.150
+www.a.shifen.com.       0       IN      A       220.181.38.149
+
+;; Query time: 10 msec
+;; SERVER: 172.30.208.1#53(172.30.208.1)
+;; WHEN: Mon Dec 27 18:06:32 CST 2021
+;; MSG SIZE  rcvd: 166
+
+~ dig du.puppylpg.xyz +short
+www.baidu.com.
+www.a.shifen.com.
+220.181.38.150
+220.181.38.149
+```
+但是想通过这个域名访问baidu，并不会成功：
+```
+~ curl -v du.puppylpg.xyz
+*   Trying 220.181.38.150:80...
+* Connected to du.puppylpg.xyz (220.181.38.150) port 80 (#0)
+> GET / HTTP/1.1
+> Host: du.puppylpg.xyz
+> User-Agent: curl/7.74.0
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 403 Forbidden
+< Server: bfe
+< Date: Mon, 27 Dec 2021 10:07:43 GMT
+< Content-Length: 0
+< Content-Type: text/plain; charset=utf-8
+<
+* Connection #0 to host du.puppylpg.xyz left intact
+```
+因为在http request header里，Host是du.puppylpg.xyz，百度收到这样的请求，是不会处理的。
+
+想实现这种需求，不是通过CNAME来实现的，而是nginx：du.puppylpg.xyz指向自己的nginx服务，nginx把header里的Host换成baidu，再给百度发请求：
+```
+location / { 
+    sub_filter www.baidu.com baidu.leishi.io; sub_filter_once off; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header Referer https://www.baidu.com; proxy_set_header Host www.baidu.com; proxy_set_header Accept-Encoding ""; proxy_pass https://www.baidu.com;
+}
+```
+
+- https://www.v2ex.com/t/634903
+
+### 查询CNAME记录
+其实没必要，因为dig直接查domain，会把CNAME和A都显示出来。
 
 配置`netdata.puppylpg.xyz`指向`puppylpg.xyz`，之后再查询：
 ```
@@ -300,6 +377,37 @@ netdata.puppylpg.xyz.   7207    IN      CNAME   puppylpg.xyz.
 ```
 
 **域名一旦设置CNAME记录以后，就不能再设置其他记录了（比如A记录和MX记录）**。比如`netdata.puppylpg.xyz`不能在设置A和MX了，不然发给`@netdata.puppylpg.xyz`的邮件到底是发给它的MX的，还是发给`puppylpg.xyz`的MX的？冲突了。
+
+# 获取最新的DNS记录
+有时候dns的记录刷新了，但是本地还查不到，是因为本地dns记录的缓存还没有过期。获取dns记录的时候，TTL代表了过期时间。
+
+如果使用dig获取记录，0ms就返回了，肯定是缓存：
+```
+;; Query time: 0 msec
+;; SERVER: 172.30.208.1#53(172.30.208.1)
+;; WHEN: Mon Dec 27 17:32:10 CST 2021
+;; MSG SIZE  rcvd: 66
+```
+
+此时可以直接指定NS服务器查询，返回的一定是最新的结果。dig不会再从本机缓存里查询：
+```
+~ dig +short puppylpg.xyz NS
+ns2.dnsowl.com.
+ns3.dnsowl.com.
+ns1.dnsowl.com.
+~ dig TXT puppylpg.xyz +short
+"spf.163.com"
+```
+
+从返回内容也可以看出，是花了一些时间才获取到的，而不是0ms：
+```
+;; Query time: 880 msec
+;; SERVER: 162.159.27.173#53(162.159.27.173)
+;; WHEN: Mon Dec 27 17:32:36 CST 2021
+;; MSG SIZE  rcvd: 283
+```
+
+- https://serverfault.com/questions/372066/force-dig-to-resolve-without-using-cache
 
 # 本地域名服务器
 除了上述顶级域名服务器、权限域名服务器（只负责某个domain），还有一种并不属于域名服务器层次的NS：本地域名服务器local name server。
@@ -335,5 +443,4 @@ netdata.puppylpg.xyz.   7207    IN      CNAME   puppylpg.xyz.
 
 Ref：
 - https://www.ruanyifeng.com/blog/2016/06/dns.html
-
 
