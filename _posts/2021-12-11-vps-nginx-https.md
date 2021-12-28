@@ -61,6 +61,7 @@ TSL是使用非对称加密的。为什么？当然是因为开放的网络世�
 所谓自签名方式，其实就是数字签名不交给CA认证，直接发给用户使用。坏处就是浏览器比如chrome就会提醒用户：这个证书不安全，没有经过CA认证，无法验证是否真的是属于该网站的。
 
 > chrome：您的连接不是私密连接
+>
 > 我：继续前往
 
 还可以手动把这个证书加到系统的受信任区，相当于白名单，这样浏览器就不替你瞎操心了。
@@ -68,6 +69,8 @@ TSL是使用非对称加密的。为什么？当然是因为开放的网络世�
 chrome貌似没有这个权限，使用ie浏览器打开网站，就有把证书安装到系统的功能。
 
 - https://cnzhx.net/blog/self-signed-certificate-as-trusted-root-ca-in-windows/
+
+但是后来我发现一个免费帮网站做签名的CA，真是万分意外！下面一一介绍。
 
 ## 生成自签名的certificate
 通过openssl生成证书和私钥：
@@ -82,15 +85,163 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3
 
 生成的key.pem就是私钥，cert.pem就是数字证书。
 
-## 配置到nginx
+> 不推荐给网站设置自签名证书了，毕竟下面会介绍免费的CA签名证书方案。但是自签名方式还是放在这里，可以更清楚理解证书的生成过程。
 
+## Let's encrypt
+**[Let's Encrypt](https://letsencrypt.org/getting-started/)是一个为了推广https而免费设立的CA**。所以可以使用它免费生成被承认的数字签名。
+
+Let's Encrypt打造了一个非常顺手的数字证书获取软件[Certbot](https://certbot.eff.org/pages/about)。服务器上装好certbot之后，直接就可以获取数字签名了。
+
+在certbot的网站上，有一个导引安装流程：
+- https://certbot.eff.org/instructions?ws=nginx&os=debianbuster
+
+### 安装snapd
+第一步是在Debian上安装snapd：
+- https://snapcraft.io/docs/installing-snap-on-debian
+
+然后就可以通过snapd安装certbot了。
+
+snapd安装的软件都在`/snap/bin`里，为了能直接访问到，可以配置个软连放到`/usr/bin`里：
+```
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+```
+
+### 获取证书
+使用snapd装好certbot后，就可以使用certbot从Let's Encrypt获取数字证书了：
+```
+pichu@pokemon: ~ $ sudo certbot certonly --nginx                                                              [1:45:55]
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Enter email address (used for urgent renewal and security notices)
+ (Enter 'c' to cancel): shininglhb@163.com
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Please read the Terms of Service at
+https://letsencrypt.org/documents/LE-SA-v1.2-November-15-2017.pdf. You must
+agree in order to register with the ACME server. Do you agree?
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+(Y)es/(N)o: Y
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Would you be willing, once your first certificate is successfully issued, to
+share your email address with the Electronic Frontier Foundation, a founding
+partner of the Let's Encrypt project and the non-profit organization that
+develops Certbot? We'd like to send you email about our work encrypting the web,
+EFF news, campaigns, and ways to support digital freedom.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+(Y)es/(N)o: Y
+Account registered.
+
+Which names would you like to activate HTTPS for?
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+1: puppylpg.xyz
+2: netdata.puppylpg.xyz
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Select the appropriate numbers separated by commas and/or spaces, or leave input
+blank to select all options shown (Enter 'c' to cancel): 2
+Requesting a certificate for netdata.puppylpg.xyz
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/netdata.puppylpg.xyz/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/netdata.puppylpg.xyz/privkey.pem
+This certificate expires on 2022-03-28.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+```
+因为选的是nginx，所以certbot检测到我的nginx目前配置了两个域名：`puppylpg.xyz`和`netdata.puppylpg.xyz`。我先给后者生成了数字签名。
+
+> 生成证书之后，给nginx配置一下就行了。后面会介绍。
+
+**但是这个数字证书只给`netdata.puppylpg.xyz`做了认证，如果`puppylpg.xyz`也用这个证书，会导致错误**。浏览器会警告：
+> 您的连接不是私密连接
+>
+> NET::ERR_CERT_COMMON_NAME_INVALID
+>
+> **此服务器无法证明它是puppylpg.xyz；其安全证书来自netdata.puppylpg.xyz。出现此问题的原因可能是配置有误或您的连接被拦截了。**
+
+所以再来一次，给`puppylpg.xyz`也声称证书：
+```
+pichu@pokemon: ~ $ sudo certbot certonly --nginx                                                              [2:07:54]
+[sudo] password for pichu:
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+
+Which names would you like to activate HTTPS for?
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+1: puppylpg.xyz
+2: netdata.puppylpg.xyz
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Select the appropriate numbers separated by commas and/or spaces, or leave input
+blank to select all options shown (Enter 'c' to cancel): 1
+Requesting a certificate for puppylpg.xyz
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/puppylpg.xyz/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/puppylpg.xyz/privkey.pem
+This certificate expires on 2022-03-28.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+```
+
+生成的证书文件只有root用户才能读取：
+```
+pichu@pokemon: ~ $ ll /etc/letsencrypt                                                                        [2:17:20]
+total 36K
+drwx------ 3 root root 4.0K Dec 28 01:46 accounts
+drwx------ 4 root root 4.0K Dec 28 02:09 archive
+drwxr-xr-x 2 root root 4.0K Dec 28 02:09 csr
+drwx------ 2 root root 4.0K Dec 28 02:09 keys
+drwx------ 4 root root 4.0K Dec 28 02:09 live
+-rw-r--r-- 1 root root  721 Dec 28 01:46 options-ssl-nginx.conf
+drwxr-xr-x 2 root root 4.0K Dec 28 02:09 renewal
+drwxr-xr-x 5 root root 4.0K Dec 28 01:46 renewal-hooks
+-rw-r--r-- 1 root root  424 Dec 28 01:46 ssl-dhparams.pem
+```
+其他用户并不能读取live下的文件，因为没有r权限。更无法获取live下的文件的权限等信息，因为没有x权限。
+
+证书默认三个月有效，certbot会同时生成crontab脚本，每天检查证书是不是过期了，并自动续期。
+
+## 配置证书到nginx
+nginx配置http文档：
 - http://nginx.org/en/docs/http/configuring_https_servers.html
 
 主要就是：
 1. 端口改为443；
 2. 指定ssl的证书和私钥的路径；
 
-之后nginx就根据http over TLS下发公钥给客户端，并使用私钥加密内容发给用户、解密用户加密的内容。
+相关配置如下：
+```
+server {
+    # nginx listens to this
+    listen 80;
+    listen 443 ssl;
+    # uncomment the line if you want nginx to listen on IPv6 address
+    listen [::]:80;
+    listen [::]:443 ssl;
+
+    # the virtual host name of this
+    server_name netdata.puppylpg.xyz;
+
+    # untrusted by CA
+    # ssl_certificate /etc/nginx/puppylpg-ssl/cert.pem;
+    # ssl_certificate_key /etc/nginx/puppylpg-ssl/key.pem;
+
+    # CA: LET'S ENCRYPT
+    ssl_certificate /etc/letsencrypt/live/netdata.puppylpg.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/netdata.puppylpg.xyz/privkey.pem;
+```
+
+之后nginx就根据http over TLS协议，下发公钥给客户端，并使用私钥做两件事：加密内容发给用户、解密用户发来的加密内容。
 
 # 验证
 看看配置https后的效果。
