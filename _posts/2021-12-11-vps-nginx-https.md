@@ -164,7 +164,7 @@ If you like Certbot, please consider supporting our work by:
 >
 > **此服务器无法证明它是puppylpg.xyz；其安全证书来自netdata.puppylpg.xyz。出现此问题的原因可能是配置有误或您的连接被拦截了。**
 
-所以再来一次，给`puppylpg.xyz`也声称证书：
+所以再来一次，给`puppylpg.xyz`也生成证书：
 ```
 pichu@pokemon: ~ $ sudo certbot certonly --nginx                                                              [2:07:54]
 [sudo] password for pichu:
@@ -239,15 +239,23 @@ server {
     # CA: LET'S ENCRYPT
     ssl_certificate /etc/letsencrypt/live/netdata.puppylpg.xyz/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/netdata.puppylpg.xyz/privkey.pem;
+    
+    if ($scheme = http ) {
+        return 307 https://$host$request_uri;
+    }
 ```
 
 之后nginx就根据http over TLS协议，下发公钥给客户端，并使用私钥做两件事：加密内容发给用户、解密用户发来的加密内容。
+
+为什么还会监听80呢？岂不是还能使用http？是的，支持http请求，但是最下面三行把80的http请求自动跳转为了https请求，所以不管过来的是http还是https请求，最后用的还是https。
 
 # 验证
 看看配置https后的效果。
 
 ## 浏览器
-除了chrome在提醒证书不可信，其实看不出来太大区别。
+如果用的是Let's Encrypt这个CA签发的数字签名，chrome会显示加锁标志，证明是安全连接。
+
+如果用的是自签名的数字签名，chrome会提示证书不可信。如果选择继续访问，其实整体上没有太大区别。
 
 ## wireshark
 wireshark抓包就能看到不少东西了。
@@ -276,4 +284,3 @@ wireshark开启流量包抓取——
 3. 用了TLS之后，整个包都变大了，网络流量消耗更多；
 
 而客户端和服务端的加密解密势必也会更消耗CPU资源。所以安全是有代价的，但只要值得，都是可以接受的。
-
