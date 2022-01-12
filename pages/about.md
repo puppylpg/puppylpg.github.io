@@ -5,11 +5,10 @@ permalink: /about/
 
 # About
 
-This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy jekyll theme, based
-on the Beautiful [Docsy](https://github.com/google/docsy) that renders with Hugo. This version is intended for
-native deployment on GitHub pages. See the [respository]({{ site.repo }}) for more details.
+This is a personal site for puppylpg based on [docsy-jekyll](https://vsoch.github.com/docsy-jekyll/) based
+on the Beautiful [Docsy](https://github.com/google/docsy) that renders with Hugo.
 
-## Support
+# Support
 
 If you need help, please don't hesitate to [open an issue]({{ site.repo }}/issues/new).
 
