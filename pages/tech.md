@@ -6,7 +6,7 @@ permalink: /tech/
 
 # Tech posts
 今天，你学习了吗？
-> 没有。
+> 你猜:D
 
 {% for post in site.posts  %}{% capture this_year %}{{ post.date | date: "%Y" }}{% endcapture %}{% capture next_year %}{{ post.previous.date | date: "%Y" }}{% endcapture %}
 
