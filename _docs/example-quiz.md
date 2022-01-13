@@ -1,6 +1,7 @@
 ---
 title: Quiz
 description: How to add interactive quizzes to your site.
+date: 2000-01-01 +0800
 ---
 
 # Quizzes

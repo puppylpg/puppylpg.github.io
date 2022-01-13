@@ -1,6 +1,7 @@
 ---
 title: A Nested Page
 description: An example of a nested page
+date: 2020-11-23 +0800
 ---
 
 # A Nested Page

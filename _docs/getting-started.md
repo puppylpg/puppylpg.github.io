@@ -4,6 +4,7 @@ tags:
  - jekyll
  - github
 description: Getting started with Docsy Jekyll
+date: 1993-07-01 +0800
 ---
 
 # Getting Started
