@@ -246,7 +246,7 @@ page cache和disk buffer虽然理念几乎一致，但是两个完全不同的�
 - page cache：os层；
 - disk buffer：硬件层；
 
-所以Wikipedia特意注明page cache和disk buffer是两种东西，不要混淆。同时，不要说 ~~disk cache~~，这个词可能是上述两个词的含糊表达：
+所以Wikipedia特意注明page cache(disk cache)和disk buffer是两种东西，不要混淆：
 - https://en.wikipedia.org/wiki/Disk_cache
 
 
