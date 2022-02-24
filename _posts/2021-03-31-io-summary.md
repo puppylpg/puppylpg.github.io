@@ -11,6 +11,8 @@ tags: IO NIO AIO
 1. Table of Contents, ordered
 {:toc}
 
+看一篇就够了[从阻塞IO到IO多路复用到异步IO]({% post_url 2022-02-24-io-nio-aio %})，其他篇都成了补充。
+
 IO模型：
 - Blocking IO: [Java IO]({% post_url 2020-10-28-java-io %})；
 - BIO服务器实现: [（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})；
