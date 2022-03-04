@@ -29,9 +29,9 @@ Session扩充的地方比如可以添加listener：`addSessionListener`。可以
 **session就像一张身份证，记录了http请求来自于谁，同时记录了各种各样的自定义key、value信息**。这个身份证是由servlet容器自己匹配http请求并创建的，并提供给servlet使用。**servlet程序猿尽管享受servlet容器提供的这一便利即可**。
 
 ## servlet——使用session
-比如现在要创建一个关于购物车的servlet，开发该servlet的时候直接从HttpServletRequest中取得session，用户没放置一件东西进购物车，就在session里记录好。下次查看购物车内容的请求过来时，直接从获取session，从里面获取之前存放好的内容即可。
+比如现在要创建一个关于购物车的servlet，开发该servlet的时候直接从HttpServletRequest中取得session，用户每放置一件东西进购物车，就在session里记录好，session存在服务端。下次查看购物车内容的请求过来时，直接根据客户端宣称的session id从内存/数据库等获取session，从里面获取之前存放好的内容即可。
 
-再或者有一个servlet，第一次用户可以设置一个值，第二次用户再访问该url的时候将他上次设置的值返回给他：
+下面就是一个servlet，模拟这个使用session的过程。第一次用户可以设置一个值，第二次用户再访问该url的时候将他上次设置的值返回给他：
 ```
   public void doGet(HttpServletRequest request, HttpServletResponse response)
     throws ServletException, IOException {
@@ -200,7 +200,7 @@ Manager的实现还有一个DistributedManager，用于分布式Tomcat集群使�
 
 存储session的好处：
 - 持久化、备份：宕机不丢失；
-- 省内存：如果session过多，可以将不常用的session swap到外存里，放置内存占用过大；
+- 省内存：如果session过多，可以将不常用的session swap到外存里，防止内存占用过大；
 
 
 
