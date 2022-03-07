@@ -6,7 +6,7 @@ categories: mysql
 tags: mysql
 ---
 
-最近由于要set timestamp的值，栽了一波跟头┓( ´∀` )┏
+最近set timestamp的值，栽了一波跟头┓( ´∀` )┏
 
 > mysql的时间类型就和Java的时间类型一样，看起来好像不是很重要，但是如果你不了解它，就会处处被绊。而由于mysql的一种类型不可能呈现出Java那么多的接口，所以更需要好好了解一些背景知识。
 
@@ -50,24 +50,24 @@ timestamp实际是使用4 byte表示的signed number。所以最大值是`2^23 -
 # 保留毫秒
 > @since 5.6.4
 
-mysql对TIME/DATETIME/TIMESTAMP增加了毫秒、微秒支持。支持方式为另加新的字节，存储秒后面的小数值。新的表示方式为：**在类型后面加数字，代表小数的位数**。
+mysql后来对TIME/DATETIME/TIMESTAMP增加了毫秒、微秒支持。支持方式为另加新的字节，存储秒后面的小数值。新的表示方式为：**在类型后面括号里加数字，代表小数的位数**。
 
 三者都一样，所以这里仅以timestamp举例：
 - 存储到秒：TIMESTAMP，或者TIMESTAMP(0);
-- 存储到毫秒：TIMESTAMP(3)；
-- 存储到微秒：TIMESTAMP(6)；
-- 存储到十分之一毫秒：TIMESTAMP(4)；
+- 存储到毫秒：TIMESTAMP(3)，比如xx.123s；
+- 存储到微秒：TIMESTAMP(6)，比如xx.021103s；
+- 存储到十分之一毫秒：TIMESTAMP(4)，比如xx.1204s；
 
 **但是`FROM_UNIXTIME()`接收的参数还是秒，所以设置毫秒其实就是设置一个小数值**。比如`from_unixtime(1.001)`代表`1970-01-01 00:00:01.001`。
 
-**如果类型的精度不够，会默认丢掉多余的精度**。比如给TIMESTAMP(3)设置微秒级别`from_unixtime(1.000001)`的时间，最终存储的值只到毫秒级`1970-01-01 00:00:01.001`。
+**如果类型的精度不够，会默认丢掉多余的精度**。比如给TIMESTAMP(3)设置微秒级别`from_unixtime(1.001001)`的时间，最终存储的值只到毫秒级`1970-01-01 00:00:01.001`。
 
 # 是否时区相关
 **TIMESTAMP是时区相关的，其他两个在存的时候是时区相关的，存完之后取的时候是时区无关的**。
 
 也就是说：
 1. 在东八区，如果给TIMESTAMP和DATETIME同时设置`from_unixtime(1)`，二者都显示为`1970-01-01 08:00:01`，说明存的时候都会注意时区；
-2. 将时区切换为UTC，TIMESTAMP显示的是0h0m1s，DATETIME依然显示8h0m1s，说明前者取的时候按照时区转换了，后者没有；
+2. 将时区切换为UTC，TIMESTAMP显示的是`1970-01-01 00:00:01`，DATETIME依然显示`1970-01-01 08:00:01`，说明前者取的时候按照时区转换了，后者没有；
 
 所以，
 1. 如果以时间戳的形式存储：
@@ -126,12 +126,15 @@ SET @@session.time_zone = "+00:00";
 - `SYSTEM`，默认值;
 - `[H]H:MM`，比如+05:30，+6:00等。range  **'-12:59' to '+13:00'**。这种格式**可以精确到分钟**！
 - 命名时区，如`Europe/Helsinki`。（但是需要MySQL启用 time zone information table）；
+
 建议使用时间偏移设置时区，好记。
 
 ## 时区的影响
-时区不影响：
+时区不会影响这两种：
 - 本身就返回UTC的函数，比如UTC_TIMESTAMP；
 - 存储为DATE/TIME/DATETIME类型的值；
+
+但是会影响current_xxx等返回当前时间的函数，也会影响timestamp类型。
 
 # 相关时间函数
 ## 返回时间
@@ -175,5 +178,4 @@ mysql root@localhost:pokemon> select unix_timestamp();
 还有其他很多处理时间的函数，功能丰富：
 - https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html
 - https://www.runoob.com/mysql/mysql-functions.html
-
 
