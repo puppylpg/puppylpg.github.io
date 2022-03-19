@@ -74,7 +74,7 @@ innodb索引即数据，有两种page：存放数据记录的叶子节点page、
 
 在windows powershell里下载最新版的mysql镜像，创建container，启动，并映射为系统的3306端口：
 ```
-PS C:\Users\puppylpg> docker run --name demo-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=raichu -d mysql:latest
+PS C:\Users\puppylpg> docker run --name demo-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=password -d mysql:latest
 ```
 
 ## mysql的数据存放位置
@@ -93,7 +93,11 @@ MySQL [(none)]> show variables like 'datadir';
 因为使用的是WSL里的mysql client连接windows docker里的mysql server，比较好玩，所以介绍一下连接过程。
 
 ## 远程tcp连接
-使用WSL（Debian）连接docker里的mysql：
+使用WSL（Debian）里的mysql client连接docker里的mysql。**默认linux的mysql客户端用的是unix domain socket连接mysql**，docker里的mysql server和WSL相当于不在同一个系统上，所以WSL里自然没有`/run/mysqld/mysqld.sock`。因此直接启动WSL里的mysql client是连不上的docker里的mysql的：
+```
+ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/run/mysqld/mysqld.sock' (2)
+```
+**只能通过`--protocol=TCP`显式指定使用tcp连接，WSL里的mysql client才会使用tcp通过3306端口连接上docker里的mysql**：
 ```
 ╰─○ mysql -hlocalhost -uroot -ppassword --protocol=TCP
 Welcome to the MariaDB monitor.  Commands end with ; or \g.
@@ -106,12 +110,6 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 
 MySQL [(none)]> 
 ```
-
-**默认linux的mysql客户端用的是unix domain socket连接mysql**，docker里的mysql server和WSL相当于不在同一个系统上，所以WSL里自然没有`/run/mysqld/mysqld.sock`。因此直接启动WSL里的mysql client是连不上的docker里的mysql的：
-```
-ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/run/mysqld/mysqld.sock' (2)
-```
-**只能通过`--protocol=TCP`显式指定使用tcp连接，WSL里的mysql client才会使用tcp通过3306端口连接上docker里的mysql**。
 
 ## 本地socket连接
 mysql是在docker里启动的，所以会在这个container里创建socket。可以去docker里求证。
