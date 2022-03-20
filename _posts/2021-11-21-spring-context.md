@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Spring - bean的容器"
@@ -66,11 +68,11 @@ spring既然有各种形式的配置：xml，java class，就同时拥有配套�
 
 再看refresh函数的步骤，基本完美对应了销毁前的各种工作：
 ```
-    			// Tell the subclass to refresh the internal bean factory.
-    			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+				// Tell the subclass to refresh the internal bean factory.
+				ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
     
-    			// Prepare the bean factory for use in this context.
-    			prepareBeanFactory(beanFactory);
+				// Prepare the bean factory for use in this context.
+				prepareBeanFactory(beanFactory);
 
 				// Allows post-processing of the bean factory in context subclasses.
 				postProcessBeanFactory(beanFactory);
@@ -182,13 +184,22 @@ spring可以使用外部配置文件配置一些变量，并在bean配置里引�
 
 spring容器在初始化过程中有事件触发，这一点和tomcat容器启动的时候拥有的事件触发机制别无二致：[（五）How Tomcat Works - Tomcat Lifecycle]({% post_url 2020-10-08-tomcat-lifecycle %})。
 
-**但是spring容器事件特殊的地方在于，它还能让用户借助spring容器进行自定义事件的触发**！究其原因：
+**但是spring容器事件特殊的地方在于**：它还能让用户借助spring容器进行 **自定义事件** 的触发！**tomcat没法让用户自定义事件和listener**。究其原因：
 1. 我们可以注册listener，**这些listener只要配置为bean，就能被容器加载，并注册到容器上**，非常简单；
-2. 我们可以获取容器，并调用容器的事件触发方法，来触发listener。；
+2. 我们可以获取容器，并调用容器的事件触发方法，来触发listener；
 
-而在tomcat中，给tomcat添加容器，并不方便。获取tomcat容器的引用也并不方便。所以想利用tomcat帮我们触发事件确实不太便利。
+而在tomcat中：
+1. 给tomcat添加listener，并不方便：**我们没法添加自定义的事件处理listener**；
+2. 获取tomcat容器的引用也并不方便：**我们没法在自己想要的时刻发布事件**；
 
-怎么获取spring容器呢？别忘了各种aware接口。如果用的容器是ApplicationContext而非BeanFactory，容器就会回调`ApplicationContextAware`，并将容器的引用作为参数传入。
+**所以tomcat只能玩**：
+1. tomcat自己决定要触发的事件；
+2. tomcat自己注册对事件感兴趣的listener；
+3. tomcat自己在某些时机发布事件；
+
+所以想利用tomcat帮我们触发事件不太行。
+
+怎么获取spring容器的引用呢？别忘了各种aware接口。如果用的容器是ApplicationContext而非BeanFactory，容器就会回调`ApplicationContextAware`，并将容器的引用作为参数传入。
 
 ## 定义事件
 spring本身提供的事件根定义是ApplicationEvent，主要是容器相关的事件ApplicationContextEvent，它又有四种具体的容器事件：
