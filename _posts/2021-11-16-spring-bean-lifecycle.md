@@ -120,9 +120,12 @@ bean级操作是针对于某一个bean的。如果一个bean想要做一些奇�
 
 **一种常见的解耦方式就是配置文件**。所以spring提供了xml配置的方式：在配置bean时可以配置`<init-method>`和`<destroy-method>`，从而取代`InitializingBean`和`DisposalBean`接口。
 
-# 容器级操作
-有些操作，是希望所有的bean都会去做的。此时让每一个bean都实现相同的bean级接口写上相同的回调逻辑显然是过于累赘的。此时容器级接口就会发挥很大的作用：
+# 容器级操作 - bean级接口的颠覆者
+有些操作，是希望所有的bean都会去做的。此时让每一个bean都实现相同的bean级接口写上相同的回调逻辑显然是过于累赘的。此时容器级接口就会发挥很大的作用。
 
+当然，即使某些特殊的bean不想被容器级接口的实现类处理，也可以在实现的时候把他们手动排除掉。**所以容器级接口几乎是完全可以取代bean级接口的**。
+
+比如在bean初始化前后，可以对bean做一些操作:
 ```
 graph TD
 
@@ -143,10 +146,8 @@ style F fill:#f9f,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
 F --> Z[销毁前操作]
 ```
 
-在bean初始化前后，可以对bean做一些操作。
-
 ## `BeanPostProcessor`
-bean初始化前后的处理由`BeanPostProcessor`接口定义。他之所以叫后处理器，大概是因为此时bean已经设置完属性了，后面做的处理就是对bean的“后处理”了。
+bean初始化前后的处理由`BeanPostProcessor`接口定义。**它之所以叫bean的后处理器，大概是因为此时bean已经实例化完成，并设置完属性了，后面做的处理就是对bean的“后处理”了**。
 
 它主要有两个方法：
 ```
@@ -158,6 +159,33 @@ Object postProcessBeforeInitialization(Object bean, String beanName) throws Bean
 Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException;
 ```
 初始化后操作，由spring容器在做初始化操作后，对bean进行处理。
+
+### 用途举例：tomcat开启mbean
+意义：**强制覆盖配置的属性，或在没提供配置属性的情况下手动设置某些属性**。
+
+比如tomcat有这么一个`BeanPostProcessor`的实现类`WebServerFactoryCustomizerBeanPostProcessor`，专门处理`WebServerFactoryCustomizer`接口规定的自定义配置：
+```
+	private void postProcessBeforeInitialization(WebServerFactory webServerFactory) {
+		LambdaSafe.callbacks(WebServerFactoryCustomizer.class, getCustomizers(), webServerFactory)
+				.withLogger(WebServerFactoryCustomizerBeanPostProcessor.class)
+				.invoke((customizer) -> customizer.customize(webServerFactory));
+	}
+```
+在它的“实例化前操作”里，会调用所有的`WebServerFactoryCustomizer`的`customize`方法。
+
+比如我们自定义一个customizer，把禁用mbean的配置给改为false：
+```
+    @Bean
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> activateTomcatMBeanServer() {
+
+        return (factory) -> {
+            factory.setDisableMBeanRegistry(false);
+        };
+    }
+```
+那么无论tomcat关于禁用mbean的配置之前被配置成了什么，最终都会改为false，用以暴露mbean。
+
+而之所以这么做，是因为当时所用的spring boot并没有提供tomcat关于mbean的配置项，导致tomcat的mbean没有暴露，最终只能通过这种比较晦涩的方式曲线救国了。
 
 ***
 
@@ -191,7 +219,7 @@ style G fill:#f9f
 style I fill:#f9f
 ```
 
-## `InstantiationAwareBeanPostProcessor`
+## `InstantiationAwareBeanPostProcessor`，涵盖`BeanPostProcessor`
 实例化前后的操作由`InstantiationAwareBeanPostProcessor`负责。和`BeanPostProcessor`，是两个类似的方法：
 ```
 Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) throws BeansException;
@@ -199,16 +227,16 @@ boolean postProcessAfterInstantiation(Object bean, String beanName) throws Beans
 ```
 但是查看其参数：
 - 对于before方法，是在实例化之前调用的，**此时还没有bean实例，所以参数是bean class**；
-- 对于after方法，是在实例化之后调用的，此时已经有bean实例里，所以参数是bean object。这一点和`BeanPostProcessor`一样，后者的参数也都是bean object。
+- 对于after方法，是在实例化之后调用的，此时已经有bean实例里，所以参数是bean object。这一点和`BeanPostProcessor`一样，后者的参数全都是bean object。
 
-`InstantiationAwareBeanPostProcessor`的下一步就是设置属性了。所以在设置之前，它由加了一步处理属性值的操作，用于方便统一对配置里的属性值进行修改：
+`InstantiationAwareBeanPostProcessor`的下一步就是设置属性了。所以在设置之前，它又加了一步处理属性值的操作，用于方便统一对配置里的属性值进行修改：
 ```
 PropertyValues postProcessPropertyValues(PropertyValues pvs, PropertyDescriptor[] pds, Object bean, String beanName)
 			throws BeansException;
 ```
 其中pvs参数代表配置的原始属性值，由spring容器回调该方法时传入。
 
-> `InstantiationAwareBeanPostProcessor`本身还是`BeanPostProcessor`的子接口，**所以它兼具实例化前后、初始化前后做一些操作的功能**。如果只需要做初始化前后的操作，只用`BeanPostProcessor`就行了。否则使用`InstantiationAwareBeanPostProcessor`不止可以做实例化前后的操作，还可以取代`BeanPostProcessor`。
+> `InstantiationAwareBeanPostProcessor`本身还是`BeanPostProcessor`的子接口，**所以它兼具实例化前后、初始化前后做一些操作的功能**。如果只需要做初始化前后的操作，只用`BeanPostProcessor`就行了。**否则就使用`InstantiationAwareBeanPostProcessor`，它不止可以做实例化前后的操作，还可以取代`BeanPostProcessor`**。
 
 ## 意义
 容器级bean处理接口非常需要！**他们像spring容器上的插件一样**，所有容器中管理的bean都要经过插件的处理。
@@ -250,33 +278,10 @@ I --> Z[销毁前操作]
 void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException;
 ```
 
+## 用途举例：替换配置文件中的占位符
 spring提供了不少`BeanFactoryPostProcessor`的实现类，比如：
 - `CustomEditorConfigurer`
 - `PropertyPlaceholderConfigurer`：**处理spring配置中的占位符`${...}`**，然后再把处理后的正常配置值用于实例化bean；
-
-比如tomcat有这么一个`BeanFactoryPostProcessor`的实现类`WebServerFactoryCustomizerBeanPostProcessor`，专门处理`WebServerFactoryCustomizer`接口规定的自定义配置：
-```
-	private void postProcessBeforeInitialization(WebServerFactory webServerFactory) {
-		LambdaSafe.callbacks(WebServerFactoryCustomizer.class, getCustomizers(), webServerFactory)
-				.withLogger(WebServerFactoryCustomizerBeanPostProcessor.class)
-				.invoke((customizer) -> customizer.customize(webServerFactory));
-	}
-```
-在它的“实例化前操作”里，会调用所有的`WebServerFactoryCustomizer`的`customize`方法。
-
-比如我们自定义一个customizer，把禁用mbean的配置给改为false：
-```
-    @Bean
-    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> activateTomcatMBeanServer() {
-
-        return (factory) -> {
-            factory.setDisableMBeanRegistry(false);
-        };
-    }
-```
-那么无论tomcat关于禁用mbean的配置之前被配置成了什么，最终都会改为false。
-
-而之所以这么做，是因为当时所用的spring boot并没有提供tomcat关于mbean的配置项，导致tomcat的mbean没有暴露，最终只能通过这种比较晦涩的方式曲线救国了。
 
 # 容器启动销毁
 spring4.x的一个很好的展示spring bean生命周期的例子：
@@ -368,7 +373,7 @@ xml config：
 1. 需要手动加载resource，并手动组装factory和resource；
 2. 需要手动往factory上注册各种processor；
 
-另外，post processor的实际调用顺序并不是注册顺序，而是使用spring的Ordered接口控制顺序。
+另外，**post processor的实际调用顺序并不是注册顺序，spring提供了Ordered接口让开发可以手动控制各个processor的执行顺序**。
 
 ## ApplicationContext
 ```
@@ -459,9 +464,9 @@ spring注解的出现，让人们免去了写xml，通过注解配置程序，�
 ## `javax.annotation.PreDestroy`
 `BeanPostProcessor`只有`postProcessBeforeInitialization`和`postProcessAfterInitialization`两个方法，都是和init相关的，和destroy并没有什么关系。
 
-所以spring又创建了一个`DestructionAwareBeanPostProcessor`，这个bean post processor新增了`postProcessBeforeDestruction`方法，这个方法会在`DisposableBeanAdapter`的`destroy`方法里回调的。
+所以spring又创建了一个`DestructionAwareBeanPostProcessor`，这个bean post processor新增了`postProcessBeforeDestruction`方法，这个方法会在`DisposableBeanAdapter`的`destroy`方法里回调。
 
-> told you!!!只要spring觉得有必要在某一步加个回调，就会毫不犹豫加上去。现在有了`DestructionAwareBeanPostProcessor`这个接口，spring bean生命周期的流程图又可以加了一步：在destroy时做一些操作。
+> 注意，**这里的容器级插件`DestructionAwareBeanPostProcessor`被bean级插件`DisposableBeanAdapter`（接口为`DisposableBean`）调用，从而实现了容器级插件的功能。所以也可以说bean级插件是更底层的接口，容器级插件是更上层的接口**。
 
 而`InitDestroyAnnotationBeanPostProcessor`就是`DestructionAwareBeanPostProcessor`的一个实现者。所以它用`BeanPostProcessor`原有的方法`postProcessBeforeInitialization`实现了对`@PostConstruct`的支持，又用`DestructionAwareBeanPostProcessor`新增的`postProcessBeforeDestruction`方法实现了对`@PreDestroy`的支持。
 
@@ -479,9 +484,8 @@ spring注解的出现，让人们免去了写xml，通过注解配置程序，�
 不过这种小区别不重要，大体而言，他们基本是在同一时期被调用的。所以用哪个都行。
 
 ## 意义
-1. 容器级插件对实现一些令人兴奋的功能，非常重要！
-2. bean级插件对实现一些容器级插件，非常重要。
-
+1. bean级插件更底层，一些容器级插件会依托于他们实现容器级功能；
+2. 容器级插件实现的很多功能非常惊艳！
 
 # 总结
 Bean的创建整体分为三步：
