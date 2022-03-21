@@ -11,10 +11,13 @@ web server搭建完成了，servlet server（或者说servlet容器）又是什�
 1. Table of Contents, ordered
 {:toc}
 
-# javax.servlet.Servlet
+# javax.servlet.Servlet：servlet是什么
+
+> servlet的名字是两个词的组合：Server + Applet = Servlet。当然applet这东西早凉了。
+
 servlet说白了就是我们平时写代码的时候创建的一个service，比如使用spring创建一个`@Service`标记的类，它是一个单例，同时有能够提供服务的方法可以调用。
 
-servlet相当于规范化了这个service，定义了一套标准的接口：
+servlet相当于一套“关于这种service”的规范，它定义了一套标准的接口：
 ```
 public interface Servlet {
 
@@ -30,25 +33,80 @@ public interface Servlet {
     public void destroy();
 }
 ```
-关于init、service、destroy的调用时机这里不再多提。
+
+> 关于init、service、destroy的调用时机这里不再多提。
 
 关键的地方在于，**约定了协议，就能够分工合作了**：
-- servlet容器：比如tomcat，首先是一个web server，根据收到的http请求，决定加载某个servlet，调用servlet它的service方法，返回一个http响应；
-- servlet程序猿：按照Servlet协议，实现一个自己的servlet，直接放到servlet容器里，启动容器就可以工作了！
+- servlet容器做什么：比如tomcat，首先是一个web server，根据收到的http请求，决定加载某个servlet，调用servlet它的service方法，返回一个http响应；
+- servlet程序猿做什么：按照Servlet协议，实现一个自己的servlet，直接放到servlet容器里，启动容器就可以工作了！
 
-所以现在看出来了，**servlet server本质上就是一个web server，只不过使用servlet这一套标准之后，程序猿再也不用从头写一个web server了，只需要简简单单写一个servlet实现，就可以使用现成的servlet容器启动一个web服务了（servlet server，也是webserver）** （当然，启动前多少还要进行一些配置）。
+所以现在看出来了，**servlet server本质上就是一个web server，只不过使用servlet这一套标准之后，程序猿再也不用从头写一个web server了！不用再考虑怎么收请求、怎么返回响应，只需要专注于处理请求的业务逻辑就好了！这个业务逻辑的处理代码，就是一个servlet的实现。然后就可以使用现成的servlet容器启动一个web服务了**。
 
-> 看`javax.servlet.Servlet`的包名就知道，这是个javax开头的类，不在jdk里，属于java extension，开发的时候需要引入额外的包才能获取这些类。比如：https://mvnrepository.com/artifact/javax.servlet/javax.servlet-api/4.0.1
+所以，servlet server，也是webserver。
 
+**Servlet规范将处理逻辑的输入输出参数标准化为：ServletRequest，ServletResponse**。
 
-# `javax.servlet.ServletRequest` & `javax.servlet.ServletResponse`
+## 引入servlet
+看`javax.servlet.Servlet`的包名就知道，这是个javax开头的类，不在jdk里，属于java extension，开发的时候需要引入额外的包才能获取这些类。比如：
+```
+<!-- https://mvnrepository.com/artifact/javax.servlet/javax.servlet-api -->
+<dependency>
+    <groupId>javax.servlet</groupId>
+    <artifactId>javax.servlet-api</artifactId>
+    <version>4.0.1</version>
+    <scope>provided</scope>
+</dependency>
+```
+maven默认给servlet包加了provided scope：因为servlet最终会被部署到servlet容器中，而servlet容器肯定是引入了servlet相关的包的，所以我们引入的servlet包只在编译的时候用就行了，打包的时候没必要也打进去。
+
+# `javax.servlet.ServletRequest` & `javax.servlet.ServletResponse`：标准化的输入输出
 Servlet标准显然不是只定义一个`javax.servlet.Servlet`类就完成了。而是一整个`javax.servlet`包里的类。这些类一起协作，构成了servlet的标准。
 
 Servlet类最重要的方法service需要传入两个参数：ServletRequest和ServletResponse。而web server收到的其实是http请求，返回的是http响应。**http的请求响应和servlet的请求响应又有什么关系？**
 
-首先，既然servlet server本质上是一个web server，那么一定和上一章中说的一样，从Socket的InputStream中读取一个http请求的字节流，之后向Socket的OutputStream中写入一个http响应的字节流。servlet server一定也是这么和Socket交互的。所以servlet的service方法的入参出参本质上就是http请求和http响应——从前者中获取信息，进行处理，然后返回后者，以完成服务内容。但是http的请求和响应都是plain text，总不能定义service方法的入参和出参都是String吧？那样处理起来就太费劲了。所以servlet定义了两个类ServletRequest和ServletResponse，方便servlet处理数据。
+首先，既然servlet server本质上是一个web server，那么一定和上一章中说的一样，从Socket的InputStream中读取一个http请求的字节流，之后向Socket的OutputStream中写入一个http响应的字节流。servlet server一定也是这么和Socket交互的。所以servlet的service方法的入参出参本质上就是http请求和http响应——从前者中获取信息，进行处理，然后返回后者，以完成服务内容。**但是http的请求和响应都是plain text，总不能定义service方法的入参和出参都是String吧？那样处理起来就太费劲了。所以servlet定义了两个类ServletRequest和ServletResponse，方便servlet处理数据。**
 
-比如ServletResponse里有一个`getWriter`方法：
+## servlet容器处理http请求为ServletRequest
+一个将plain http request处理为ServletRequest的示例。
+
+首先从input stream里读取字节，转为字符：
+```
+  public void parse() {
+    // Read a set of characters from the socket
+    StringBuffer request = new StringBuffer(2048);
+    int i;
+    byte[] buffer = new byte[2048];
+    try {
+      i = input.read(buffer);
+    }
+    catch (IOException e) {
+      e.printStackTrace();
+      i = -1;
+    }
+    for (int j=0; j<i; j++) {
+      request.append((char) buffer[j]);
+    }
+    System.out.print(request.toString());
+    uri = parseUri(request.toString());
+  }
+```
+然后按照http request的规范肢解http请求。比如获取请求路径：
+```
+  private String parseUri(String requestString) {
+    int index1, index2;
+    index1 = requestString.indexOf(' ');
+    if (index1 != -1) {
+      index2 = requestString.indexOf(' ', index1 + 1);
+      if (index2 > index1)
+        return requestString.substring(index1 + 1, index2);
+    }
+    return null;
+  }
+```
+其实就是获取两个空格之间的部分（去掉开头的斜杠）：`GET /puppylpg HTTP/1.1`，这里路径就是`puppylpg`。
+
+## servlet容器处理http响应
+ServletResponse里有一个`getWriter`方法：
 ```
 PrintWriter getWriter() throws IOException;
 ```
@@ -58,11 +116,13 @@ Java doc:
 Calling flush() on the PrintWriter commits the response.
 Either this method or getOutputStream may be called to write the body, not both.
 
-所以，servlet程序猿只需要调用`ServletResponse#getWriter`就可以写返回内容了，这也就意味着，servlet容器（tomcat）的任务就是在创建ServletResponse的时候，让`ServletResponse#getWriter`方法返回Socket的OutputStream。后面的代码示例可以看到这一点。
+**往这个里面写，就是在往http客户端写数据流**。
 
-> “返回OutputStream”指的是返回由OutputStream构建的PrintWriter。简述。
+所以，servlet程序猿只需要在写servlet的时候，调用`ServletResponse#getWriter`，就可以写返回内容了。
 
-> 上面的javadoc还提到了ServletResponse的另一个方法`ServletOutputStream getOutputStream() throws IOException`，效果类似，只不过又把OutputStream多封装了一下，搞成了一个ServletOutputStream。
+这也就意味着，servlet容器（tomcat）的任务就是在创建ServletResponse的时候，**让`ServletResponse#getWriter`方法返回包装有Socket的OutputStream的PrintWriter**。
+
+> 上面的javadoc还提到了ServletResponse的另一个方法`ServletOutputStream getOutputStream() throws IOException`，效果类似，只不过把socket的OutputStream封装成了一个ServletOutputStream。
 
 # Servlet容器处理请求流程
 总结一下servlet容器处理http请求的流程：
@@ -178,8 +238,7 @@ public class HttpServer1 {
   }
 ```
 
-
-ServletProcessor的主要作用就是将uri作为类名，从webroot文件夹下加载servlet类的字节码，并调用其service方法，传入的是之前创建的ServletRequest和ServletResponse：
+ServletProcessor的主要作用就是将uri作为类名，**从webroot文件夹下** 加载servlet类的字节码，并调用其service方法，传入的是之前创建的ServletRequest和ServletResponse：
 ```
 public class ServletProcessor1 {
 
@@ -229,15 +288,16 @@ public class ServletProcessor1 {
   }
 }
 ```
+webroot是什么？是作者自定义的一个工程下的名为webroot的文件夹：
+```
+public static final String WEB_ROOT = System.getProperty("user.dir") + File.separator  + "webroot";
+```
+**它里面放置了程序猿提前写好并编译过的servlet的.class文件**。真正的tomcat也是有一个类似的约定好的放置servlet的地方的，我们就把写好的servlet放在那里。
 
-最后，说一下servlet的加载。
+**所以servlet容器并不创建servlet类，只需要能找到servlet类所在的位置，需要用它的时候把它load到jvm里就行了**。
 
-servlet哪来的？程序猿写的。所以servlet容器并不创建servlet类，只需要能找到servlet类所在的位置，需要用它的时候把它load到jvm里就行了。
-
-**程序里，servlet容器是从webroot文件夹里找servlet类的字节码的，所以在部署程序的时候，只需要把自己写的servlet类编译后的.class文件放在webroot文件夹下就行了。**
-
-# `javax.servlet.http.HttpServlet`
-Servlet可以和任何cs模型的协议通信，但显然最经常用的就是http协议。所以Servlet的一个最火的实现类就是HttpServlet。
+# `javax.servlet.http.HttpServlet`：处理http的servlet
+Servlet可以和任何cs模型的协议通信，但显然最经常用的就是http协议。**所以Servlet的一个最火的实现类就是HttpServlet，用于处理http请求**。
 
 HttpServlet要实现Servlet接口的service()方法：
 ```
@@ -305,8 +365,40 @@ HttpServlet要实现Servlet接口的service()方法：
 ```
 所以servlet开发者开发关于Http的servlet更简单：**只需要extends HttpServlet，并根据自己要处理的内容，overrider相应的doGet/doPost/...方法就行了，service方法都不需要写了**。
 
-# 写servlet还能更简单——JSP
-写servlet最大的一个问题就是**Servlet需要将html的代码嵌入Java代码**，很丑很麻烦：
+# Tomcat里的Facade
+Tomcat里用到了大量的facade，类似于装饰器模式。
+
+比如Animal接口只有一个方法eat，Person类是Animal接口的实现，eat方法一定要有，但它还有一个work方法。
+
+假设此时有一个方法`handle(Animal animal)`，把Person传进去自然是没问题的：`handle(person)`。关键在于传进去的毕竟是个Person实例，别人有可能在handle里做出以下操作：
+```
+    if (animal instanceof Person) {
+        ((Person) animal).work
+    }
+```
+这就不符合handle方法将Animal作为参数的初衷（只让调用eat）了。
+
+可以创建一个PersonFacade，实现Animal接口，只有一个eat方法：
+```
+public class PersonFacade implements Animal {
+    Person person;
+    public PersonFacade(Person person) {
+        this.person = person;
+    }
+    
+    @Override
+    public void eat() {
+        person.eat();
+    }
+}
+```
+实际上PersonFacade对eat方法的实现还是由Person对象完成的，只不过在handle方法里，PersonFacade只是一个Animal类型，不可能被强制转型为Person类型，也无法获取它内部的Person对象，也就没法调用Person对象的work方法。起到了保护作用。
+
+# 前后端进化史
+有了servlet容器，现在处理http请求就方便多了：写个servlet就行了。
+
+## 刀耕火种：在servlet里写html
+servlet主要处理http请求，而http主要返回的是html网页。所以写http servlet最经常干的一个很麻烦的事情就是：**在servlet里手撸html的代码，即在Java代码里手写html代码**，很丑很麻烦：
 ```
     public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("text/html;charset=UTF-8");
@@ -349,69 +441,52 @@ HttpServlet要实现Servlet接口的service()方法：
         out.close();
     }
 ```
-就有了JSP——**Servlet类可以由JSP自动生成，变成了JSP将Java代码嵌入html**，然后编译成Servlet类，写起来servlet就舒服多了。比如：
+
+## JSP：动态页面
+为了解决代码里嵌入html的问题，一个很朴素的思想就是：用占位符写一个可编译的html，然后动态去渲染它，生成完整的html。
+
+JSP就是这么干的，写出来很像html，但又有类似java代码的逻辑控制语句。这些逻辑控制语句配合上一些看起来像占位符的东西：
 ```
-<html>
-    <head>
-           <title>第一个 JSP 程序</title>
-    </head>
-    <body>
-           <%
-                  out.println("Hello World！");
-           %>
-    </body>
-</html>
+<p>Counting to three:</p>
+<% for (int i=1; i<4; i++) { %>
+    <p>This number is <%= i %>.</p>
+<% } %>
+<p>OK.</p>
 ```
+然后JSP可以被编译为servlet。这样程序猿只需要写jsp就行了，servlet自动编译生成，生成的servlet就像之前刀耕火种版手撸html的servlet一样。
 
-> 编译过程：
->
-> JSP 引擎从磁盘中载入 JSP 文件，然后将它们转化为 Servlet。**这种转化只是简单地将所有模板文本改用 println() 语句，并且将所有的 JSP 元素转化成 Java 代码。**
+JSP的编译过程：JSP引擎从磁盘中载入JSP文件，然后将它们转化为Servlet。**这种转化只是简单地将所有模板文本改用 println() 语句，并且将所有的 JSP 元素转化成 Java 代码。**
 
-# JSP的发展史
-https://mp.weixin.qq.com/s?__biz=MzAxOTc0NzExNg==&mid=2665513417&idx=1&sn=f0cb88ff56e47acef1b3d378911073c4&chksm=80d6798ab7a1f09cd79c1e7caec1ebbf325ead0cd60a657c050db3231c1cc62e7f87dff84b6e&scene=21#wechat_redirect
-## 手撸html
-## 动态页面jsp
-html上嵌Java代码
-## 标签库
-Servlet可以当Controller，Java类当Model，JSP当View，mvc，防止逻辑写的太乱。
+所以：JSP的出现，**java里写html变成了html里写“java”**（类似java的控制逻辑）。
 
-但是for循环，if判断，总得写。
+## 模板引擎：专注于view，ignore servlet
+jsp也有很多问题：
+1. JSP最大的问题就是里面可以写任意java代码，写多了会很乱，就像在java代码里写html一样乱。这么一想，好像并没有比在java里写html好太多？
+2. jsp虽然看起来像html，但并不能直接被浏览器渲染；
+3. jsp和servlet规范紧耦合，所以只能用在servlet容器中；
 
-所以有了标签库，用`<c:if>`取代for，`<c:forEach>`取代for。
+template engine则把jsp的功能进一步进行了拆分，**只做模板渲染方面的工作**：
+1. **不能在里面任意加代码**，只能通过一些标签库写一些简单的逻辑控制；
+2. **它只是一个缺乏数据的模板**，所以可以被浏览器渲染，长得和填充数据后一样；
+3. 它只是一套模板规范，**并不涉及servlet相关的东西**，所以应用场景更大，比如做邮件模板等。
 
-有了JSTL，JSP看起来清爽多了。
+常用的模板引擎比如thymeleaf/freemaker/velocity：
+- https://en.wikipedia.org/wiki/Comparison_of_web_template_engines
 
-## js & css
-后来网页模板都不在后端装配了，后端只返回json给前端，由前端的js和css取数据渲染成html。
+正因为模板引擎制作view相关的工作（所以和servlet无关），我们又得写servlet了。不过这次写的是纯servlet，不带任何view逻辑的servlet，**然后调用模板引擎渲染数据，由他们把数据渲染为html**。
 
-前后端分离了！！！
+## JavaScript：前后端分离，这活由我前端包了
+虽然模板引擎把渲染数据的逻辑单独摘出来了，**但是模板引擎还是在后端的，生成视图的活儿还是在后端的，最终后端返回给前端的还是一个渲染过的html**。
 
-# 其他：Facade
-Tomcat里用到了大量的facade，类似于装饰器模式。
+js的出现改变了这一点：**它是能在浏览器中运行的脚本，可以从浏览器端直接发出异步的http调用**。比如jQuery框架。
 
-比如Animal接口只有一个方法eat，Person类是Animal接口的实现，eat方法一定要有，但它还有一个work方法。
+本来前端的拿手绝活就是制作页面，现在前端又可以直接发起请求从后端获取数据，那前端自己写个模板，不就可以做渲染数据的活了！**这样一来，数据直接在前端组装、渲染就行了**！基于此，渲染数据的活从后端挪到了前端。
 
-假设此时有一个方法`handle(Animal animal)`，把Person传进去自然是没问题的：`handle(person)`。关键在于传进去的毕竟是个Person实例，别人有可能在handle里做出以下操作：
-```
-    if (animal instanceof Person) {
-        ((Person) animal).work
-    }
-```
-这就不符合handle方法将Animal作为参数的初衷（只让调用eat）了。
+现在后端只需要返回数据就行了！所以restful接口现在在后端很流行——通过json或xml返回纯数据。这些接口由前端使用js调用。
 
-可以创建一个PersonFacade，实现Animal接口，只有一个eat方法：
-```
-public class PersonFacade implements Animal {
-    Person person;
-    public PersonFacade(Person person) {
-        this.person = person;
-    }
-    
-    @Override
-    public void eat() {
-        person.eat();
-    }
-}
-```
-实际上PersonFacade对eat方法的实现还是由Person对象完成的，只不过在handle方法里，PersonFacade只是一个Animal类型，不可能被强制转型为Person类型，也无法获取它内部的Person对象，也就没法调用Person对象的work方法。起到了保护作用。
+**后端终于可以专注于数据处理，不用再考虑以什么样子展示出来了**！这样就真正做到了前后端分离！对后端简直是一大解脱！
+
+> 前提是要有前端同学。否则还是要自己使用模板引擎写模板，自己渲染成html，然后陷入头疼的页面细节调整……所以后端同学一定要对前端好一点！
+
+前后端分离：渲染的活儿终于全都交给了前端，后端不用考虑页面的样子了。
 

@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "Spring - bean的容器"
