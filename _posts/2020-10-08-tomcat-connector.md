@@ -23,7 +23,7 @@ servlet container则应该在processor部分。
 
 上述朴素模型有一点是必须优化的：**processor线程可以池化，没必要处理完就扔**。
 
-# tomcat的connector和processor
+# Tomcat的connector和processor
 ## `org.apache.catalina.Connector`：连接器接口
 Connector是Tomcat的连接器必须实现的接口，主要作用是：
 1. 创建`org.apache.catalina.Request`和`org.apache.catalina.Response`；
@@ -137,8 +137,12 @@ Connector是Tomcat的连接器必须实现的接口，主要作用是：
 
 > 队列：削峰填谷。
 
-### 处理请求
+### 处理请求：线程不足时的请求处理策略
 调用processor处理请求：`processor.assign(socket)`。接下来就介绍processor。
+
+> 为什么说这个http connector比较朴素？**没有NIO啊！只是使用多线程实现了伪非阻塞而已**！（不过当时Java也没有NIO吧……）
+> 
+> 详见：[从阻塞IO到IO多路复用到异步IO]({% post_url 2022-02-24-io-nio-aio %}) 
 
 ## `org.apache.catalina.connector.http.HttpProcessor`：早期tomcat processor实现
 每次HttpConnector获取一个socket，都会交给HttpProcessor处理。每一个HttpProcessor内部持有一个Request和一个Response，因为要解析http请求，填充到Request里。构造HttpProcessor的时候，调用HttpConnector的createRequest/createResponse创建这两个对象。
@@ -363,9 +367,11 @@ await方法：
 ```
 
 #### keep-alive
-首先注意到的是while循环，如果keepAlive为true，或者header里的Connection不为"close"，**则继续在该socket上读写**。这其实就是keep-alive的本质啊！同一个socket发送多个request和response，而不是每次重建一个socket。
+首先注意到的是while循环，如果keepAlive为true，或者header里的Connection不为"close"，**则不关闭这个socket，而是继续在该socket上读写。这其实就是keep-alive的本质啊**！同一个socket发送多个request和response，而不是每次重建一个socket。
 
 > **所以所谓的断开连接就是断开socket，重建连接就是重新获取一个socket。**
+
+但这么做也有一个缺点：**这个processor线程被这个socket长期霸占了！这样就非常消耗服务器线程**！尤其是当接下来没有请求再从这个连接上发过来的时候！如果长连接的client多了，服务器会不堪重负。
 
 #### http 1.1 100
 如果是http 1.1协议，且Header里有：`Expect: 100-continue`，server先回复一个ack：`HTTP/1.1 100 Continue\r\n\r\n`。
@@ -382,8 +388,10 @@ http1.1默认长连接，所以默认允许chunked，响应的header里会有`Tr
 #### parse request、parse header
 不必多言，很复杂的plain text解析。
 
-#### 调用servlet
+#### 调用servlet处理请求：下一篇文章再介绍container
 如果前面的解析都没问题，这是一个合法的http请求，可以使用servlet处理request获取response了。
+
+**是的，直到这里，才开始做servlet container相关的事！所以如果没有servlet container，那我们要实现之前那么多东西，才能开始进入真正的业务逻辑处理阶段！**
 
 如开头所说，servlet的处理是由Container完成的：
 ```
@@ -392,6 +400,9 @@ http1.1默认长连接，所以默认允许chunked，响应的header里会有`Tr
         }
 ```
 Connector和Container绑定，所以可以获取Container。
+
+# Connector在tomcat配置中的体现形式
+见下一篇：[（四）How Tomcat Works - Tomcat servlet容器Container]({% post_url 2020-10-08-tomcat-container %})
 
 # 所谓线程池：其实是对象池
 **线程池里放的是线程吗？不是，是processor对象。那为什么还要叫它线程池，而不是processor对象池？**
@@ -428,6 +439,5 @@ ThreadPoolExecutor有一个阻塞队列，专门用来放置任务。`ThreadPool
 - [Executor - Thread Pool]({% post_url 2020-06-03-Executor-Thread-Pool %})：对ThreadPoolExecutor、RejectedExecutionHandler和blocking queue的介绍；
 
 > 至于池的底层表现，Tomcat用的是Stack，ThreadPoolExecutor用的是HashSet，这点倒没有特别大的区别。
-
 
 
