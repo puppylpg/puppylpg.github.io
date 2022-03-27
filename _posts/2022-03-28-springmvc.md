@@ -1,0 +1,258 @@
+---
+layout: post
+title: "SpringMVC：HTTP请求处理全流程"
+date: 2022-03-28 00:31:25 +0800
+categories: Tomcat Http web servlet spring mvc
+tags: Tomcat Http web servlet spring mvc
+---
+
+最近受到这四篇系列文章的激励：
+- https://segmentfault.com/a/1190000021137583
+- https://segmentfault.com/a/1190000021168133
+- https://segmentfault.com/a/1190000021177809
+- https://segmentfault.com/a/1190000021177945
+
+把spring mvc处理请求的全流程梳理一下：
+1. tcp服务器；
+2. 基于tcp服务器构建tomcat，使用servlet处理请求；
+3. spring使用DispatcherServlet处理请求；
+
+基本把tcp -> http -> tomcat -> spring mvc的链条打通了。
+
+1. Table of Contents, ordered
+{:toc}
+
+# TCP server
+[（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})，介绍了一个原始的TCP服务器的构建方式。
+
+[从阻塞IO到IO多路复用到异步IO]({% post_url 2022-02-24-io-nio-aio %})则介绍了请求从网卡到达TCP服务器的过程。上述原始的tcp服务器使用的还是BIO。
+
+# Tomcat
+Tomcat使用原始的web服务器接收tcp请求，然后构建了一套servlet规范处理请求。
+
+- [（二）How Tomcat Works - 原始Servlet服务器]({% post_url 2020-10-07-tomcat-servlet-server %})介绍了何谓servlet；
+- [（三）How Tomcat Works - Tomcat连接器Connector]({% post_url 2020-10-08-tomcat-connector %})和[（四）How Tomcat Works - Tomcat servlet容器Container]({% post_url 2020-10-08-tomcat-container %})拆解了tomcat：
+    + 前者介绍了tomcat怎么接收并解析请求的；
+    + 后者介绍了请求是怎么在tomcat的体系里游走的；
+
+从现在起，程序猿只要按照业务逻辑写个servlet，扔到tomcat下面，就可以处理http请求了。
+
+问题又来了：**如果系统简单，总共没有几个接口，每个接口对应一个servlet，那就写几个servlet扔到tomcat里，再配置一下servlet的映射关系就行了**。如果系统复杂，那就要写一堆servlet，然而一堆servlet都配置到web.xml里，非常混乱。
+
+所以，SpringMVC来了。
+
+# Spring MVC
+> Spring使用容器构建了一个自己的世界，使得程序猿在这个世界里组装代码非常简单。
+
+spring mvc基于spring，要处理http请求。它选择继续站在前人的肩膀上：**把自己搞成一个servlet，依托于Tomcat存在**。
+
+现在SpringMVC告诉程序猿：你们连servlet都不用写了，把自己的业务逻辑嵌在我的servlet里就行了。这个servlet就是DispatcherServlet。程序猿只需要在spring mvc的世界里写@Controller就可以了——以后大家不用写tomcat的servlet、listener、filter，来写我的@Service、@Controller吧！
+
+他们都活在由DispatcherServlet构建的王国里。
+
+# SpringMVC如何做的
+## 世界分为两步
+原本servlet协议就把servlet容器和程序猿做的工作拆分成了两步。有了DispatcherServlet之后，这两步依然没变：
+1. tomcat调用DispatcherServlet；
+2. 程序猿完全活在DispatcherServlet的世界；
+
+## 第一步：Tomcat发现DispatcherServlet
+### web.xml
+Tomcat怎么发现servlet？将servlet配置在该web app的`web.xml`里。
+
+DispatcherServlet作为servlet，也不例外：
+```
+<servlet>
+    <servlet-name>mvc</servlet-name>
+    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+    <init-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>classpath:mvc-servlet.xml</param-value>
+    </init-param>
+    <load-on-startup>1</load-on-startup>
+</servlet>
+<servlet-mapping>
+    <servlet-name>mvc</servlet-name>
+    <url-pattern>/api</url-pattern>
+</servlet-mapping>
+```
+
+### annotation
+**从Servlet 3.0起，可以不再使用web.xml了**。servlet规范推出了一套支持annotation的配置逻辑：tomcat会查找`javax.servlet.ServletContainerInitializer`的实现类，它可以直接配置servlet。**所以找到它就相当于找到了web.xml**。
+
+> 为了用annotation配置，原来web.xml里有的tag都有了对应的annotation，比如现在可以用@WebServlet来配置一个servlet了。
+
+spring按照Servlet 3.0规范，实现了一个`ServletContainerInitializer`的实现类，`SpringServletContainerInitializer`！tomcat按照servlet协议的约定，会调用这个初始化类。
+
+spring使用这个初始化类把mvc相关的组件都初始化起来：**`SpringServletContainerInitializer`会调用`WebApplicationInitializer#onStartup`的实现类，把初始化的任务交给它。后者真正负责配置servlet**。
+
+> 它的名字非常精准：initialize web application。**而在onStartup方法里，DispatcherServlet就被创建并注册了**！
+
+**没有了web.xml，用户要怎么自定义一些web app相关的配置**？既然WebApplicationInitializer被用作初始化的配置，那再写一个WebApplicationInitializer就行了！当然不需要完全重写，`AbstractAnnotationConfigDispatcherServletInitializer`是`WebApplicationInitializer`的abstract实现类，只要写个类 extends AbstractAnnotationConfigDispatcherServletInitializer，这个类就可以起到web.xml的作用了：
+```
+public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
+  
+  @Override
+  protected Class<?>[] getRootConfigClasses() {
+    return new Class<?>[] { RootConfig.class };
+  }
+
+  @Override
+  protected Class<?>[] getServletConfigClasses() {
+    return new Class<?>[] { WebConfig.class };
+  }
+
+  @Override
+  protected String[] getServletMappings() {
+    return new String[] { "/" };
+  }
+
+}
+```
+在自己写的配置类里，用户按照自己的需求，进行不同程度的自定义配置：
+- 自定义一些配置，比如：把哪个uri映射到DispatcherServlet上（一般是`/`）；
+- 业务逻辑相关的配置写在了RootConfig类里；
+- web相关的配置写在了WebConfig里。
+
+接下来就是在DispatcherServlet的王国里写Controller。
+
+## 第二步：DispatcherServlet处理（分发）请求
+现在，因为该web app只有一个servlet，并且默认映射到`/`，所以所有打到该web app的请求，都交给DispatcherServlet处理。
+
+现在知道它为什么叫DispatcherServlet了——所有的请求都交给它处理，它再把请求dispatch出去！分发给谁？分发给程序猿熟悉的@Controller。
+
+> 现在假定的场景还是传统的Tomcat部署。spring应用依旧需要打成war包放到Tomcat下面，由Tomcat配置该web app的context path：https://stackoverflow.com/a/40671177/7676237
+>
+> 而在spring boot里，使用的是内嵌的Tomcat容器，所以spring boot可以给tomcat配置context path：https://www.baeldung.com/spring-boot-context-path
+>
+> **spring boot怎么做到的？日后再探究：spring boot embedded tomcat**
+
+# DispatcherServlet
+**DispatcherServlet按照什么标准把请求dispatch给controller**？
+
+先列一下DispatcherServlet处理请求的流程：
+1. handler mapping：根据uri映射handler execution chain；
+2. handler execution chain = handler + handler interceptor;
+3. handler execution chain: preHandler() -> handle (invoke controller) -> postHandler()；
+3. ModelAndView -> view resolver -> view (+ model) = response；
+
+`Servlet#service`是处理servlet请求的标准入口。DispatcherServlet继承了HttpServlet。上面归纳的处理流程，都在`DispatcherServlet#doDispatch`方法里。
+
+> https://docs.spring.io/spring-framework/docs/3.0.0.M4/spring-framework-reference/html/ch15s02.html
+
+## `HandlerMapping`：全靠uri
+handler mapping通过请求的uri找到对应的handler execution chain。从它接口的唯一方法就能看出：
+- `HandlerExecutionChain getHandler(HttpServletRequest request)`：根据request（的uri）找到chain。
+
+> **Tomcat在Context内部是根据uri映射servlet的。现在DispatcherServlet把所有收来的请求也按照uri映射到相应的Controller**。所以spring先用DispatcherServlet让程序猿不再直接写servlet，抢了tomcat的风光，再使用和tomcat类似的逻辑，分发请求给controller。tomcat已气晕_(¦3」∠)_
+
+Spring默认可能已经注册好了以下HandlerMapping：
+- `RequestMappingHandlerMapping`：**根据@Controller上的@RequestMapping映射请求**；
+- BeanNameUrlHandlerMapping
+- RouterFunctionMapping
+- SimpleUrlHandlerMapping
+- WelcomePageHandlerMapping
+
+大家基本都在写@Controller，所以`RequestMappingHandlerMapping`就能根据request里的uri，找到@Controller。
+
+handler execution chain由两部分组成：
+1. HandlerMethod：**它就是handler**。其实就是@Controller里的映射到相关uri的方法。根据uri找到它；
+2. HandlerInterceptor：请求拦截器。**也是根据uri判断该interceptor应不应该处理这个请求**！
+
+这一步，把所有跟这个uri相关的handler和interceptor都收集起来了，组装成了execution chain。请求接下来就要由这个chain处理。
+
+> spring web mvc默认可能有2个handler interceptor：ConversionServiceExposingInterceptor和ResourceUrlProviderExposingInterceptor。
+
+如果没找到相应的handler呢？根据配置，要么抛异常NoHandlerFoundException，要么返回404。总之，请求结束了。
+
+## `HandlerExecutionChain`：处理请求
+之所以叫chain，因为它是handler和一堆interceptor的组合。请求要按照顺序从链上通过：
+1. `HandlerInterceptor#preHandler`：**如果返回false，请求直接gg，return**；
+2. HandlerMethod：**反射调用Controller的相关方法**，得到业务逻辑的结果；
+    + 处理返回结果：比如restful，Java对象转json。见下文；
+3. `HandlerInterceptor#postHandler`：后处理；
+4. 处理`ModelAndView`：非restful，见下文；
+5. `HandlerInterceptor#afterCompletion`：完成后处理；
+
+## 处理返回结果：`HandlerMethodReturnValueHandler`
+我们的业务逻辑处理完请求之后，会产生不同的返回值。比如：
+- 返回void；
+- 返回Java对象；
+- 返回ModelAndView；
+
+`HandlerMethodReturnValueHandler`专门根据相应的return value，做一些处理。
+- `boolean supportsReturnType(MethodParameter returnType)`：是否能处理这种类型；
+- `void handleReturnValue`：处理返回值；
+
+### `ModelAndViewMethodReturnValueHandler`：处理网页（ModelAndView）
+比如`ModelAndViewMethodReturnValueHandler`专门处理返回`ModelAndView`的controller返回的数据。它的supportsReturnType的实现：
+```
+ 	@Override
+	public boolean supportsReturnType(MethodParameter returnType) {
+		return ModelAndView.class.isAssignableFrom(returnType.getParameterType());
+	}
+```
+而它的处理方式就是从ModelAndView里获取model和view
+
+### `RequestResponseBodyMethodProcessor`：处理restful（`@RequestBody`）
+如果是restful，最终会使用`RequestResponseBodyMethodProcessor`处理返回的数据：
+> **Resolves method arguments annotated with @RequestBody and handles return values from methods annotated with @ResponseBody by reading and writing to the body of the request or response with an HttpMessageConverter**.
+
+其实就是使用各种`HttpMessageConverter`转换Java对象为json/xml等：[RESTful - HttpMessageConverter]({% post_url 2020-05-26-RESTful-HttpMessageConverter %})。
+
+**它的view为null，所以也不需要model**。
+
+> 注意：**如果返回值已经是string了，就不处理body了。所以rest controller如果返回string，并不是把string object给序列化为json，而是直接返回string。**
+
+然后就按照content type、accept types、produce types开始转换，**最后写body。其实就是往response的outputstream里写数据**，和[（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})并没有本质区别。
+
+## `ModelAndView`：非restful
+如果不是restful，返回的是model and view，就要开始渲染html了。
+
+### model & view
+- `Model`：**一些数据，用来渲染view的参数。可以理解为map**；
+- `View`：**参数化的用来渲染网页的模板**。比如thymeleaf的模板；
+- `ModelAndView`：就是为了让方法一次return俩值……both model and view。This class merely holds both to make it possible for a controller to return both model and view in a single return value。ModelAndView里面的view之所以用Object不用View，因为放的是：View instance or view name String；
+
+参阅：
+- https://www.baeldung.com/spring-mvc-model-model-map-model-view
+
+调用`View#render`方法，交给特定框架渲染html就好。而View的render方法，第一个参数代表model，实际定义的是个map，暴露了model的本质。
+
+> view resolver & view: 本质还是后端渲染。现在前后端分离了，正常的系统都不需要这俩了。
+
+## 发布事件
+终于处理完了请求，可喜可乐！怎么着也得庆祝一下不是？所以最后还不忘再发布一个`ServletRequestHandledEvent`。参见[Spring - bean的容器]({% post_url 2021-11-21-spring-context %})里对容器事件的介绍。
+
+# 框架的本质
+程序的执行永远是线性的：
+1. Java提供的框架是main函数：程序猿在main函数里写代码就行了；
+2. Tomcat在main里启动，然后构造了Connector、Container（Engine/Host/Context/Wrapper），提供的是servlet接口：程序猿只要写servlet扔到tomcat里就行了；
+3. Spring在main里启动，构造的是spring application context：程序猿只要写在里面bean就行了；
+4. SpringMVC由Tomcat调用，构造了DispatcherServlet：程序猿只要在DispatcherServlet里写Controller就行了；
+
+所以框架的本质就是在线性运行的main函数里，把你引到它的世界，并让大家爱上这个世界，在此停留。至于原本main那条线上要做的事情，不需要再管了。
+
+不管了，就简单了。但是如果不知道还有外面的那条线，被框架蒙蔽在它所构建的世界里，就永远是个被一叶障目的程序猿，不见泰山。有了框架：可以免去写那些东西了，但不代表不需要知道外面的世界。
+
+而现实是，框架经常是堆叠的。比如spring web mvc基于tomcat而存在，所以程序猿所在的spring web mvc的世界外还有一个tomcat的世界。这是一个套娃的世界，如果程序猿对此没有感知，请求报错的时候将会非常迷茫。
+
+> 所以tomcat和spring mvc可以共存：context path设为/xxx/，这样所有非xxx的请求会依然使用tomcat，/xxx/开头的请求才会进入spring mvc。
+
+在DispatcherServlet之前，spring也有参与，比如：javax.servlet.Filter接口spring也继承了。所以在进入servlet之前也调用了spring的filter。用的还挺多的，包括spring security。可以再学学filter接口。
+
+还有一个好玩儿的东西：spring处理请求的时候，把request#attribute当做临时传参的地方了。不过接下来会立刻擦掉：
+```
+	@Override
+	protected HandlerMethod getHandlerInternal(HttpServletRequest request) throws Exception {
+		request.removeAttribute(PRODUCIBLE_MEDIA_TYPES_ATTRIBUTE);
+		try {
+			return super.getHandlerInternal(request);
+		}
+		finally {
+			ProducesRequestCondition.clearMediaTypesAttribute(request);
+		}
+	}
+```
+finally语句，确保一定擦掉。不让用户看见。233，小动作。
+
