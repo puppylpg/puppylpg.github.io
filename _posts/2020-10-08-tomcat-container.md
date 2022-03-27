@@ -282,6 +282,10 @@ host还有其他属性：
 
 **从unpackWARs也可以看出，host下面就是部署了一堆war包（一堆context，或者说一堆web应用）**。这下清楚了，**我们部署的war包，就是context**！
 
+> Engine和Host都怎么配？配置文件在哪儿（`conf/server.xml`）？**详情查看Engine和Host的配置说明**：
+> - Engine：https://tomcat.apache.org/tomcat-8.0-doc/config/engine.html
+> - Host：https://tomcat.apache.org/tomcat-8.0-doc/config/host.html
+
 ## context - web应用/war包
 **context就是一个war包，或者war展开后的文件夹**。
 
@@ -291,28 +295,17 @@ host还有其他属性：
 
 当请求抵达时，Tomcat 将根据 Context 的属性 path 取值与 URI 中的 context-path 的匹配程度来选择 Web 应用处理相应请求，例如：Web 应用 spring-demo 的 path 属性是”/spring-demo”，那么请求“/spring-demo/user/register”将交由 spring-demo 来处理。
 
-以tomcat自带的web app：examples举例——
-1. examples位于tomcat的webapps下；
-2. 当访问`http://localhost:8080/examples/`时，engine就把请求给到了host，host按照路径`/examples/`匹配，把请求给到了examples这个app；
+**但是！Context不是在Host里配置的嘛，上面的`conf/server.xml`里怎么没见到Context标签啊？**
 
-examples的根目录下有`web.xml`，META-INF下有`context.xml`，内容为：
-```
-<Context>
-  <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor"
-                   sameSiteCookies="strict" />
-</Context>
-```
-这就是examples app配置的context。
+Context的详情配置，和放置的文件夹，查看官方文档：
+- Context：https://tomcat.apache.org/tomcat-8.0-doc/config/context.html
 
-> 为什么在META-INF下？查阅：https://tomcat.apache.org/tomcat-9.0-doc/appdev/deployment.html
->
-> A /META-INF/context.xml file can be used to define Tomcat specific configuration options, such as an access log, data sources, session manager configuration and more. This XML file must contain one Context element, which will be considered as if it was the child of the Host element corresponding to the Host to which the web application is being deployed. The Tomcat configuration documentation contains information on the Context element.
+在[Defining_a_context](https://tomcat.apache.org/tomcat-8.0-doc/config/context.html#Defining_a_context)里提到：
+> It is NOT recommended to place <Context> elements directly in the server.xml file. This is because it makes modifying the Context configuration more invasive since the main conf/server.xml file cannot be reloaded without restarting Tomcat.
 
-context也是可以配置路径的：
-- **path：也就是上面的context-path。Host使用context path匹配Context**；
-- docBase：war或展开后的文件夹对应的位置，**从这个位置加载该app的文件，比如servlet .class文件**。可以是绝对路径，**也可以是他所在的host目录（appBase）的相对路径**；
+**所以Context的配置一般放在：`$CATALINA_BASE/conf/[enginename]/[hostname]/<app-name>.xml`里面**。
 
-比如tomcat example就是一个context，它的配置：
+比如Debian安装的tomcat，$CATALINA_BASE=/var/lib/tomcat9，它下面的conf/Catalina/localhost/examples.xml就是examples这个app的Context配置：
 ```
 <Context path="/examples"
          docBase="/usr/share/tomcat9-examples/examples">
@@ -320,12 +313,32 @@ context也是可以配置路径的：
   <Resources allowLinking="true"/>
 </Context>
 ```
+- **path：也就是上面的context-path。Host使用context path匹配Context**；
+- docBase：war或展开后的文件夹对应的位置，**从这个位置加载该app的文件，比如servlet .class文件**。可以是绝对路径，**也可以是他所在的host目录（appBase）的相对路径**；
 
 **context path和url相关，docBase和url无关**！
 
 > docBase用的是绝对路径，所以不需要放在它所在的host的目录下。
 
 它的访问url是：http://localhost:8080/examples/
+
+以tomcat自带的web app：examples举例——
+1. examples位于tomcat的webapps下；
+2. 当访问`http://localhost:8080/examples/`时，engine就把请求给到了host，host按照路径`/examples/`匹配，把请求给到了examples这个app；
+
+Windows没有在`$CATALINA_BASE/conf/[enginename]/[hostname]/<app-name>.xml`里面配置Context。所以examples的根目录下有`web.xml`，META-INF下有`context.xml`，内容为：
+```
+<Context>
+  <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor"
+                   sameSiteCookies="strict" />
+</Context>
+```
+这就是examples app配置的context。**这个context已经不需要配置path和docBase了，因为tomcat就是按照默认的path和docBase找到的它……它再配path和docBase有什么用？**
+
+> 为什么在META-INF下？查阅：https://tomcat.apache.org/tomcat-9.0-doc/appdev/deployment.html
+>
+> A /META-INF/context.xml file can be used to define Tomcat specific configuration options, such as an access log, data sources, session manager configuration and more. This XML file must contain one Context element, which will be considered as if it was the child of the Host element corresponding to the Host to which the web application is being deployed. The Tomcat configuration documentation contains information on the Context element.
+
 
 ## container为什么要有engine/host/context这些层级？
 > 从上述体系结构剖析来看，Tomcat 这款 Java Web 应用服务器的功能还是非常强大的，它可以在一个实例进程当中同时支持多种协议，同时支持多个虚拟主机，每个虚拟主机下还支持部署多款应用，具备强大的扩展性和灵活性。为什么它具备这样一种体系结构呢？
@@ -434,7 +447,7 @@ apache-tomcat-9.0.58 $ tree -L 1
 
 3 directories, 2 files
 ```
-examples位于/usr/share/tomcat9-examples下，我都不知道它是怎么指过去的……
+> 它的`CATALINA_BASE/conf/Catalina/localhost/examples.xml`指明了examples这个web app的位置：`docBase="/usr/share/tomcat9-examples/examples"`。既不在CATALINA_HOME下，也不在CATALINA_BASE下，而是另一个独立的地方。所以Debian的tomcat就非常的支离破碎……分到了好几个不同的地方……
 
 tomcat的官网有一个个重要的文件：https://tomcat.apache.org/tomcat-9.0-doc/RUNNING.txt
 
@@ -446,19 +459,6 @@ tomcat的官网有一个个重要的文件：https://tomcat.apache.org/tomcat-9.
 
 > servlet-api.jar就在CATALINA_HOME/lib下。所以打war包的时候就不用打到WEB-INF/lib里了。
 
-比如另一个tomcat也要部署manager这个web工程，分成两步：
-1. Copy the `CATALINA_HOME/webapps/manager/META-INF/context.xml` file as `CATALINA_BASE/conf/Catalina/localhost/manager.xml`：把单体tomcat下的manager这个web的配置拷到CATALINA_BASE的配置下。**这个路径代表的是`conf/<engine_name>/<host_name>`**，可以在https://tomcat.apache.org/tomcat-9.0-doc/config/host.html的xmlBase里看到；
-1. Add docBase attribute as shown below：修改刚刚copy的配置文件里的docBase；
-
-RUNNING.txt里还推荐通过下面的文档学习多实例部署：
-- Deployer：https://tomcat.apache.org/tomcat-9.0-doc/deployer-howto.html
-- context：https://tomcat.apache.org/tomcat-9.0-doc/config/context.html
-- host：https://tomcat.apache.org/tomcat-9.0-doc/config/host.html
-
-TODO: 这三个文件一定要看
-
-> 当然，直接copy几个单体tomcat分别部署也是可以的……就是有重复文件，不太优雅。
->
 > 学tomcat，还是看囫囵版的吧。Debian默认装的这个太草了！
 
 # Container的管道：container的任务执行顺序
