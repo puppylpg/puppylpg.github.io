@@ -127,6 +127,10 @@ public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherSer
 >
 > **spring boot怎么做到的？日后再探究：spring boot embedded tomcat**
 
+DispatcherServlet的这一模式，又被称作Front Controller：
+- https://en.wikipedia.org/wiki/Front_controller
+- https://web.archive.org/web/20120419115929/http://java.sun.com/blueprints/patterns/FrontController.html
+
 # DispatcherServlet
 **DispatcherServlet按照什么标准把请求dispatch给controller**？
 
@@ -192,7 +196,9 @@ handler execution chain由两部分组成：
 		return ModelAndView.class.isAssignableFrom(returnType.getParameterType());
 	}
 ```
-而它的处理方式就是从ModelAndView里获取model和view
+而它的处理方式就是从ModelAndView里获取model和view。
+
+> **注意：这里并不是渲染view**。
 
 ### `RequestResponseBodyMethodProcessor`：处理restful（`@RequestBody`）
 如果是restful，最终会使用`RequestResponseBodyMethodProcessor`处理返回的数据：
@@ -206,7 +212,105 @@ handler execution chain由两部分组成：
 
 然后就按照content type、accept types、produce types开始转换，**最后写body。其实就是往response的outputstream里写数据**，和[（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})并没有本质区别。
 
-## `ModelAndView`：非restful
+## 处理异常
+如果DispatcherServlet处理请求的过程中有异常，spring会对其拦截，并进行处理。
+
+**所谓拦截，就是try catch住DispatcherServlet整个处理的流程，获取exception**。
+
+接下来就是怎么处理这个exception的问题。
+
+### `HandlerExceptionResolver`：处理异常
+spring默认会注册下面三种resolver（顺序）：
+- **`ExceptionHandlerExceptionResolver`：使用`@ExceptionHandler`对应的方法处理异常**；
+- `ResponseStatusExceptionResolver `：使用`@ResponseStatus`对应的方法处理异常。缺点是只能处理status code，没法设置body；
+- `DefaultHandlerExceptionResolver`：把[Spring定义的异常和status code](https://docs.spring.io/spring-framework/docs/3.2.x/spring-framework-reference/html/mvc.html#mvc-ann-rest-spring-mvc-exceptions)进行映射。同样，缺点是设置不了body。**如果不定义任何异常处理器，用的就是这个**；
+
+**当时用`@ExceptionHandler`全局处理异常时，`ExceptionHandlerExceptionResolver`是会被用到的异常处理器。**
+
+### `@ExceptionHandler`：定义异常返回的header和body
+`@ExceptionHandler`非常灵活，可以给被注解的方法设置非常灵活的参数：
+- exception；
+- request、response；
+
+等等。
+
+还可以设置非常灵活的返回值：
+- ModelAndView/Model/View；
+- String；
+- `@ResponseBody`：to set the response content. The return value will be converted to the response stream using message converters；
+- `HttpEntity<?>`/`ResponseEntity<?>`：to set response headers and content；
+- void：if the method handles the response itself (by writing the response content directly, declaring an argument of type ServletResponse / HttpServletResponse for that purpose)；
+
+**所以`@ExceptionHandler`和`@ResponseStatus`相比，最大的优势在于定义head和body**。
+
+> 强烈建议看看它的Javadoc！
+
+它的劣势在于定义在@Controller时，只能被该Controller独有。**而`@ControllerAdvice` + `@ExceptionHandler`则可以让后者在所有Controller内共享，作为全局的exception处理器**！
+
+> **`@ControllerAdvice`的Javadoc**：Specialization of @Component for classes that declare @ExceptionHandler, @InitBinder, or @ModelAttribute methods to be shared across multiple @Controller classes.
+
+比如下面这个示例，`@ControllerAdvice`和`@ExceptionHandler`组合使用，甚至还加了`@ResponseStatus`：
+```
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    /**
+     * 想序列化它为json，必须加{@link Data}
+     */
+    // TODO: Whitelabel Error Page
+    @ExceptionHandler(UserNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public @ResponseBody ErrorResponse userNotFound(UserNotFoundException e, HttpServletResponse response) {
+        response.setHeader("no-user-id", e.getMessage());
+        return new ErrorResponse(11111, e.getMessage());
+    }
+    
+    // 当然也可以只返回header status
+//    public void userNotFound(UserNotFoundException e, HttpServletResponse response) {
+//        response.setHeader("no-user-id", e.getMessage());
+//        return;
+//    }
+}
+```
+`@ExceptionHandler`默认被上述`ExceptionHandlerExceptionResolver`持有，它会负责发现所有的`@ExceptionHandler`：
+```
+	private void initExceptionHandlerAdviceCache() {
+		if (getApplicationContext() == null) {
+			return;
+		}
+
+        // 1
+		List<ControllerAdviceBean> adviceBeans = ControllerAdviceBean.findAnnotatedBeans(getApplicationContext());
+		for (ControllerAdviceBean adviceBean : adviceBeans) {
+			Class<?> beanType = adviceBean.getBeanType();
+			if (beanType == null) {
+				throw new IllegalStateException("Unresolvable type for ControllerAdviceBean: " + adviceBean);
+			}
+			ExceptionHandlerMethodResolver resolver = new ExceptionHandlerMethodResolver(beanType);
+			if (resolver.hasExceptionMappings()) {
+			
+			    // 2
+				this.exceptionHandlerAdviceCache.put(adviceBean, resolver);
+			}
+			if (ResponseBodyAdvice.class.isAssignableFrom(beanType)) {
+			
+			    // 3
+				this.responseBodyAdvice.add(adviceBean);
+			}
+		}
+	}
+```
+1. 它会从ApplicationContext里找到所有的`@ControllerAdvice` bean；
+2. 然后把`@ExceptionHandler`找出来；
+3. 再把返回`@ResponseBody`的找出来；
+
+最后用这些handler处理异常。
+
+参阅：
+- spring处理异常：https://www.baeldung.com/exception-handling-for-rest-with-spring
+- DispatcherServlet的处理流程：https://www.baeldung.com/spring-dispatcherservlet
+
+## `ModelAndView`：如果需要返回view
 如果不是restful，返回的是model and view，就要开始渲染html了。
 
 ### model & view
@@ -223,6 +327,8 @@ handler execution chain由两部分组成：
 
 ## 发布事件
 终于处理完了请求，可喜可乐！怎么着也得庆祝一下不是？所以最后还不忘再发布一个`ServletRequestHandledEvent`。参见[Spring - bean的容器]({% post_url 2021-11-21-spring-context %})里对容器事件的介绍。
+
+> 其实发布事件的代码在DispatcherServlet的父类FrameworkServlet里。
 
 # 框架的本质
 程序的执行永远是线性的：
