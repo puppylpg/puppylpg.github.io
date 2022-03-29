@@ -135,16 +135,27 @@ DispatcherServlet的这一模式，又被称作Front Controller：
 **DispatcherServlet按照什么标准把请求dispatch给controller**？
 
 先列一下DispatcherServlet处理请求的流程：
-1. handler mapping：根据uri映射handler execution chain；
-2. handler execution chain = handler + handler interceptor;
-3. handler execution chain: preHandler() -> handle (invoke controller) -> postHandler()；
-3. ModelAndView -> view resolver -> view (+ model) = response；
+1. handler mapping：根据uri映射handler execution chain（handler execution chain = handler + handler interceptor）；
+3. **handler execution chain**: `HandlerInterceptor#preHandle`；
+4. **handler execution chain**: handle(invoke controller)，调用完之后，会涉及到我们自己写的@Controller的方法的返回结果的转换：
+    1. **restful转为json**；
+    2. ModelAndView：获取model和view；
+1. **handler execution chain**: `HandlerInterceptor#postHandle`；
+4. 处理结果
+    1. 处理异常结果；
+    2. 处理view：ModelAndView -> view resolver -> view (+ model) = response；
+1. 调用`HandlerInterceptor#afterCompletion`；
+2. 发布`ServletRequestHandledEvent`事件，宣布请求处理完了；
 
 `Servlet#service`是处理servlet请求的标准入口。DispatcherServlet继承了HttpServlet。上面归纳的处理流程，都在`DispatcherServlet#doDispatch`方法里。
 
 > https://docs.spring.io/spring-framework/docs/3.0.0.M4/spring-framework-reference/html/ch15s02.html
 
-## `HandlerMapping`：全靠uri
+**DispatcherServlet的核心就是handler，通过handler处理请求**：
+1. handler mapping，苦苦求索就为找到handler；
+2. handler interceptor：**依托于handler**，设置了handler interceptor，做一些前置后置操作。**
+
+## `HandlerMapping`：全靠uri找到handler chain
 handler mapping通过请求的uri找到对应的handler execution chain。从它接口的唯一方法就能看出：
 - `HandlerExecutionChain getHandler(HttpServletRequest request)`：根据request（的uri）找到chain。
 
@@ -171,14 +182,19 @@ handler execution chain由两部分组成：
 
 ## `HandlerExecutionChain`：处理请求
 之所以叫chain，因为它是handler和一堆interceptor的组合。请求要按照顺序从链上通过：
-1. `HandlerInterceptor#preHandler`：**如果返回false，请求直接gg，return**；
+1. `HandlerInterceptor#preHandle`：**如果返回false，请求直接gg，return**；
 2. HandlerMethod：**反射调用Controller的相关方法**，得到业务逻辑的结果；
-    + 处理返回结果：比如restful，Java对象转json。见下文；
-3. `HandlerInterceptor#postHandler`：后处理；
-4. 处理`ModelAndView`：非restful，见下文；
+    + **返回结果转换：如果是restful，Java对象转json**。见下文；
+3. `HandlerInterceptor#postHandle`：后处理，在渲染view之前；
+4. 处理结果：可能是异常，也可能是`ModelAndView`：非restful，见下文；
 5. `HandlerInterceptor#afterCompletion`：完成后处理；
 
-## 处理返回结果：`HandlerMethodReturnValueHandler`
+handler interceptor其实挺好记：
+1. preHandle在handle之前；
+2. postHandle在handle之后，处理结果（渲染view、处理exception）之前；
+3. afterCompletion在处理结果（渲染view、处理exception）之后。毕竟都搞完了才叫completion。
+
+### 返回结果转换：`HandlerMethodReturnValueHandler`
 我们的业务逻辑处理完请求之后，会产生不同的返回值。比如：
 - 返回void；
 - 返回Java对象；
@@ -188,7 +204,9 @@ handler execution chain由两部分组成：
 - `boolean supportsReturnType(MethodParameter returnType)`：是否能处理这种类型；
 - `void handleReturnValue`：处理返回值；
 
-### `ModelAndViewMethodReturnValueHandler`：处理网页（ModelAndView）
+#### `ModelAndViewMethodReturnValueHandler`：转换为ModelAndView（网页）
+> **只是转换，并不是渲染view。渲染view在最后。**
+
 比如`ModelAndViewMethodReturnValueHandler`专门处理返回`ModelAndView`的controller返回的数据。它的supportsReturnType的实现：
 ```
  	@Override
@@ -200,7 +218,9 @@ handler execution chain由两部分组成：
 
 > **注意：这里并不是渲染view**。
 
-### `RequestResponseBodyMethodProcessor`：处理restful（`@RequestBody`）
+#### `RequestResponseBodyMethodProcessor`：转换为json/xml（`@RequestBody`，restful）
+> **对于restful，到这儿整个请求其实就是处理完了。后面没它事儿了。**
+
 如果是restful，最终会使用`RequestResponseBodyMethodProcessor`处理返回的数据：
 > **Resolves method arguments annotated with @RequestBody and handles return values from methods annotated with @ResponseBody by reading and writing to the body of the request or response with an HttpMessageConverter**.
 
@@ -212,14 +232,20 @@ handler execution chain由两部分组成：
 
 然后就按照content type、accept types、produce types开始转换，**最后写body。其实就是往response的outputstream里写数据**，和[（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})并没有本质区别。
 
-## 处理异常
+## 处理结果
+结果就三种：
+1. 有异常，处理异常；
+1. 有model and view，渲染view；
+2. **以上两个都没有。它可能是restful，因为restful不返回view。但是restful在handle的时候已经被转换成json了。这里不需要再处理了**。
+
+### 处理异常
 如果DispatcherServlet处理请求的过程中有异常，spring会对其拦截，并进行处理。
 
 **所谓拦截，就是try catch住DispatcherServlet整个处理的流程，获取exception**。
 
 接下来就是怎么处理这个exception的问题。
 
-### `HandlerExceptionResolver`：处理异常
+#### `HandlerExceptionResolver`：处理异常
 spring默认会注册下面三种resolver（顺序）：
 - **`ExceptionHandlerExceptionResolver`：使用`@ExceptionHandler`对应的方法处理异常**；
 - `ResponseStatusExceptionResolver `：使用`@ResponseStatus`对应的方法处理异常。缺点是只能处理status code，没法设置body；
@@ -227,7 +253,7 @@ spring默认会注册下面三种resolver（顺序）：
 
 **当时用`@ExceptionHandler`全局处理异常时，`ExceptionHandlerExceptionResolver`是会被用到的异常处理器。**
 
-### `@ExceptionHandler`：定义异常返回的header和body
+#### `@ExceptionHandler`：定义异常返回的header和body
 `@ExceptionHandler`非常灵活，可以给被注解的方法设置非常灵活的参数：
 - exception；
 - request、response；
@@ -244,6 +270,8 @@ spring默认会注册下面三种resolver（顺序）：
 **所以`@ExceptionHandler`和`@ResponseStatus`相比，最大的优势在于定义head和body**。
 
 > 强烈建议看看它的Javadoc！
+>
+> 相似地，标记了`@RequestMapping`的方法也有[很多参数类型](https://docs.spring.io/spring-framework/docs/3.2.x/spring-framework-reference/html/mvc.html#mvc-ann-methods)可以设置，[很多种类型](https://docs.spring.io/spring-framework/docs/3.2.x/spring-framework-reference/html/mvc.html#mvc-ann-return-types)可以作为返回值。和`@ExceptionHandler`类似。
 
 它的劣势在于定义在@Controller时，只能被该Controller独有。**而`@ControllerAdvice` + `@ExceptionHandler`则可以让后者在所有Controller内共享，作为全局的exception处理器**！
 
@@ -308,12 +336,13 @@ public class GlobalExceptionHandler {
 
 参阅：
 - spring处理异常：https://www.baeldung.com/exception-handling-for-rest-with-spring
+- https://www.baeldung.com/spring-dispatcherservlet#handlerExceptionResolver
 - DispatcherServlet的处理流程：https://www.baeldung.com/spring-dispatcherservlet
 
-## `ModelAndView`：如果需要返回view
+### `ModelAndView`：如果需要返回view
 如果不是restful，返回的是model and view，就要开始渲染html了。
 
-### model & view
+#### model & view
 - `Model`：**一些数据，用来渲染view的参数。可以理解为map**；
 - `View`：**参数化的用来渲染网页的模板**。比如thymeleaf的模板；
 - `ModelAndView`：就是为了让方法一次return俩值……both model and view。This class merely holds both to make it possible for a controller to return both model and view in a single return value。ModelAndView里面的view之所以用Object不用View，因为放的是：View instance or view name String；
@@ -324,6 +353,12 @@ public class GlobalExceptionHandler {
 调用`View#render`方法，交给特定框架渲染html就好。而View的render方法，第一个参数代表model，实际定义的是个map，暴露了model的本质。
 
 > view resolver & view: 本质还是后端渲染。现在前后端分离了，正常的系统都不需要这俩了。
+
+### ~~restful？~~
+不需要处理这个结果。handle后就转过了。
+
+### `HandlerInterceptor#afterCompletion`
+view都渲染完了，请求确实处理完了。
 
 ## 发布事件
 终于处理完了请求，可喜可乐！怎么着也得庆祝一下不是？所以最后还不忘再发布一个`ServletRequestHandledEvent`。参见[Spring - bean的容器]({% post_url 2021-11-21-spring-context %})里对容器事件的介绍。
