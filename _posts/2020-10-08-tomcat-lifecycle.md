@@ -6,7 +6,7 @@ categories: Tomcat Http web
 tags: Tomcat Http web
 ---
 
-servlet是有生命周期的，需要在不同的阶段调用init/destory等。同时Tomcat包含有很多组件，他们的启动必然是有先后顺序的，也是有联系的，某些组件要依次启动，不能遗漏。为了统一启动关闭这些组件，最好的办法就是给组件都加上生命周期。
+servlet是有生命周期的，需要在不同的阶段调用init/destory等。同时Tomcat包含有很多组件，他们的启动必然是有先后顺序的，也是有联系的，不能漏掉任何一个。为了统一启动关闭这些组件，最好的办法就是给组件都加上生命周期。
 
 1. Table of Contents, ordered
 {:toc}
@@ -61,6 +61,19 @@ stop同理，应该被最后调用，回收资源，同时发送关闭事件。
 
 事件分为两组：启动前、启动、启动后，关闭前、关闭、关闭后。
 
+## Lifecycle vs. Pipeline
+Lifecycle和Pipeline乍看起来有点儿类似，实际上他们表述的语义不太相同：
+- Lifecycle：对外暴露一套开关方法，只要调用start方法就能启动该接口的实现；
+- Pipeline：在其上添加一堆valve，以实现链式调用；
+
+而tomcat里的Container两个接口都实现了：
+1. 实现Lifecycle，是为了对外暴露开关。
+2. 实现Pipeline，是控制自己内部的任务调用顺序。
+
+**所以前者主外，后者主内：启动Lifecycle容器的时候，上级容器调用下级容器的start，从而实现所有容器的链式调用。在单个容器start的过程中，会把Pipeline上的所有valve顺次启动，完成自己的启动过程**。
+
+> **一个是外层的链式，一个是内层的链式。**
+
 # `org.apache.catalina.LifecycleListener`
 Listener根据LifecycleEvent决定做哪些事情：
 ```
@@ -93,10 +106,18 @@ LifecycleSupport提供了list的封装，同时封装了遍历list的过程，�
 ```
 很方便。
 
+> LifecycleSupport就是做了个简单的封装：本来还要自己创建个list，现在创建list的任务都由support代劳了。但list还是要创建的。
+
+所以如何做到整个系统都能启动起来？很简单：
+1. **调用自己的start**；
+2. **调用自己每个children的start**；
+
+> **每个人只需要自己做到start，并告诉下一位让它也做到start。那么这个系统的start事件就可以一直传下去，直到所有组件都start**。非常简单的思想。
+
 # 带有Lifecycle的servlet容器
 **Tomcat的组件允许包含其他组件，启动/关闭父组件的时候要启动/关闭它所包含的子组件，就可以做到整个servlet容器依次被启动/关闭。**
 
-server包含两个组件：Connector和Container。所以server只需要负责其他他的两个子组件就行了（调用他们的start方法）：
+server包含两个组件：Connector和Container。所以server只需要负责他的两个子组件就行了（调用他们的start方法）：
 ```
 public final class Bootstrap {
   public static void main(String[] args) {
@@ -176,13 +197,11 @@ public final class Bootstrap {
   }
 ```
 1. 启动前，发送BEFORE_START_EVENT给所有的listener；
-2. 启动它自己包含的子组件，比如Loader、子Container（比如Wrapper）、Pipeline；
+2. **启动它自己包含的子组件，比如Loader、子Container（比如Wrapper），其实就是把自己喝孩子的start方法都调用了**；
 3. 发送START_EVENT；
 4. 发送AFTER_START_EVENT；
 
-> 注意**启动组件并不是组件提供服务**。比如Pipeline，只是开启了它，做了初始化工作（它的初始化也可能不需要做啥），并不是调用了它的invoke。invoke是Connector获取socket之后交给HttpProcessor处理时才调用了Container的invoke。
-> 
-> **一个组件start和这个组件提供服务的方法是两码事。如果非得说有什么关系，那就是一个组件只有start之后才能提供服务。**
+> 注意**启动组件并不是组件提供服务**。比如Pipeline，只是开启了它，做了初始化工作（它的初始化也可能不需要做啥），并不是调用了它的服务方法invoke。invoke是Connector获取socket之后交给HttpProcessor处理时才调用了Container的invoke。
 
 每一个组件就这样一连串启动起来了。
 

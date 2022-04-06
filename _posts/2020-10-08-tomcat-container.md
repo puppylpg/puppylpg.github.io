@@ -879,8 +879,8 @@ Context的invoke也是交由它的pipeline实现的，**它的basic valve只负�
 1. 根据context path匹配Context；
 
 ### 三个路径
-- app base：Host可以`setAppBase`，作为所有 **所有web应用** 的根目录。**默认是<catalina home> + webapps**；
-- doc base：Context可以`setDocBase`，作为 **该web应用** 的根目录。**所以某应用的根目录是app base + doc base，即<catalina home> + webapps + doc base**；
+- app base：Host可以`setAppBase`，作为 **所有web应用** 的根目录。**默认是`<catalina home>` + webapps**；
+- doc base：Context可以`setDocBase`，作为 **该web应用** 的根目录。**所以某应用的根目录是app base + doc base，即`<catalina home>` + webapps + doc base**；
 - context path：Context可以`setPath`，作为Host匹配Context的依据；
 
 **前两个path无关url，只决定加载应用的位置。context path体现在url里**。
@@ -891,15 +891,64 @@ Context的invoke也是交由它的pipeline实现的，**它的basic valve只负�
 - Host找Context，用的是uri的前半段：context path；
 - Context找Wrapper，**用的是uri的后半段：去掉context path的uri**。
 
-**但问题在于，怎么知道前后半段的分界点在哪儿？二者是用那个slash分界的？**
+**但问题在于，怎么知道前后半段的分界点在哪儿？二者是用哪个slash分界的？**
 
 比如`/a/b/c/d`：
 1. Tomcat默认把uri里最后一个slash前的部分当做context path：`/a/b/c`；
-2. 找不到对应context就再往前找一个slash，这个slash签的部分作为context path：`/a/b`；
+2. 找不到对应context就再往前找一个slash，这个slash前的部分作为context path：`/a/b`；
 3. 还找不到，继续：`/a`；
 3. 如果还找不到，就尝试用empty作为context path：`""`，看看有没有名为空`""`的Context。。
 
-具体代码详见`StandardHostMapper#map`匹配时调用的`StandardHost#map`：
+具体代码详见`StandardHostMapper#map`
+```
+    /**
+     * Return the child Container that should be used to process this Request,
+     * based upon its characteristics.  If no such child Container can be
+     * identified, return <code>null</code> instead.
+     *
+     * @param request Request being processed
+     * @param update Update the Request to reflect the mapping selection?
+     */
+    public Container map(Request request, boolean update) {
+        // Has this request already been mapped?
+        if (update && (request.getContext() != null))
+            return (request.getContext());
+
+        // Perform mapping on our request URI
+        String uri = ((HttpRequest) request).getDecodedRequestURI();
+        Context context = host.map(uri);
+
+        // Update the request (if requested) and return the selected Context
+        if (update) {
+            request.setContext(context);
+            if (context != null)
+                ((HttpRequest) request).setContextPath(context.getPath());
+            else
+                ((HttpRequest) request).setContextPath(null);
+        }
+        return (context);
+
+    }
+```
+先说最后几行有一个非常重要的内容：**context path是设置在http request里面的！！！因为每个http request映射到的context是不同的，至于这个request是通过上述多少个slash才找到对应的context的，只有这个request知道！所以request不但会持有context container，还会存下来该request是通过那个path找到这个context的！后面在context里找映射的servlet的时候，使用的是该request的uri减去这个context path。**
+
+其实照理说，这个request所持有的context本身就设置了path（context path），需要的时候把这个path取出来不就行了吗，为什么还要设置到`request#setContextPath`里呢？
+```
+    /**
+     * Set the context path for this Request.  This will normally be called
+     * when the associated Context is mapping the Request to a particular
+     * Wrapper.
+     *
+     * @param path The context path
+     */
+    public void setContextPath(String path);
+```
+我觉得有两点：
+1. 方便一些；
+2. **当存在Host的时候，确实没必要给request单独设置，request的context path其实就是它匹配上的context的path。但是当Host不存在时，就没有Host给request设置这个context path了。request的context path永远为空字符串……** 这是一种非常规用法，但是可以增加理解。详见[（七）How Tomcat Works - Tomcat Session]({% post_url 2020-10-08-tomcat-session %})的cookie's path部分。
+
+
+现在再往前，看上述匹配的`host#map`匹配时调用的`StandardHost#map`：
 ```
         Context context = null;
         String mapuri = uri;
