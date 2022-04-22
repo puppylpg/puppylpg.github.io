@@ -12,11 +12,14 @@ tags: elasticsearch
 
 大致分为以下部分：
 - es基本使用：[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})；
-- es搜索的原理：倒排索引、分词、analyzer、；
-- 高级属性：doc_values
+- es搜索的原理：[Elasticsearch：search]({% post_url 2022-04-22-es-search %})；
+- 正排索引：[Elasticsearch：sort、aggregation]({% post_url 2022-04-22-es-sort-agg %})；
 - reindex：
-- es关系型索引：parent/child；
+- es关系型索引：parent/child，也用到了doc values；
 - es底层：；
 - es其他：highlight；
+- 监控
+- index default template；
+- 调优：jvm内存、ssd
 
 
