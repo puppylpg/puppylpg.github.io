@@ -21,8 +21,10 @@ tags: elasticsearch
 es的查询结果，如果没有显式排序，默认按照文档的搜索得分排序。分数越高的文档和搜索词的相关性越强。
 
 TF/IDF（term frequency–inverse document frequency）：
-1. TF：词语频率高；
-2. IDF：且并不是所有文档频率都这么高；
+1. TF：词语在该文档出现频率高；
+2. IDF：且并不是在所有文档出现频率都这么高；
+
+> **如果一个词在很多文档中都经常出现，那它可能和每个文档都不太相关。（仅仅是一个表达的常用词而已，并不和文章主题有显著关联）**
 
 通俗地讲，就是该词不仅在你文档里出现的频率高，而且比在其他文档里出现的平均频率高，那说明这个词在你的文档里很重要。
 
@@ -30,7 +32,9 @@ TF/IDF（term frequency–inverse document frequency）：
 - 相关度背后的理论：https://www.elastic.co/guide/cn/elasticsearch/guide/current/scoring-theory.html
 
 # aggregation
-和mysql的group by类似，聚合内部也可以再进行子聚合，其实就是group by多个field，最后可以对聚合字段做sum/min等计算。
+和mysql的group by类似。聚合的好处是：有时候并不知道该搜啥，不如先聚合一波看看结果。
+
+聚合内部也可以再进行子聚合，其实就是group by多个field，最后可以对聚合字段做sum/min等计算。
 
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html
 
