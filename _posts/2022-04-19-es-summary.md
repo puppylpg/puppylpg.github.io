@@ -14,12 +14,13 @@ tags: elasticsearch
 - es基本使用：[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})；
 - es搜索的原理：[Elasticsearch：search]({% post_url 2022-04-22-es-search %})；
 - 正排索引：[Elasticsearch：sort、aggregation]({% post_url 2022-04-22-es-sort-agg %})；
-- reindex：
+- reindex和task：[Elasticsearch：alias、reindex、task]({% post_url 2022-05-02-es-reindex-task %})；
 - es关系型索引：parent/child，也用到了doc values；
-- es底层：；
 - es其他：highlight；
 - 监控
 - index default template；
 - 调优：jvm内存、ssd
+- es底层：；
+- 集群
 
 
