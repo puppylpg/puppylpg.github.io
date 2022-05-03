@@ -121,7 +121,7 @@ doc_values是用磁盘的，但是如果jvm内存足够，会被放在内存里�
 
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/_deep_dive_on_doc_values.html
 
-### jvm内存不要开太大
+### jvm内存不要开太大 - 留点儿page cache给doc_values
 一般意义上的理解是，内存当然是越大越好，越大越不容易oom啊！的确没错，但太大的内存也更难回收垃圾。而且如果不是程序写的太烂，一般不需要特别大的jvm内存。
 
 而且现在还要考虑一点：doc_values使用利用os的page cache加快查询速度的。**如果jvm内存太大，把os内存都占了，os就没有太多的内存用来做page cache了，那doc values的速度就很受影响**。
@@ -255,11 +255,14 @@ GET users/_search
 > 而它的名字field data，和doc's values，其实没啥区别。大概也能猜出来，二者功能上类似。
 
 ## 性能
-fielddata放在内存里。
+fielddata放在内存里，**但只有text类型的字段在做sort/aggregate/or access values from a script on a text field的时候才会用到fielddata。除此之外，fielddata已经没有立锥之地了**：
+- https://www.elastic.co/guide/en/elasticsearch/reference/8.1/text.html#fielddata-mapping-param
 
-关于数据放内存还是放磁盘，各有千秋：
+虽然关于数据放内存还是放磁盘，各有千秋：
 - 放内存：用的是jvm的内存。用得太多会oom；
 - 放磁盘：用的是os的内存，page cache。用得太多会用不上内存，变成真用磁盘了。速度会变慢。
+
+**但是因为磁盘速度越来越快，而用磁盘意味着可以搜索海量数据，所以fielddata已经快被doc_values赶尽杀绝了**。
 
 从一个老文档也可以看出来，**doc_values在取代fielddata，只有text在用fielddata了**：
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/aggregations-and-analysis.html
@@ -269,5 +272,39 @@ fielddata放在内存里。
 fielddata被取代，**因为磁盘速度上来了，而把数据放在后者没有jvm oom风险**。
 
 - https://segmentfault.com/a/1190000021668629
+
+## fielddata的优化
+虽然fielddata已经快没了，但曾经为了优化fielddata的内存占用，还是有一些可学习的措施的。
+
+### 预加载fielddata - 类似bean的预加载
+把fielddata提前加载到内存，查询的时候就可以直接用了。如果是懒加载，第一次查询将会很慢：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/preload-fielddata.html#eager-fielddata
+
+### 全局序号Global Ordinals - 使用映射值
+加载fielddata，没必要非得加载原始值。比如一个字符串那么长，只存它的hash，或者只存一个它映射后的数字。如果这个字符串出现一万次，实际只是把这个数字加载到了内存里一万次。如此一来，fielddata对内存的占用得到极大的优化：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/preload-fielddata.html#global-ordinals
+
+但也有个问题，必须有一个全局的映射表，而且必须把映射表必须放在内存里。毕竟在查询过后，还是要把数字转回去的。
+
+> 序号的构建只被应用于字符串。数值信息（integers（整数）、geopoints（地理经纬度）、dates（日期）等等）不需要使用序号映射，因为这些值自己本质上就是序号映射。因此，我们只能为字符串字段预构建其全局序号。
+
+**global oridinals同样适用于doc_values**：当存储数据的时候，存储的是映射值。查询的时候，查的是全局序号表，获得符合条件的映射值，然后把所有含有映射值的文档从磁盘搜索出来。最后转回原始值，返回给用户。
+
+同样，默认情况下，第一次搜索时才会创建全局序号表。**之后只有index刷新了，且再次第一次搜索时，才会创建全局序号表**：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/eager-global-ordinals.html
+
+如果想让第一次搜索变快，就需要在每次刷新过后就创建全局序号表，**这相当于把“搜索数据时的压力转移到了索引数据时”**。所以把refresh_interval改大点儿会比较好。
+
+```
+PUT my-index-000001/_mapping
+{
+  "properties": {
+    "tags": {
+      "type": "keyword",
+      "eager_global_ordinals": true
+    }
+  }
+}
+```
 
 

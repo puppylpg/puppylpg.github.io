@@ -15,7 +15,7 @@ tags: elasticsearch
 - es搜索的原理：[Elasticsearch：search]({% post_url 2022-04-22-es-search %})；
 - 正排索引：[Elasticsearch：sort、aggregation]({% post_url 2022-04-22-es-sort-agg %})；
 - reindex和task：[Elasticsearch：alias、reindex、task]({% post_url 2022-05-02-es-reindex-task %})；
-- es关系型索引：parent/child，也用到了doc values；
+- es对关系型数据的支持，同时也介绍了全局序数：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
 - es其他：highlight；
 - 监控
 - index default template；
