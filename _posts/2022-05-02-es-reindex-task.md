@@ -217,7 +217,7 @@ index的时候的优化建议，reindex也可以借鉴一些：
 ## reindex script
 reindex修改原始数据后放入新的索引，主要体现在reindex时使用到的脚本。
 
-TODO：
+参阅：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})
 
 # task
 reindex的文档说，异步reindex完成之后最好删掉task，回收空间：
