@@ -2,8 +2,8 @@
 layout: post
 title: "Innodb - Buffer Pool"
 date: 2022-01-23 22:29:42 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: mysql innodb pagecache
+tags: mysql innodb pagecache
 ---
 
 Innodb以磁盘作为存储介质，所以用的时候需要加载到内存。Innodb管理数据的基本单位是页，每次都加载一页数据到内存里。
@@ -232,6 +232,8 @@ MySQL有个关于优化innodb使用磁盘io的文档：
 在https://www.jb51.net/article/101062.htm里也着重强调了这一点：
 - **对于提供事务支持的数据库，在事务提交时，都要确保事务日志（包含该事务所有的修改操作以及一个提交记录）完全写到硬盘上，才认定事务提交成功并返回给应用层**；
 - **对于需要保证事务的持久化（durability）和一致性（consistency）的数据库程序来说，write()所提供的“松散的异步语义”是不够的，通常需要操作系统提供的同步IO（synchronized-IO）原语来保证（`fsync`）**；
+
+> **但是es就不这样：只要胆子大，redo log也敢不fsync**！[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})
 
 # disk buffer
 还有一个叫disk buffer的东西，和disk cache听起来很像：
