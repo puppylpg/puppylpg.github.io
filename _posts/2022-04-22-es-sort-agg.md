@@ -31,6 +31,14 @@ TF/IDF（term frequency–inverse document frequency）：
 - 什么是相关性：https://www.elastic.co/guide/cn/elasticsearch/guide/current/relevance-intro.html
 - 相关度背后的理论：https://www.elastic.co/guide/cn/elasticsearch/guide/current/scoring-theory.html
 
+**但是es默认不会使用整个索引的数据计算出来的IDF，只使用本分片的IDF近似整个索引的IDF**（假设数据量足够大，二者的区别其实就不大了）：
+- 被破坏的相关度：https://www.elastic.co/guide/cn/elasticsearch/guide/current/relevance-is-broken.html
+
+如果非要使用精确的IDF，考虑设置`search_type=dfs_query_then_fetch`：
+- search type：https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html
+
+此时，**本次请求要向其他分片发出额外内部请求，获取他们的该检索词的IDF**，以算出总的IDF，所以会消耗额外的时间在请求上。
+
 # aggregation
 和mysql的group by类似。聚合的好处是：有时候并不知道该搜啥，不如先聚合一波看看结果。
 

@@ -14,17 +14,164 @@ tags: elasticsearch pagecache
 # 集群
 - 集群内的原理：https://www.elastic.co/guide/cn/elasticsearch/guide/current/distributed-cluster.html
 
-## 集群搭建
+状态：
+- green：shard全都分配了；
+- yellow：有没分配的replica shard；
+- red：有宕机的master shard；
 
-## 分片shard
+Ref：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/cluster-health.html
+- 分片：https://www.elastic.co/guide/cn/elasticsearch/guide/current/_add-an-index.html
 
-## 状态
+## 配置
 
-## 水平扩容
+- 集群配置：https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html
+- **集群dynamic/static setting**：https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#cluster-setting-types
 
-# 分片内部原理
+## node
 
-## 段segment
+- node：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+
+### 节点发现
+- 单播：**按图索骥**——只寻找配置文件里写了的小伙伴。大家认识的小伙伴的并集就是整个集群；
+- 多播：**河东狮吼**——有木有name=xxx的集群，有的话带我一个。很方便，但是生产环境一般不用；
+
+设置`cluster.name`：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#cluster-name
+
+> A node can only join a cluster when it shares its `cluster.name` with all the other nodes in the cluster. The default name is `elasticsearch`.
+
+因为大家都叫`elasticsearch`，**所以在生产环境使用默认配置，且使用广播发现节点，可能别人起的node会不小心加入集群，这就比较离谱**。
+
+设置`node.anme`，有名字才好认：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#node-name
+
+**默认只绑定到localhost，所以想节点发现必须绑到公有ip上**：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#network.host
+
+> When you provide a value for `network.host`, Elasticsearch assumes that you are moving from development mode to production mode：https://www.elastic.co/guide/en/elasticsearch/reference/current/system-config.html#dev-vs-prod
+
+节点发现相关的配置：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-settings.html
+
+单播节点`discovery.seed_hosts`：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#unicast.hosts
+
+> 有趣的是，虽然已经[弃用`unicast.hosts`](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/breaking-changes-7.0.html#_discovery_configuration_is_required_in_production)了，但是看上面的url，`discovery.seed_hosts`的url还是`unicast.hosts`。
+
+而且还能从第三方数据源读取单播名单（类似于从zk读取）：
+- 多种node指定方式：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-hosts-providers.html#built-in-hosts-providers
+
+### master选举
+
+设置`minimum_master_nodes`大于半数，可以防止脑裂（split brain），两个集群各自独立运行。
+
+### 停用节点decommission
+如果没有副本，又要重启节点，为了数据不停机，可以手动停用节点，让它的shard数据分配到别的节点。
+
+- `cluster.routing.allocation`
+    - `exclude`:
+        - `_ip`：逗号分隔
+        - `_name`
+
+相关配置：
+- cluster routing：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#cluster-routing-settings
+
+### 重启节点
+如果只是重启节点，没必要先停用节点，这样会导致分片先分配出去，再分配回来，在集群数据比较大的情况下，非常耗时。
+
+**如果数据存在副本**，那么就可以先设置不要在集群宕机之后重新分配shard，因为马上就重启回来了。
+
+> 但是如果不存在副本，为了数据不宕机，还是需要先通过decommission的方式重启节点。
+
+- cluster.routing.allocation
+    - enable
+        + none：停止shard分配。**如果master凉了，replica就会变成master。如果replica凉了，也不会重新分配replica，只是整个集群变成yellow**；
+        + all：启用shard分配；
+
+> 升级集群其实相当于轮流重启节点。
+
+- shard allocation：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#cluster-shard-allocation-settings
+
+### role
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+
+### data
+es存放数据的位置`path.data`：
+- linux包管理器安装：`/var/data/elasticsearch`；
+- .zip安装：`$ES_HOME/data`；
+
+> 不要试图动data文件夹。不要备份data文件夹，没法直接恢复，需要使用es的snapshot和resotre功能。
+
+- 设置data path：https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings
+
+设置多个data path位置：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#_multiple_data_paths
+
+## 高可用
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design.html
+
+# 分布式存储 - 必须给master shard
+可以发送请求到集群中的任一节点，每个节点都有能力处理任意请求。收到请求的节点被称为协调节点(coordinating node)。
+
+协调节点收到写请求后：
+1. 按照`_routing`确定请求应该写的分片；
+2. **把请求发给拥有该分片master shard的节点**；
+3. master shard写成功后，要不要返回写成功给协调节点，需要看情况：
+    - **按照默认配置，master shard写成功，可以告诉协调节点写成功了**；
+    - 如果想稳妥一些，可以设置replica shard写成功才返回，相应的写请求就变慢了：**master shard写成功后，把请求转发给replica shard，replica写成功，才返回给协调节点“写成功”，协调节点再返回200给客户端**；
+
+现在的es使用`wait_for_active_shards`控制最小写入shard成功个数，**默认是1（master），all代表1+n（master + 所有的replica）**：
+- `wait_for_active_shards`：https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html#index-wait-for-active-shards
+- update和index一样，也有`wait_for_active_shards`，默认也是1：https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html
+
+以前用的是`consistency`，但是理念和上述参数是一致的：
+- https://www.elastic.co/guide/en/elasticsearch/reference/2.4/docs-index_.html#index-consistency
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-write.html
+
+# 分布式查询 - 任何一个shard都可以
+**在处理读取请求时，协调结点在每次请求的时候都会通过轮询所有的副本分片来达到负载均衡**。
+
+> 所以增加副本数可以增加读的并发度。
+>
+> 但是也有翻车的风险：在文档被检索时，已经被索引的文档可能已经存在于主分片上但是还没有复制到副本分片。 在这种情况下，副本分片可能会报告文档不存在，但是主分片可能成功返回文档。
+
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-read.html
+- 分布式检索：https://www.elastic.co/guide/cn/elasticsearch/guide/current/distributed-search.html
+
+## query then fetch - 两阶段检索
+es的查询是按照得分给结果排序的。如果返回top10，有两个master shard，那每个节点都要返回10个文档，最后由协调节点把这20个文档统一排序，返回top10。曾经，es的搜索方式`search_type`有两大类可选：
+- ~~`query_and_fetch`~~：一次请求，每个shard都返回10个文档；
+    + 缺点：每次传输数据太多；
+- `query_then_fetch`：请求要分两次。第一次只获取每个shard的10个文档的metadata，排完序后，协调节点再取最终的10篇文档；
+    + 缺点：总传输数据变少了，但是要分两次传输；
+
+**除非搜索只命中一个shard，`query_and_fetch`才会比`query_then_fetch`快，所以默认就是`query_then_fetch`**。后来`query_and_fetch`干脆没了。
+
+> 还有一种`search_type`是`dfs_query_then_fetch`，用于精确计算搜索关键词在整个索引的IDF：https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html
+
+## `_routing` - 缩小查询的shard范围
+存储时使用hash的方式，查询时就有了回报：指定_routing，瞬间可以把查询定位到一个shard：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_search_options.html
+
+**所以整个es index其实就是一个大号hash map**：
+- 桶的个数就是分片的个数；
+- 同一分片的文档都算是hash冲突的文档；
+
+## deep pagination - 性能炸裂
+TODO：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_fetch_phase.html
+- scroll：https://www.elastic.co/guide/cn/elasticsearch/guide/current/scroll.html
+
+# 分片内部 - 还有segment
+- index：es索引，多个shard组成；
+- shard：一个Lucene索引，多个segment和一个commit point组成；
+- segment：一个倒排索引；
+
+Ref：
+- https://stackoverflow.com/a/15429578/7676237
+
+## 段segment - 一个倒排索引
 逻辑上，分片是最小的工作单元。在分片内部，是一个个的segment，**每个segment存放的是一个倒排索引**。
 
 - 分片内部原理：https://www.elastic.co/guide/cn/elasticsearch/guide/current/inside-a-shard.html
@@ -108,7 +255,7 @@ PUT /<index>/_settings
 { "refresh_interval": "1s" }
 ```
 
-## `flush`：translog - redo log
+## `flush`：translog - es的redo log
 虽然refresh可以写到page cache，但终究不是长久之计，总是要写回磁盘的。而且很重要的一个问题在于：如果写到page cache就算commit了，那服务崩溃了怎么办？这些还没来得及fsync的数据岂不是丢了？
 
 这就是和mysql碰到的一模一样的问题了：buffer pool刷脏页到磁盘的时候，不想使用fsync完全写回磁盘，但是不写是不行的，崩了修改就没了。mysql使用redo log解决这个问题：把修改写入redo log，顺序io，写得更快。
@@ -162,7 +309,7 @@ innodb的redo log作用于内存里的buffer pool。效果：“数据从buffer 
 - es的pool只存储新增的数据，然后持久化到磁盘上。之后es读磁盘数据，就和这个pool无关了，用的是os的page cache做优化；
 
 ### 异步translog - 只要胆子大，速度唰唰唰
-写translog（fsync）的行为发生在一次写请求（增删改：index/delete/update/bulk）之后。**translog写入了，这次写操作才会给client返回200**。这和innodb写入redo log是一样的：**translog/redo log必须fsync，不敢用sync，不然程序崩溃了数据可就是真丢了，没有redo redo log为redo log做担保**。
+写translog（fsync）的行为发生在一次写请求（增删改：index/delete/update/bulk）之后，**translog写入了，这次写操作才会给client返回200**。这和innodb写入redo log是一样的：**translog/redo log必须fsync，不敢用sync，不然程序崩溃了数据可就是真丢了，没有redo redo log为redo log做担保**。
 
 但是translog还提供一个选项：写操作不触发fsync，而是每5s触发一次fsync到trans的行为。
 - 优点：**这样的写操作性能更高，es给客户端返回更快，因为translog不fsync了，所以写操作完成的更快**；
@@ -172,7 +319,7 @@ innodb的redo log作用于内存里的buffer pool。效果：“数据从buffer 
 
 > 所以es还是挺刺激的，没把自己当唯一数据库使用啊！估计es觉得一般情况下大家都是有mysql做主库，es做辅助查询库。要不然一般人谁敢对自己的唯一数据库这么搞……
 > 
-> **相比之下，innodb绝不使用sync写translog的行为看起来“怂”了不少哈哈哈**：[Innodb - Buffer Pool]({% post_url 2022-01-23-innodb-buffer-pool %})
+> **相比之下，innodb绝不使用sync写redo log的行为看起来“怂”了不少哈哈哈**：[Innodb - Buffer Pool]({% post_url 2022-01-23-innodb-buffer-pool %})
 
 两个配置设置这个行为：
 - `index.translog.durability`：
@@ -208,12 +355,7 @@ Elasticsearch通过在后台进行段合并来解决这个问题。小的段被�
 api：
 - 现在好像用force merge api：https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html
 
-# 分布式检索
-- 分布式检索：https://www.elastic.co/guide/cn/elasticsearch/guide/current/distributed-search.html
-
-segment：一个倒排索引。
-
-- https://stackoverflow.com/a/15429578/7676237
+但是正常情况下，es自己做段合并就够了。
 
 
 
