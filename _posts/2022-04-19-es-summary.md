@@ -17,8 +17,8 @@ tags: elasticsearch
 - reindex和task：[Elasticsearch：alias、reindex、task]({% post_url 2022-05-02-es-reindex-task %})；
 - es对关系型数据的支持，同时也介绍了全局序数：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
 - es底层、集群：[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})；
-- 调优、jvm内存、ssd
-- index default template；
+- 调优、jvm内存、ssd：
+- index default template：[Elasticsearch：default index template]({% post_url 2022-05-05-es-template %})；
 - es其他：highlight；
 - 监控
 
