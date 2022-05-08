@@ -94,7 +94,26 @@ Ref：
 - shard allocation：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#cluster-shard-allocation-settings
 
 ### role
+es node可以有很多角色：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+
+比较重要的：
+- data：保存分片，处理增删改查请求；
+    + https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#data-node
+- master：管理集群，处理集群范围的行为。比如集群有哪些node、创建删除索引、分片应该怎么分配；
+    + https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#master-node
+- voting_only：能像master一样投票但不能称为master，**主要作为选举过程中的tiebreaker**。voting_only必须和mster role一起使用；
+    + https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#voting-only-node
+
+> **High availability (HA) clusters require at least three master-eligible nodes, at least two of which are not voting-only nodes**. Such a cluster will be able to elect a master node even if one of the nodes fails.
+
+协调节点coordinating node：收到请求的节点被称为协调节点，要做两件事：
+1. scatter：把请求分散到各个data node上，查数据；
+2. gather：把各节点查到的数据汇聚成一个最终的结果；
+
+**任何节点都是协调节点**！所以如果一个节点的role为空`node.roles: [ ]`，它就是一个纯协调节点。纯协调节点的好处是专门维护和客户端之间的请求，可以让其他节点纯处理搜索分片的事情，所以一定程度上能提高集群吞吐。
++ https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#coordinating-node
++ https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#coordinating-only-node
 
 ### data
 es存放数据的位置`path.data`：
