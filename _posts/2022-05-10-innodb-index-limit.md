@@ -271,6 +271,27 @@ MySQL [test_db]> select ID from TestTable limit 1000000, 1;
 
 所以聚簇索引比二级索引大，导致找到第1000001条，开销多了0.4s。但是转一个ID列和转所有的field列，开销多了1.6s！**所以limit不要和`select *`一起用，太窒息了**……
 
+## limit总结
+limit离谱的原因：MySQL是在server层准备向客户端发送记录的时候才会去处理LIMIT子句中的内容（mysql：诶，刚看到，这里还有个limit）；
+
+**limit和`select *`一起使用：极大的浪费**！和limit一起用的时候，select选的column越少越好，最好能让二级索引变成覆盖索引。即使要使用聚簇索引，也尽量选择少量的field（**此时选择id和选择其他field区别不大了，毕竟聚簇索引是一个绝对的covering index，但是field选的多少会影响效率**）
+
+优化策略：limit不和`select *`一起用，但是又的确需要所有field，**那就内层limit+only id field，外层根据id选`select *`**。
+```
+select * from t where id = (select id from t order by id limit 1000000, 1)
+```
+或者：
+```
+SELECT * FROM t, (SELECT id FROM t ORDER BY key1 LIMIT 5000, 1) AS d
+    WHERE t.id = d.id;
+```
+
+> 由于该子查询的查询列表只有一个id列，MySQL可以通过仅扫描二级索引idx_key1执行该子查询，然后再根据子查询中获得到的主键值去表t中进行查找。
+
+- 如果查的是聚簇索引，就省去了前n条记录全部field转换的开销（**一般人不易发现**）；
+- 如果查的是二级索引，这样就省去了前n条记录的回表操作，从而大大提升了查询效率（**这个又要回表又要全部field转换，开销就容易被人意识到了**）；
+
+
 # 索引冷启动
 第一次使用索引的时候，速度是很慢的：
 ```
