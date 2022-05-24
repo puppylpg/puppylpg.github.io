@@ -130,23 +130,32 @@ es存放数据的位置`path.data`：
 ## 高可用
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design.html
 
-# 分布式存储 - 必须给master shard
+# 分布式存储 - 写请求必须给到master shard
 可以发送请求到集群中的任一节点，每个节点都有能力处理任意请求。收到请求的节点被称为协调节点(coordinating node)。
 
 协调节点收到写请求后：
 1. 按照`_routing`确定请求应该写的分片；
 2. **把请求发给拥有该分片master shard的节点**；
 3. master shard写成功后，要不要返回写成功给协调节点，需要看情况：
-    - **按照默认配置，master shard写成功，可以告诉协调节点写成功了**；
-    - 如果想稳妥一些，可以设置replica shard写成功才返回，相应的写请求就变慢了：**master shard写成功后，把请求转发给replica shard，replica写成功，才返回给协调节点“写成功”，协调节点再返回200给客户端**；
+    - **按照默认配置，只要master shard可用，就会执行写入，并告诉协调节点写成功了**；
+    - 如果想稳妥一些，~~可以设置replica shard写成功才返回，相应的写请求就变慢了：**master shard写成功后，把请求转发给replica shard，replica写成功，才返回给协调节点“写成功”，协调节点再返回200给客户端**~~；
 
-现在的es使用`wait_for_active_shards`控制最小写入shard成功个数，**默认是1（master），all代表1+n（master + 所有的replica）**：
+现在的es使用`wait_for_active_shards`控制~~最小写入shard成功个数~~ **“至少存活x个shard，才会执行写入操作，否则就一直等待，直到超时”**，**默认是1（只要primary shard活着，就可以写）**，all代表1+n（master + 所有的replica）：
 - `wait_for_active_shards`：https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html#index-wait-for-active-shards
 - update和index一样，也有`wait_for_active_shards`，默认也是1：https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html
 
-以前用的是`consistency`，但是理念和上述参数是一致的：
+`wait_for_active_shards`不是“至少写成功x个shard才返回”，而是“至少有x个shard活着才会写”，**它只是写之前的一个对shard可用性的check，也并不能保证“一定会至少写入x个shard”**。一旦check之后，开始执行写操作了，replica再挂掉就与是否写入成功无关了：
+> It is important to note that **this setting greatly reduces the chances of the write operation not writing to the requisite number of shard copies, but it does not completely eliminate the possibility, because this check occurs before the write operation commences**. Once the write operation is underway, it is still possible for replication to fail on any number of shard copies but still succeed on the primary. The _shards section of the write operation’s response reveals the number of shard copies on which replication succeeded/failed.
+
+## vs. `consistency`
+以前用的是`consistency`，和`wait_for_active_shards`不一样：
 - https://www.elastic.co/guide/en/elasticsearch/reference/2.4/docs-index_.html#index-consistency
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-write.html
+
+**`consistency`指的是“至少x个shard写成功才返回”**：
+> The index operation only returns after **all active shards within the replication group** have indexed the document (sync replication).
+
+**但后来的es用`wait_for_active_shards`取代了它，可能是`consistency`导致写操作太慢了？毕竟“写之前check一下active shard够不够数”，和“等待足够的active shard都写入成功”相比，代价要小得多**。当然代价就是上面说的，有一种很巧的情况：刚检查完，replica挂了。不过为了这种小概率事件，`consistency`付出的代价太大了。**所以使用`wait_for_active_shards`取代`consistency`，也可以看作是es在风险和性能上的一个权衡**。
 
 # 分布式查询 - 任何一个shard都可以
 **在处理读取请求时，协调结点在每次请求的时候都会通过轮询所有的副本分片来达到负载均衡**。
