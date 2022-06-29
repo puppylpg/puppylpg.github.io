@@ -192,7 +192,7 @@ tcp        0      0 172.17.0.1:58536        172.17.0.3:10087        ESTABLISHED 
 
 听说是从4.24起加入的，22年开始强制启用。所以我直接用4.23版本：
 ```
-docker run -d --name v2ray -v /etc/v2ray:/etc/v2ray -p 127.0.0.1:10087:10087 v2fly/v2fly-core:v4.23.4 v2ray -config=/etc/v2ray/docker.config.json
+docker run -d --name v2ray --restart=always -v /etc/v2ray:/etc/v2ray -p 127.0.0.1:10087:10087 v2fly/v2fly-core:v4.23.4 v2ray -config=/etc/v2ray/docker.config.json
 ```
 这就是使用docker的方便之处啊——**一键启动 & 任意版本切换**！！！
 
