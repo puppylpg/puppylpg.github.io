@@ -136,6 +136,8 @@ BeanDefinition作为和bean定义语法相对应的语法结构，自然是bean�
 ## bean post process
 实例化bean前后，初始化bean前后，都可以调用bean post process做一些改动。
 
+TODO: InitDestroyAnnotationBeanPostProcessor是什么时候注册到spring容器上的？？？？？？？？？
+
 ## 初始化国际化相关的消息源
 
 ## 注册listener
@@ -269,4 +271,9 @@ public class MailSender implements ApplicationContextAware {
 }
 ```
 这样就能获取容器的引用，进而操作容器了。
+
+## 事件用途
+比如创建一个`ApplicationListener<ContextRefreshedEvent>`，在容器构建好之后做一些操作（获取所有的bean，做一些奇奇怪怪的修改）。
+
+如果对逻辑的处理可以拆成异步的几部分，也可以用事件，比如上述mail send事件。
 

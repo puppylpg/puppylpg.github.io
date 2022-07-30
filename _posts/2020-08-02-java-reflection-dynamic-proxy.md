@@ -175,7 +175,7 @@ No! ILLEGAL demand!
 
 如果要在函数前后做相同的逻辑呢？比如在每一个方法执行前后，都输出一下当前时间。那就需要函数的函数g(x)：输入f(x)，输出g(f(x))。
 
-**动态代理就是g(x)，我们要做的就是写出gx的逻辑。而g(x)的入参是一个函数。**
+**动态代理就是g(x)，我们要做的就是写出g(x)的逻辑。而g(x)的入参是一个函数。**
 
 Java规定，每一个gx都要实现`InvocationHandler`接口：
 ```
@@ -472,17 +472,67 @@ public final class DynamicCoder extends Proxy implements Coder {
 
 **他们的创建时机和创建者是不一样的：静态代理类由开发者在编译前写好；动态代理类由jvm在运行时生成。**
 
-# 动态代理的应用
-动态代理最广泛的应用，应该就是在Spring中实现的面向切面编程（AOP，Aspect Oriented Programming）。
+# cglib
+cglib和jdk的动态代理都是在运行时生成代理类，原理上是一致的，但是cglib写起来比jdk的动态代理要舒服很多——
 
-在上面的例子中，通过动态代理，我们简单地做到了在所有方法调用前后都输出时间。这就是一种“具有横切逻辑”的场景。
+本质上，我们用cglib写的g(x)和用jdk proxy写g(x)的写法一样，也是在调用被代理类的方法。**但是，cglib是给代理类生成了子类，所以在写g(x)的时候， cglib不需要我们自己传入被代理类（jdk的动态代理需要自己传入被代理对象，调用它的方法），直接调用`super.<method>`就行了**！它接口方法签名里的MethodProxy，拥有invokeSuper方法，可以直接调用“生成的代理类的super class”的方法， 也就是“被代理类”的方法。这也说明了，cglib生成的代理类，都是被代理类的子类。
 
-Java中的继承是一种“纵向”的体系，而方法前后分别输出时间，则像狗皮膏药一样贴在每一个方法的前后，无法通过继承来解决。如果把狗皮膏药和业务逻辑写在一起（正如静态代理），显然是比较混乱，且重复度很高的（每一块业务逻辑前后都要贴两块相同的膏药）。如果把方法抽为一块，狗皮膏药抽为一块，提供一种机制在调用业务逻辑代码前后自动调用狗皮膏药，**不仅实现了想要的功能，还分离了业务代码和“狗皮膏药代码”**（性能监测、访问控制、事务管理、日志记录etc）。**这是一种“横向抽取”的思路**，即AOP。动态代理显然可以很好地做到这一点。
+```
+/**
+ * @author puppylpg on 2022/07/03
+ */
+public class CglibBibiAroundInterceptor implements MethodInterceptor {
 
-当然Spring的AOP不止拥有Java动态代理的实现，还有使用CGLib实现动态代理的实现。
+    @Override
+    public Object intercept(Object obj, Method method, Object[] args, MethodProxy proxy) throws Throwable {
+        System.out.println(">>> Before: " + LocalDateTime.now());
+        // proxy是method的proxy，可以通过invokeSuper调用被代理对象（aka，生成的代理对象的super class）的方法
+        Object result = proxy.invokeSuper(obj, args);
+        System.out.println("<<< After: " + LocalDateTime.now());
+        return "(CGlib Proxy) " + result;
+    }
+}
+```
 
-## JDK vs. CGLib
-### 能力问题
+生成代理对象也非常直白：
+```
+        Enhancer enhancer =  new Enhancer();
+        // cglib 不需要传入被代理的类，只需要给出要代理的类的class文件，它自己会创建
+        enhancer.setSuperclass(JavaCoder.class);
+        enhancer.setCallback(new CglibBibiAroundInterceptor());
+        JavaCoder javaCoder = (JavaCoder) enhancer.create();
+
+        javaCoder.estimateTime("Hello, world");
+        javaCoder.implementDemands("Send an ad");
+
+        System.out.println(javaCoder.comment());
+```
+1. 指定被代理的类（不用自己new出对象，cglib自己会new）；
+2. 指定怎么代理它（cglib称为callback）；
+
+然后就可以直接create出被代理的对象了。
+
+```
+>>> Before: 2022-07-03T22:35:46.623
+《CGlib has one important restriction: the target class must provide a default constructor》: I'll use 17 urs.
+<<< After: 2022-07-03T22:35:46.636
+>>> Before: 2022-07-03T22:35:46.636
+《CGlib has one important restriction: the target class must provide a default constructor》: I use Java to nish Send an ad
+<<< After: 2022-07-03T22:35:46.636
+>>> Before: 2022-07-03T22:35:46.636
+<<< After: 2022-07-03T22:35:46.636
+(CGlib Proxy) Java is perfect!
+```
+
+**不过cglib的一个额外的要求**：
+```
+    public JavaCoder() {
+        this("《CGlib has one important restriction: the target class must provide a default constructor》");
+    }
+```
+
+# JDK vs. CGLib
+## 能力问题
 Java的动态代理**只能为接口生成代理，不能为具体类生成代理。因为看内部实现，它已经`extends Proxy`了，Java只能单继承**。但接口可以实现好多个，所以可以代理接口。
 
 而CGLib则可以为具体的类生成动态代理，它的思路大致是：
@@ -491,11 +541,22 @@ Java的动态代理**只能为接口生成代理，不能为具体类生成代�
 
 **CGLib是通过底层字节码技术创建的子类，该子类即为被代理类的代理。jdk则是为接口生成一个具体实现类，使用该实现类代理另一个实现类。**
 
-### 效率问题
-CGLib创建动态代理比jdk慢，但是创建出的代理运行效率比jdk创建的动态代理高。所以如果要代理singleton，最好用CGLib。**因此，CGLib更适合spring使用singleton的场景**。但是如果要不断生成bean，那还是Java动态代理效率更高。
+## 效率问题
+CGLib创建动态代理比jdk慢，但是创建出的代理运行效率比jdk创建的动态代理高。**所以如果要代理singleton，最好用CGLib。因此，CGLib更适合spring使用singleton的场景**。但是如果要不断生成bean，那还是Java动态代理效率更高。
 
-### 依赖引入
+> 所以spring aop里，如果给proxy的创建者比如DefaultAdvisorAutoProxyCreator设置了`setOptimize=true`，就会使用cglib创建动态代理。
+
+## 依赖引入
 jdk动态代理的另一个好处是不需要引入额外依赖，有jdk就够了，CGLib技术则显然需要引入第三方CGLib依赖。
 
-关于Spring的AOP，可以在后续文章中再聊。
+关于Spring的AOP：[Spring - AOP]({% post_url 2021-11-22-spring-aop %})。
+
+# 动态代理的应用
+动态代理最广泛的应用，应该就是在Spring中实现的面向切面编程（AOP，Aspect Oriented Programming）。
+
+在上面的例子中，通过动态代理，我们简单地做到了在所有方法调用前后都输出时间。这就是一种“具有横切逻辑”的场景。
+
+Java中的继承是一种“纵向”的体系，而方法前后分别输出时间，则像狗皮膏药一样贴在每一个方法的前后，无法通过继承来解决。如果把狗皮膏药和业务逻辑写在一起（正如静态代理），显然是比较混乱，且重复度很高的（每一块业务逻辑前后都要贴两块相同的膏药）。如果把方法抽为一块，狗皮膏药抽为一块，提供一种机制在调用业务逻辑代码前后自动调用狗皮膏药，**不仅实现了想要的功能，还分离了业务代码和“狗皮膏药代码”**（性能监测、访问控制、事务管理、日志记录etc）。**这是一种“横向抽取”的思路**，即AOP。动态代理显然可以很好地做到这一点。
+
+当然Spring的AOP不止拥有Java动态代理的实现，还有使用CGLib实现动态代理的实现。
 

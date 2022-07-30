@@ -88,7 +88,12 @@ spring使用这个初始化类把mvc相关的组件都初始化起来：**`Sprin
 
 > 它的名字非常精准：initialize web application。**而在onStartup方法里，DispatcherServlet就被创建并注册了**！
 
-**没有了web.xml，用户要怎么自定义一些web app相关的配置**？既然WebApplicationInitializer被用作初始化的配置，那再写一个WebApplicationInitializer就行了！当然不需要完全重写，`AbstractAnnotationConfigDispatcherServletInitializer`是`WebApplicationInitializer`的abstract实现类，只要写个类 extends AbstractAnnotationConfigDispatcherServletInitializer，这个类就可以起到web.xml的作用了：
+**没有了web.xml，用户要怎么自定义一些web app相关的配置**？在自己的SpringServletContainerInitializer搞定这些。所以理论上我们只要写一个WebApplicationInitializer就行了！当然不需要完全重写，spring已经有了抽象类`AbstractAnnotationConfigDispatcherServletInitializer`，它在实现了`WebApplicationInitializer`的同时，还为用户暴露了几个配置接口:
+- 通过覆写getRootConfigClasses，把自己app里的spring配置类告诉spring，由它注册到容器AnnotationConfigWebApplicationContext里；
+- 通过覆写getServletConfigClasses，**把配置放到一个新的AnnotationConfigWebApplicationContext里，这个web application context会被用来创建DispatcherServlet**。所以这里放的配置一般就是mvc相关的，比如WebMvcConfigurer实现类，以覆盖默认的mvc行为；
+- 通过覆写getServletMappings，**配置DispatcherServlet这个唯一servlet映射的url**；
+
+所以我们只要写个类 extends AbstractAnnotationConfigDispatcherServletInitializer，按照需求覆写上面的几个方法就行了：
 ```
 public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
   
@@ -117,7 +122,7 @@ public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherSer
 接下来就是在DispatcherServlet的王国里写Controller。
 
 ## 第二步：DispatcherServlet处理（分发）请求
-现在，因为该web app只有一个servlet，并且默认映射到`/`，所以所有打到该web app的请求，都交给DispatcherServlet处理。
+现在，**因为该web app只有一个servlet，并且默认映射到`/`，所以所有打到该web app的请求，都交给DispatcherServlet处理**。
 
 现在知道它为什么叫DispatcherServlet了——所有的请求都交给它处理，它再把请求dispatch出去！分发给谁？分发给程序猿熟悉的@Controller。
 
@@ -153,7 +158,7 @@ DispatcherServlet的这一模式，又被称作Front Controller：
 
 **DispatcherServlet的核心就是handler，通过handler处理请求**：
 1. handler mapping，苦苦求索就为找到handler；
-2. handler interceptor：**依托于handler**，设置了handler interceptor，做一些前置后置操作。**
+2. handler interceptor：**依托于handler**，设置了handler interceptor，做一些前置后置操作。
 
 ## `HandlerMapping`：全靠uri找到handler chain
 handler mapping通过请求的uri找到对应的handler execution chain。从它接口的唯一方法就能看出：
@@ -251,7 +256,7 @@ spring默认会注册下面三种resolver（顺序）：
 - `ResponseStatusExceptionResolver `：使用`@ResponseStatus`对应的方法处理异常。缺点是只能处理status code，没法设置body；
 - `DefaultHandlerExceptionResolver`：把[Spring定义的异常和status code](https://docs.spring.io/spring-framework/docs/3.2.x/spring-framework-reference/html/mvc.html#mvc-ann-rest-spring-mvc-exceptions)进行映射。同样，缺点是设置不了body。**如果不定义任何异常处理器，用的就是这个**；
 
-**当时用`@ExceptionHandler`全局处理异常时，`ExceptionHandlerExceptionResolver`是会被用到的异常处理器。**
+**当使用`@ExceptionHandler`全局处理异常时，`ExceptionHandlerExceptionResolver`是会被用到的异常处理器。**
 
 #### `@ExceptionHandler`：定义异常返回的header和body
 `@ExceptionHandler`非常灵活，可以给被注解的方法设置非常灵活的参数：
@@ -267,7 +272,7 @@ spring默认会注册下面三种resolver（顺序）：
 - `HttpEntity<?>`/`ResponseEntity<?>`：to set response headers and content；
 - void：if the method handles the response itself (by writing the response content directly, declaring an argument of type ServletResponse / HttpServletResponse for that purpose)；
 
-**所以`@ExceptionHandler`和`@ResponseStatus`相比，最大的优势在于定义head和body**。
+**所以`@ExceptionHandler`和`@ResponseStatus`相比，最大的优势在于定义header和body**。
 
 > 强烈建议看看它的Javadoc！
 >
@@ -369,14 +374,14 @@ view都渲染完了，请求确实处理完了。
 程序的执行永远是线性的：
 1. Java提供的框架是main函数：程序猿在main函数里写代码就行了；
 2. Tomcat在main里启动，然后构造了Connector、Container（Engine/Host/Context/Wrapper），提供的是servlet接口：程序猿只要写servlet扔到tomcat里就行了；
-3. Spring在main里启动，构造的是spring application context：程序猿只要写在里面bean就行了；
+3. Spring在main里启动，构造的是spring application context：程序猿只要在里面写bean就行了；
 4. SpringMVC由Tomcat调用，构造了DispatcherServlet：程序猿只要在DispatcherServlet里写Controller就行了；
 
 所以框架的本质就是在线性运行的main函数里，把你引到它的世界，并让大家爱上这个世界，在此停留。至于原本main那条线上要做的事情，不需要再管了。
 
 不管了，就简单了。但是如果不知道还有外面的那条线，被框架蒙蔽在它所构建的世界里，就永远是个被一叶障目的程序猿，不见泰山。有了框架：可以免去写那些东西了，但不代表不需要知道外面的世界。
 
-而现实是，框架经常是堆叠的。比如spring web mvc基于tomcat而存在，所以程序猿所在的spring web mvc的世界外还有一个tomcat的世界。这是一个套娃的世界，如果程序猿对此没有感知，请求报错的时候将会非常迷茫。
+**而现实是，框架经常是堆叠的**。比如spring web mvc基于tomcat而存在，所以程序猿所在的spring web mvc的世界外还有一个tomcat的世界。这是一个套娃的世界，如果程序猿对此没有感知，请求报错的时候将会非常迷茫。
 
 > 所以tomcat和spring mvc可以共存：context path设为/xxx/，这样所有非xxx的请求会依然使用tomcat，/xxx/开头的请求才会进入spring mvc。
 
