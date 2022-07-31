@@ -251,12 +251,13 @@ BUT THE EXCEPTION STILL THROW
 ```
 输出跟之前的spring aop没什么区别。
 
-# 切点表达式
+# AspectJ切面中语法
+## 切点表达式
 咱也不太会，用的时候现学现卖吧。既然享受了AspectJ定义切面带来的福利，就得学人家定义切点的语言呀。
 
 - https://www.baeldung.com/spring-aop-pointcut-tutorial
 
-# 命名切点
+## 命名切点
 增强注解里定义的匿名切点无法复用，类似于Java的匿名类。所以导致切点定义重复了，怎么复用呢？使用@Pointcut注解和切面类方法定义切点。
 
 ```
@@ -289,7 +290,7 @@ public class BeforeExamAspect {
 }
 ```
 
-# 连接点JoinPoint/ProceedingJoinPoint
+## 连接点JoinPoint/ProceedingJoinPoint
 spring aop的增强接口是传了一堆散参数（method、returnObject、args、target），而AspectJ则是集中放到了JoinPoint/ProceedingJoinPoint里。
 
 JoinPoint：
@@ -304,7 +305,7 @@ ProceedingJoinPoint继承了JoinPoint，增加了用来执行切点方法的两�
 
 具体使用可以参考上面@Aspect里的增强。
 
-# @DebugLog
+# jdk和cglib做动态代理的区别
 自定义一个方法注解@DebugLog，使用AspectJ定义环绕增强切面，在方法调用前后打debug log。
 
 ```
@@ -444,7 +445,45 @@ public class NaiveStudent implements Student {
 
 这充分说明了：**cglib是基于子类生成的代理，所以代理对象里有@NonNull；而jdk动态代理是基于接口生成的动态代理，所以代理对象里没有@NonNull。**
 
-还有另外一个实验：给接口里的play增加@DebugLog，但是不给实现类里的play加@DebugLog
+同理，如果反过来，接口里加了@NonNull但是实现类里没加，那么jdk动态代理生成的bean能输出这个注解，而cglib动态代理不行。
 
+## 注解标注在接口上：等于白标
+如果给接口里的play增加@DebugLog，但是不给实现类里的play加@DebugLog，结果再也无法输出debug log了。
+
+这让我很费解，因为在@Transaction里也提到了注解标注的位置：如果标注到接口上，只有基于接口的jdk动态代理才能织入事务支持。所以spring建议把注解加到实现类上：
+- https://docs.spring.io/spring-framework/docs/current/reference/html/data-access.html#transaction-declarative-annotations
+
+> The Spring team recommends that you annotate only concrete classes (and methods of concrete classes) with the @Transactional annotation, as opposed to annotating interfaces. You certainly can place the @Transactional annotation on an interface (or an interface method), but this works only as you would expect it to if you use interface-based proxies. The fact that Java annotations are not inherited from interfaces means that, if you use class-based proxies (proxy-target-class="true") or the weaving-based aspect (mode="aspectj"), the transaction settings are not recognized by the proxying and weaving infrastructure, and the object is not wrapped in a transactional proxy.
+
+但是在接口上标记@DebugLog的现象却是：不管用jdk还是cglib，都无法像@Transactional一样织入。为什么？
+
+后来，终于在一个陈年issue中找到了答案：
 - 太牛逼了：https://github.com/spring-projects/spring-framework/issues/12320
+
+原因：根据Java标准，任何标准在接口上的注解都不会被检测到（这个我试了，确实如此）
+> "AspectJ follows Java's rule that annotations on interfaces are not inherited". Actually all non-type annotations, so method/field/constructor/package annotations, are not inherited
+
+所以，**在AspectJ中使用注解检测切点，如果注解标注在接口上，AspectJ会返回不匹配**。标注在实现类的方法上则会返回匹配。
+> So, for pointcut targeting execution of class method annotated with given annotation AspectJ will return that method does not match pointcut expression if the annotation is not on the method implementation being executed - e.g. if it's only on method declaration in interface like in your example.
+
+顺便好心提醒，如果父实现类方法上标注了注解，子类override方法上没标注，也不会有这个注解：
+> Even if abstract class had method annotated, and concrete class did overide that method without annotation - that method would not match expression.
+
+而给自己的自定义注解加上`java.lang.annotation.@Inherited`元注解，也只在“class级别”子类会inherit父类的注解。方法上都不会inherit。
+
+**所以在接口上标记注解作为缺点的标记的确是没卵用的！**
+
+那@Transactional为什么可以？因为spring团队自己为@Transactional注解提供了额外支持，没有只靠AspectJ检测注解定义的切点：
+> So framework enables this different behaviour for it's own annotations/aspects. For user/custom aspects it relies on what AspectJ/Java support, but it doesn't prevent you from adding custom logic where/if needed.
+
+所以我们自己定义的注解想标记切点，要么也想spring团队一样模仿@Transactional自己提供支持，要么就把注解老老实实标注到实现类上！
+
+> spring还不如不加这个支持……加了反而让人混淆，以为只要加到接口上并使用jdk基于接口的动态代理就都可以。
+
+# 感想
+spring真的是兼收并蓄！毫不吝啬地将已有的成熟方案接入自己的体系，大大方方接纳别人，更是进一步成就了自己！
+
+> 做人又何尝不是这样。大度容人，也是在成就自己。
+
+有更优秀方案，spring就主动接入，也不重复造轮子，确实很不错！不得不说，spring之所以优秀，是因为首先它的心态就很优秀！
 
