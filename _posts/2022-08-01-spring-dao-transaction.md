@@ -2,8 +2,8 @@
 layout: post
 title: "Spring - Data Access & Transaction"
 date: 2022-08-01 01:56:11 +0800
-categories: spring jdbc
-tags: spring jdbc
+categories: spring jdbc orm
+tags: spring jdbc orm
 ---
 
 Java定义了jdbc（Java Database Connectivity）规范作为数据库的访问标准。虽然DataSource的实现交给了各个数据库厂商，我们只需要引入相应的包就可以获取相应的DataSource实现类进行数据库的访问工作，但是jdbc整套流程还是太过刻板了。
@@ -384,7 +384,7 @@ hibernate要先创建一个SessionFactory：
 	public <T> T execute(ConnectionCallback<T> action) throws DataAccessException {
 		Assert.notNull(action, "Callback object must not be null");
 
-        // 获取Connection！
+		// 获取Connection！
 		Connection con = DataSourceUtils.getConnection(getDataSource());
 		try {
 			Connection conToUse = con;
@@ -421,7 +421,7 @@ hibernate要先创建一个SessionFactory：
 ## 事务传播
 Service的方法如果都通过这种方式实现了事务支持，那么一个方法调用另一个方法，两个方法的事务会怎样？这就是spring定义的事务传播行为：**默认是`PROPAGATION.REQUIRED`，如果事务已存在，则加入到这个事务中**！而不是创建两个事务。
 
-> 大误：~~一个事务方法调用另一个事务方法，会产生两个事务~~，明明是加入第一个事务，最终也只产生一个事务。
+> 大误：~~一个事务方法调用另一个事务方法，会产生两个事务~~。是加入第一个事务，最终也只产生一个事务。
 
 # 配置事务管理增强：AOP
 **spring通过AOP把事务管理织入业务类，使之自动具有事务管理的功能。这是spring aop的一大主要应用！**
@@ -456,9 +456,9 @@ Service的方法如果都通过这种方式实现了事务支持，那么一个�
 显然，每有一个需要事务支持的业务类，都要这么配置一个FactoryBean，得累死。
 
 ## `@Transactional`
-使用`@Transactional`注解配置事务，是spring transaction的另外一大遍历。
+使用`@Transactional`注解配置事务，是spring transaction的另外一大便利。
 
-通过配置`@Transactional`注解的属性，设置个性化的事务行为：
+通过配置`@Transactional`注解的属性，就能设置个性化的事务行为：
 - propagation：默认是Propagation.REQUIRED
 - readOnly
 - rollbackFor：**默认是RuntimeException和Error会rollback，checked异常不回滚**。
