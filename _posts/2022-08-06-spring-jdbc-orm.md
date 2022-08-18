@@ -670,12 +670,11 @@ hibernate用的是SessionFactory，mybatis用的是SqlSessionFactory。结合spr
 
 **mybatis-spring还提供了`@MapperScan`注解，配置的内容其实和MapperScannerConfigurer是一样的**。如果查看@MapperScan的处理类MapperScannerRegistrar，**就会发现mybatis-spring其实是读取前者的配置，然后构造出后者。所以他俩其实是一个东西**。
 
-其他参考：
-- https://blog.csdn.net/a745233700/article/details/89308762
-
 mybatis本身提供了一个标记接口`@Mapper`，没有实际用处。**不过在mybatis-spring-boot-starter里，所有用@Mapper标记的接口都直接生成mapper bean。但是一旦配置了@MapperScan，@Mapper就又失效了**，又没用了。为什么？**因为springboot的auto config（`AutoConfiguredMapperScannerRegistrar`）和@MapperScan一样也是构造出一个MapperScannerConfigurer，设置它的`annotationClass=Mapper.class`**。所以如果用了@MapperScan，就已经有一个MapperScannerConfigurer，springboot也就不再自动配置了。
 
 > 把“站在前人的肩膀上”玩得明明白白。这就是框架的堆叠啊！一个不明白，步步不明白！
+
+> 看这些自动配置类，又一次很明显地看出来：springboot的确就是把别人在开发项目的时候写到项目里的配置放到了auto config类里。
 
 ## SqlSessionTemplate
 同样mybatis-spring提供了SqlSessionTemplate，通过SqlSessionFactory构建：
