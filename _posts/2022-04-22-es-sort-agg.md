@@ -46,6 +46,123 @@ TF/IDF（term frequency–inverse document frequency）：
 
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html
 
+## multiple aggregation vs. sub-aggregation
+- 按照（A，B）聚合是子聚合，B是A的子聚合；
+- 返回按照A或者按照B的聚合是multiple聚合，**相当于一个聚合查询查了两个聚合。和写成两个聚合查询是等价的**；
+
+举个例子，ab是a的子查询，b和a是并列的查询：
+```
+GET <index>/_search
+{
+  "aggs": {
+    "a": {
+      "terms": {
+        "field": "media.isVisible",
+        "size": 10
+      },
+      "aggs": {
+        "ab": {
+          "terms": {
+            "field": "media.isLiveStreaming",
+            "size": 10
+          }
+        }
+      }
+    },
+    "b": {
+      "terms": {
+        "field": "media.isLiveStreaming",
+        "size": 10
+      }
+    }
+  }
+}
+```
+结果很明朗：
+```
+{
+  "took" : 1884,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 15,
+    "successful" : 15,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 10000,
+      "relation" : "gte"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "aggregations" : {
+    "a" : {
+      "doc_count_error_upper_bound" : 0,
+      "sum_other_doc_count" : 0,
+      "buckets" : [
+        {
+          "key" : 1,
+          "key_as_string" : "true",
+          "doc_count" : 61096525,
+          "ab" : {
+            "doc_count_error_upper_bound" : 0,
+            "sum_other_doc_count" : 0,
+            "buckets" : [
+              {
+                "key" : 0,
+                "key_as_string" : "false",
+                "doc_count" : 51635194
+              },
+              {
+                "key" : 1,
+                "key_as_string" : "true",
+                "doc_count" : 9461331
+              }
+            ]
+          }
+        },
+        {
+          "key" : 0,
+          "key_as_string" : "false",
+          "doc_count" : 19169058,
+          "ab" : {
+            "doc_count_error_upper_bound" : 0,
+            "sum_other_doc_count" : 0,
+            "buckets" : [
+              {
+                "key" : 1,
+                "key_as_string" : "true",
+                "doc_count" : 432454
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "b" : {
+      "doc_count_error_upper_bound" : 0,
+      "sum_other_doc_count" : 0,
+      "buckets" : [
+        {
+          "key" : 0,
+          "key_as_string" : "false",
+          "doc_count" : 51635194
+        },
+        {
+          "key" : 1,
+          "key_as_string" : "true",
+          "doc_count" : 9893785
+        }
+      ]
+    }
+  }
+}
+```
+a和b是独立的聚合。a和ab的子查询是先按照A再按照B进行的聚合。
+
+## java aggregation
 使用es的Java API写聚合表达式相对复杂一些：
 - https://elasticsearchjava-api.readthedocs.io/en/latest/aggregation.html
 - https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-aggregation-builders.html
