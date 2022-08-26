@@ -19,5 +19,6 @@ tags: elasticsearch
 - es底层、集群：[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})；
 - 调优、jvm内存、ssd：[Elasticsearch：performance]({% post_url 2022-05-08-es-performance %})；
 - index default template：[Elasticsearch：default index template]({% post_url 2022-05-05-es-template %})；
+- pipeline：[Elasticsearch：pipeline]({% post_url 2022-08-27-es-pipeline %})；
 - 监控
 
