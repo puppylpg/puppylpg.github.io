@@ -460,7 +460,7 @@ public class NaiveStudent implements Student {
 后来，终于在一个陈年issue中找到了答案：
 - 太牛逼了：https://github.com/spring-projects/spring-framework/issues/12320
 
-原因：根据Java标准，任何标准在接口上的注解都不会被检测到（这个我试了，确实如此）
+原因：根据Java标准，任何标注在接口上的注解都不会被检测到（这个我试了，确实如此）
 > "AspectJ follows Java's rule that annotations on interfaces are not inherited". Actually all non-type annotations, so method/field/constructor/package annotations, are not inherited
 
 所以，**在AspectJ中使用注解检测切点，如果注解标注在接口上，AspectJ会返回不匹配**。标注在实现类的方法上则会返回匹配。
@@ -471,7 +471,7 @@ public class NaiveStudent implements Student {
 
 而给自己的自定义注解加上`java.lang.annotation.@Inherited`元注解，也只在“class级别”子类会inherit父类的注解。方法上都不会inherit。
 
-**所以在接口上标记注解作为缺点的标记的确是没卵用的！**
+**所以想在接口上标记注解作为切点，的确是没卵用的！**
 
 那@Transactional为什么可以？因为spring团队自己为@Transactional注解提供了额外支持，没有只靠AspectJ检测注解定义的切点：
 > So framework enables this different behaviour for it's own annotations/aspects. For user/custom aspects it relies on what AspectJ/Java support, but it doesn't prevent you from adding custom logic where/if needed.

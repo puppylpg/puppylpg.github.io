@@ -14,6 +14,7 @@ tags: elasticsearch
 - es基本使用：[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})；
 - es搜索的原理、highlight：[Elasticsearch：search]({% post_url 2022-04-22-es-search %})；
 - 正排索引：[Elasticsearch：sort、aggregation]({% post_url 2022-04-22-es-sort-agg %})；
+- 聚合：[Elasticsearch：aggregation]({% post_url 2022-09-04-es-agg %})；
 - reindex和task：[Elasticsearch：alias、reindex、task]({% post_url 2022-05-02-es-reindex-task %})；
 - es对关系型数据的支持，同时也介绍了全局序数：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
 - es底层、集群：[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})；
