@@ -174,9 +174,18 @@ drwxr-xr-x  11 root root 4.0K Sep 21  2021 var
 
 **在run的时候没指定command**，如果Dockerfile指定了CMD，就会用CMD指定的command。比如ubuntu镜像设置了`CMD ["bash"]`，所以`docker run -it ubuntu`实际执行的命令还是`/bin/sh -c bash`。
 
-既然command可以设置默认值CMD，也可以自己指定，**那么entrypoint也可以自己指定：通过docker run的`--entrypoint`参数**，overwrite the default ENTRYPOINT of the image。
+既然command可以设置默认值CMD，也可以自己指定，**那么entrypoint也可以自己指定：通过docker run的`--entrypoint`参数**，overwrite the default ENTRYPOINT of the image：
 
 - https://stackoverflow.com/a/21564990/7676237
+
+比如：
+```
+docker run --entrypoint /bin/zsh xxx:1.0.0 -c tree
+```
+注意最后的命令一定要使用`-c tree`，`/bin/zsh -c tree`才行，`/bin/zsh tree`是直接把tree作为文件读取
+> -c     Take the first argument as a command to execute, rather than reading commands from a script or standard input.  If any further arguments are given, the first one is assigned to $0, rather than being used as a positional parameter.
+
+- 在官方示例也能看到这一点：https://docs.docker.com/engine/reference/run/#entrypoint-default-command-to-execute-at-runtime
 
 entrypoint + cmd的组合示例（**ENTRYPOINT和CMD都选用exec形式**）：
 - https://docs.docker.com/engine/reference/builder/#understand-how-cmd-and-entrypoint-interact
@@ -377,4 +386,3 @@ $ docker push <private docker hub>/puppylpg/puppylpg-base:latest
 26M     /usr/java/jdk1.8.0_202/jre/lib/ext
 26M     /usr/bin
 ```
-
