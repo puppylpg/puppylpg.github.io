@@ -152,31 +152,6 @@ public class WitakeMedia {
             private List<String> names;
         }
     }
-
-    public static final class UrlStatus {
-        /**
-         * 没有任何url可匹配
-         */
-        public static final String NONE = "none";
-        /**
-         * 只有部分url解析出了原始url
-         */
-        public static final String MATCHING = "matching";
-        /**
-         * url全都解析出了原始url，之后会被pipeline修改为{@link #BRANDING}状态
-         */
-        public static final String MATCHED = "matched";
-        /**
-         * url全都解析出了原始url，且执行了品牌信息匹配步骤
-         */
-        public static final String BRANDING = "branding";
-        /**
-         * media的raw url是通过本服务解析之后写回的。针对这种情况，pipeline做了相关设置，
-         * 不再尝试enrich raw url。详见pipeline的设置。
-         */
-        public static final String WRITING = "writing";
-    }
-
 }
 
 ```
@@ -312,7 +287,7 @@ id的判定条件：
 1. 要么满足`super.isIdProperty`：
     1. `Lazy.of(() -> isAnnotationPresent(Id.class) || IDENTITY_TYPE != null && isAnnotationPresent(IDENTITY_TYPE))`，所以它的判断标准是：
     2. **标注了`org.springframework.data.annotation.Id`注解**；
-    3. 不重要：~~如果classpath里有`org.jmolecules.ddd.annotation.Identity`注解，那么标注这个注解也算~~。估计是历史原因导致的兼容。
+    3. 不重要：~~如果classpath里有`org.jmolecules.ddd.annotation.Identity`注解，那么标注这个也算~~。估计是历史原因导致的兼容。
 2. 要么满足`SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName()`：
     1. **没有显式设置field name**；
     2. **且field name是`SUPPORTED_ID_PROPERTY_NAMES = Arrays.asList("id", "document")`中的一个**；
@@ -520,6 +495,7 @@ public interface WitakeMediaRepository extends ElasticsearchRepository<WitakeMed
 ### custom repository
 如果需要自定义实现，可以拓展接口：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#repositories.custom-implementations
+
 ```
 package io.puppylpg.data.repository;
 
@@ -583,11 +559,62 @@ public class CustomRepositoryImpl<T> implements CustomRepository<T> {
 ```
 
 ### stream: scroll api
-scroll api
+spring data elasticsearch能返回`Stream<T>`类型的文档，非常方便！如果使用elasticsearch的`tracer` log，就可以看到实际底层使用的是`scroll`请求。
 
-TBD
+> 开启tracer：https://stackoverflow.com/a/68737018/7676237
+
+
+第一个请求：
+```
+2022-08-01 15:37:21,643 TRACE [main] tracer [RequestLogger.java:83] curl -iX POST 'https://localhost:9200/witake_media/_search?typed_keys=true&max_concurrent_shard_requests=5&ignore_unavailable=false&expand_wildcards=open&allow_no_indices=true&ignore_throttled=true&scroll=60000ms&search_type=dfs_query_then_fetch&batched_reduce_size=512&ccs_minimize_roundtrips=true' -d '{"from":0,"size":500,"query":{"bool":{"must":[{"query_string":{"query":"258664","fields":["userId^1.0"],"type":"best_fields","default_operator":"and","max_determinized_states":10000,"enable_position_increments":true,"fuzziness":"AUTO","fuzzy_prefix_length":0,"fuzzy_max_expansions":50,"phrase_slop":0,"escape":false,"auto_generate_synonyms_phrase_query":true,"fuzzy_transpositions":true,"boost":1.0}}],"adjust_pure_negative":true,"boost":1.0}},"version":true,"explain":false}'
+# HTTP/1.1 200 OK
+# Server: YDWS
+# Date: Mon, 01 Aug 2022 07:37:21 GMT
+# Content-Type: application/json; charset=UTF-8
+# Content-Length: 604150
+# Connection: keep-alive
+#
+# {"_scroll_id":"FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ==","took":104,"timed_out":false,"_shards":{"total":15,"successful":15,"skipped":0,"failed":0},"hits":{"total":{"value":1605,"relation":"eq"},"max_score":1.0,"hits":[{"
+```
+返回一个`_scroll_id`。
+
+后面的请求都带上这个scroll id就行了：
+```
+2022-08-01 15:38:25,620 TRACE [main] tracer [RequestLogger.java:83] curl -iX POST 'https://localhost:9200/_search/scroll' -d '{"scroll_id":"FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ==","scroll":"60000ms"}'
+# HTTP/1.1 200 OK
+# Server: YDWS
+# Date: Mon, 01 Aug 2022 07:38:25 GMT
+# Content-Type: application/json; charset=UTF-8
+# Content-Length: 646836
+# Connection: keep-alive
+#
+# {"_scroll_id":"FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ==","took":96,"timed_out":false,"_shards":{"total":15,"successful":15,"skipped":0,"failed":0},"hits":{"total":{"value":1605,"relation":"eq"},"max_score":1.0,"hits":[{"
 ```
 
+但是scroll id存在的时间是有限的`scroll=60000ms`，且不能设置太大，否则elasticsearch要一直为这个scroll id保存上下文，太消耗资源。**如果超时后再去用这个scroll id取数据，会404**：
+```
+2022-08-01 15:39:58,512 TRACE [main] tracer [RequestLogger.java:83] curl -iX POST 'https://localhost:9200/_search/scroll' -d '{"scroll_id":"FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ==","scroll":"60000ms"}'
+# HTTP/1.1 404 Not Found
+# Server: YDWS
+# Date: Mon, 01 Aug 2022 07:39:58 GMT
+# Content-Type: application/json; charset=UTF-8
+# Content-Length: 3689
+# Connection: keep-alive
+#
+# {"error":{"root_cause":[{"type":"search_context_missing_exception","reason":"No search context found for id [1361827]"},{"type":"search_context_missing_exception","reason":"No search context found for id [1361826]"},{"type":"search_context_missing_exception","reason":"No search context found for id [1361828]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695506]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695502]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695505]"},{"type":"search_context_missing_exception","reason":"No search context found for id [738257]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695503]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695504]"},{"type":"search_context_missing_exception","reason":"No search context found for id [738258]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695510]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695507]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695508]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695511]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}],"type":"search_phase_execution_exception","reason":"all shards failed","phase":"query","grouped":true,"failed_shards":[{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361827]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361826]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361828]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695506]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695502]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695505]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [738257]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695503]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695504]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [738258]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695510]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695507]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695508]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695511]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}}],"caused_by":{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}},"status":404}
+```
+
+如果顺利地scroll到了最后，取完了所有的数据，spring data elasticsearch会发送DELETE请求，删掉scroll id，大概是放到try-with-resource里autoclose干的。当然，因为这个scroll id已经超时被elasticsearch删掉过了，所以这个请求也404了：
+```
+2022-08-01 15:39:58,581 TRACE [main] tracer [RequestLogger.java:83] curl -iX DELETE 'https://localhost:9200/_search/scroll' -d '{"scroll_id":["FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ=="]}'
+# HTTP/1.1 404 Not Found
+# Server: YDWS
+# Date: Mon, 01 Aug 2022 07:39:58 GMT
+# Content-Type: application/json; charset=UTF-8
+# Content-Length: 32
+# Connection: keep-alive
+#
+# {"succeeded":true,"num_freed":0}
 ```
 
 ### 慎用`save`
@@ -760,6 +787,9 @@ spring data没有update吗？
 ```
 但是我感觉getEntityId应该设置为public的。如果这个方法明天测试可行，就给spring data elasticsearch提个pr，把方法给为public，并增加一个update函数。
 
+Here it is:
+- https://github.com/spring-projects/spring-data-elasticsearch/pull/2305
+
 另外一点需要注意的，用来构建elasticsearch的UpdateRequest的UpdateQuery其实把`_update`和`_udpate_by_query`的属性混到一起了，但是实际转成UpdateRequest的时候，只会用其中一类的属性，另一类设置了也用不到。所以不要以为UpdateQuery里所有的属性只要设置了就有用了，要分清哪个是属于`_update`的，哪个是属于`_udpate_by_query`的。比如想使用update操作触发pipeline：
 ```
         Document doc = Document.create();
@@ -785,7 +815,7 @@ spring data没有update吗？
 > 上面的udpate又忘了设置routing了。
 
 ## 其他
-打日志：
+打spring data elasticsearch的debug日志：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/index.html#elasticsearch.clients.logging
 
 底层的client：
