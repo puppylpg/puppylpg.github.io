@@ -50,10 +50,11 @@ spring data的核心就是repository了。
 # spring data elasticsearch
 elasticsearch为非关系型数据库，依然能纳入spring data的体系中。而且从对elasticsearch的支持来看，并不是所有的数据库都能完全不违背spring data的设定，毕竟想100%统一所有的数据库基本是不可能的。
 
-比如repository里默认的`findById`，对于elasticsearch就不那么适用：如果索引使用了多个分片，那么不指定routing仅凭id是无法找到想要的数据的。
+**比如repository里默认的`findById`，对于elasticsearch就不那么适用：如果索引使用了多个分片，那么不指定routing仅凭id是无法找到想要的数据的。**
+- https://stackoverflow.com/questions/73781461/default-spring-data-elasticsearch-crudrepository-doesnt-support-routing
 
 ## mapping
-orm映射：
+orm映射：一个对象，属性有时间、有列表对象，最重要的是，它有`id` field且和`_id`不同，而且它的`_routing`也和`_id`不同。
 ```
 package io.puppylpg.data.entity;
 
@@ -157,7 +158,7 @@ public class WitakeMedia {
 ```
 
 ### index name
-P.J.Meisch自己写的不同环境指定index：
+P.J.Meisch自己写的不同环境获取不同的index name的方法：
 - https://www.sothawo.com/2020/07/how-to-provide-a-dynamic-index-name-in-spring-data-elasticsearch-using-spel/
 
 使用SpEL获取当前环境指定的index name：
@@ -191,7 +192,7 @@ spring data elasticsearch在启动的时候会检测es服务是否存在：
 #   "tagline" : "You Know, for Search"
 # }
 ```
-检查用到的es index是否存在：
+也会检查用到的es index是否存在：
 ```
 2022-08-22 00:23:44,875 TRACE [main] tracer [RequestLogger.java:90] curl -iX HEAD 'http://localhost:9200/url-info-test-list'
 # HTTP/1.1 200 OK
@@ -199,7 +200,7 @@ spring data elasticsearch在启动的时候会检测es服务是否存在：
 # content-length: 814
 #
 ```
-如果不存在，且`@Document(createIndex = false)`，则会报错：
+**如果不存在，且允许自动创建索引（`@Document(createIndex = true)`），则会自动创建一个索引，mapping按照对象里指定的映射关系生成**。如果不允许自动创建索引，则会报错：
 ```
 2022-08-21 17:00:59,581 TRACE [main] tracer [RequestLogger.java:90] curl -iX GET 'http://localhost:9200/witake_media_lhb_test/_doc/141140-ZbV_G2r-uLw'
 # HTTP/1.1 404 Not Found
@@ -224,14 +225,15 @@ Exception in thread "main" org.springframework.data.elasticsearch.NoSuchIndexExc
 
 type hint就别写了：`@Document(writeTypeHint = WriteTypeHint.FALSE)`
 
-添加个`_class`字段，strict mapping肯定会报错的。而且es基本也不涉及对象的多态……
+会自动往索引里添加个`_class`字段，如果原本自己创建的索引用了strict mapping，肯定会因为存在一个mapping里没有的字段而报错。而且es基本也不涉及对象的多态……
 
 ### routing
-在elasticsearch里，提到id就要想到routing。尤其是如果索引的数据存在id和routing不一致的情况时，**一定要在任何使用id的场景想到routing**！一旦漏掉代码就bug了。
+在elasticsearch里，提到id就要想到routing。尤其是如果索引的数据存在id和routing不一致的情况时，**一定要在任何使用id的场景想到routing**！一旦漏掉，代码就bug了。
 
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#elasticsearch.routing
 
-1. orm类不能忘了设置@Routing，这样repository自动生成的请求才会带上routing：
+涉及到routing的有以下几种主要情况：
+1. orm类不能忘了设置`@Routing`，这样repository自动生成的请求才会带上routing：
     ```
     @Routing("userId")
     ```
@@ -262,8 +264,7 @@ mapping最主要的就是设置`_id`。碰到下面这种field有个`id`字段�
 
 而`@Transient`在spring data里是被忽略的。
 
-而存在`id` field和`_id`值还不一样，这是最麻烦的情况。**首先，`@Id`标注的字段一定是`_id`**，不管它叫什么名字：
-- https://juejin.cn/post/6844904068037476365
+如果对象里已经存在一个`id` field，且它的值和`_id`值还不一样，这是最麻烦的情况。
 
 **spring data elasticsearch认为的`_id`**：
 1. **标注`@Id`**；
@@ -271,7 +272,10 @@ mapping最主要的就是设置`_id`。碰到下面这种field有个`id`字段�
 
 > 原因见下一节。
 
-所以其次，**不要再定义一个名为`id`的字段，这可以认为是spring data elasticsearch的保留字**。所以要定义一个其他的名字，然后使用注解给它改名`@Field(value = "id")`：
+所以，**首先，`@Id`标注的字段一定是`_id`**，不管它叫什么名字：
+- https://juejin.cn/post/6844904068037476365
+
+其次，为了不让已存在的`id` field满足上述第二条情况（否则也会被spring data elasticsearch判定为`id`），**不要再定义一个名为`id`的字段，这可以认为是spring data elasticsearch的保留字**。要定义一个其他的名字，然后使用注解给它改名`@Field(value = "id")`：
 - `_id`和`id`同时存在的情况：https://stackoverflow.com/questions/62029613/set-different-id-and-id-fields-with-spring-data-elasticsearch
 
 所以如果存在`id` field，值又和`_id`不同，设置起来还是挺麻烦的。
@@ -383,7 +387,7 @@ id的判定条件：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#elasticsearch.jointype
 
 ### 时间相关的field
-elasticsearch唯一的事件类型：date。
+elasticsearch唯一的时间类型：date。
 
 > 关于date，详见[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})。
 
@@ -402,7 +406,7 @@ date的格式由`@Field`的`format`属性指定：
     @Field(type = FieldType.Date, format = DateFormat.epoch_millis)
     private Instant timestamp;
 ```
-**使用Instant表示时间。**
+代码里是 **使用Instant表示时间。**
 
 类型：
 ```
@@ -430,7 +434,7 @@ era - There are two eras, 'Current Era' (CE) and 'Before Current Era' (BCE)。�
 > 另外需要注意，0 year等同于1 AD，因为使用era的人没有0的概念，就好像楼房没有0层：https://stackoverflow.com/a/29014580/7676237
 
 ## repository
-直接用接口继承ElasticsearchRepository即可：
+直接用接口继承ElasticsearchRepository，就能获取大量已定义好的方法，并能够按照实现细节定义方法名称，spring data都会按照约定自动实现这些方法：
 ```
 package io.puppylpg.data.repository;
 
@@ -493,7 +497,7 @@ public interface WitakeMediaRepository extends ElasticsearchRepository<WitakeMed
 ```
 
 ### custom repository
-如果需要自定义实现，可以拓展接口：
+如果需要自定义实现一个方法，可以拓展接口：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#repositories.custom-implementations
 
 ```
@@ -520,7 +524,7 @@ public interface CustomRepository<T> {
     T saveWithoutRefresh(T entity);
 }
 ```
-实现类以Impl结尾：
+新接口的实现类必须以Impl结尾：
 ```
 package io.puppylpg.data.repository;
 
@@ -604,7 +608,7 @@ spring data elasticsearch能返回`Stream<T>`类型的文档，非常方便！�
 # {"error":{"root_cause":[{"type":"search_context_missing_exception","reason":"No search context found for id [1361827]"},{"type":"search_context_missing_exception","reason":"No search context found for id [1361826]"},{"type":"search_context_missing_exception","reason":"No search context found for id [1361828]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695506]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695502]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695505]"},{"type":"search_context_missing_exception","reason":"No search context found for id [738257]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695503]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695504]"},{"type":"search_context_missing_exception","reason":"No search context found for id [738258]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695510]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695507]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695508]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695511]"},{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}],"type":"search_phase_execution_exception","reason":"all shards failed","phase":"query","grouped":true,"failed_shards":[{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361827]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361826]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [1361828]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695506]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695502]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695505]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [738257]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695503]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695504]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [738258]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695510]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695507]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695508]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695511]"}},{"shard":-1,"index":null,"reason":{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}}],"caused_by":{"type":"search_context_missing_exception","reason":"No search context found for id [19695509]"}},"status":404}
 ```
 
-如果顺利地scroll到了最后，取完了所有的数据，spring data elasticsearch会发送DELETE请求，删掉scroll id，大概是放到try-with-resource里autoclose干的。当然，因为这个scroll id已经超时被elasticsearch删掉过了，所以这个请求也404了：
+如果顺利地scroll到了最后，取完了所有的数据，spring data elasticsearch会发送DELETE请求，删掉scroll id，大概是放到try-with-resource里用autoclose干的。当然，因为这个scroll id已经超时被elasticsearch删掉过了，所以这个请求也404了：
 ```
 2022-08-01 15:39:58,581 TRACE [main] tracer [RequestLogger.java:83] curl -iX DELETE 'https://localhost:9200/_search/scroll' -d '{"scroll_id":["FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoDxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh44WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh48WY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5AWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5EWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5IWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9EWQWlXekZITzhUQUttUk1hYm9Yc0E4URZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5UWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6MWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5QWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5MWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6IWbzRNenpHVlRTVnkzaUd2TExTc19zQRZEYTdUSS1YWlItdVhLUVhKeUlLT1dnAAAAAAAUx6QWbzRNenpHVlRTVnkzaUd2TExTc19zQRZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5YWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZMVERldGZsTFM4MlBNYm9OZkxacmNnAAAAAAEsh5cWY091azBxb0ZSR3VpSkd4RnoyRVp6dxZDNkxQTUJYRFF6NjFvUFd5Q2d5cW1RAAAAAAALQ9IWQWlXekZITzhUQUttUk1hYm9Yc0E4UQ=="]}'
 # HTTP/1.1 404 Not Found
@@ -620,9 +624,9 @@ spring data elasticsearch能返回`Stream<T>`类型的文档，非常方便！�
 ### 慎用`save`
 如果使用save保存文档，有两个地方需要注意：
 1. **`ElasticsearchRepository`继承自`CrudRepository`的save方法默认会附带一个`_refresh`请求**，生产环境下高并发的`_refresh`会让elasticsearch不堪重负；
-2. save对应的是index请求，慎用！**如果orm没有映射完所有的field，那么从elasticsearch先读取doc再save回去，会把没有映射到的field清空**；
+2. **save对应的是index请求，慎用！如果orm没有映射完所有的field，那么从elasticsearch先读取doc再save回去，会把没有映射到的field清空**；
 
-save with refresh：
+查看详细的请求可以看到，默认的save是会跟上一个`_refresh`请求的：
 ```
 2022-08-18 14:54:00,926 TRACE [I/O dispatcher 1] tracer [RequestLogger.java:90] curl -iX GET 'https://localhost:9200/'
 # HTTP/1.1 200 OK
@@ -687,14 +691,14 @@ save with refresh：
 #
 # {"_index":"witake_media_lhb_test","_type":"_doc","_id":"141140-ZbV_G2r-uLw","_version":6,"result":"updated","_shards":{"total":2,"successful":2,"failed":0},"_seq_no":9,"_primary_term":1}
 ```
-可以自定义一个方法，使用`ElasticsearchRestTemplate#save`，这样就只有index，没有refresh。参考上述custom repository里的方法实现。
+如果需要使用save，可以定义一个save without refresh方法。使用`ElasticsearchRestTemplate#save`，这样就只有index，没有refresh。具体代码见上述`CustomRepositoryImpl#saveWithoutRefresh`。
 
 ### update
-save会使用index对文档进行覆盖更新，所以得使用update请求。但是没找到能直接生成update请求的方法，update得自己写：
+save会使用index对文档进行覆盖更新，所以正常的更新操作得使用update请求。但是spring data elasticsearch（乃至整个spring data）里没找到能直接生成update请求的方法，所以update得自己构造：
 - https://stackoverflow.com/questions/40742327/partial-update-with-spring-data-elasticsearch-repository
 - https://www.jianshu.com/p/b320ace6db2f
 
-spring data没有update吗？
+> spring data没有update吗？
 
 纯手撸update query相对麻烦：
 ```
@@ -705,9 +709,11 @@ spring data没有update吗？
         elasticsearchRestTemplate.update(updateQuery, this.witakeMedia);
     }
 ```
-需要手动创建一个Document（其实就是个map），spring data elasticsearch会把它转换成UpdateQuery。（别忘了设置routing！！！上面的代码忘了设置了）
+需要手动创建一个Document（其实就是个map），spring data elasticsearch会把它转换成UpdateQuery（最后再把UpdateQuery转换为elasticsearch的UpdateRequest）。（别忘了设置routing！！！上面的代码忘了设置了）
 
-但是这种写法实在是不够通用！orm对象就不能直接转成Document吗？为什么还要我一个个把属性放到map（Document）里呢？
+> UpdateQuery其实就是spring data elaticsearch提供的一个收集update配置的地方。
+
+这样就可以免去了手动构造Document的痛苦，但是这种写法实在是不够通用！orm对象就不能直接转成Document吗？为什么还要我一个个把属性放到map（Document）里呢？
 
 所以我研究了一下save是怎么做的。发现它能通过`ElasticsearchConverter#mapObject`把object自动转为Document对象。而ElasticsearchConverter是可以直接从ElasticsearchRestTemplate里获取的，所以我们也可以直接用ElasticsearchConverter做转换：
 ```
@@ -785,7 +791,7 @@ spring data没有update吗？
         return Objects.toString(id, null);
     }
 ```
-但是我感觉getEntityId应该设置为public的。如果这个方法明天测试可行，就给spring data elasticsearch提个pr，把方法给为public，并增加一个update函数。
+但是我感觉getEntityId是应该设置为public的。如果这个方法明天测试可行，就给spring data elasticsearch提个pr，把方法改为public，并增加一个自动构造update请求的函数。
 
 Here it is:
 - https://github.com/spring-projects/spring-data-elasticsearch/pull/2305
@@ -815,11 +821,12 @@ Here it is:
 > 上面的udpate又忘了设置routing了。
 
 ## 其他
-打spring data elasticsearch的debug日志：
+spring data elasticsearch打debug日志：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/index.html#elasticsearch.clients.logging
 
 底层的client：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#reference
+
 # 长连接
 
 - https://github.com/spring-projects/spring-boot/pull/32051
@@ -832,5 +839,5 @@ Here it is:
 # 感想
 使用spring data elasticsearch，只是把人从使用RestHighLevel写简单的查询的重复性工作里解放出来了，但是它也带了很多学习上的开销（save without reindex等）。但是相对来说，这些开销还是比较值得的，尤其是当查询elasticsearch的需求比较多的时候，这些开销就被分摊开来了。而且从另一方面来说，spring data elasticsearch的这些奇奇怪怪的点如果都注意到了，说明对elasticsearch的掌握已经比较深入了。
 
-> 也可能对spring data本身的理解太浅显了，不然也不会有这么多开销 :D
+> 也可能对spring data本身的理解太浅显了，不然也不会有这么多学习上的开销 :D
 

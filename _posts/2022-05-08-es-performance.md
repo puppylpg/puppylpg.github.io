@@ -184,6 +184,68 @@ ssd对es的性能提升非常大！普通磁盘如果存储空间不足，对性
 因为最慢的节点才是最终查询消耗的时间，实际查询时，换完ssd后对5亿+条文档的media索引的查询时间基本都是在1s以内。之前没还ssd，4.7亿文档查询速度在24s+，剔除掉慢节点node6，也需要十几秒才能查完。
 
 # deep pagination
+深度分页（比如超过1000页），比如遍历所有数据。
+
+## from size
+如果使用`search`接口的from size进行分页获取，对于分布式的系统来说是比较消耗性能的事情。
+
+> Each shard must load its requested hits and the hits for any previous pages into memory. For deep pages or large sets of results, these operations can significantly increase memory and CPU usage, resulting in degraded performance or node failures.
+
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_fetch_phase.html
+
+## scroll
+> **深度分页的代价根源是结果集全局排序**，如果去掉全局排序的特性的话查询结果的成本就会很低。 **游标查询用字段`_doc`来排序**。 这个指令让 Elasticsearch 仅仅从还有结果的分片返回下一批结果。
+
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/scroll.html
+
+elasticsearch可以使用scroll api，“滚动”获取所有的数据，每次取出“一页”，直到取完：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html#scroll-search-results
+
+scroll的请求可以参见：[Spring Data - Elasticsearch]({% post_url 2022-09-21-spring-data-elasticsearch %})的stream部分。
+
+scroll api会在查询的“那一刻”，生成一个scroll id，这个scroll id会对应着一个“search context”，标记着请求执行的“那一刻”，索引里所有符合条件的文档。之后每一次使用这个scroll id查询，都会把这些文档一批批返回。
+
+> 同一个连续的scroll请求，中间返回的scroll id可能是会变的。如果变了，就要使用新返回的scroll id继续滚动下去。
+
+**scroll查询到的一直都是开始时那一刻的文档，即全局的一个snapshot**。为什么这么牛逼？**这全都仰仗elasticsearch的segment是不可变的**。修改的内容只会记录在新的segment里，而不是修改老的segment。**所以查询开始的那一刻，只要那一刻所有的segment不删掉，就可以一直查到那一刻已有的数据，同时也不耽误新的udpate数据生成到新的segment里**。
+
+这也就意味着，在scroll结束之前，这些context是会一直保留下来的：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html#scroll-search-context
+
+elasticsearch后台每次refresh会生成一个segment，还会有后台任务进行段合并的工作（[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})），“保留context”就意味着：
+1. **占用磁盘、文件描述符**：这些合并后的segment不能被删掉，还要继续被保留下去，直到scroll id被删掉；
+2. **占用内存（heap space）**：每个段里的doc并不都是有效的，那些被delete或者update的doc会被记录在`.del`文件里，保留这些会占用额外的内存：https://www.elastic.co/guide/cn/elasticsearch/guide/current/dynamic-indices.html#deletes-and-updates
+
+> elasticsearch的不可变segment让它有了“只要一直不删除旧的segment，就相当于保留了所有数据的各个节点的历史记录”的能力，但是不能一直这样下去，性能开销会慢慢越来越不可接受。
+>
+> 但是这里应该不会因为segment变多而导致搜索性能降低。这些旧的segment肯定对新的搜索请求不可见，只为scroll提供搜索。
+
+> **像mysql这种在原数据上修改的数据库，能够在游标滚动查询数据的“那一刻”，给所有的老数据做一个snapshot吗？毕竟它也有MVCC。这个可以后续了解了解。**
+
+scroll如此消耗性能，肯定是不能同时出现太多、保留太久的。每次scroll请求“下一页”的时候，都可以指定一个timeout，如果在timeout之前，没有关于这个scroll id的新的scroll请求，这个scroll id就会被删掉，后续再用这个scroll id就会404 Not Found。所以scroll的timeout一定要大于获取的这一批数据的处理时间，否则就没法继续scroll了。
+
+> 要及时为scroll id “续一秒”。
+
+所以scroll为什么比from size适合deep pagination？大概是因为from size每次都无脑返回(from + size)项doc到协调节点，**而scroll记录了上次scroll在每个shard上的游标？** 因为从[这个](https://discuss.elastic.co/t/sliced-scroll-with-sort/284874/4?u=puppylpg)回答来看，scroll是和自己的这次scroll context绑定的，而下面的PIT则不和请求绑定，多个请求可以用一个PIT。这么说的话，scroll是可以把自己上次的游标信息记录到这个scroll的context里的。但是确实不如search after快。
+
+## search after
+search after确实能让翻页更快：每次记录下前一页的最后一项，新的页在它的基础上查找，自然会更快。
+
+> 之前还确实遇到过类似的事情：就像在mysql中使用limit翻页一样，越翻越慢。而记录下上一页的最后一项的id，并在下一次查询中使用“where id > xxx”，则避免了翻页的开销。参考[Innodb：索引的正确使用与拉胯的limit]({% post_url 2022-05-10-innodb-index-limit %})。
 
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html#search-after
+
+但是显然search after只能“连续往后翻”，不能像from size一样可以任意跳页，还能往前跳。
+
+## Point In Time(PIT)
+**from size和search after本身都是无状态的**：如果连续的多次查询中间有数据变动，新的变动会影响后面的查询结果。比如查完第一页查第二页，结果第一页插了一项（并refresh了），此时查出来的第二页的第一项就是之前第一页的最后一项……
+
+> scroll是有状态的，可以理解为它已经和PIT强绑定了。
+
+所以elasticsearch还提供了PIT（Point In Time），其实就是之前scroll api的snapshot功能，甚至连文档的内容都是照抄的：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/point-in-time-api.html
+
+PIT接口独立出来之后，已经可以和 **任意search请求组合使用** 了（search api已经支持pit参数了）：如果需要多次搜索在同一个snapshot上进行，就先使用PIT api生成一个snapshot。所以PIT不止可以和search after结合使用，还能和from size结合使用。
+
+> reindex也和PIT有关，reindex的就是那一刻的snapshot数据。
 
