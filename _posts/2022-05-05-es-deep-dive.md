@@ -186,11 +186,6 @@ es的查询是按照得分给结果排序的。如果返回top10，有两个mast
 - 桶的个数就是分片的个数；
 - 同一分片的文档都算是hash冲突的文档；
 
-## deep pagination - 性能炸裂
-TODO：
-- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_fetch_phase.html
-- scroll：https://www.elastic.co/guide/cn/elasticsearch/guide/current/scroll.html
-
 # 分片内部 - 还有segment
 - index：es索引，多个shard组成；
 - shard：一个Lucene索引，多个segment和一个commit point组成；
