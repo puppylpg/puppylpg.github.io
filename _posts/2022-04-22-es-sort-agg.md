@@ -93,6 +93,8 @@ Doc_2 | brown, dogs, foxes, in, lazy, leap, over, quick, summer
 
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/docvalues.html
 
+> 关于`doc_values`，参考：[Elasticsearch：_source store doc_values]({% post_url 2022-10-05-es-source-store-docvalues %})
+
 ## index vs. doc_values
 - `index`：倒排索引，绝大多数field类型默认都开启，开启之后即可搜索。**不开启一般不能搜索，但不绝对**；
 - `doc_values`：倒排索引，**除了`text`和`annotated_text`**，其他field类型都默认开启了；
@@ -309,5 +311,3 @@ PUT my-index-000001/_mapping
   }
 }
 ```
-
-
