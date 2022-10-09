@@ -382,6 +382,25 @@ id的判定条件：
 
 现在4.3.x/4.4.x的较新版本和4.5.x都支持这一点了。
 
+### null value
+elasticsearch的 **null、值不存在、空数组、值为null的数组** 是一样的：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/null-value.html
+
+> 另外可以给field设置`null_value`属性，让elasticsearch存储一个null的替代值。但是一定要注意：**替代值不能为可能存在的真值，要不然就分不出来了……**
+>
+> It is different from the normal values that the field may contain, to avoid confusing real values with null values.
+> 
+> - https://www.elastic.co/guide/en/elasticsearch/guide/current/_dealing_with_null_values.html
+
+当更新一个elasticsearch的field为null的时候，elasticsearch会把值存为null。**但是在spring data elasticsearch里，如果对象的某些field没设置（为null），这些null不会被更新到elasticsearch里，而是会被忽略**：
+- https://stackoverflow.com/a/63895726/7676237
+- https://stackoverflow.com/a/63685474/7676237
+
+> 这个“忽略null”的行为是在把Java对象按照mapping转为Document的时候做的。如果自己构造了一个Document，某些值为null，那么这些null会被更新到elasticsearch里。因为这是我们自己构造的Document。另外如果对象的某个属性为Map，map的值为null，也能被写入elasticsearch，因为spring data elaticsearch转Document的时候，如果发现某个属性是Map/Document，直接就全盘接受了。
+
+**如果确实想把对象里的null属性更新到elasticsearch里，使用`@Field(storeNullValue = true)`，默认为false**：
+- https://github.com/spring-projects/spring-data-elasticsearch/issues/1494
+
 ### join type
 甚至还支持es的join（话说回来，它不支持elasticsearch支持谁……）：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#elasticsearch.jointype

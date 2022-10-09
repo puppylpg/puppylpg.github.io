@@ -221,6 +221,10 @@ elasticsearch后台每次refresh会生成一个segment，还会有后台任务�
 > 但是这里应该不会因为segment变多而导致搜索性能降低。这些旧的segment肯定对新的搜索请求不可见，只为scroll提供搜索。
 
 > **像mysql这种在原数据上修改的数据库，能够在游标滚动查询数据的“那一刻”，给所有的老数据做一个snapshot吗？毕竟它也有MVCC。这个可以后续了解了解。**
+>
+> MVCC：我读我的，你写你的。我的隔离级别决定了我读那一版数据。你是后开启的事务，事务id比我大，而我只读版本链里事务id小于等于我的那一版，那你的修改我就“看不到”。相当于也搞了全局snapshot。
+>
+> MVCC不处理写写冲突。实际上也不会有写写冲突（脏写），因为这种情况mysql会加锁。
 
 scroll如此消耗性能，肯定是不能同时出现太多、保留太久的。每次scroll请求“下一页”的时候，都可以指定一个timeout，如果在timeout之前，没有关于这个scroll id的新的scroll请求，这个scroll id就会被删掉，后续再用这个scroll id就会404 Not Found。所以scroll的timeout一定要大于获取的这一批数据的处理时间，否则就没法继续scroll了。
 
