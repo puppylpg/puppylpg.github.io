@@ -6,7 +6,7 @@ categories: elasticsearch lucene
 tags: elasticsearch lucene
 ---
 
-一切始于一个奇怪的现象：elasticsearch以`epoli_millis`存储时间戳的时候，竟然可以接受string（字面值为long）存储，且使用起来和long毫无区别：
+一切始于一个奇怪的现象：elasticsearch以`epoch_millis`存储时间戳的时候，竟然可以接受string（字面值为long）存储，且使用起来和long毫无区别：
 ```
 GET <index>/_search
 {
@@ -192,6 +192,71 @@ GET <index>/_search
 
 > 暂时只用到了第一条优势。
 
+### 自定义转换
+`fields`只能按照mapping进行转换，正常情况下没什么问题。但是如果有特殊的需求，比如`fields`只能让epoch_millis以string返回，如果我们就想让它以long返回，可以使用[runtime field](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime-override-values.html)转换数据，再用`fields`查出来：
+```
+GET <index>/_search
+{
+  "runtime_mappings": {
+    "wtf": {
+      "type": "long",
+      "script": {
+        "source":
+        """emit(Long.parseLong(params._source['timestamp'].toString()))"""
+      }
+    }
+  },
+  "_source": false, 
+  "fields": [
+    "wtf"
+  ]
+}
+```
+返回的是long：
+```
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 15,
+    "successful" : 15,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "<index>",
+        "_type" : "_doc",
+        "_id" : "gHz4xIMBiDkSEf3Uym3G",
+        "_score" : 1.0,
+        "fields" : {
+          "wtf" : [
+            1633429574000
+          ]
+        }
+      },
+      {
+        "_index" : "<index>",
+        "_type" : "_doc",
+        "_id" : "Znz4xIMBiDkSEf3UEG2_",
+        "_score" : 1.0,
+        "fields" : {
+          "wtf" : [
+            1622749174000
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
 ## `stored_fields`查询
 [stored_fields](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#stored-fields)查询，直接查`stored`字段。
 
@@ -269,3 +334,4 @@ GET /_search
 1. elasticsearch的实现也是要看一看的，正好又是Java实现的；
 
 > 这篇文章是国庆在周口写的~
+
