@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "SpringBoot run"
+title: "Springboot run"
 date: 2022-07-21 21:40:28 +0800
 categories: springboot
 tags: springboot
@@ -224,7 +224,9 @@ ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以
 1. set property sources；
 2. set profiles：**profiles是从property sources里找的，所以profiles要后设置**。
 
-**通过啥set？用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。（并且是注册到链表头，大概代表它是最高优先级吧）
+> 一个有意思的事情：profiles从properties里获取，获取profiles之后，又能读取profiles-specific properties。所以如果把配置profiles的properties放到profiles-specific properties里，就永远也不可能生效了。
+
+**所以通过啥set profiles？只要不是profiles-specific properties就行。比如系统环境变量、系统properties，或者用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。（并且是注册到链表头，大概代表它是最高优先级吧）
 - **名为commandLineArgs的SimpleCommandLinePropertySource**，且在list头，所以是最高优先级；
 
 为什么springboot的args要写成：`--spring.profiles.active=prod`，因为springboot使用的是spring的CommandLineArgs来解析args，所以它就得`--`开头：
@@ -240,6 +242,20 @@ ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以
 
 拿到profiles之后，配置了一个：
 - **名为configurationProperties的ConfigurationPropertySourcesPropertySource**：配置在最开头，我也不知道有啥用……
+
+spring boot的配置实际上遵从这么一个优先级：
+- https://docs.spring.io/spring-boot/docs/1.5.6.RELEASE/reference/html/boot-features-external-config.html
+
+**command line args是比较高的优先级，毕竟是用户在执行程序的时候手动指定的。system properties和os environment靠后，properties文件在更靠后**。
+- 如果是command line args（main函数类后指定args），那就给property前面加上`--`；
+- 如果是system properties（java指令后，main函数类前），那就给property前面加上`-D`；
+- 如果是os env，那就把property大写，并使用下划线代替dot，比如（HELLO_WORLD=nice），会给`hello.world` perperty设置值`nice`；
+
+> If you use environment variables rather than system properties, most operating systems disallow period-separated key names, but you can use underscores instead (e.g. `SPRING_CONFIG_NAME` instead of `spring.config.name`)
+
+第一种第二种本地跑的时候比较有用。**第三种docker上执行的时候非常有用**，毕竟镜像的cmd不好改，env可以随便加。
+
+> 显然system properties优先级要高于os env，因为前者需要在命令行里指定。
 
 最后发送environmentPrepared事件，调用listener处理。
 
@@ -478,6 +494,5 @@ springboot test autoconfig的ApplicationContextRunner其实也相当于自己配
 
 不用enable configuration properties，不会产生这个bean，导致配置失败：
 > 14:08:11.760 [main] DEBUG org.springframework.beans.factory.support.DefaultListableBeanFactory - Creating shared instance of singleton bean 'org.springframework.boot.context.properties.BoundConfigurationProperties'
-
 
 
