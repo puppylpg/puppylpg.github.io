@@ -403,7 +403,7 @@ PUT _ingest/pipeline/branding
 使用pipeline还挺麻烦：
 - [`_update`](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html#doc_as_upsert)接口不支持pipeline；
 - [`_update_by_query`](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html)接口支持pipeline参数，但是好像也受限；
-- [`_bulk`](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html)接口也支持pipeline参数，但是具体到batch里的每一条，又有的支持有的不支持：
+- [`_bulk`](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html)接口也支持pipeline参数，但是具体到batch里的每一条，又有的支持有的不支持。**实测证明，[bulk里的update请求不支持，index据说可以](https://stackoverflow.com/questions/59397391/elasticsearch-not-using-pipeline-in-bulk-updates)**（这就很坑了，接口明明有`pipeline`这个参数，却只能部分支持……文档还没说……）：
     + https://github.com/elastic/elasticsearch/issues/30627#issuecomment-389500305
 
 最终我发现给index设置个default_pipeline可以完美解决这个问题：
