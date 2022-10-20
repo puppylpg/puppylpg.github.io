@@ -232,6 +232,9 @@ template使用`index_patterns`指定匹配的index，可以使用一些通配符
 ```
 “不匹配以dot开头的索引”，就可以了。此时default template不适用于dot开头的索引，不会干涉监控index会使用它自己的template。
 
+elaticsearch里multi-target syntax的规范：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html#api-multi-index
+
 最终的detaulf_template修改：
 ```
 PUT _template/default_template
