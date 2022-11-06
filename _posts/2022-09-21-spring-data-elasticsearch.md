@@ -452,6 +452,33 @@ era - There are two eras, 'Current Era' (CE) and 'Before Current Era' (BCE)。�
 
 > 另外需要注意，0 year等同于1 AD，因为使用era的人没有0的概念，就好像楼房没有0层：https://stackoverflow.com/a/29014580/7676237
 
+## analyzer
+spring data elasticsearch甚至还能在创建index的时候加入analyzer：
+- https://stackoverflow.com/questions/63810021/create-custom-analyzer-with-asciifolding-filter-in-spring-data-elasticsearch
+
+不过可能考虑到这个analyzer并不需要在编程层面体现，所以spring data elasticsearch内部也没有相应的类表示，直接简单粗暴读取某个json文件里的analyzer定义就行了。
+
+当property里声明了analyzer的时候，必须用上面的方式提供analyzer的定义，否则spring data elasticsearch报错：
+```
+@Data
+@Document(indexName = "#{@environment.getProperty('elastic-search.index.storedKol.name')}", createIndex = false, writeTypeHint = WriteTypeHint.FALSE)
+@Setting(settingPath = "/stored_kol_analyzer.json")
+public class StoredKolEs {
+
+    @MultiField(
+            mainField = @Field(type = FieldType.Keyword),
+            otherFields = {
+                    @InnerField(
+                            suffix = "autocomplete",
+                            type = FieldType.Text,
+                            analyzer = "autocomplete_sentence",
+                            searchAnalyzer = "autocomplete_sentence_search"
+                    )
+            }
+    )
+    private String nickname;
+```
+
 ## repository
 直接用接口继承ElasticsearchRepository，就能获取大量已定义好的方法，并能够按照实现细节定义方法名称，spring data都会按照约定自动实现这些方法：
 ```
@@ -813,7 +840,9 @@ save会使用index对文档进行覆盖更新，所以正常的更新操作得�
 但是我感觉getEntityId是应该设置为public的。如果这个方法明天测试可行，就给spring data elasticsearch提个pr，把方法改为public，并增加一个自动构造update请求的函数。
 
 Here it is:
+- https://github.com/spring-projects/spring-data-elasticsearch/issues/2304
 - https://github.com/spring-projects/spring-data-elasticsearch/pull/2305
+- https://github.com/spring-projects/spring-data-elasticsearch/pull/2310
 
 另外一点需要注意的，用来构建elasticsearch的UpdateRequest的UpdateQuery其实把`_update`和`_udpate_by_query`的属性混到一起了，但是实际转成UpdateRequest的时候，只会用其中一类的属性，另一类设置了也用不到。所以不要以为UpdateQuery里所有的属性只要设置了就有用了，要分清哪个是属于`_update`的，哪个是属于`_udpate_by_query`的。比如想使用update操作触发pipeline：
 ```
