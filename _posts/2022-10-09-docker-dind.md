@@ -12,7 +12,7 @@ tags: docker gitlab
 {:toc}
 
 # dind
-docker容器内部是可以再启动一个docker daemon，但并不想想象中的那么美好。主要是无法做到完全的隔离。
+docker容器内部是可以再启动一个docker daemon，但并不像想象中的那么美好。主要是无法做到完全的隔离。
 
 ## `--privileged`
 `docker run`有一个很重要的参数[`--privileged`](https://docs.docker.com/engine/reference/commandline/run/#full-container-capabilities---privileged)。
@@ -108,7 +108,7 @@ gitlab的dind提供了上述dind和dood，**想使用dind，必须使用[docker 
 > **runner必须本身是个docker镜像，且含有docker cli**。
 
 ## dind
-纯正的dind必须在容器内部启动一个docker daemon，**首先配置docker gitlab runner的时候就要开启[`privileged=true`](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#docker-in-docker-with-tls-enabled-in-the-docker-executor)**，这样才能启动dind：
+**纯正的dind必须在容器内部启动一个docker daemon，首先配置docker gitlab runner的时候就要开启[`privileged=true`](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#docker-in-docker-with-tls-enabled-in-the-docker-executor)**，这样才能启动dind：
 ```
 [[runners]]
   url = "https://gitlab.com/"
@@ -191,6 +191,60 @@ build:
 ## 实体机docker指令
 gitlab runner想使用docker，并非只能在dind跑。如果实体机上起的有docker，那么把gitlab-runner用户加入docker组之后，实体机的gitlab runner也能调用实体机上的docker daemon了。当然，这不涉及到dind：
 - https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-the-shell-executor
+
+## gitlab-ci使用dind示例
+这是一个gitlab-ci使用dind的例子，用的是真正的dind：
+```
+image: harbor-registry.inner.yd.com/devops/docker:19.03-ydci
+
+services:
+  - name: harbor-registry.inner.yd.com/devops/docker:19.03-dind
+    alias: docker
+
+stages:
+  - test
+  - pom-version
+  - package
+  - build-push-image
+  - deploy
+  - notify
+
+unit_test:
+  image: harbor-registry.inner.yd.com/ead/xxx-base:latest
+  stage: test
+  tags:
+    - k8s
+  script:
+    - mvn clean test
+    - if [ -e target/site/jacoco/index.html ]; then cat target/site/jacoco/index.html; fi
+  coverage: '/Total.*?([0-9]{1,3})%/'
+
+build-image:
+  stage: build-push-image
+  tags:
+    - k8s
+  variables:
+    IMAGE_NAME: $IMAGE_NAME
+  script:
+    - !reference [.build_push_image, script]
+  except:
+    - master
+  when: manual
+  dependencies:
+    - fetch-version
+    - package
+```
+
+> 之所以不使用dood，大概是dood太危险了吧，而且如前所述，会冲突。
+
+- services：**启动一个docker daemon，用于接收docker cli发出的请求**。这是真正的dind；
+- image：**image也使用docker镜像，因为image里需要有docker cli，才能使用docker命令**；
+
+**接下来的unit_test，用不到docker命令，但是需要用到maven，所以换了一个有maven的镜像，取代默认的`docker:19.03-ydci`镜像。**
+
+> **如果unit_test用到了testcontainers，也是可以的，它不需要container里有docker cli（testcontainers自己肯定内嵌了类似docker cli的client）**，只需要container里有docker daemon。而我们已经在镜像里起了docker daemon service，满足testcontainers的使用要求。
+
+**在build-image这一步，打包docker镜像，需要用到docker cli给docker daemon发请求了，所以使用默认的`docker:19.03-ydci`镜像。**
 
 # 感想
 开发docker的人，才是真正的深入理解linux啊~
