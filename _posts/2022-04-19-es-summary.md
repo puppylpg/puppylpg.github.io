@@ -25,4 +25,5 @@ tags: elasticsearch
 - 监控
 - 备份：[Elasticsearch：backup]({% post_url 2022-10-19-es-backup %})；
 - java客户端：[Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})；
+- 遍历、翻页、search_after、pit、track_total_hits：[Elasticsearch：遍历索引]({% post_url 2022-11-11-es-traverse-index %})；
 

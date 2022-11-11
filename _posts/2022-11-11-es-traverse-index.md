@@ -342,13 +342,131 @@ GET /_search
 
 > 不知道为啥pit的api示例里不带search_after，但世界上没有sort和search_after，根本没法翻页……
 
-# spring data elasticsearch的支持
+# spring data elasticsearch对pit的支持
 今年八月刚完成对search_after和pit的支持：
 - https://github.com/spring-projects/spring-data-elasticsearch/issues/1684
 - https://github.com/spring-projects/spring-data-elasticsearch/pull/2273
 - https://docs.spring.io/spring-data/elasticsearch/docs/5.0.0-RC2/reference/html/#elasticsearch.misc.point-in-time
 
 但是看样子在5.x版本才能用……4.4.x感觉凉凉……
+
+[4.x确实凉了](https://github.com/spring-projects/spring-data-elasticsearch/pull/2273/files#r1019984036)：
+> This change was in 5.0.M6 (I obviously was neglecting setting the milestones when closing issues this summer). So it will be in version 5.
+>
+> It won't be backported to 4.4. After a version (minor) is released, it will be only updated with bugfixes and dependency patch updates, not with new features or API changes.
+
+# `track_total_hits`
+上文提到`search_after`在两种情况都满足的情况下才能加速：
+1. when the sort order is `_shard_doc`;
+2. and total hits are not tracked. 
+
+[`track_total_hits`](https://www.elastic.co/guide/en/elasticsearch/reference/master/search-your-data.html#track-total-hits)是简单而直白的概念：设为true，就会统计所有符合条件的doc的数量。它还能接收一个数值，默认是10000，doc数量数到10000就不数了。
+
+但是这听起来似乎不太科学，数到10000就不数了什么意思？难道elasticsearch不遍历完所有的文档就给出query的结果了吗？显然不是。如果这样的话，top N就不是真正的top N了，这属于功能直接错了，再怎么节省性能也不可能以给出错误结果为代价。
+
+既然如此，`track_total_hits`不设为true究竟是如何提升性能的？
+
+事实上，不设置`track_total_hits`为true，只能说有可能提升性能，但也未必。根据[这个答案](https://stackoverflow.com/a/66450951/7676237)的提示，至少有两种情况是能提升性能的：
+1. filter;
+2. sorted index
+
+## filter
+filter查询不计算score，**所有doc的分值都为0**，所以也就没必要排序了。如果按照默认查询方式的话，会返回10条文档。既然没必要排序，那么理论上随便返回10条就够了。
+
+> 以下查询用的elasticsearch性能较差，所以查询时间相对都比较久。
+
+如果使用默认查询：
+```
+GET witake_media/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "match": {
+            "description.text": "hello"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+返回10条文档花了7s，`total`的值显示一共有超过10000条符合条件的文档：
+```
+{
+  "took" : 7093,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 3,
+    "successful" : 3,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 10000,
+      "relation" : "gte"
+    },
+    "max_score" : 0.0,
+```
+**也就是说这个query至少查到了10000条返回条件的文档，最终才返回10条**。慢是应该的。
+
+如果设置`"track_total_hits": 100`，4.6s就返回了：
+```
+{
+  "took" : 4640,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 3,
+    "successful" : 3,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 100,
+      "relation" : "gte"
+    },
+    "max_score" : 0.0,
+```
+这次找到100条就停止搜索了，所以快了些。
+
+> 为了防止filter cache，这次搜索换了个关键词。虽然关键词不一样对结果也有影响，但选的都是简单基本常用词，所以影响没那么大。上次用的是hello，这次是good，下面用的是world。
+
+最后一次设置了`"track_total_hits": false`，2.5s就返回了：
+```
+  "took" : 2509,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 3,
+    "successful" : 3,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "max_score" : 0.0,
+```
+**这次返回的hits里没有total值，说明找到10条就返回了，所以究竟有多少符合条件的doc，完全没有概念。**
+
+**所以对于纯filter query，`track_total_hits`的确能加速不少。**
+
+## index sorting
+[index sorting](https://www.elastic.co/guide/en/elasticsearch/reference/master/index-modules-index-sorting.html)是 **在存储doc的时候，就按照某个字段给本shard的所有doc排个序**。
+
+> Innodb：老弟，你抄我？
+
+**因此，如果查询的sort也用了这个field，直接就可以返回了，不需要遍历整个shard的doc就能找出top N**。
+
+此时，**设置`track_total_hits`为false就能达到early termination的效果，能更快返回。但是，false一定要显式设置，因为`track_total_hits`的默认值虽然不是true，但也不是false**，而是数值10000。
+
+**所以对于index sorting，`track_total_hits`也能加速不少。**
+
+因此`search_after`说了，按照`_shard_doc`排序能加速排序，但千万别track total hits，否则还是要遍历shard里所有的doc。
+
+这么说来，**elasticsearch的shard应该可以理解为默认情况下是按照`_shard_doc`排序的index**（只不过Lucene id不在elasticsearch层面暴露）。我觉得完全可以这样认为，既然它就是lucene的id，只要不断自增就行了。
+
+**同理，像aggregation这种query，设不设置`track_total_hits`完全是没卵用的，不管值为啥，都要找完所有的doc才能给出精确值。**
 
 # 感想
 虽然这次遍历翻车了，但涨了这么多教训，翻得也不亏。
