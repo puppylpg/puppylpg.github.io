@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Testcontainers - elasticsearch"
+title: "Testcontainers - Elasticsearch"
 date: 2022-11-08 00:43:46 +0800
 categories: docker testcontainers elasticsearch
 tags: docker testcontainers elasticsearch
@@ -151,5 +151,7 @@ GET http://localhost:3024/<index>/_search
 # 致谢
 感谢[testcontainers](https://www.testcontainers.org/)：https://github.com/testcontainers/testcontainers-java，让代码测试又轻松了很多。
 
-正好最近gitlab-ci全都使用docker runner了，直接在docker runner里起个dind service，直接就可以跑testcontainer的测试了，衔接地非常丝滑！
+[正好最近gitlab-ci全都使用docker runner了，直接在docker runner里起个dind service]({% post_url 2022-10-09-docker-dind %})，就可以跑testcontainer的测试了，衔接地非常丝滑！
+
+
 
