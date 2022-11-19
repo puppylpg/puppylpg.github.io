@@ -117,27 +117,55 @@ public class ElasticsearchClientIntegrationTest {
     private ElasticsearchClient elasticsearchClient;
 ```
 
-# testcontainer的一些其它用法
-## debug卡住docker，直接请求测试
-可以直接获取本地映射的端口后，往docker发送一些请求，以诊断错误：
+# testcontainer jupiter
 ```
-GET http://localhost:3024/<index>/_search
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>1.17.6</version>
+    <scope>test</scope>
+</dependency>
 ```
-使用postman发就可以，记得加上Authorization basic auth `elastic:pikachu`
+testcontainers的`junit-jupiter`包提供了对jupiter测试框架的扩展`TestcontainersExtension`，通过它可以解析`@Container`注解。
 
-还可以看看mapping/settings/ananlyzer等。
+> **这个包的artifact id和junit-jupiter一样，只有group id不一样（`org.testcontainers:junit-jupiter` vs. `org.junit.jupiter:junit-jupiter`）**，所以不要看错了。
 
-也可以打开tracer debug，查看spring data elasticsearch自动生成的http请求。
+`@ExtendWith(TestcontainersExtension.class)`已经放在了`@Testcontainers`注解中，所以直接使用`@Testcontainers`即可：
+```
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@ExtendWith(TestcontainersExtension.class)
+@Inherited
+public @interface Testcontainers {
+    /**
+     * Whether tests should be disabled (rather than failing) when Docker is not available.
+     */
+    boolean disabledWithoutDocker() default false;
+}
+```
 
-# testcontainer接入jupiter的注解
+> 还可以设置没有docker的时候跳过测试而不是测试失败：`@Testcontainers(disabledWithoutDocker = true)`。
+
 - `org.testcontainers.junit.jupiter.Container`：表明这是一个container，和`@Testcontainers`配合使用，被标注的container将会被testcontainer extension管理；
-- `org.testcontainers.junit.jupiter.Testcontainers`：@Testcontainers is a JUnit Jupiter extension to activate automatic startup and stop of containers used in a test case。static变量container的start/stop会放在`@BeforeAll/@AfterAll`里，由所有test方法共享；非static变量container的start/stop会放在`@BeforeEach/@AfterEach`里；
+- `org.testcontainers.junit.jupiter.Testcontainers`：@Testcontainers is a JUnit Jupiter extension to activate automatic startup and stop of containers used in a test case。**static变量container的start/stop会放在`@BeforeAll/@AfterAll`里，由所有test方法共享；非static变量container的start/stop会放在`@BeforeEach/@AfterEach`里**；
 
-> 所以static的container需要考虑是否要在`@BeforeEach/@AfterEach`里create/delete索引，这个代价至少比在`@BeforeEach/@AfterEach` start/stop整个容器效率要高。
-
-在`@Testcontainers`注解上有`@ExtendWith(TestcontainersExtension.class)`，处理`@Container`的逻辑就是在类`TestcontainersExtension`里实现的。
+> 在`@Testcontainers`注解上有`@ExtendWith(TestcontainersExtension.class)`，处理`@Container`的逻辑就是在类`TestcontainersExtension`里实现的。
 
 用这两个注解也就相当于可以小小懒一下了。
+
+## 全局唯一container
+不管是[手动start/stop container](https://www.testcontainers.org/test_framework_integration/manual_lifecycle_control/)，还是使用拓展的jupiter注解管理container（使用static变量），最多只能做到单个test class共用一个container。但是如果test class多了，每个class都stop/start一次容器，整个测试流程也会很慢，毕竟Elasticsearch container在我i7 cpu的开发机上启动一次也需要10-20s。
+
+其实多个test class之前共用一个Elasticsearch container并没有什么问题，毕竟一般都是串行测试。testcontainers提供了[全局唯一singleton container的写法](https://www.testcontainers.org/test_framework_integration/manual_lifecycle_control/#singleton-containers)，不过这个就只能纯手工管理start/stop了。stop并不需要太操心：At the end of the test suite the Ryuk container that is started by Testcontainers core will take care of stopping the singleton container.
+
+- https://stackoverflow.com/a/62443261/7676237
+
+## 会同时引入junit4 junit5
+`org.testcontainers:junit-jupiter`显然引入了`org.junit.jupiter:junit-jupiter`。它也依赖`org.testcontainers:testcontainers`，但是后者把junit4作为compile依赖，所以`org.testcontainers:junit-jupiter`相当于既引入了junit4又引入了junit5……
+
+[2018年的issue就提出了在2.0版本删掉junit4 compile依赖](https://github.com/testcontainers/testcontainers-java/issues/970)，四年过去了，目前testcontainers发的依然是1.x版本:D不过今年九月已经有关于[把junit4从core里移到单独module的pr](https://github.com/testcontainers/testcontainers-java/pull/5826)了，看来还是指日可待的。然后转头一看，[2.0 milestone](https://github.com/testcontainers/testcontainers-java/milestone/20)至今只完成了27%，而且no due date……
+
+- https://www.testcontainers.org/test_framework_integration/junit_5/
 
 # testcontainers-java
 在[testcontainers-java](https://github.com/testcontainers/testcontainers-java)中也有一些测试用例，可以看到这些testcontainer的用法：
@@ -147,6 +175,19 @@ GET http://localhost:3024/<index>/_search
 - https://github.com/testcontainers/testcontainers-java/tree/main/examples/spring-boot
 
 > 以后工程的集成测试真是太舒服了！
+
+# testcontainer debug
+除了传统断点调试，还可以debug卡住docker，直接给Elasticsearch container发测试http请求，查看mapping之类的。
+
+直接获取本地映射的端口后，往docker发送一些请求，以诊断错误：
+```
+GET http://localhost:3024/<index>/_search
+```
+使用postman发就可以，记得加上Authorization basic auth `elastic:pikachu`
+
+还可以看看mapping/settings/ananlyzer等。
+
+也可以打开tracer debug，查看spring data elasticsearch自动生成的http请求。
 
 # 致谢
 感谢[testcontainers](https://www.testcontainers.org/)：https://github.com/testcontainers/testcontainers-java，让代码测试又轻松了很多。
