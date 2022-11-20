@@ -240,8 +240,97 @@ type hint就别写了：`@Document(writeTypeHint = WriteTypeHint.FALSE)`
 1. 自己手动创建query的时候，一定不要漏了routing。参考后面的手写update query；
 2. **使用repository已有的一些和id相关的方法时**：比如spring data common里的`CrudRepository#findById`，该方法只能提供id不能提供routing参数，所以在routing和id不一致的索引里，不能用这个方法；
 
-### `_id`
-mapping最主要的就是设置`_id`。碰到下面这种field有个`id`字段，且和`_id`不同的情况，设置起来就很复杂：
+## `_id`
+mapping最主要的就是设置`_id`。但因为 **spring data elasticsearch会默认写入和标注`@Id`的字段同名的field到`_source`**，所以还挺麻烦的。
+
+> 5.x版本应该就可配置不写入同名field到`_source`了。
+
+### 自动写入`_source`的`id` field
+首先，创建一个`id` field，标记上`@Id`，**spring data elasticsearch会默认往`_source`里写一个`id` field，如果mapping是dynamic，就会创建一个`id` field），值同`_id`**：
+- https://stackoverflow.com/questions/37277017/spring-data-elasticsearch-id-vs-id
+
+**如果不设置这个id的值，直接把对象存入es，spring data
+ elasticsearch往`_source`里写的`id` field值就是null。又因为es会自动给没有`_id`值的文档生成个`_id`值，所以存入后`_id`有值，`id`为null**。在get的时候，**getId方法返回的是`_id`的值**，所以返回有值，而不是null：
+- https://stackoverflow.com/a/37277492/7676237
+
+如果原本的mapping没有`id` field，又是strict mapping，那就凉了，写不进es……
+
+### 如果不想自动给`_source`写入`id` field
+#### < 4.4.3
+**为了不让spring data elasticsearch自动往`_source`里写入一个`id` field，可以给`@Id`标注的属性加上`@ReadOnlyProperty`注解**。spring data会在转换mapping的时候，认为标注该注解的字段`isWriteable() = false`：
+- https://stackoverflow.com/questions/62765711/spring-data-elasticsearch-4-x-using-id-forces-id-field-in-source
+
+> 而`@Transient`在spring data里是被忽略的，所以加了也没用。
+
+但是从spring data elasticsearch 4.4.3起，这又会带来一个新问题：[反序列化数据的时候，标注`@ReadOnlyProperty`的这个字段值会为null](https://github.com/spring-projects/spring-data-elasticsearch/issues/2230)！为null的原因也很简单：`@ReadOnlyProperty`本来就不该被反序列化出来值的。之前能反序列化出来值仅仅是因为spring data elasticsearch在这一点上处理错了，没有和spring data保持一致：
+>  the wrong implementation in Spring Data Elasticsearch which wrote a value back into a property although this is marked as being read only
+
+所以`@ReadOnlyProperty`实际上就不应该在反序列化的时候有值。从4.4.3开始，反序列化后就为null了。
+
+#### 4.4.3+
+4.4.3起，为了让`@ReadOnlyProperty`反序列化后有值，可以寻求一个workaround：自定义一个`AfterConvertCallback`，在反序列化之后，通过回调手动给`@ReadOnlyProperty`标注的field设置上值：
+```
+/**
+ * https://github.com/spring-projects/spring-data-elasticsearch/issues/2230#issuecomment-1319230419
+ * <p>
+ * spring-data-elasticsearch 4.4.3起，需要使用单独的convert设置{@link WitakeMediaEs#setRealId(String)}，
+ * 直到这个issue解决：https://github.com/spring-projects/spring-data-elasticsearch/issues/2364
+ * <p>
+ * 但是新的解决方案应该是5.x版本了，所以用4.4.x+版本的话还是少不了这个callback
+ *
+ * @author liuhaibo on 2022/11/18
+ */
+public class WitakeMediaRealIdAfterConvertCallback implements AfterConvertCallback<WitakeMediaEs> {
+
+    @Override
+    public WitakeMediaEs onAfterConvert(WitakeMediaEs entity, Document document, IndexCoordinates indexCoordinates) {
+        entity.setRealId(document.getId());
+        return entity;
+    }
+}
+```
+`AfterConvertCallback`是spring data里的`EntityCallback`接口的子接口，只要把它声明为bean，就可以自动注册生效了。
+
+- https://github.com/spring-projects/spring-data-elasticsearch/issues/2230#issuecomment-1319230419
+
+#### 5.x?
+**但本质上，spring data elasticsearch就不应该往`_source`里写入这个标注了`@Id`的field**。只要不写入这个多余的字段，就不需要使用上面的`@ReadOnlyProperty`，也就没有这些问题了。
+
+所以spring data elasticsearch考虑在下个版本做这件事了，应该是5.x版本了，4.4.x不会有了：
+- https://github.com/spring-projects/spring-data-elasticsearch/issues/2364
+
+### 从代码看id的识别
+**spring data elasticsearch认为的`_id`**，看起来很抽象，看代码就会觉得具体很多——
+
+id的判定条件：
+```
+		this.isId = super.isIdProperty()
+				|| (SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName());
+```
+1. 要么满足`super.isIdProperty()`：`Lazy.of(() -> isAnnotationPresent(Id.class) || IDENTITY_TYPE != null && isAnnotationPresent(IDENTITY_TYPE))`，所以它的判断标准是：
+    1. **标注了`org.springframework.data.annotation.Id`注解**；
+    1. 不重要：~~如果classpath里有`org.jmolecules.ddd.annotation.Identity`注解，那么标注这个也算~~。估计是历史原因导致的兼容。
+2. 要么满足`SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName()`：
+    1. **没有通过`@Field`显式设置field name**（这里的field name指的是：the name to be used to store the property in the document，不是类里的属性名，而是对应的es的field名称）；
+    2. **且field name是`SUPPORTED_ID_PROPERTY_NAMES = Arrays.asList("id", "document")`中的一个**；
+
+第一种情况比较直白。
+
+对于第二种情况，因为规定了“没有显式设置field name”，所以这里必须 **没有使用`@Field`注解**。此时默认的java属性名就得是id或document。如果使用`@Field(value = "id")`，**它显式设置了field name，所以不算`_id`**。也就是说，**第二种情况只会判定Java对象里这样的属性是`_id`：`private String id`或者`private String document`。**
+
+### `id` ≠ `_id`
+如果对象里已经存在一个`id` field，且它的值和`_id`值还不一样，这是最麻烦的情况。
+
+由于spring data elasticsearch认为的`_id`是：
+1. **标注`@Id`**；
+2. **Java属性名为`id`或`document`，且不带`@Field`注解**；
+
+所以，**首先，`@Id`标注的字段一定是`_id`**，不管它叫什么名字：
+- https://juejin.cn/post/6844904068037476365
+
+其次，为了不让已存在的`id` field满足上述第二条情况（否则也会被spring data elasticsearch判定为`id`），同时也为了不产生误解，**不要再定义一个名为`id`的字段（这可以认为是spring data elasticsearch的保留字）**。要定义一个其他的名字，然后使用注解给它改名`@Field(value = "id")`：
+- `_id`和`id`同时存在的情况：https://stackoverflow.com/questions/62029613/set-different-id-and-id-fields-with-spring-data-elasticsearch
+
 ```
     @Id
     @ReadOnlyProperty
@@ -250,53 +339,9 @@ mapping最主要的就是设置`_id`。碰到下面这种field有个`id`字段�
     @Field(value = "id", type = FieldType.Keyword)
     private String mediaId;
 ```
-
-首先，创建个`id` field，标记上`@Id`，**会默认生成一个`id` field，值同`_id`**：
-- https://stackoverflow.com/questions/37277017/spring-data-elasticsearch-id-vs-id
-
-如果不设置这个id，直接存入es，es会自动生成个`_id`，但id field就是null了。但是在get的时候，**getId方法返回的是`_id`的值**，所以返回的是有值的：
-- https://stackoverflow.com/a/37277492/7676237
-
-如果原本的mapping没有`id` field，又是strict，那就凉了，写不进es……
-
-**为了不让它自动生成一个`id` field，加上`@ReadOnlyProperty`注解**。spring data会在转换mapping的时候，认为标注该注解的字段isWriteable() = false：
-- https://stackoverflow.com/questions/62765711/spring-data-elasticsearch-4-x-using-id-forces-id-field-in-source
-
-而`@Transient`在spring data里是被忽略的。
-
-如果对象里已经存在一个`id` field，且它的值和`_id`值还不一样，这是最麻烦的情况。
-
-**spring data elasticsearch认为的`_id`**：
-1. **标注`@Id`**；
-2. **属性名为`id`或`document`，且不带`@Field`注解**；
-
-> 原因见下一节。
-
-所以，**首先，`@Id`标注的字段一定是`_id`**，不管它叫什么名字：
-- https://juejin.cn/post/6844904068037476365
-
-其次，为了不让已存在的`id` field满足上述第二条情况（否则也会被spring data elasticsearch判定为`id`），**不要再定义一个名为`id`的字段，这可以认为是spring data elasticsearch的保留字**。要定义一个其他的名字，然后使用注解给它改名`@Field(value = "id")`：
-- `_id`和`id`同时存在的情况：https://stackoverflow.com/questions/62029613/set-different-id-and-id-fields-with-spring-data-elasticsearch
+如果小于4.4.3，上面这样写就行了。4.4.3之后要设置上述`AfterConvertCallback`，否则realId反序列化后为null。5.x之后，也许通过配置`@Document(writeIdToSource = false)`可以免去给`_source`写入realId field，也不用给它标注`@ReadOnlyProperty`了。此时也没必要加`AfterConvertCallback`了。
 
 所以如果存在`id` field，值又和`_id`不同，设置起来还是挺麻烦的。
-
-### 从代码看id
-**spring data elasticsearch认为的`_id`**，看起来很抽象，看代码就觉得具体很多——
-
-id的判定条件：
-```
-		this.isId = super.isIdProperty()
-				|| (SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName());
-```
-1. 要么满足`super.isIdProperty`：
-    1. `Lazy.of(() -> isAnnotationPresent(Id.class) || IDENTITY_TYPE != null && isAnnotationPresent(IDENTITY_TYPE))`，所以它的判断标准是：
-    2. **标注了`org.springframework.data.annotation.Id`注解**；
-    3. 不重要：~~如果classpath里有`org.jmolecules.ddd.annotation.Identity`注解，那么标注这个也算~~。估计是历史原因导致的兼容。
-2. 要么满足`SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName()`：
-    1. **没有显式设置field name**；
-    2. **且field name是`SUPPORTED_ID_PROPERTY_NAMES = Arrays.asList("id", "document")`中的一个**；
-    2. **这里的field name指的是：the name to be used to store the property in the document，不是类里的属性名**，而是对应的es的field名称；
-    3. 因为规定了“没有显式设置field name”，所以这里必须 **没有使用`@Field`注解**。如果使用`@Field(value = "id")`，**它显式设置了，所以不算`_id`**；
 
 ## property
 ### 名字：`@Field`/`@MultiField`
