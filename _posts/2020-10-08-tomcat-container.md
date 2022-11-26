@@ -31,10 +31,10 @@ servlet在哪儿？被tomcat用Container接口管理起来了。
 Container是Tomcat的servlet容器必须实现的接口。
 
 Container在Tomcat里细分为了四种角色，引入四个Container的子接口：
-- Engine：整个Cataline servlet引擎；
-- Host：包含多个Context容器的虚拟主机；
-- Context：一个Web应用，包含多个Wrapper；
-- Wrapper：一个独立的servlet；
+- Engine（yd事业部）：整个Cataline servlet引擎；
+- Host（广告组）：包含多个Context容器的虚拟主机；
+- Context（研发组）：一个Web应用，包含多个Wrapper；
+- Wrapper（puppylpg）：一个独立的servlet；
 
 他们都是容器Container，层层包含，上级Container可以有子Container。**Wrapper代表最基础的servlet，所以不能再含有子容器；Engine作为顶级Container，不能再有父容器**。Container的addChild/removeChild/findChild方法对Wrapper不适用，直接抛出异常。
 - **addChild：很重要，container之间相互关联的方式**；
@@ -214,7 +214,7 @@ Container在Tomcat里细分为了四种角色，引入四个Container的子接�
 ```
 可以看到，除了顶层的server和service，里面就是connector和engine（最高层级的container）。engine下面还能容纳比较低级的host container，但是不见更低级的context和wrapper container。
 
-我们先不考虑service，把视线专注于Container，也就是Engine和Host——
+我们先不考虑service，把视线专注于内层的Connector和Container（也就是Engine和Host）——
 
 ## connector
 Connector上一节刚介绍过。Tomcat可以配置多种connector，默认的自然是监听8080端口的http请求。但是看注释掉的配置，它还能监听其他端口，使用其他协议：
@@ -273,6 +273,8 @@ engine是Tomcat顶级的container：
 ```
 **engine收到的socket必须交给一个host处理，找不到就交给defaultHost，也就是这里配置的唯一host，一个名为localhost的host**。
 
+> 类比一下：engine就是yd事业部，是公司的一个增长引擎:D engine收到的业务请求得交给某个组来处理。
+
 **请求怎么和host匹配的？和nginx类似，使用ip或者http协议里的Host header**：待 Service 被选定之后，Tomcat 将在 Service 中寻找与 HTTP 请求头中指定的域名或 IP 地址匹配的 Host 来处理该请求。如果没有匹配成功，则采用 Engine 中配置的默认虚拟主机 defaultHost 来处理该请求。
 
 host还有其他属性：
@@ -288,6 +290,8 @@ host还有其他属性：
 
 ## context - web应用/war包
 **context就是一个war包，或者war展开后的文件夹**。
+
+> 类比：context就是研发组。这个才是我这个servlet每天真正工作时一直在打交道的组织。对我来说公司其实就是这些人。所以它相对独立。war包就是这个context，就是这么独立，所以也挺相似。
 
 但是context这个container的配置在哪儿？`conf/server.xml`里并没有配置。因为war包是我们自己部署的，所以context container也要由我们自己来设置。
 
@@ -346,13 +350,15 @@ Windows没有在`$CATALINA_BASE/conf/[enginename]/[hostname]/<app-name>.xml`里�
 **这其实跟 Tomcat 诞生时的基础架构相匹配的，当时服务器是以小型机或 PC 服务器为主，缺乏现在容器这种切分资源的虚拟技术，进程是系统资源分配的最小单元**。
 
 > 为了更加充分地利用每台计算机上的资源，我们通常要在同一台计算机上部署多款应用，但是在一台计算机上运行多个 Tomcat 实例所带来的复杂度是非常高的，不如在同一个 Tomcat 实例中部署多款 Web 应用，这样在配置运维等管理上面更加便利。
-
+>
 > 在这种架构下，Tomcat 处理 HTTP 请求就需要经过上述复杂的过程，这也再次印证老兵哥我坚信的一个观点：不存在绝对好或坏的架构，匹配当时业务场景的架构就是好架构！随着互联网业务的发展和云计算的兴起，为了更好地管理大规模应用集群，我们需要借助容器等虚拟化技术将大颗粒资源分割成更小的、标准的单元，每个容器中只安装一个 Web 容器，每个 Web 容器中只部署一个应用，在标装化下我们就可以采用云计算的自动化操作。
-
+>
 > 按照这个趋势发展下去，Web 容器的架构用不着这么复杂了，其价值也会不断弱化。以前，Tomcat 都是需要单独安装的，应用是后续再部署到 Tomcat 当中的。但目前在 Spring Boot 的开发模式下，Tomcat 是以 Starter 方式作为内嵌 Web 容器，它已经不再需要独立安装部署了。在越来越标装化的趋势下，Tomcat 基本上采用默认配置，用户基本上不用太关注它了。剖析了解它的原因，就是老兵哥我在开题中所说的：知其然，知其所以然。
 
 强烈推荐：
 - https://segmentfault.com/a/1190000021168133
+
+所以按照现在springboot使用tomcat的方式，它就变成了：广告研发事业部-广告研发组-研发组-我。**现在如果springboot不设置`server.servlet.context-path`，url直接就到servlet地址了**。
 
 ## tomcat内请求处理流程
 一个http请求的：
@@ -429,7 +435,7 @@ apache-tomcat-9.0.58 $ tree -L 1
 ```
 其中examples位于webapps下。
 
-但是到了Debian上，tomcat9的结构立刻嚣张了起来……Debian上，tomcat默认就是多tomcat实例的形态。所以感觉Tomcat部署的支离破碎，令新手及其迷惑：
+但是到了Debian上，tomcat9的结构立刻嚣张了起来……Debian上，tomcat默认就是多tomcat实例的形态。所以感觉Tomcat部署的支离破碎，令新手极其迷惑：
 - `CATALINA_HOME`: `/usr/share/tomcat9`（果然`CATALINA_HOME`是共享的，位于/usr/share下……可真严谨……）
 - `CATALINA_BASE`: `/var/lib/tomcat9`
 
@@ -449,7 +455,7 @@ apache-tomcat-9.0.58 $ tree -L 1
 ```
 > 它的`CATALINA_BASE/conf/Catalina/localhost/examples.xml`指明了examples这个web app的位置：`docBase="/usr/share/tomcat9-examples/examples"`。既不在CATALINA_HOME下，也不在CATALINA_BASE下，而是另一个独立的地方。所以Debian的tomcat就非常的支离破碎……分到了好几个不同的地方……
 
-tomcat的官网有一个个重要的文件：https://tomcat.apache.org/tomcat-9.0-doc/RUNNING.txt
+tomcat的官网有一个重要的文件：https://tomcat.apache.org/tomcat-9.0-doc/RUNNING.txt
 
 它的“Advanced Configuration - Multiple Tomcat Instances”一节指明了这些概念：
 - CATALINA_HOME：tomcat的安装目录，主要是tomcat的bin、lib。**即使部署多个tomcat实例，这些文件也是可以共用的，节约了空间**；
@@ -458,7 +464,7 @@ tomcat的官网有一个个重要的文件：https://tomcat.apache.org/tomcat-9.
 当然CATALINA_BASE下也会有lib，**且该lib优先级高于CATALINA_HOME下的lib。不过官方建议还是把lib放到war下专属的WEB-INF/lib，它有最高优先级**。
 
 > servlet-api.jar就在CATALINA_HOME/lib下。所以打war包的时候就不用打到WEB-INF/lib里了。
-
+>
 > 学tomcat，还是看囫囵版的吧。Debian默认装的这个太草了！
 
 # Container的管道：container的任务执行顺序

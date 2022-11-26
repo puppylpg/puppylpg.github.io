@@ -16,7 +16,7 @@ servlet在“前”端基于jdk NIO实现了servlet nio，解绑了long connecti
 - 可能是client发数据发的比较慢；
 - 可能是keep-alive导致client断开后server不自知，还在等connection上的新请求，直到timeout；
 
-导致一个线程必须和一个connection绑定。NIO则使用一个看门人：selector，使用一个selector替n个thread监视n个connection，从而**以一个selector的代价解放了n个thread**。将thread和connection解耦，**模型从thread per connection变成了thread per thread**。
+以上种种导致一个线程必须和一个connection绑定。NIO则使用一个看门人：selector，使用一个selector替n个thread监视n个connection，从而**以一个selector的代价解放了n个thread**。将thread和connection解耦，**模型从thread per connection变成了thread per thread**。
 
 在servlet 3.1标准里，添加了使用NIO读写servlet request/response的API。
 
@@ -140,19 +140,21 @@ server push本质上用的还是http，所以本质上还是client先请求，se
 异步就可以在server push的场景下，解放一堆http thread，交给一个worker thread来做：
 1. http thread通过异步，**将活儿交给一个工作线程。其实是将request和response，或者说servlet context放入queue，不管了。由一个工作线程来处理queue**；
 2. 工作线程等待某个事件发生（比如产生了新的文字直播消息）；
-3. 当有说新事件发生了（比如新的文字直播消息），就取出queue里的每一个servlet context，往每一个response里写入消息。如果客户端特别多，servlet context也会特别多，可以考虑用多个工作线程来并发处理queue。如果处理每一个servlet context的时间比较长，只有一个工作线程顺次处理所有的context也会比较慢，也要用多个工作线程并发处理，或者再搞个线程池并发处理。
+3. 当有新事件发生了（比如新的文字直播消息），就取出queue里的每一个servlet context，往每一个response里写入消息。如果客户端特别多，servlet context也会特别多，可以考虑用多个工作线程来并发处理queue。如果处理每一个servlet context的时间比较长，只有一个工作线程顺次处理所有的context也会比较慢，也要用多个工作线程并发处理，或者再搞个线程池并发处理。
 
 这样一来，相当于一堆http thread把自己监听消息写回socket的活，都交给了一个工作线程去做。解放一堆http thread，忙一个工作线程就够了。
 
 所以在客户端连上服务器之后，如果没有消息需要通知，既不耗http线程，也不耗工作线程池线程，只耗一个等待从BlockingQueue里取消息的工作线程。
 
-> 一个人的活交给另一个人没意义，并没有多解放一个人；一堆人的活交给一个人，就有意义了，解放了n-1个人。
+> **一个人的活交给另一个人没意义，并没有多解放一个人；一堆人的活交给一个人，就有意义了，解放了n-1个人。**
 
-所以，server push的场景，讨论servlet的异步才是有意义的。
+所以在server push的场景讨论servlet的异步才是有意义的。
 
-一开始oracle的那个例子显然就是一个线程的活交给另一个线程，并不能体现异步处理的意义。
+**一开始oracle的那个例子显然就是一个线程的活交给另一个线程，并不能体现异步处理的意义，这种例子语法确实正确，但实际上非常误导人！**
 
-这个阻塞，它可能是活干的时间太久（计算时间长、sleep等），用异步没意义，也可能是活暂时没有，需要等，这个时候用异步推送就很合适，让一个工作线程等就够了。
+> **就好像NIO的例子，为了演示它的语法，官方用while去读消息……这只会让人觉得NIO就是个傻逼，还不如BIO！再比如listener，总是举一些打印信息的例子，总让人觉得listener没啥卵用。但实际上，listener是一种回调，起到了“插件”的作用，插件能提供非常丰富的拓展功能！**
+
+**这个阻塞，它可能是活干的时间太久（计算时间长、sleep等），用异步没意义，也可能是活暂时没有，需要等，这个时候用异步推送就很合适，让一个工作线程等就够了。**
 
 ```
 @WebServlet(name="myServlet", urlPatterns={"/auctionservice"}, asyncSupported=true)
@@ -238,7 +240,7 @@ oracle的例子是直接使用AsyncContext的start方法，start方法会自动�
 
 周末代码实现一下，感觉可以直接搞个controller，使用httprequest获取AsyncContext即可。就像这里的spring boot例子一样：https://zhuanlan.zhihu.com/p/126495745
 
-那么问题来了，spring的controller到底怎么和servlet联系起来的……
+~~那么问题来了，spring的controller到底怎么和servlet联系起来的……~~ (2022年11月26日15:20:17)
 
 # 总结
 - bio：长连接，一个连接绑定一个thread；
