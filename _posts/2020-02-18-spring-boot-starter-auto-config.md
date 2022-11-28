@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "spring boot starter 自动配置原理"
+title: "SpringBoot - 自动配置"
 date: 2020-02-18 16:25:52 +0800
-categories: Java spring-boot
-tags: Java spring-boot
+categories: Java springboot
+tags: Java springboot
 ---
 
 spring boot的功能主要有四方面：
@@ -42,7 +42,9 @@ springboot干啥了，怎么就自动配置了？
 
 这些starter（springboot & 第三方starter）都干了啥？
 
-这里主要以字节写的pikachu-spring-boot-starter为例。假设世界上有一个接口叫pokemon：
+以自己写的pikachu-spring-boot-starter为例——
+
+假设世界上有一个接口叫pokemon：
 ```
 public interface Pokemon {
     String show();
@@ -53,7 +55,7 @@ pikachu就是一个pokemon，所以是该接口实现者之一。它就是一个
 ## auto config类
 starter里一般有autoconfig包，里面写的有用@Configuration标记的xxxAutoConfiguration配置类。
 
-在类里，使用@Bean去new一些bean，比如这里new一只pikachu。当然这些new不是无条件的，比如必须在没有皮卡丘的情况下才能new出一只pikachu。所以我们用条件注解写为：
+在类里，使用@Bean去new一些bean，比如这里new一只pikachu。当然这些new不是无条件的，最基本的条件之一就是“必须在没有皮卡丘的情况下才能自动new出一只pikachu”。所以我们用条件注解写为：
 ```
 @Configuration
 @ConditionalOnClass(Pikachu.class)
@@ -76,7 +78,7 @@ public class PikachuAutoConfig {
     }
 }
 ```
-在有Pikachu这个类的情况下才考虑配置pikachu（sure，没有pikachu这个类还怎么new。。。），且Pokemon这个bean不存在。即开发者还没有手动new，如果开发者手动new了pikachu或者其他的pokemon实现类，那我们就别瞎掺和了。人家已经有自己中意的bean了，就不要再自动配置了。
+在有Pikachu这个类的情况下才考虑配置pikachu（sure，没有pikachu这个类还怎么new。。。），且Pokemon这个bean不存在，即：开发者还没有手动new。**如果开发者自己手动new了pikachu或者其他的pokemon实现类，那我们就别瞎掺和了**。人家已经有自己中意的bean了，就不要再自动配置了。
 
 > 条件注解有@ConditionalOnClass、@ConditionalOnMissingBean、@ConditionalOnProperty等等注解。
 >
@@ -109,7 +111,7 @@ public class PikachuProperties {
 # spring boot怎么加载这些auto config的类的？
 springboot程序是使用一个主类，标记上`@SpringBootApplication`来启动的。这个注解含有`@ComponentScan`，而后者的定义是：**扫描指定的包。如果没指定要扫描的basePackge，则只会扫描标注这个注解的类所在的包（及其子包）**。
 
-但是我们写的starter作为第三方以来被开发者引入程序，肯定不在上述自动扫描的包下，那pikachu的auto config的类是怎么被实例化的？
+但是我们写的starter作为第三方依赖被开发者引入程序，肯定不在上述自动扫描的包下，那pikachu的auto config的类是怎么被实例化的？
 
 ## spring.factories
 那就再做个约定呗。spring boot会读某个提前约定好的文件，这个文件下指定的类spring boot都加载就完事儿了。
