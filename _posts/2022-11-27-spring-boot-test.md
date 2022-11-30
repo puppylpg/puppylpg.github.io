@@ -22,6 +22,8 @@ spring test提供了`@BootstrapWith`注解，可以让第三方框架是用自�
 
 正如spring test的`@SpringJunitConfig`注解集成了`@ContextConfiguration`一样，springboot test提供了一堆集成了`@BootstrapWith(SpringBootTestContextBootstrapper.class)`的注解`@*Test`，`@SpringBootTest`就是其中最常用的一个。
 
+> 和spring test一样，springboot的context只加载一次，全局缓存。
+
 # springboot test的config class
 spring test使用`@ContextConfiguration(classes=…)`指定config class，或者默认使用标注了`@Configuration`的静态内部类：
 > If you are familiar with the Spring Test Framework, you may be used to using `@ContextConfiguration(classes=…)` in order to specify which Spring @Configuration to load. Alternatively, you might have often used nested `@Configuration` classes within your test.
@@ -54,37 +56,7 @@ springboot test默认是找标注了`@*Test`的本package或 **上级package**�
 2. 再找它关联的config class；
 3. **这些config class就是最终构建`ApplicationContext`时用到的config class**。
 
-这个过程体现在`SpringBootTestContextBootstrapper`里：
-```
-	protected Class<?>[] getOrFindConfigurationClasses(MergedContextConfiguration mergedConfig) {
-		Class<?>[] classes = mergedConfig.getClasses();
-		if (containsNonTestComponent(classes) || mergedConfig.hasLocations()) {
-			return classes;
-		}
-		Class<?> found = new AnnotatedClassFinder(SpringBootConfiguration.class)
-				.findFromClass(mergedConfig.getTestClass());
-		Assert.state(found != null, "Unable to find a @SpringBootConfiguration, you need to use "
-				+ "@ContextConfiguration or @SpringBootTest(classes=...) with your test");
-		logger.info("Found @SpringBootConfiguration " + found.getName() + " for test " + mergedConfig.getTestClass());
-		return merge(found, classes);
-	}
-
-	private boolean containsNonTestComponent(Class<?>[] classes) {
-		for (Class<?> candidate : classes) {
-			if (!MergedAnnotations.from(candidate, SearchStrategy.INHERITED_ANNOTATIONS)
-					.isPresent(TestConfiguration.class)) {
-				return true;
-			}
-		}
-		return false;
-	}
-```
-- 如果指定了config class：**先从指定的config class里扔掉标记了`@TestConfiguration`的class，剩下的就是config class**。
-- **如果没有指定config class**，从当前test class找带`@SpringBootConfiguration`的类，把它作为config class。当然如果它component scan了，scan的config class也算。
-
-> **指定config class是谁指定的？spring test啊！springboot test只是在spring test指定的config class的基础上拓展了一下：如果没有config class（对于spring test来说，那就是没有了），springboot test会自己找带`@SpringBootConfiguration`的类，自己收集config class！（对于springboot test来说，没有我就按自己的方式找！）**
-
-找的方式是：
+这个过程体现在`SpringBootTestContextBootstrapper`里，找的方式是：
 ```
 		Class<?> found = new AnnotatedClassFinder(SpringBootConfiguration.class)
 				.findFromClass(mergedConfig.getTestClass());
@@ -101,8 +73,10 @@ springboot test默认是找标注了`@*Test`的本package或 **上级package**�
 它已经指定了`excludeFilters`：**默认不会去scan这些exclude filter指定的类**。
 
 一共有两个exclude filter：
-- 第二个明显是为了排除掉`@EnableAutoConfiguration`配置的bean。但是因为`@SpingBootApplication`里额外加上了`@EnableAutoConfiguration`了，所以这些被`@ComponentScan`故意遗漏的bean又被`@EnableAutoConfiguration`加回来了；
-- 第一个filter干嘛的？Javadoc提了一下：They are primarily used internally to `support spring-boot-test`。**它是特意为springboot test准备的。为了支持springboot的“部分测试”（slice test）**。
+- 第二个明显是为了排除掉`@EnableAutoConfiguration`配置的bean。但是因为`@SpingBootApplication`里额外加上了`@EnableAutoConfiguration`了，所以这些被`@ComponentScan`故意遗漏的bean又被`@EnableAutoConfiguration`加回来了。**为什么这么做？为了后面要介绍的slice test。springboot更倾向于slice test，所以不一次性配置所有的autoconfig，而选择只配置某一slice的autoconfig（加上哪个autoconfig注解，就只配置那个autoconfig）**；
+- 第一个filter干嘛的？Javadoc提了一下：They are primarily used internally to `support spring-boot-test`。**它是特意为springboot test准备的。为了支持springboot的“部分测试”（slice test）**。它会排除掉springboot test里指定的一些`TypeExcludeFilter`。对于`@SpingBootApplication`，它没有指定任何`TypeExcludeFilter`。
+
+所以，**实际上对于使用`@SpingBootApplication`的src代码来说，没有exclude掉任何bean。效果相当于没加任何东西的正常的`@ComponentScan`**。
 
 # slice test
 springboot test的`@SpringBootTest`是众多`@*Test`里最特殊的一个，会加载整个app里所有的配置。除此之外，springboot test支持 **只加载某一部分config，只测试某一部分代码**。springboot test称之为[slice test](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.autoconfigured-tests)。
@@ -137,7 +111,10 @@ class MyDataElasticsearchTests {
 ```
 它只加载了以下autoconfig的类：
 ```
+// cache相关
 org.springframework.boot.autoconfigure.cache.CacheAutoConfiguration
+
+// elasticsearch相关
 org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration 
 org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration 
 org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration 
@@ -146,13 +123,8 @@ org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAuto
 ```
 所以使用这个注解就 **只做elasticsearch、spring-data-elasticsearch相关的autoconfig**。
 
-### 要加载这些
-这一点是通过它带的`@AutoConfigureDataElasticsearch`注解做到的：
+想知道怎么做到只加载这些autoconfig，不加载其他autoconfig，需要看一下它的注解：
 ```
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-@Inherited
 @BootstrapWith(DataElasticsearchTestContextBootstrapper.class)
 @ExtendWith(SpringExtension.class)
 @OverrideAutoConfiguration(enabled = false)
@@ -162,7 +134,19 @@ org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAuto
 @ImportAutoConfiguration
 public @interface DataElasticsearchTest {
 ```
-这个注解会默认对应`META-INF/spring`下的`org.springframework.boot.test.autoconfigure.data.elasticsearch.AutoConfigureDataElasticsearch.imports`文件，其内容就是：
+
+### 要加载这些
+“要加载哪些autoconfig”，是通过它带的`@AutoConfigureDataElasticsearch`和`@AutoConfigureCache`注解做到的：
+
+以`@AutoConfigureDataElasticsearch`为例：
+```
+@ImportAutoConfiguration
+public @interface AutoConfigureDataElasticsearch {
+```
+它标注了一个注解`@ImportAutoConfiguration`。该注解的javadoc（springboot 2.7.5）：
+> The auto-configuration classes that should be imported. **When empty, the classes are specified using a file in `META-INF/spring` where the file name is the fully-qualified name of the annotated class, suffixed with `'.imports'`**.
+
+标注它的类是`org.springframework.boot.test.autoconfigure.data.elasticsearch.AutoConfigureDataElasticsearch`，所以根据javadoc，**它导入的autoconfig类，就是`META-INF/spring`下的`org.springframework.boot.test.autoconfigure.data.elasticsearch.AutoConfigureDataElasticsearch.imports`文件**，其内容就是：
 ```
 # AutoConfigureDataElasticsearch auto-configuration imports
 org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
@@ -173,10 +157,21 @@ org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchR
 ```
 也就是说，**每个`@AutoConfigure*`注解加载哪些autoconfig类实际上是提前写到`spring-boot-test-autoconfigure`的“配置文件”里的**。
 
-### 不加载其他
-**那么是怎么做到只加载这些autoconfig，不加载其他的bean的呢？**
+> springboot 2.5.5的记录默认导入的autoconfig类的配置文件还没有`.import`后缀。所以这个约定其实也在变动。因此直接用别人的test autoconfig就行了，不用太深究。
 
-`@DataElasticsearchTest`里还有一个注解`@TypeExcludeFilters(DataElasticsearchTypeExcludeFilter.class)`，它配置了一个`DataElasticsearchTypeExcludeFilter`。这是一个`TypeExcludeFilters`，它会读取`@DataElasticsearchTest`配置的`include`和`exclude`属性：
+同理，`@AutoConfigureCache`也导入了一个autoconfig类`org.springframework.boot.autoconfigure.cache.CacheAutoConfiguration`，两个autoconfig合在一起，就是上面记录的所有导入的autoconfig类。
+
+### 不加载其他
+**那么是怎么做到不加载其他的autoconfig呢？**
+
+还得看`@SpingBootApplication`带的这个`@ComponentScan`：
+```
+@ComponentScan(excludeFilters = { @Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+		@Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class) })
+```
+**它不扫描指定的`TypeExcludeFilter`，所以`@DataElasticsearchTest`就指定了一个`TypeExcludeFilter`：`@TypeExcludeFilters(DataElasticsearchTypeExcludeFilter.class)`**。
+
+`DataElasticsearchTypeExcludeFilter`是一个`TypeExcludeFilters`，**它会读取`@DataElasticsearchTest`配置的`include`和`exclude`属性**（这是一个能让用户自定义include/exclude的filter，还挺智能）：
 - **`@DataElasticsearchTest`里配置的`includeFilters`，就是要留下来的配置类**；
 - **`@DataElasticsearchTest`里配置的`excludeFilters`，就是要排除的配置类**；
 - exclude优先级高于include；
@@ -187,26 +182,28 @@ org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchR
 
 **默认都为空，所以`@DataElasticsearchTest`没有包含任何配置，即所有的config class都被排除了。**
 
-因此，**最终只有`@AutoConfigure*`里的config class生效了**。对于`@DataElasticsearchTest`，最终起作用的就是上面一大堆elasticsearch的自动配置类。
+因此，**最终只有`@AutoConfigureCache`和`@AutoConfigureDataElasticsearch`里引入的autoconfig class生效了**。对于`@DataElasticsearchTest`，最终起作用的就是上面一大堆elasticsearch的自动配置类。
 
 这样的话，就可以只测elasticsearch相关的东西了！
 
 > 难为springboot了。
 
-**如果想让`@Configuration`标记的config class都被自动扫描到，可以这么设置**：`@DataElasticsearchTest(includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))`
+**如果想让`@Configuration`标记的config class都被自动扫描到，把它include进来就行了**：`@DataElasticsearchTest(includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))`。
 
-所以`SpringBootApplication`的`@ComponentScan`是这样的：
+## 特殊的`@SpringBootTest`
 ```
-@ComponentScan(excludeFilters = { @Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
-		@Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class) })
+@BootstrapWith(SpringBootTestContextBootstrapper.class)
+@ExtendWith(SpringExtension.class)
+public @interface SpringBootTest {
 ```
-- **当`@SpringBootTest`检测到这个注解的时候，因为没有配置任何`TypeExcludeFilter`，所以加载的是整个工程的config class，实例化了所有的bean**；
-- **当`@DataElasticsearchTest`检测到这个注解的时候，因为配置了`@TypeExcludeFilters(DataElasticsearchTypeExcludeFilter.class)`，且没有设置include，所以排除掉了所有的bean；又因为配置了`@AutoConfigureDataElasticsearch`，所以最终只加载了elasticsearch相关的bean**。
+虽然都属于`@*Test`，**但是因为`@SpringBootTest`没有配置任何`TypeExcludeFilter`，所以成为了最特殊的那一个（会加载所有autoconfig）**。在`@SpringBootApplication`的`@ComponentScan`扫描的时候：
+- **检测到`@SpringBootTest`，因为没有配置任何`TypeExcludeFilter`，所以加载的是整个工程的autoconfig class，实例化了所有可autoconfig的bean**；
+- **检测到`@DataElasticsearchTest`，因为配置了`@TypeExcludeFilters(DataElasticsearchTypeExcludeFilter.class)`，且没有设置include，所以排除掉了所有的bean；又因为配置了`@AutoConfigureDataElasticsearch`，所以最终只加载了elasticsearch相关的bean**。
 
 > `@DataElasticsearchTest`用的是`@BootstrapWith(DataElasticsearchTestContextBootstrapper.class)`，它是`SpringBootTestContextBootstrapper`（`@SpringBootTest` bootstrapwith）的子类！！！它触发`@AutoConfigureDataElasticsearch`代表的一系列自动配置类。
 
-## 不要给`@SpringBootApplication`标注的main class加其他注解
-标注了`@SpringBootApplication`的main class不要标注其他注解——
+## 不要给`@SpringBootApplication`标注的class加其他注解
+标注了`@SpringBootApplication`的class不要标注其他注解——
 
 ### 不要加用户自己写的`@Component`
 - https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.user-configuration-and-slicing
@@ -224,9 +221,9 @@ public class MyApplication {
 
 }
 ```
-这样就覆盖掉了默认的带filter过滤的`@ComponentScan`，就没办法使用slice test了！而是实例化了这个自定义的`@ComponentScan`扫描的所有bean。
+这个自定义的`@ComponentScan`扫描到的所有bean都一定会被实例化出来。**不仅如此，因为它没有exclude `TypeExcludeFilter`，`@*Test`注解带上的那些`TypeExcludeFilter`都会被无视，相当于所有的autoconfig class都会被启用**。
 
-> The underlying component scan configuration of @SpringBootApplication defines exclude filters that are used to make sure slicing works as expected. If you are using an explicit @ComponentScan directive on your @SpringBootApplication-annotated class, be aware that those filters will be disabled. If you are using slicing, you should define them again.
+> The underlying component scan configuration of `@SpringBootApplication` defines exclude filters that are used to make sure slicing works as expected. If you are using an explicit `@ComponentScan` directive on your `@SpringBootApplication`-annotated class, **be aware that those filters will be disabled. If you are using slicing, you should define them again.**
 
 所以推荐把自定义的component scan写在其他地方，让默认的`@ComponentScan`扫描到它，再用它扫描自定义的包，对src代码没什么影响：
 ```
@@ -263,9 +260,9 @@ public class MyApplication {
 ## 如果slice test自动配置的bean不够用呢？
 - https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto.testing.slice-tests
 
-使用`@Import`手动把config class导入到测试类里！
+比如`@WebMvcTest`默认只配置mvc相关的bean，不配置service bean，可以使用`@Import`手动把service bean的config class导入到测试类里！
 
-## 如果还想导入其他autoconfig呢？
+## 如果还想导入其他autoconfig class呢？
 - https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.additional-autoconfiguration-and-slicing
 
 比如`witake-spring-boot-autoconfig-xxx`不在slice test自动导入的类的名单里，想导入的话可以可以用`@ImportAutoConfiguration`：
@@ -282,43 +279,110 @@ class MyJdbcTests {
 ```
 **Make sure to not use the regular `@Import` annotation to import auto-configurations as they are handled in a specific way by Spring Boot.**
 
-如果这个autoconfig老是和springboot slice tst的那些autoconfig一起用，直接加入到它的`META-INF/spring/xxx`文件里，配置它的时候一定配置你！
+如果这个autoconfig老是和springboot slice test的那些autoconfig一起用，直接加入到它的`META-INF/spring/xxx`文件里，配置它的时候一定配置你！
 
-## `@TestConfiguration`
-- https://reflectoring.io/spring-boot-testconfiguration/
-- https://stackoverflow.com/questions/50607285/spring-boot-testconfiguration-not-overriding-bean-during-integration-test
+# `@TestConfiguration` - 偷梁换柱
 
-它也是`@Configuration`，用来偷梁换柱。
+```
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Configuration
+@TestComponent
+public @interface TestConfiguration {
+```
+它是`@Configuration`的alias，所以spring test会把它当做一个正常的`@Configuration`（因为spring根本不知道`@TestConfiguration`是啥，只知道`@Configuration`），所以`@TestConfiguration`的static inner class可以[像`@Configuration`的static inner class一样被当做config class](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-ctx-management-javaconfig)。**springboot test对它做了额外支持**，所以只有在springboot test里，它才不是一个正常的`@Configuration`。
 
-> spring test会把它当做一个正常的`@Configuration`（因为spring根本不知道`@TestConfiguration`是啥，只知道`@Configuration`），所以`@TestConfiguration`的static inner class可以[像`@Configuration`的static inner class一样被当做config class](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-ctx-management-javaconfig)。springboot test知道它不是一个正常的`@Configuration`，会在component scan的时候exclude掉它。
->
 > 这就是框架堆叠的另一特点：对于上一层的spring来说，`@TestConfiguration`就是`@Configuration`
 
-它的特点：
-1. [作为static inner class的注解](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.detecting-configuration)：Unlike a nested `@Configuration` class, which would be used instead of your application’s primary configuration, a nested `@TestConfiguration` class is used in addition to your application’s primary configuration.
-2. [作为独立的class的注解](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.excluding-configuration)： When placed on a top-level class, `@TestConfiguration` indicates that classes in `src/test/java` should not be picked up by scanning. You can then import that class explicitly where it is required
+## springboot test对它做了什么支持？
+在`SpringBootTestContextBootstrapper`里：
+```
+	protected Class<?>[] getOrFindConfigurationClasses(MergedContextConfiguration mergedConfig) {
+		Class<?>[] classes = mergedConfig.getClasses();
+		if (containsNonTestComponent(classes) || mergedConfig.hasLocations()) {
+			return classes;
+		}
+		Class<?> found = new AnnotatedClassFinder(SpringBootConfiguration.class)
+				.findFromClass(mergedConfig.getTestClass());
+		Assert.state(found != null, "Unable to find a @SpringBootConfiguration, you need to use "
+				+ "@ContextConfiguration or @SpringBootTest(classes=...) with your test");
+		logger.info("Found @SpringBootConfiguration " + found.getName() + " for test " + mergedConfig.getTestClass());
+		return merge(found, classes);
+	}
 
-**to modify Spring’s application context** during test runtime. We can use it **to override certain bean definitions**, for example 
-- to replace real beans with fake beans 
-- or to change the configuration of a bean to make it better testable.
+	private boolean containsNonTestComponent(Class<?>[] classes) {
+		for (Class<?> candidate : classes) {
+			if (!MergedAnnotations.from(candidate, SearchStrategy.INHERITED_ANNOTATIONS)
+					.isPresent(TestConfiguration.class)) {
+				return true;
+			}
+		}
+		return false;
+	}
+```
+- **如果没有指定config class**，则以springboot的方式探测config class：从当前test class找带`@SpringBootConfiguration`的类，把它作为config class。当然如果它component scan了，scan的config class也算。
+- 如果指定了config class：**如果指定的config class全都标记了`@TestConfiguration`注解，会继续以springboot的方式探测config class**。这也就是`@TestConfiguration`的javadoc说的，**以`@TestConfiguration`的方式手动提供config，不会阻止springboot autoscan**：Unlike regular `@Configuration` classes the use of `@TestConfiguration` does not prevent auto-detection of `@SpringBootConfiguration`。**最终指定的所有`@TestConfiguration`标记的config class会和`@SpringBootConfiguration`探测到的config class合并**！
+- 如果指定了config class，且指定的config class并非都是`@TestConfiguration`标记的类，那么就不再自动探测`@SpringBootConfiguration`。相当于尊重spring的决定，以spring的方式配置test config。
 
-> 和spring test一样，springboot的context只加载一次，全局缓存。
+> **怎么指定config class？以spring test的方式指定啊**！springboot test只是在spring test的基础上实现的。
+
+所以`@TestConfiguration`的特殊之处在于，即使以spring test的方式指定它为config class（即：把它[作为测试类的static inner class的注解](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.detecting-configuration)），仍然不耽误继续以springboot的方式探测test class。
+
+> Unlike a nested `@Configuration` class, which would be used instead of your application's primary configuration, a nested `@TestConfiguration` class is used in addition to your application's primary configuration.
+
+另外，官方文档和[这里](https://stackoverflow.com/a/50643036/7676237)都说[作为独立的class的注解](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.excluding-configuration)，该class它不会被扫描到，需要手动`@Import`。但是从代码上我确实没看到有关于这一点的支持，权且记在这里┓( ´∀` )┏
+
+> When placed on a top-level class, `@TestConfiguration` indicates that classes in `src/test/java` should not be picked up by scanning. You can then import that class explicitly where it is required
+
+**所以`@TestConfiguration`的主要作用就是偷梁换bean**。在[这里](https://reflectoring.io/spring-boot-testconfiguration/)举了一个使用`@TestConfiguration`标注的web client替代代码里真正的web client的例子。毕竟做集成测试的时候，不可能用真正的web client，那相当于依赖外部了。
 
 # 支持args
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.using-application-arguments
+可以在测试的时候直接[指定命令行参数](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.using-application-arguments)：
+```
+import org.junit.jupiter.api.Test;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest(args = "--app.test=one")
+class MyApplicationArgumentTests {
+
+    @Test
+    void applicationArgumentsPopulated(@Autowired ApplicationArguments args) {
+        assertThat(args.getOptionNames()).containsOnly("app.test");
+        assertThat(args.getOptionValues("app.test")).containsOnly("one");
+    }
+
+}
+```
 那岂不是可以通过args传入profiles信息了。
 
-# `MockMvc`
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.with-mock-environment
+# `@SpringBootTest`
+`@SpringBootTest`因为会扫描所有的autoconfig class，所以默认会构建一个完整的`ApplicationContext`！。但是，由于[Spring Mvc Test - MockMvc]({% post_url 2022-11-26-spring-mvc-test %})能在不启动server的情况下，单线程测试spring mvc，**所以`@SpringBootTest`在默认情况下虽然构建了完整的 `ApplicationContext`，[依然使用`MockMvc`执行servlet，而非真启动一个server](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.with-mock-environment)**：
+```
+WebEnvironment webEnvironment() default WebEnvironment.MOCK
+```
 
-虽然不启动server，但是看起来效果和启动server一样啊？所以是直接在请求线程里执行server的代码了？？？
+> **Creates a `WebApplicationContext` with a mock servlet environment if servlet APIs are on the classpath**, a `ReactiveWebApplicationContext` if Spring WebFlux is on the classpath or a regular `ApplicationContext` otherwise.
 
-启动了ApplicationContext所以不需要！确实和[`@WebMvcTest`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.spring-mvc-tests)不一样，这个是需要mock given的，毕竟没有ApplicationContext，没有service bean。
+如果要真启动一个server，需要配置：`@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)`。
 
-> @WebMvcTest auto-configures the Spring MVC infrastructure and limits scanned beans to @Controller, @ControllerAdvice, @JsonComponent, Converter, GenericConverter, Filter, HandlerInterceptor, WebMvcConfigurer, WebMvcRegistrations, and HandlerMethodArgumentResolver. Regular @Component and @ConfigurationProperties beans are not scanned when the @WebMvcTest annotation is used. @EnableConfigurationProperties can be used to include @ConfigurationProperties beans.
+## `MockMvc`
+springboot test在两种情况下都会使用`MockMvc`：
+1. `@WebMvcTest`：做mvc相关的slice test；
+2. `@SpringBootTest`：加载app完整的bean到`ApplicationContext`，但依然使用`MockMvc`单线程执行`DispatcherServlet`；
 
+但是二者还是有区别的：**使用[`@WebMvcTest`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.spring-mvc-tests)只会检测mvc相关的autoconfig class，所以不会实例化service bean、data layer bean，如果想测试需要手动mock，写given**。`@SpringBootTest`启动了完整的`ApplicationContext`，所以实例化了service bean，data layer bean，可以直接注入，不需要mock！
 
+> **`@WebMvcTest` auto-configures the Spring MVC infrastructure and limits scanned beans to `@Controller`, `@ControllerAdvice`, `@JsonComponent`, Converter, GenericConverter, Filter, HandlerInterceptor, WebMvcConfigurer, WebMvcRegistrations, and HandlerMethodArgumentResolver**. Regular `@Component` and `@ConfigurationProperties` beans are not scanned when the `@WebMvcTest` annotation is used. `@EnableConfigurationProperties` can be used to include `@ConfigurationProperties` beans.
+>
+> If you want to focus only on the web layer and not start a complete `ApplicationContext`, consider using `@WebMvcTest` instead.
+
+所以`@SpringBootTest`默认也可以注入`MockMvc`：
 ```
 import org.junit.jupiter.api.Test;
 
@@ -353,70 +417,23 @@ class MyMockMvcTests {
 
 }
 ```
-If you want to focus only on the web layer and not start a complete ApplicationContext, consider using @WebMvcTest instead.
 
-所以MockMvc不会启动server，但和要不要mock given是两码事。如果所有的bean都有了，就不用mock bean了，否则是需要mock的。
+> MockMvc只是不会启动server，但和要不要mock bean是两码事。如果所有的bean都有了，就不用mock bean了，否则是需要mock的。就算所有bean都有了，有时候为了在测试的时候换成另一个实现，依然会mock bean。
 
-Often, @WebMvcTest is limited to a single controller and is used in combination with @MockBean to provide mock implementations for required collaborators.
+## 启动真正的server
+配置`@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)`会[真正启动一个server](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.with-running-server)，前提是classpath上得有servlet：
+> If a web environment is not available on your classpath, this mode transparently falls back to creating a regular non-web `ApplicationContext`
 
-@WebMvcTest also auto-configures MockMvc. Mock MVC offers a powerful way to quickly test MVC controllers without needing to start a full HTTP server.
+如果springboot工程根本不是web，也可以显式指定`NONE`：启动的就是`ApplicationContext`，而非`WebServerApplicationContext`。当然不指定默认也都会启动非web的`ApplicationContext`，和springboot的启动流程一样。
 
-```
-import org.junit.jupiter.api.Test;
+> TODO：我才发现springboot使用的不`是WebApplicationContext`，而是`WebServerApplicationContext`。它也是一种特殊的`ApplicationContext`，能够创建和管理`WebServer`（tomcat、jetty等）。
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+### `TestRestTemplate`
+不仅启动server，springboot test还自动帮你创建一个已经获取了这个server的ip和port的[`TestRestTemplate`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.test-rest-template)/`WebTestClient`！贴心啊！
 
-import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+> For convenience, tests that need to make REST calls to the started server can additionally `@Autowire` a `WebTestClient`, which resolves relative links to the running server and comes with a dedicated API for verifying responses, as shown in the following example:
 
-@WebMvcTest(UserVehicleController.class)
-class MyControllerTests {
-
-    @Autowired
-    private MockMvc mvc;
-
-    @MockBean
-    private UserVehicleService userVehicleService;
-
-    @Test
-    void testExample() throws Exception {
-        given(this.userVehicleService.getVehicleDetails("sboot"))
-            .willReturn(new VehicleDetails("Honda", "Civic"));
-        this.mvc.perform(get("/sboot/vehicle").accept(MediaType.TEXT_PLAIN))
-            .andExpect(status().isOk())
-            .andExpect(content().string("Honda Civic"));
-    }
-
-}
-```
-
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.test-rest-template
-
-Spring Framework 5.0 provides a new WebTestClient that works for WebFlux integration tests and both WebFlux and MVC end-to-end testing. **It provides a fluent API for assertions, unlike TestRestTemplate.**
-
-hhh，来自spring的嫌弃……
-
-# 真正的server
-
-果然，不启动server。默认启动一个mock web environment。If a web environment is not available on your classpath, this mode transparently falls back to creating a regular non-web ApplicationContext
-
-`NONE`：启动的就是ApplicationContext，而非WebServerApplicationContext。
-
-> 我才发现springboot使用的不是WebApplicationContext，而是WebServerApplicationContext。它也是一种特殊的ApplicationContext，能够创建和管理WebServer（tomcat、jetty等）。
-
-哦我懂了，mock的server，client和server的逻辑都是在一个线程里执行的吧！！！
-
-
-
-不仅启动server，还自动帮你创建一个已经获取了这个server的ip和port的TestRestTemplate/WebTestClient！贴心啊！For convenience, tests that need to make REST calls to the started server can additionally @Autowire a WebTestClient, which resolves relative links to the running server and comes with a dedicated API for verifying responses, as shown in the following example:
-
-直接注入TestRestTemplate就行了：
+直接注入`TestRestTemplate`就行了：
 ```
 import org.junit.jupiter.api.Test;
 
@@ -462,12 +479,57 @@ class MyRandomPortWebTestClientTests {
 }
 ```
 
+看起来spring更推崇webflux，后面学一下：
+> Spring Framework 5.0 provides a new `WebTestClient` that works for WebFlux integration tests and both WebFlux and MVC end-to-end testing. **It provides a fluent API for assertions, unlike `TestRestTemplate`.**
+
+hhh，来自spring的嫌弃……
+
 # `@MockBean`
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.mocking-beans
+mock bean一般发生在两种情况下：
+1. 没有bean：比如使用`@WebMvcTest`的时候，service bean需要mock；
+2. 替换bean：比如使用真实的bean模拟一个failure会很难复现，可以mock一个bean替换掉它；
 
-You can use the annotation to add new beans or replace a single existing bean definition. 
+> Often, `@WebMvcTest` is limited to a single controller and is used in combination with `@MockBean` to provide mock implementations for required collaborators.
 
-它可以直接替换bean！！！在往Reverser里注入RemoteService的时候，注入的是假的service！6啊！这样就可以直接测Reverse了！不需要考虑怎么创建一个拥有假service的Reverser！
+[`@MockBean`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.mocking-beans)是springboot test提供的一个对mockito的支持。感觉像testcontainers的`@Container`一样，为mock bean提供了一些比那里。直接mock就相当于`@Autowired`了一个bean，不过given还是免不了：
+```
+import org.junit.jupiter.api.Test;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(UserVehicleController.class)
+class MyControllerTests {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @MockBean
+    private UserVehicleService userVehicleService;
+
+    @Test
+    void testExample() throws Exception {
+        given(this.userVehicleService.getVehicleDetails("sboot"))
+            .willReturn(new VehicleDetails("Honda", "Civic"));
+        this.mvc.perform(get("/sboot/vehicle").accept(MediaType.TEXT_PLAIN))
+            .andExpect(status().isOk())
+            .andExpect(content().string("Honda Civic"));
+    }
+
+}
+```
+**最主要是它可以直接替换bean**：
+> You can use the annotation to add new beans or replace a single existing bean definition. 
+
+比如下面的场景：在往Reverser里注入RemoteService的时候，注入的是假的service！这样就可以直接测Reverse了！不需要考虑怎么创建一个拥有假service的Reverser！
 ```
 import org.junit.jupiter.api.Test;
 
@@ -496,25 +558,62 @@ class MyTests {
 
 }
 ```
-
-所以是先正常创建ApplicationContext，refresh之后，再用mock bean替换真bean的：
-> @MockBean cannot be used to mock the behavior of a bean that is exercised during application context refresh. By the time the test is executed, the application context refresh has completed and it is too late to configure the mocked behavior. We recommend using a @Bean method to create and configure the mock in this situation.
+**它的原理是先正常创建`ApplicationContext`，refresh之后，再用mock bean替换真bean**：
+> `@MockBean` cannot be used to mock the behavior of a bean that is exercised during application context refresh. By the time the test is executed, the application context refresh has completed and it is too late to configure the mocked behavior. We recommend using a `@Bean` method to create and configure the mock in this situation.
 
 还可以用[`@SpyBean`](https://docs.spring.io/spring-boot/docs/2.7.5/api/org/springframework/boot/test/mock/mockito/SpyBean.html)：
-Additionally, you can use @SpyBean to wrap any existing bean with a Mockito spy.
 
-艹，感觉用这个比直接裸用mockito方便多了……
-果然，spring提供支持之后，是比直接用原生的好用了。（废话，要不然支持了个寂寞）
+> Additionally, you can use `@SpyBean` to wrap any existing bean with a Mockito spy.
 
-# 改Environment的property
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.test-property-values
+感觉用这个比直接裸用mockito方便多了，spring提供支持之后，是比直接用原生的好用了。（废话，要不然支持了个寂寞）
 
-# capture from stdout/stderr
-- https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.output-capture
+# `TestPropertyValues` - 魔改property
+使用[`TestPropertyValues`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.test-property-values)快速魔改environment的property，非常方便：
+```
+import org.junit.jupiter.api.Test;
 
+import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.mock.env.MockEnvironment;
 
-test
-- https://spring.io/guides/gs/testing-web/
+import static org.assertj.core.api.Assertions.assertThat;
 
+class MyEnvironmentTests {
+
+    @Test
+    void testPropertySources() {
+        MockEnvironment environment = new MockEnvironment();
+        TestPropertyValues.of("org=Spring", "name=Boot").applyTo(environment);
+        assertThat(environment.getProperty("name")).isEqualTo("Boot");
+    }
+
+}
+```
+
+# `OutputCapture` - capture from stdout/stderr
+使用[`OutputCapture`](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.utilities.output-capture)不过stdout/stderr的输出，并拿来做断言，很强大！
+
+```
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@ExtendWith(OutputCaptureExtension.class)
+class MyOutputCaptureTests {
+
+    @Test
+    void testName(CapturedOutput output) {
+        System.out.println("Hello World!");
+        assertThat(output).contains("World");
+    }
+
+}
+```
+
+# 感想
+太难了……终于看懂springboot test了。看完spring test之后，再看springboot test一切都豁然开朗了！所以千层饼不能心急，得一层一层吃。
 
 
