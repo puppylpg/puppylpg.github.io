@@ -594,7 +594,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 
 > 所以用来关联的key是`org.springframework.web.context.WebApplicationContext.ROOT`，尾缀为root。不同wac之间出现了层级关系。
 
-> `TestDispatcherServlet`的wac直接设置为了root wac，可能是为了省事儿吧。
+> `TestDispatcherServlet`的wac直接设置为了root wac，主要是为了省事儿。可以参考[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %}) hierarchy。
 
 对于`DispatcherServlet`来说，它的wac需要init这些东西：
 ```
