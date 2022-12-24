@@ -97,7 +97,7 @@ This method is declared abstract, and it has 31 concrete implementations. They a
 
 // many more, all looking alike... 
 ```
-The only thing wich differs is the return type, which is always the class implementing the overridden isNotNull. This is necessary because otherwise it would not be possible to add methods to a call chain which are defined in the concrete assertion class, but not in the more generic superclass where isNotNull is implemented. 
+The only thing which differs is the return type, which is always the class implementing the overridden isNotNull. This is necessary because otherwise it would not be possible to add methods to a call chain which are defined in the concrete assertion class, but not in the more generic superclass where isNotNull is implemented. 
 
 **If we moved the concrete implementation to GenericAssert, we would get a GenericAssert instance as return value of isNotNull()**, and GenericAssert certainly does not provide contains (as CollectionAssert does) or isDirectory (as FileAssert does). So the following code would not compile any more:
 ```
@@ -139,17 +139,17 @@ class Person<T extends Person<T>> {
 ```
 `Person`里的类型T必须是`Person`的子类型（或Person本身），也就是说，一个人只能love另一个人或者人的子类（比如学生），人兽非法:D
 
-> **其实可以看成`class Person<T extends Person>`，这样就好理解很多了。之所以写成`class Person<T extends Person<T>>`，是因为要把Person本身是泛型类，所以要把它的定义写全，但是看起来迷惑性就增强了。**
+> **其实可以看成`class Person<T extends Person>`，这样就好理解很多了。之所以写成`class Person<T extends Person<T>>`，是因为Person本身是泛型类，所以要把它的定义写全，但是看起来迷惑性就增强了。**
 
 看起来有点儿循环定义的意思：定义了一个Person，它的泛型类型必须也是Person。
 
-其实这种循环有两种循环方式，上面的循环定义只是第一种，可以说是直接循环：
+其实这种循环有两种循环方式，上面的循环定义只是第一种，可以说是“直接循环”：
 ```
 class Man extends Person<Man> {}
 ```
 Man是Person的子类，一个男人只能love一个男人……
 
-另一种循环可以称为间接循环：
+另一种循环可以称为“间接循环”：
 ```
 class Woman extends Person<Man> {}
 ```

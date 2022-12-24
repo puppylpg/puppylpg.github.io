@@ -70,7 +70,7 @@ public class MyWebApplicationInitializer implements WebApplicationInitializer {
 2. 使用`WebApplicationContext`里的bean实例化`DispatcherServlet`；
 3. **将`DispatcherServlet`添加到`ServletContext`里**，并将其映射为某个mapping；
 
-**“将`DispatcherServlet`添加到`ServletContext`里”，实际就是把servlet注册到了tomcat的`Context` container里**。根据tomcat的`ServletContext`的标准实现`ApplicationContext`（和spring的重名了，但二者完全不是一个东西……），`ServletContext#addServlet`这一行为会：
+**“将`DispatcherServlet`添加到`ServletContext`里”，实际就是把servlet注册到了tomcat的`Context` container里**。按照tomcat`ServletContext`的标准实现`ApplicationContext`（和spring的重名了，但二者完全不是一个东西……）的实现逻辑来看，`ServletContext#addServlet`这一行为会：
 1. 创建一个`Wrapper`；
 2. 把servlet放到`Wrapper`里；
 3. **把`Wrapper`挂到`Context`上**；
@@ -110,6 +110,64 @@ public class MyWebApplicationInitializer implements WebApplicationInitializer {
             }
         }
 ```
+
+## 题外话：`WebApplicationInitializer`是怎么被发现的
+“只要实现一个`WebApplicationInitializer`，它就会自动被用来初始化servlet”。谁发现的这个实现类？它怎么就被用来初始化servlet了？需要配置成bean吗？不需要。
+
+`SpringServletContainerInitializer`会使用`WebApplicationInitializer`初始化servlet，但是看`SpringServletContainerInitializer`的方法就会发现，`WebApplicationInitializer`的实现类们是从调用者传进来的：
+```
+public void onStartup(@Nullable Set<Class<?>> webAppInitializerClasses, ServletContext servletContext)
+			throws ServletException
+```
+传进来之后才开始进入到spring的一亩三分地，所以“实例化`WebApplicationInitializer`的实现类”显然不是spring干的。
+
+SpringMVC的调用者是谁？servlet容器，或者说tomcat。在tomcat的`StandardContext`中：
+```
+            // Call ServletContainerInitializers
+            for (Map.Entry<ServletContainerInitializer, Set<Class<?>>> entry :
+                initializers.entrySet()) {
+                try {
+                    entry.getKey().onStartup(entry.getValue(),
+                            getServletContext());
+                } catch (ServletException e) {
+                    log.error(sm.getString("standardContext.sciFail"), e);
+                    ok = false;
+                    break;
+                }
+            }
+```
+显然，`ServletContainerInitializer#onStartup`的第一个参数`Set<Class<?>>`，是由tomcat收集的。
+
+查看spring的`ServletContainerInitializer`实现`SpringServletContainerInitializer`，会发现它上面标注了`@HandlesTypes(WebApplicationInitializer.class)`。**而`@HandlesTypes`是servlet规范提供的标准注解**：
+
+> This annotation is used to declare an array of application classes which are passed to a javax.servlet.ServletContainerInitializer. Since: Servlet 3.0
+
+所以，**servlet规范通过`@HandlesTypes`声明了每一个`ServletContainerInitializer`的第一个参数绑定为哪些类。而servlet容器负责找到并实例化这些类，然后在调用`ServletContainerInitializer#onStartup`的时候传给`ServletContainerInitializer`**。
+
+> 在[这里](https://stefan-isele.logdown.com/posts/201646)可以找到类似的说明：The class `org.springframework.web.SpringServletContainerInitializer` is annotated with
+`@javax.servlet.annotation.HandlesTypes(WebApplicationInitializer.class)`
+and implements `javax.servlet.ServletContainerInitializer`. According to the Servlet 3 specification the container will call `ServletContainerInitializer#onStartup(Set<Class<?>>, ServletContext)` on every class in the classpath implementing that interface, suppling a set of classes as defined in HandlesTypes.
+
+接下来的事情就比较简单了，tomcat是怎么实例化这些类的？**通过`clazz = Introspection.loadClass(context, className)`直接从classpath上找相关的类，找到一个实例化一个。**
+
+找到和initializer相关联的类之后，通过`Context#addServletContainerInitializer`把他们关联起来：
+```
+    /**
+     * Add a ServletContainerInitializer instance to this web application.
+     *
+     * @param sci       The instance to add
+     * @param classes   The classes in which the initializer expressed an
+     *                  interest
+     */
+    public void addServletContainerInitializer(
+            ServletContainerInitializer sci, Set<Class<?>> classes);
+```
+
+**这里可以注意一下，因为springboot直接手动调用该方法，手动关联initializer对应的class为springboot自己的`ServletContextInitializer`**。
+
+另外需要注意的一点：tomcat扫描classpath上的类，判断名字是否符合。spring也是扫描classpath上的类，不过是`ComponentScan`指定的路径，不是完整的classpath。另外扫描到类之后，判断有没有相关bean注解，再决定是否实例化。**所以tomcat的杀伤力比较大，随随便便引入的一个第三方（恶意）包如果含有相关的类，都会被实例化出来**。这也是springboot所谓的用servlet默认的方式启动不安全，需要自己手撸一套启动流程，弃用servlet容器默认的类探测的原因。
+
+> 详见[SpringBoot MVC]({% post_url 2022-12-03-springboot-web-mvc %})
 
 ## hierarchy
 上述实现比较简单，只使用了一个`WebApplicationContext`。**实际上servlet是有层级关系的：servlet的属性分为两类，所有servlet共享的和各个servlet独有的。前者放在全局的`ServletContext`里，后者放在servlet独有的`ServletConfig`里**。
@@ -254,7 +312,7 @@ public class MyWebAppInitializer extends AbstractDispatcherServletInitializer {
 ```
 
 ## springboot
-** springboot不走寻常路，SpringMVC是接入servlet，通过servlet container调起SpringMVC并初始化`DispatcherServlet`；springboot是让servlet接入它……它启动一个自己的`WebServerApplicationContext`（一种`ApplicationContext`），然后调起一个内嵌servlet container。所以所有servlet规范的`Filter`和`Servlet`都可以以bean的形式注册到springboot的`WebServerApplicationContext`里，等启动内嵌servlet container的时候，springboot再把他们添加到container里**：
+**springboot不走寻常路，SpringMVC是接入servlet，通过servlet container调起SpringMVC并初始化`DispatcherServlet`；springboot是让servlet接入它……它启动一个自己的`WebServerApplicationContext`（一种`ApplicationContext`），然后调起一个内嵌servlet container。所以所有servlet规范的`Filter`和`Servlet`都可以以bean的形式注册到springboot的`WebServerApplicationContext`里，等启动内嵌servlet container的时候，springboot再把他们添加到container里**：
 > Spring Boot follows a different initialization sequence. **Rather than hooking into the lifecycle of the Servlet container, Spring Boot uses Spring configuration to bootstrap itself and the embedded Servlet container. Filter and Servlet declarations are detected in Spring configuration and registered with the Servlet container**.
 
 **调用关系反转了，springboot翻身做主人了……6！**

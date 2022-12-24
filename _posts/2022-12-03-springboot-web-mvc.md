@@ -18,7 +18,7 @@ tags: spring springboot mvc
 
 > When using an embedded servlet container, you can register servlets, filters, and all the listeners (such as HttpSessionListener) from the servlet spec, **either by using Spring beans or by scanning for servlet components.**
 >
-> **Any Servlet, Filter, or servlet *Listener instance that is a Spring bean is registered with the embedded container**.
+> **Any Servlet, Filter, or servlet `Listener` instance that is a Spring bean is registered with the embedded container**.
 >
 > By default, if the context contains only a single Servlet, it is mapped to `/`. **In the case of multiple servlet beans, the bean name is used as a path prefix**. Filters map to `/*`.
 
@@ -30,15 +30,15 @@ tags: spring springboot mvc
 **servlet规范不变，所以还是使用`ServletContainerInitializer`初始化container，但不是SpringMVC的`SpringServletContainerInitializer`，而是springboot的`ServletContainerInitializer`。[按照springboot的说法](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.embedded-container.context-initializer)，这样做可以避免别的实现了servlet的SPI规范的第三方依赖对servlet容器进行初始化。**
 > Embedded servlet containers do not directly execute the `jakarta.servlet.ServletContainerInitializer` interface or Spring's `org.springframework.web.WebApplicationInitializer` interface. **This is an intentional design decision intended to reduce the risk that third party libraries designed to run inside a war may break Spring Boot applications.**
 
+这一安全考虑也可以参考[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})“`WebApplicationInitializer`是怎么被发现的”，**因为tomcat确实会把classpath上所有的相关类都收集起来做servlet的初始化，比较失控**。
+
 这么一看springboot管的挺宽啊！**servlet都已经定义了`ServletContainerInitializer`的SPI规范，springboot却不让自己启动的内嵌servlet容器检测别的SPI规范实现者**。按照上面的说法，它这么做是为了防止那些实现者在初始化的时候破坏了springboot app。
 
 springboot怎么做到阻止别人的？
 
-**springboot在启动内嵌tomcat的时候，不使用SPI机制检测`ServletContainerInitializer`了，而是手动set
- `ServletContainerInitializer`到tomcat里，且只set springboot自己的`ServletContainerInitializer`实现类`TomcatStarter`
- **。**这样就能防止第三方随意注册，包括SpringMVC。而且因为掐断了SpringMVC，所以自定义SpringMVC的`WebApplicationInitializer`以初始化servlet容器的方法也失灵了**。
+**springboot在启动内嵌tomcat的时候，不使用SPI机制检测`ServletContainerInitializer`了，而是手动set `ServletContainerInitializer`到tomcat里，且只set springboot自己的`ServletContainerInitializer`实现类`TomcatStarter`。这样就能防止第三方随意注册，包括SpringMVC。而且因为掐断了SpringMVC，所以自定义SpringMVC的`WebApplicationInitializer`以初始化servlet容器的方法也失灵了**。
 
-`ServletContainerInitializer`
+## `ServletContainerInitializer`
 
 现在，只有springboot的`TomcatStarter`会被servlet容器调用以进行初始化。springboot也把初始化的过程委托了出去：就像SpringMVC的`SpringServletContainerInitializer`提供了`WebApplicationInitializer`以初始化`ServletContext`（tomcat的）一样，springboot的`TomcatStarter`会调用`ServletContextInitializer`初始化`ServletContext`。现在我们可以实现`ServletContextInitializer`的实现类以自定义servlet容器了。
 
