@@ -201,7 +201,7 @@ Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"s
 
 > 所以这里注册`Filter`是手动在实例化的时候通过代码注册上去的，不是通过`web.xml`配置文件注册上去的！毕竟`WebApplicationInitializer`的本意就是：初始化的时候想干嘛就干嘛！
 
-之前说过，使用spring security的工程不一定显式使用了spring框架，**所以原工程不一定有spring mvc的配置。这种情况下spring security的配置（依然是spring bean配置）怎么被启用**？spring security的`AbstractSecurityWebApplicationInitializer` **支持手动传入一个配置类，并初始化这个配置类里的bean**：
+之前说过，使用spring security的工程不一定显式使用了spring框架，**所以原工程不一定有spring mvc的配置。这种情况下spring security的配置（依然是spring bean配置）怎么被启用**？spring security的`AbstractSecurityWebApplicationInitializer` **支持手动传入一个配置类，并实例化这个配置类里的bean**：
 ```
 		if (this.configurationClasses != null) {
 			AnnotationConfigWebApplicationContext rootAppContext = new AnnotationConfigWebApplicationContext();
@@ -367,6 +367,98 @@ public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<Defaul
 	}
 ```
 因此，我们可以通过`HttpSecurity`工具类比较方便地构造出`SecurityFilterChain`对象。
+
+比如配置多条优先级不同的filter chain：
+```
+@Configuration
+@EnableWebSecurity
+public class MultipleSecurityFilterChainConfig {
+
+    /**
+     * 配置用户
+     *
+     * 默认用bcrypt加密
+     */
+    @Bean
+    public UserDetailsService userDetailsService() {
+        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
+        manager.createUser(User.withDefaultPasswordEncoder().username("puppylpg").password("puppylpg").roles("USER").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("hello").password("world").roles("USER").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("raichu").password("raichu").roles("USER", "ADMIN").build());
+        return manager;
+    }
+
+    /**
+     * admin才能查看h2-console
+     *
+     * user权限返回403 forbidden
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        http
+                .antMatcher("/h2-console/**")
+                .authorizeHttpRequests(authorize -> authorize
+                        .anyRequest().hasRole("ADMIN")
+                )
+                .httpBasic(withDefaults());
+        return http.build();
+    }
+
+    /**
+     * 配置认证方式、接口权限
+     */
+    @Bean
+    @Order(2)
+    protected SecurityFilterChain configure(HttpSecurity http) throws Exception {
+        // opendoc csrf支持开启后，配不配置cookie里都有`XSRF-TOKEN`
+        http.csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .and()
+                // 认证请求
+                .authorizeRequests()
+                // 这些请求不仅要认证，还要拥有相应角色
+                // but这样配置的话，"/user-api/users/"仍然不需要角色认证
+                .antMatchers("/user-api/users").hasRole("ADMIN")
+                // 其他请求只要认证了就行
+                .anyRequest().authenticated()
+//                .and()
+                // 单独设置https和http。会把http302到https，但是https请求会失败...
+//                .requiresChannel()
+//                .antMatchers("/login").requiresSecure()
+//                .antMatchers("/").requiresInsecure()
+                .and()
+                // 开启http basic认证：程序的认证，比如restful
+                // 因为是放在Authentication header里的，所以和应用状态无关
+                // 即使应用重启，只要有这个header，也可以直接通过认证
+                .httpBasic()
+                .and()
+                // 使用表单提交用户名和密码的方式认证：人的认证
+                // 返回302，Location: http://localhost:8080/login
+                .formLogin()
+                .and()
+                .rememberMe()
+                // remember me过期时间
+                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(2))
+                .key("hellokugou");
+        // 两种认证方式，如果是浏览器，默认用第二种。如果是接口，直接返回401
+
+        return http.build();
+    }
+
+    /**
+     * 没设置优先级，为last
+     */
+    @Bean
+    public SecurityFilterChain formLoginFilterChain(HttpSecurity http) throws Exception {
+        http
+                .authorizeHttpRequests(authorize -> authorize
+                        .anyRequest().authenticated()
+                )
+                .formLogin(withDefaults());
+        return http.build();
+    }
+}
+```
 
 需要注意的是：**我们配置security filter chain时，配置的是更高层次的功能，不是直接配置filter。spring security提供了这么多filter来完成相关功能**：
 - https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters
