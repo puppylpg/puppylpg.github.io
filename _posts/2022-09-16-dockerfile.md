@@ -107,7 +107,7 @@ ENTRYPOINT和CMD指定了：**启动一个容器的时候，运行什么指令**
 
 既然二者都可以定义为一条完整的命令，怎么选择用哪一个？主要记住一点：**CMD是比较好覆盖的**，所以：
 - 如果是可执行镜像，用ENTRYPOINT；
-- CMD应该用作ENTRYPOINT的默认参数，**在运行容器的时候，Dockerfile里指定的默认CMD很容易被覆盖掉**；
+- CMD应该用作ENTRYPOINT的默认参数，**在运行容器的时候，Dockerfile里指定的默认CMD能很方便地被覆盖掉**；
 
 **`docker run`命令可以指定容器的cmd和args：`docker run [OPTIONS] IMAGE [COMMAND] [ARG...]`，`[COMMAND] [ARG...]`和默认的entrypoint一起，组成执行命令**。
 - https://docs.docker.com/engine/reference/commandline/run/
@@ -141,7 +141,7 @@ ENTRYPOINT和CMD指定了：**启动一个容器的时候，运行什么指令**
     ```
     相当于手动指定了了一个CMD，`ls -lhb /`，命令为`ls`，两个参数为`-lhb /`。此时Dockerfile里的CMD就会被忽略，最终实际执行的是`/bin/sh -c "ls -lhb /"`。
 1. 如果CMD只有command，没有args，比如`docker run -it ubuntu bash`，bash是command，那么实际执行命令为`/bin/sh -c "bash"`。
-2. 如果什么都没指定，就会用Dockerfile指定的CMD。所以`docker run -it ubuntu`实际执行的命令还是`/bin/sh -c "bash"`**。
+2. **如果什么都没指定，就会用Dockerfile指定的CMD。所以`docker run -it ubuntu`实际执行的命令还是`/bin/sh -c "bash"`**。
 
 既然CMD可以被覆盖，**entrypoint也可以被覆盖，只不过没有覆盖CMD那么方便：通过docker run的`--entrypoint`参数**，overwrite the default ENTRYPOINT of the image：
 - https://stackoverflow.com/a/21564990/7676237
@@ -166,7 +166,7 @@ lrwxrwxrwx 1 root root 4  8月 18  2021 /bin/sh -> dash
 ```
 dash是POSIX + Berkeley拓展。
 
-`-c`是什么？**是把后面的字符串（inline script）当命令去解释，并能手动指定inline script的参数`$0`/`$1`**：
+`-c`是什么？在上面刚刚提过，**是把后面的字符串（inline script）当命令去解释，并能手动指定inline script的参数`$0`/`$1`**：
 ```
 -c               Read commands from the command_string operand instead of from the standard input.  Special parameter 0 will be set from the command_name operand and the positional parameters
                 ($1, $2, etc.)  set from the remaining argument operands.
@@ -204,12 +204,12 @@ ENTRYPOINT/CMD/RUN都有两种格式：
 
 **使用shell格式，所有的指令都会当做一个字符串，交给`sh -c`执行**，ENTRYPOINT使用shell格式最大的影响是：**The shell form prevents any `CMD` or `docker run` command line arguments from being used，用了shell格式就不能再使用任何形式的CMD了，统统无效**。
 
-**对于ENTRYPOINT来说，如果使用shell格式，那么PID 1将会是`/bin/sh`，而非executable。从`docker stop`命令收到SIGTERM的也是shell，但是由于shell不会转发unix信号，所以容器不会停止，直到10s后docker发送SIGKILL强行shell**：
+**对于ENTRYPOINT来说，如果使用shell格式，那么PID 1将会是`/bin/sh`，而非executable。从`docker stop`命令收到SIGTERM的也是shell，但是由于shell不会转发unix信号，所以容器不会停止，直到10s后docker发送SIGKILL强行kill掉shell**：
 - https://docs.docker.com/engine/reference/builder/#entrypoint
 
 > This means that the executable will not be the container’s PID 1 - and will not receive Unix signals - so your executable will not receive a SIGTERM from docker stop <container>.
 
-但是上了rancher之后，docker stop好像用处就不大了？
+使用rancher之后，其表现就是重启pod的时候，docker stop不能让pod立刻停止，需要10s之后才能启停pod。
 
 ### exec格式
 `ENTRYPOINT ["executable", "param1", "param2"]`
@@ -243,11 +243,11 @@ entrypoint + cmd的组合示例（**ENTRYPOINT和CMD都选用exec形式**）文�
     + 如果需要使用变量，使用shell form；
 
 ## 一个示例：ENTRYPOINT/CMD
-示例来自一次失败的Dockerfile，但或许是解释ENTRYPOINT和CMD更好的方式。
+示例来自 **一个失败的Dockerfile**，但或许是解释ENTRYPOINT和CMD更好的方式。
 
 一开始以为`JAVA_OPTS`可以在执行的时候起到作用，所以写了下面的Dockerfile：
 ```
-ENV JAVA_OPTS="-Xms2048m -Xmx8192m verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t"
+ENV JAVA_OPTS="-Xms2048m -Xmx8192m verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:gc.log.%t"
 
 ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]
 ```
@@ -261,10 +261,10 @@ ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]
 
 完全覆盖Dockerfile里的命令，另起炉灶。
 
-## exec form不替换变量
+### exec form不替换变量
 既然JAVA_OPTS变量没什么作用，如果想使用这些jvm变量，就要把变量放到java指令后面。于是修改Dockerfile，把参数放进去：
 ```
-ENV JVM_ARGS="-Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t"
+ENV JVM_ARGS="-Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:gc.log.%t"
 
 ENTRYPOINT ["java", "$JVM_ARGS", "org.springframework.boot.loader.JarLauncher"]
 ```
@@ -277,7 +277,7 @@ ENTRYPOINT ["java", "$JVM_ARGS", "org.springframework.boot.loader.JarLauncher"]
 ### shell form会替换变量
 把上面的的exec form换成shell form就行了：
 ```
-ENV JVM_ARGS="-Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t"
+ENV JVM_ARGS="-Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:gc.log.%t"
 
 ENTRYPOINT java $JVM_ARGS org.springframework.boot.loader.JarLauncher
 ```
@@ -286,7 +286,7 @@ ENTRYPOINT java $JVM_ARGS org.springframework.boot.loader.JarLauncher
 
 想debug的时候，rancher设置JVM_ARGS变量就行了：
 ```
-JVM_ARGS = -Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9327
+JVM_ARGS = -Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:gc.log.%t -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9327
 ```
 
 因为用了shell form，所以容器里java的pid就不是1了：
@@ -366,7 +366,15 @@ VM Flags:
 Non-default VM flags: -XX:CICompilerCount=3 -XX:InitialHeapSize=2147483648 -XX:MaxHeapSize=8589934592 -XX:MaxNewSize=2863136768 -XX:MinHeapDeltaBytes=524288 -XX:NewSize=715653120 -XX:OldSize=1431830528 -XX:+PrintAdaptiveSizePolicy -XX:+PrintGC -XX:+PrintGCDateStamps -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintTenuringDistribution -XX:+UseCompressedClassPointers -XX:+UseCompressedOops -XX:+UseFastUnorderedTimeStamps -XX:+UseParallelGC 
 Command line:  -Xms2048m -Xmx8192m -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9327
 ```
-`docker stop`就不能SIGKILL到app了。但是在rancher上用起来也没啥区别，没用docker container stop？
+
+这是使用`CMD java $JVM_ARGS org.springframework.boot.loader.JarLauncher`时的进程示例，jvm pid=8：
+```
+➜  /app ps aux 
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.0   1072    76 pts/0    Ss   12月22   0:04 /sbin/docker-init -- /bin/sh -c java $JVM_ARGS org.springframework.boot.loader.JarLauncher
+root           7  0.0  0.0   2484   168 pts/0    S+   12月22   0:00 /bin/sh -c java $JVM_ARGS org.springframework.boot.loader.JarLauncher
+root           8  3.4  0.4 37387940 2549672 pts/0 Sl+ 12月22 204:02 java -Xms256m -Xmx4096m -XX:+UseG1GC -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t org.springframework.boot.loader.JarLauncher
+```
 
 # `docker run` vs. `docker exec`
 二者格式类似：
@@ -562,4 +570,3 @@ $ docker push <private docker hub>/puppylpg/puppylpg-base:latest
 26M     /usr/java/jdk1.8.0_202/jre/lib/ext
 26M     /usr/bin
 ```
-
