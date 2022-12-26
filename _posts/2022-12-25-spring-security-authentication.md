@@ -83,11 +83,11 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 但是正常情况下，security context都不是像上面一样手动new一个`TestingAuthenticationToken`，而是使用`AuthenticationManager`完成认证：
 - `Authentication authenticate(Authentication authentication) throws AuthenticationException`
 
-它的最常见实现类是`ProviderManager`，**后者又把认证的活儿委托给了一堆`AuthenticationProvider`，从而可以做到多类用户的认证。每个`AuthenticationProvider`只负责一类认证。**
+它的最常见实现类是`ProviderManager`，**后者又把认证的活儿委托给了一堆`AuthenticationProvider`，从而可以做到多类用户的认证。每个`AuthenticationProvider`只负责一类认证（比如负责remember me形式的认证方式）。**
 
 > You can inject multiple `AuthenticationProviders` instances into `ProviderManager`. Each `AuthenticationProvider` performs a specific type of authentication. For example, **`DaoAuthenticationProvider` supports username/password-based authentication, while `JwtAuthenticationProvider` supports authenticating a JWT token.**
 
-`ProviderManager`可以设置一个父`AuthenticationManager`作为默认的认证方式。多个`ProviderManager`也可以可以共享父`AuthenticationManager`，比如spring security的多条`SecurityFilterChain`可以有有一些相同的认证机制：
+`ProviderManager`可以设置一个父`AuthenticationManager`作为默认的认证方式（比如基于用户名密码的认证）。多个`ProviderManager`也可以可以共享父`AuthenticationManager`，比如spring security的多条`SecurityFilterChain`可以有有一些相同的认证机制。
 
 **一旦认证完，验证了一个用户的身份，获取了它的权限，就可以把密码删了，以防止密码泄露。后面的认证流程基本权限就够用了**。通过`ProviderManager#eraseCredentialsAfterAuthentication`控制这一行为：
 
@@ -106,22 +106,26 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 
 ![abstractauthenticationprocessingfilter](/assets/screenshots/spring/security/abstractauthenticationprocessingfilter.png)
 
-> `AbstractAuthenticationProcessingFilter`是`UsernamePasswordAuthenticationFilter`的抽象实现。
+> `AbstractAuthenticationProcessingFilter`是`UsernamePasswordAuthenticationFilter`的抽象父类。
 
 核心认证逻辑主要关心的是：**如何把用户提供的认证信息构造成spring security需要的authentication**。
 
-`UsernamePasswordAuthenticationFilter`会把用户名密码信息构造成`UsernamePasswordAuthenticationToken`交给`AuthenticationManager`认证。`AuthenticationManager`则采用合适的`AuthenticationProvider`完成认证过程。
+**注意：只有post请求且url结尾为`/login`，才会让`UsernamePasswordAuthenticationFilter`开启认证，否则该filter没有任何作用**。`UsernamePasswordAuthenticationFilter`会把用户名密码信息（从request parameter获取username和password）构造成`UsernamePasswordAuthenticationToken`交给`AuthenticationManager`认证。`AuthenticationManager`则采用合适的`AuthenticationProvider`完成认证过程。**如果认证成功，会把authentication放到`SecurityContextHolder`里**：`SecurityContextHolder.setContext(context)`。
 
 > When the user submits their credentials, the `AbstractAuthenticationProcessingFilter` creates an `Authentication` from the `HttpServletRequest` to be authenticated. The type of `Authentication` created depends on the subclass of `AbstractAuthenticationProcessingFilter`. For example, `UsernamePasswordAuthenticationFilter` creates a `UsernamePasswordAuthenticationToken` from a username and password that are submitted in the `HttpServletRequest`.
 
 认证完毕后，会做一系列操作，比如重定向到原有的请求、如果配置了remember me，记下该认证信息等等。如果认证失败，也会有失败处理逻辑，返回相应异常。
 
 ## `AuthenticationEntryPoint`
-一般情况下，尤其是对于前后端系统，用户一开始的请求是不带有认证信息的，所以需要重定向用户请求到登录页面。这一流程一般是在抛出认证异常之后，由`ExceptionTranslationFilter`做的。`ExceptionTranslationFilter`通过`AuthenticationEntryPoint`返回登录endpoint。可能是登录页、也可能是`WWW-Authenticate` header以让用户完成basic认证，等等。
+一般情况下，尤其是对于前后端系统，用户一开始的请求是不带有认证信息的，所以需要重定向用户请求到登录页面。**这一流程一般是在抛出认证异常之后，由`ExceptionTranslationFilter`做的。`ExceptionTranslationFilter`通过`AuthenticationEntryPoint`返回登录endpoint**。可能是登录页、也可能是`WWW-Authenticate` header以让用户完成basic认证，等等。
 
 > Used by `ExceptionTranslationFilter` to commence an authentication scheme.
 >
 > **The `AuthenticationEntryPoint` implementation might perform a redirect to a log in page, respond with an WWW-Authenticate header, or take other action.**
+
+**冷知识：`ExceptionTranslationFilter`也是filter chain上的一个filter。**
+
+> 抛出异常的是`AccessDecisionManager`。
 
 # 具体认证形式
 认证方式是多种多样的，可以是登录页，也可以是basic认证，或者其他形式。
@@ -326,7 +330,7 @@ LDAP (Lightweight Directory Access Protocol)，[一般接入公司人员组织�
 > Note that if you are using the second approach, a user who has not explicitly logged out (but who has just closed their browser, for example) will not be able to log in again until their original session expires.
 
 # remember me
-之前介绍的Authentication持久化是同session的不同request之间的持久化。而 **remember me是不同session之间的持久化**。也就是说，关掉浏览器之后，下次再还能在不提供用户名密码的情况下直接通过认证。
+之前介绍的Authentication持久化是同session的不同request之间的持久化。而 **remember me是不同session之间的持久化**。也就是说，关掉浏览器之后，下次还能在不提供用户名密码的情况下直接通过认证。
 
 **同一session的不同request可以通过session共享数据，但是不同session之间没法共享数据，怎么办？现在只剩下cookie了**。可以给浏览器发送个cookie，服务记录下这个cookie关联的Authentication。让浏览器下一次的请求带上这个cookie，就能找到这个Authentication，则本次请求对应的session都不用认证了，就实现了跨session的认证。
 
@@ -348,12 +352,82 @@ algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
 > Notably, this has a potential security issue in that a captured remember-me token will be usable from any user agent until such time as the token expires. This is the same issue as with digest authentication.
 
 ## 基于数据库的token
-也差不多，不过存到数据库里了，而不是服务器里，所以服务重启也不会丢失。
+也差不多，不过存到数据库里了，而不是服务器里。
 
 ## 实现
-实现在`UsernamePasswordAuthenticationFilter`/`BasicAuthenticationFilter`里了。会调用`RememberMeServices`，它有两个实现，对应上面两种方式：
+**实现在`RememberMeAuthenticationFilter`里了，会调用`RememberMeServices`，生成一个`RememberMeAuthenticationToken`，等待后续被验证**。`RememberMeServices`有两个实现，对应上面两种方式：
 - `TokenBasedRememberMeServices`
 - `PersistentTokenBasedRememberMeServices`
+
+验证token使用的是`AuthenticationManager`里的`RememberMeAuthenticationProvider`。
+
+> **此时并没有提供用户名密码，但是会自动提供remember me相关的cookie，所以通过`RememberMeAuthenticationProvider`这个`AuthenticationProvider`就把验证的工作做了。**
+
+**唯一可跨session实现remember me功能的方式是使用cookie存储一个remember me相关的信息**。如果没有remember me，登录完之后返回的set cookie header如下：
+```
+Set-Cookie: JSESSIONID=8606493EF67C64BC0158AD46B2CE3992; Path=/wtf; HttpOnly
+Set-Cookie: XSRF-TOKEN=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
+Set-Cookie: XSRF-TOKEN=6d610efc-278f-4968-9b05-3071af8486f3; Path=/wtf
+```
+下次请求的cookie如下：
+```
+Cookie: JSESSIONID=8606493EF67C64BC0158AD46B2CE3992; XSRF-TOKEN=6d610efc-278f-4968-9b05-3071af8486f3
+```
+
+开启remember me之后，**首先是request parameter里多了一个参数`remember-me = on`**，其次登录完之后，set cookie的header也发生了变化：
+```
+Set-Cookie: JSESSIONID=6F09CB1EC1191FAE8B201AC5B6C4C8B0; Path=/wtf; HttpOnly
+Set-Cookie: remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4ZGJlYWQ3Yw; Max-Age=172800; Expires=Wed, 28-Dec-2022 09:42:28 GMT; Path=/wtf; HttpOnly
+Set-Cookie: XSRF-TOKEN=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
+Set-Cookie: XSRF-TOKEN=3f7105ab-f13c-410f-bfc7-ad3694695ab0; Path=/wtf
+```
+**新增返回了一个remember me相关的cookie，且把过期时间告诉了浏览器，超过时间浏览器自己就不发送了**。
+
+下次请求的cookie如下：
+```
+Cookie: JSESSIONID=6F09CB1EC1191FAE8B201AC5B6C4C8B0; XSRF-TOKEN=3f7105ab-f13c-410f-bfc7-ad3694695ab0; remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4ZGJlYWQ3Yw
+```
+如果这个remember me相关的cookie没有过期，那么就会在请求的时候带上remember-me key对应的value。如前所述，该value是`hello:1672220548426:e18bc6f066d6f61464cde88e8dbead7c` base64之后的值。
+
+关掉浏览器，再次请求，此时cookie不再包含jsessionid，但是依旧会包含remember-me key：
+```
+Cookie: remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4ZGJlYWQ3Yw
+```
+
+`RememberMeServices`会把`remember-me` key对应的cookie取出来：
+```
+	protected String extractRememberMeCookie(HttpServletRequest request) {
+		Cookie[] cookies = request.getCookies();
+		if ((cookies == null) || (cookies.length == 0)) {
+			return null;
+		}
+		for (Cookie cookie : cookies) {
+			if (this.cookieName.equals(cookie.getName())) {
+				return cookie.getValue();
+			}
+		}
+		return null;
+	}
+```
+**既然从cookie里解析出了user，那就取数据库中的user，把username、password、expireTime、key等信息再生成一次签名（这里用的是md5算法），和remember me cookie里的签名作比较就行了。因此，remember me在server重启之后依然能用，因为cookie里已经保留好必要信息了（username、signature）。**
+
+## 配置
+可以配置remember me的过期时间、算法涉及到的额外key等：
+```
+    @Bean
+    @Order(2)
+    protected SecurityFilterChain configure(HttpSecurity http) throws Exception {
+        http.
+                .rememberMe()
+                // remember me过期时间
+                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(2))
+                // remember me加密用到的key
+                .key("hellokugou");
+        // 两种认证方式，如果是浏览器，默认用第二种。如果是接口，直接返回401
+
+        return http.build();
+    }
+```
 
 # logout
 [logout是必须提供的功能](https://docs.spring.io/spring-security/reference/servlet/authentication/logout.html)。它主要做两件事：让http session失效，让remember me也失效（因为明确说了要退出）。spring security还会默认重定向到登录页：
@@ -366,4 +440,3 @@ algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
 spring security对需求拿捏得是真准啊。我反而是通过功能在认识需求了:D
 
 spirng security确实6，这么多功能，尤其是对请求的缓存、对认证消息的缓存、remember me，看得我越来越通透了。
-
