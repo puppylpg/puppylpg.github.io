@@ -442,7 +442,17 @@ remember-me=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
 - Clearing the `SecurityContextHolder`
 - Redirecting to `/login?logout`
 
+# spring security的本质
+其实看到这里，差不多也就能感受到spring security的本质了：
+- **一切认证工具都是为了往`SecurityContextHolder`放一个authentication**；
+- 一切认证校验都是从`SecurityContextHolder`取authentication，看是否符合当前方法/url的权限。符合则继续执行，不符合则结束请求，往http response写入401/403等status、给body写入一些自定义的内容；
+
+尤其是第一点，无论是spring security默认的`UsernamePasswordAuthenticationFilter`，或者其他的认证filter，甚至是我们自己添加一个其他的什么认证filter（比如添加一个校验header里的token的filter），**只要它能在我们认证通过的情况下往`SecurityContextHolder`放一个authentication就行了**。当然，认证不通过、或者没有进行认证的情况下，最好自定义一个对应的`AuthenticationEntryPoint`，以返回和filter相对应的报错。
+
+**最明显的例子就是spring security test支持的`@WithMockUser`，真的就是简单粗暴往`SecurityContextHolder`放一个由注解定义的authentication。这个authentication甚至都不需要用户名密码，只要设置的权限符合后面的认证方法，就可以通过认证**。
+
 # 感想
 spring security对需求拿捏得是真准啊。我反而是通过功能在认识需求了:D
 
 spirng security确实6，这么多功能，尤其是对请求的缓存、对认证消息的缓存、remember me，看得我越来越通透了。
+
