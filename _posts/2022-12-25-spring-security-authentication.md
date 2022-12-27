@@ -411,6 +411,12 @@ Cookie: remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4
 ```
 **既然从cookie里解析出了user，那就取数据库中的user，把username、password、expireTime、key等信息再生成一次签名（这里用的是md5算法），和remember me cookie里的签名作比较就行了。因此，remember me在server重启之后依然能用，因为cookie里已经保留好必要信息了（username、signature）。**
 
+如果发起了post `/logout`请求，server应该让浏览器清除掉`remember-me` cookie：
+```
+remember-me=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
+```
+这样下次就要重新登录了。
+
 ## 配置
 可以配置remember me的过期时间、算法涉及到的额外key等：
 ```
