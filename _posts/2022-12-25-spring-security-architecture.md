@@ -370,28 +370,34 @@ public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<Defaul
 
 比如配置多条优先级不同的filter chain：
 ```
+/**
+ * {@link org.springframework.security.access.prepost.PreAuthorize}需要通过{@link EnableMethodSecurity}手动开启。。。
+ *
+ * @author puppylpg on 2022/12/16
+ */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class MultipleSecurityFilterChainConfig {
 
     /**
-     * 配置用户
-     *
-     * 默认用bcrypt加密
+     * 配置用户。
+     * 默认会创建一个DelegatingPasswordEncoder，实际就是使用bcrypt加密。
+     * 之所以deprecated是因为密码应该从外部读取，而不是使用password encoder在运行的时候生成。
      */
     @Bean
     public UserDetailsService userDetailsService() {
         InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-        manager.createUser(User.withDefaultPasswordEncoder().username("puppylpg").password("puppylpg").roles("USER").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("guest").password("guest").roles("no auth").build());
         manager.createUser(User.withDefaultPasswordEncoder().username("hello").password("world").roles("USER").build());
-        manager.createUser(User.withDefaultPasswordEncoder().username("raichu").password("raichu").roles("USER", "ADMIN").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("raichu").password("raichu").roles("ADMIN").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("puppylpg").password("puppylpg").roles("USER", "ADMIN").build());
         return manager;
     }
 
     /**
-     * admin才能查看h2-console
-     *
-     * user权限返回403 forbidden
+     * admin才能查看h2-console。
+     * user权限会返回403 forbidden
      */
     @Bean
     @Order(1)
@@ -401,67 +407,131 @@ public class MultipleSecurityFilterChainConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .anyRequest().hasRole("ADMIN")
                 )
-                .httpBasic(withDefaults());
+                .formLogin();
         return http.build();
     }
 
     /**
-     * 配置认证方式、接口权限
+     * user相关的url只能admin才能看
      */
     @Bean
     @Order(2)
-    protected SecurityFilterChain configure(HttpSecurity http) throws Exception {
+    protected SecurityFilterChain formAuth(HttpSecurity http) throws Exception {
         // opendoc csrf支持开启后，配不配置cookie里都有`XSRF-TOKEN`
         http.csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .and()
-                // 认证请求
-                .authorizeRequests()
                 // 这些请求不仅要认证，还要拥有相应角色
                 // but这样配置的话，"/user-api/users/"仍然不需要角色认证
-                .antMatchers("/user-api/users").hasRole("ADMIN")
-                // 其他请求只要认证了就行
-                .anyRequest().authenticated()
-//                .and()
-                // 单独设置https和http。会把http302到https，但是https请求会失败...
-//                .requiresChannel()
-//                .antMatchers("/login").requiresSecure()
-//                .antMatchers("/").requiresInsecure()
-                .and()
-                // 开启http basic认证：程序的认证，比如restful
-                // 因为是放在Authentication header里的，所以和应用状态无关
-                // 即使应用重启，只要有这个header，也可以直接通过认证
-                .httpBasic()
-                .and()
+                .antMatcher("/user-api/users")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().hasRole("ADMIN"))
                 // 使用表单提交用户名和密码的方式认证：人的认证
                 // 返回302，Location: http://localhost:8080/login
-                .formLogin()
-                .and()
-                .rememberMe()
-                // remember me过期时间
-                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(2))
-                .key("hellokugou");
-        // 两种认证方式，如果是浏览器，默认用第二种。如果是接口，直接返回401
+                .formLogin();
 
         return http.build();
     }
 
     /**
-     * 没设置优先级，为last
+     * /basic url需要使用basic认证
+     */
+    @Bean
+    @Order(3)
+    protected SecurityFilterChain basicAuth(HttpSecurity http) throws Exception {
+        http.csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .and()
+                .antMatcher("/basic")
+                .httpBasic()
+                .and()
+                // basic auth不要用session
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+
+        return http.build();
+    }
+
+    /**
+     * 其他请求。没设置优先级，为last
      */
     @Bean
     public SecurityFilterChain formLoginFilterChain(HttpSecurity http) throws Exception {
-        http
-                .authorizeHttpRequests(authorize -> authorize
+        http.authorizeHttpRequests(authorize -> authorize
                         .anyRequest().authenticated()
                 )
-                .formLogin(withDefaults());
+                .formLogin(withDefaults())
+                .rememberMe()
+                // remember me过期时间
+                .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(2))
+                // remember me加密用到的key
+                .key("hellokugou");
         return http.build();
     }
 }
 ```
 
-需要注意的是：**我们配置security filter chain时，配置的是更高层次的功能，不是直接配置filter。spring security提供了这么多filter来完成相关功能**：
-- https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters
+我们一共配置了4条security filter chain：
+1. 对"`/h2-console/**`"使用form认证，进行admin鉴权；
+2. 对"`/user-api/users`"使用form认证，进行admin鉴权；
+3. 对"`/basic`"使用basic认证（同时不创建session），**没有声明鉴权方式。但是在相关controller方法上设置了`@PreAuthorize("hasAnyAuthority('ROLE_USER')")`，所以还是需要user权限**；
+4. 对其他请求组使用form认证，开启remember me，鉴权方式为必须认证过（`SecurityContextHolder`里有东西就行）；
+
+> **context path即使被修改了，这里的url matcher也不用考虑。因为tomcat在匹配url的时候已经去掉context path，此时传给Filter的是后面的url**。
+
+**我们配置security filter chain时，配置的是更高层次的功能，不是直接配置filter**。spring security提供了[非常多的filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)来完成相关功能，**根据我们配置的行为，spring security会在各个security filter chain上注册不同的filter**。比如我们刚刚的4条filter chain的信息可以从log里看出来：
+
+每一条filter chain匹配什么url、**注册了那些filter用于做认证**，都打印了出来：
+- 2022-12-30 16:31:37.013  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/h2-console/**'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@48e8b558, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@1f7b645, org.springframework.security.web.context.SecurityContextPersistenceFilter@bdcf938, org.springframework.security.web.header.HeaderWriterFilter@57eab8d0, org.springframework.security.web.csrf.CsrfFilter@4c26ef1a, org.springframework.security.web.authentication.logout.LogoutFilter@28b4fb6c, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@37744595, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@728af88b, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@49299c17, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@4d541e83, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@7e40403a, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@7840ca88, org.springframework.security.web.session.SessionManagementFilter@1e7c54d, org.springframework.security.web.access.ExceptionTranslationFilter@3f547b47, org.springframework.security.web.access.intercept.AuthorizationFilter@8142cac]
+- 2022-12-30 16:31:37.039  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/user-api/users'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@2a1e7cbf, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@13021eff, org.springframework.security.web.context.SecurityContextPersistenceFilter@33535f2a, org.springframework.security.web.header.HeaderWriterFilter@5db0b4f5, org.springframework.security.web.csrf.CsrfFilter@3bccb97a, org.springframework.security.web.authentication.logout.LogoutFilter@56d9f727, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@33e7d52b, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@e2ef4de, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@5ffb5704, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@6ab366ca, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@327c7075, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@52b88f5d, org.springframework.security.web.session.SessionManagementFilter@6d8a2c88, org.springframework.security.web.access.ExceptionTranslationFilter@320d668c, org.springframework.security.web.access.intercept.AuthorizationFilter@7e864675]
+- 2022-12-30 16:31:37.055  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/basic'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@690bc59c, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@534e4aea, org.springframework.security.web.context.SecurityContextPersistenceFilter@58ca097, org.springframework.security.web.header.HeaderWriterFilter@6b7c3011, org.springframework.security.web.csrf.CsrfFilter@6b812575, org.springframework.security.web.authentication.logout.LogoutFilter@3f00dc7b, org.springframework.security.web.authentication.www.BasicAuthenticationFilter@5acf5c09, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@2e005fb8, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@24f61ed1, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@73c16b9e, org.springframework.security.web.session.SessionManagementFilter@67c48b97, org.springframework.security.web.access.ExceptionTranslationFilter@e57856]
+- 2022-12-30 16:31:37.081  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : **Will secure any request** with [org.springframework.security.web.session.DisableEncodeUrlFilter@661bdaf1, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@70fcc268, org.springframework.security.web.context.SecurityContextPersistenceFilter@275a25bb, org.springframework.security.web.header.HeaderWriterFilter@1a759cc, org.springframework.security.web.csrf.CsrfFilter@37c664a5, org.springframework.security.web.authentication.logout.LogoutFilter@48351427, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@52989d3f, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@77b86813, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@23b85c07, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@3e9458f, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@383b1507, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@32ec2f67, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@74a6ddf6, org.springframework.security.web.session.SessionManagementFilter@233d8e35, org.springframework.security.web.access.ExceptionTranslationFilter@700a83bc, org.springframework.security.web.access.intercept.AuthorizationFilter@1c8aaef0]
+
+每一条filter chain都是`DefaultLogoutPageGeneratingFilter`，其中第三条有`BasicAuthenticationFilter`，其他几条都是`UsernamePasswordAuthenticationFilter`。
+
+**配置完filter chain，可以看看这些log的url pattern和自己想的是不是一样。**
+
+如果我们此时使用basic auth提供guest/guest访问`/basic` url，会因为权限不足而被拒。具体流程可以从debug日志看出来——
+
+首先，因为我们的用户存在了in-memory database里，`DaoAuthenticationProvider`先从db里获取了用户：
+```
+2022-12-30 16:59:07.770 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Securing GET /basic
+2022-12-30 16:59:08.547 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Set SecurityContextHolder to empty SecurityContext
+2022-12-30 16:59:09.072 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.a.dao.DaoAuthenticationProvider    : Authenticated user
+```
+然后`BasicAuthenticationFilter`认证了请求，创建了一个guest用户的authentication `UsernamePasswordAuthenticationToken [Principal=org.springframework.security.core.userdetails.User [Username=guest, Password=[PROTECTED], Enabled=true, AccountNonExpired=true, credentialsNonExpired=true, AccountNonLocked=true, Granted Authorities=[ROLE_no auth]], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=0:0:0:0:0:0:0:1, SessionId=null], Granted Authorities=[ROLE_no auth]]`，放到了`SecurityContextHolder`里：
+```
+2022-12-30 16:59:09.073 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.a.www.BasicAuthenticationFilter  : Set SecurityContextHolder to UsernamePasswordAuthenticationToken [Principal=org.springframework.security.core.userdetails.User [Username=guest, Password=[PROTECTED], Enabled=true, AccountNonExpired=true, credentialsNonExpired=true, AccountNonLocked=true, Granted Authorities=[ROLE_no auth]], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=0:0:0:0:0:0:0:1, SessionId=null], Granted Authorities=[ROLE_no auth]]
+2022-12-30 16:59:09.075 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.csrf.CsrfAuthenticationStrategy  : Replaced CSRF Token
+2022-12-30 16:59:09.075 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Secured GET /basic
+```
+filter chain走完了，最后到了servlet，显然是`DispatcherServlet`。dispatcher servlet按照请求mapping，找到了controller `FrontPageController#basic()`：
+```
+2022-12-30 16:59:09.077 DEBUG 81703 --- [nio-8081-exec-1] org.apache.tomcat.util.http.Parameters   : Set encoding to UTF-8
+2022-12-30 16:59:09.078 DEBUG 81703 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : GET "/wtf/basic", parameters={}
+2022-12-30 16:59:09.085 DEBUG 81703 --- [nio-8081-exec-1] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.puppylpg.server.controller.FrontPageController#basic()
+```
+因为方法设置了`@PreAuthorize("hasAnyAuthority('ROLE_USER')")`，**且配置里设置了`@EnableMethodSecurity`**，所以aop发挥作用，before method interceptor进行拦截认证，发现权限不对，没有user权限。所以鉴权的结果是`ExpressionAttributeAuthorizationDecision` `[granted=false, expressionAttribute=ExpressionAttribute [Expression=hasAnyAuthority('ROLE_USER')]]`：
+```
+2022-12-30 16:59:09.100 DEBUG 81703 --- [nio-8081-exec-1] horizationManagerBeforeMethodInterceptor : Authorizing method invocation ReflectiveMethodInvocation: public java.lang.String com.puppylpg.server.controller.FrontPageController.basic(); target is of class [com.puppylpg.server.controller.FrontPageController]
+2022-12-30 16:59:09.114 DEBUG 81703 --- [nio-8081-exec-1] horizationManagerBeforeMethodInterceptor : Failed to authorize ReflectiveMethodInvocation: public java.lang.String com.puppylpg.server.controller.FrontPageController.basic(); target is of class [com.puppylpg.server.controller.FrontPageController] with authorization manager org.springframework.security.authorization.method.PreAuthorizeAuthorizationManager@6b7a3dd8 and decision ExpressionAttributeAuthorizationDecision [granted=false, expressionAttribute=ExpressionAttribute [Expression=hasAnyAuthority('ROLE_USER')]]
+```
+这是一个权限不足，所以由`AccessDeniedHandlerImpl`往response status里写入403 forbidden，请求结束，默认清理掉`SecurityContextHolder`：
+```
+2022-12-30 16:59:09.122 DEBUG 81703 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : Failed to complete request: org.springframework.security.access.AccessDeniedException: Access Denied
+2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.access.AccessDeniedHandlerImpl   : Responding with 403 status code
+2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Cleared SecurityContextHolder to complete request
+```
+试图返回`/error`：
+```
+2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] o.a.c.c.C.[Tomcat].[localhost]           : Processing ErrorPage[errorCode=0, location=/error]
+2022-12-30 16:59:09.575 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Securing GET /error
+2022-12-30 16:59:09.899 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Set SecurityContextHolder to empty SecurityContext
+2022-12-30 16:59:10.820 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2022-12-30 16:59:10.820 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Secured GET /error
+2022-12-30 16:59:10.839 DEBUG 81703 --- [nio-8081-exec-1] w.c.HttpSessionSecurityContextRepository : Did not store anonymous SecurityContext
+2022-12-30 16:59:10.839 DEBUG 81703 --- [nio-8081-exec-1] w.c.HttpSessionSecurityContextRepository : Did not store anonymous SecurityContext
+2022-12-30 16:59:10.840 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Cleared SecurityContextHolder to complete request
+2022-12-30 16:59:10.840 DEBUG 81703 --- [nio-8081-exec-1] o.a.c.c.C.[.[.[.[dispatcherServlet]      :  Disabling the response for further output
+2022-12-30 16:59:10.845 DEBUG 81703 --- [nio-8081-exec-1] o.a.coyote.http11.Http11InputBuffer      : Before fill(): parsingHeader: [true], parsingRequestLine: [true], parsingRequestLinePhase: [0], parsingRequestLineStart: [0], byteBuffer.position(): [0], byteBuffer.limit(): [0], end: [306]
+```
 
 ## 最常配的功能
 - https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/authorize-http-requests.html

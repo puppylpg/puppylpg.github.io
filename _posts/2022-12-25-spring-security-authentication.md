@@ -322,7 +322,23 @@ LDAP (Lightweight Directory Access Protocol)，[一般接入公司人员组织�
 
 **security filter chain里的`SecurityContextPersistenceFilter`是用来做context的持久化的**。
 
-# 并发session控制
+# session
+spring security默认使用session存放认证信息，对于form登录的用户来说，这意味着只在login请求发送一次用户名密码就行了，后面的请求不需要用户名密码了，spring security会从session里取认证信息。
+
+**但是对于basic认证来说，这会导致一个问题：第一次basic认证如果成功了，后面的请求即使用户名密码错了，依然能通过认证，因为后面的请求直接从session里就拿到认证信息了。**
+
+> **恍然大明白，其实form登录的前后端系统，我们只发送了一次用户名密码，后面的请求都没有带。那么`UsernamePasswordAuthenticationFilter`只认证一次（post `/login`）太合情合理了！**
+
+## basic认证禁用session
+因此basic认证需要禁用session，以让每次请求都带上用户名和密码信息。直接修改`HttpSecurity`即可：
+```
+http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+```
+- STATELESS：session创建策略实际上不使用session，也不从session里取认证信息。
+
+**设置stateless之后，server不再返回set-cookie JSESSIONID了，因此client的下次请求也不会设置session id**。
+
+## 并发session控制
 一个比较有意思的问题：[一个账户最多能多少人同时使用](https://docs.spring.io/spring-security/reference/5.8/servlet/authentication/session-management.html#ns-concurrent-sessions)？比如一个账号同时间只能登陆一次（同一时刻只能有一个关于这个账号的session）。第二次登陆默认踢掉第一次，或者直接禁止第二次登陆。
 
 慎用第二种策略。。。

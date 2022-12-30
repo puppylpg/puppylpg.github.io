@@ -570,3 +570,73 @@ $ docker push <private docker hub>/puppylpg/puppylpg-base:latest
 26M     /usr/java/jdk1.8.0_202/jre/lib/ext
 26M     /usr/bin
 ```
+
+# springboot Dockerfile
+springboot开发的Java项目，Dockerfile非常好写。
+
+虽然可以使用springboot提供的spring-boot-maven-plugin把项目打包为可执行jar，然后直接run jar：
+```
+FROM openjdk:8-jdk-alpine
+EXPOSE 8080
+ARG JAR_FILE=target/demo-app-1.0.0.jar
+ADD ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-jar","/app.jar"]
+```
+但是spring-boot-maven-plugin对这个可执行jar提供了更进一步的支持，可以打出一个 **layered runnable jar**：
+```
+                <!-- 分layer打包spring boot项目 -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <layers>
+                            <enabled>true</enabled>
+                        </layers>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+```
+分层有什么好处？**分层打出来的jar，依赖、snapshot依赖、springboot loader、项目代码各成一层，基本上依赖和springboot loader这两层是不会变的，所以多次打docker镜像的情况下，这两层可以一直复用！**
+
+> springboot可谓把善于观察做到了极致！
+
+此时再写Dockerfile，我们只需要把layered jar拆开（`java -Djarmode=layertools -jar ${TARGET_FILE} extract`），每一层分别打包为docker image的一个layer即可：
+```
+FROM harbor-registry.inner.youdao.com/ead/overseas-base:latest as builder
+
+# 本地提前repackage好
+ARG JAR_FILE=target/url-mapper-*.jar
+ARG TARGET_FILE=app.jar
+COPY ${JAR_FILE} ${TARGET_FILE}
+RUN java -Djarmode=layertools -jar ${TARGET_FILE} extract
+
+FROM harbor-registry.inner.youdao.com/ead/overseas-base:latest
+LABEL maintainer="liuhaibo@rd.netease.com"
+WORKDIR /app
+
+COPY --from=builder dependencies/ ./
+COPY --from=builder snapshot-dependencies/ ./
+COPY --from=builder spring-boot-loader/ ./
+COPY --from=builder application/ ./
+
+RUN mkdir logs
+
+EXPOSE 9326 8080
+
+ENV JVM_ARGS="-Xms256m -Xmx4096m -XX:+UseG1GC -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintAdaptiveSizePolicy -XX:+PrintTenuringDistribution -Xloggc:logs/gc.log.%t"
+
+CMD java $JVM_ARGS org.springframework.boot.loader.JarLauncher
+```
+
+> 甚至还用到了docker image的多阶段build！
+
+参考：
+- https://www.baeldung.com/spring-boot-docker-images
+
+
