@@ -95,7 +95,9 @@ public class FrontPageController {
     }
 }
 ```
-**为了让`@PreAuthorize`生效，必须使用`@EnableMethodSecurity`开启它，否则写了也没用。**
+**为了让基于方法的`@PreAuthorize`生效，必须使用`@EnableMethodSecurity`开启它，否则写了也没用。**
+
+> 基于url的
 
 测试代码：
 ```
@@ -153,6 +155,9 @@ public class FrontPageControllerTest {
 有几点需要注意：
 1. **[`MockMvc`]({% post_url 2022-12-03-spring-web-mvc %})需要手动设置context path，所以即使代码修改了默认context path，测试的时候最好也不要用context path。它不读取properties里的context path设置**，无论是`@WebMvcTest`还是`@SpringBootTest` + `@AutoConfigureMockMvc`；
 2. `@WebMvcTest`不会加载自定义的spring security `MultipleSecurityFilterChainConfig`配置，但是它里面写了`@EnableMethodSecurity`。所以为了让`@PreAuthorize`生效，需要把它import进来：`@Import(MultipleSecurityFilterChainConfig.class)`；
+
+更多样例可以参考：
+- https://www.baeldung.com/spring-security-integration-tests
 
 # 感想
 测试框架往往是框架本身的精简，去其乱七八糟的功能，返璞归真。果然，看了spring security test，更懂spring security实际是干嘛的了。
