@@ -604,8 +604,10 @@ spring是根据classpath下有没有servlet相关的类来决定要不要启动`
 **web application的默认配置是`src/main/webapp`，可以通过`@WebAppConfiguration("xxx")`覆盖，同样支持file和classpath语法**：
 > If you are familiar with the directory structure of a web application in a Maven project, **you know that `src/main/webapp` is the default location for the root of your WAR**. **If you need to override this default, you can provide an alternate path to the `@WebAppConfiguration` annotation (for example, `@WebAppConfiguration("src/test/webapp")`)**. If you wish to reference a base resource path from the classpath instead of the file system, **you can use Spring's `classpath:` prefix. 我猜是`@WebAppConfiguration("classpath:webapp")`**
 
-**`@ContextConfiguration`默认指的是classpath上的文件，`@WebAppConfiguration`默认值的是file路径的文件**：
+**`@ContextConfiguration`默认指的是classpath上的文件，`@WebAppConfiguration`默认指的是file路径的文件**：
 > By default, `@WebAppConfiguration` resource paths are file system based，所以想使用classpath下的文件夹一定要以`classpath:`开头！但是`@ContextConfiguration`是classpath based！
+
+它使用file based路径我觉得是很合理的，**因为它需要的是web配置文件，而默认web配置文件`src/main/webapp`并不在classpath上，自然不可能会用基于classpath的文件加载方式**。
 
 spring test对`WebApplicationContext`的支持和`ApplicationContext`一致：比如也可以使用上面说的`@ContextConfiguration`、`@ActiveProfiles`、`@TestExecutionListeners`、`@Sql`、`@Rollback`等：
 ```
@@ -738,12 +740,12 @@ class是[Component Classes](https://docs.spring.io/spring-framework/docs/current
 ## `@WebAppConfiguration`
 `@WebAppConfiguration` is a class-level annotation that you can use to declare that the `ApplicationContext` loaded for an integration test should be a `WebApplicationContext`.
 
-就是为了告诉spring应该用web的context。别忘了就它的资源路径是file base的。
+就是为了告诉spring应该用web的context。**别忘了就它的资源路径是file base的，因为不在classpath行**。
 
-## @Commit
+## `@Commit`
 执行完测试用例之后，不要回滚，让它持久化。和`@Rollback`相对。
 
-## @Sql
+## `@Sql`
 执行测试用例之前先执行sql脚本填充数据：
 ```
 @Sql({"/test-schema.sql", "/test-user-data.sql"}) 
@@ -785,5 +787,5 @@ spring test自己举的例子也不错：
 - https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#spring-testing-annotation-testexecutionlisteners
 
 # 感想
-一直玩不明白spring test和springboot test。第一次正式看并记录spring test是在今年六月初，当时看得我一脸懵逼。再次真正回来梳理明白是十一月底。这期间兜兜转转，又扩充了海量的知识，系统看了jupiter之后，才终于搞明白了spring/boot test。人的水平不一样，看东西理解能力差别太大了。终于搞清楚了，现在我可太开心了~
+一直玩不明白spring test和springboot test。第一次正式看并记录spring test是在今年六月初，当时看得我一脸懵逼。再次真正回来梳理明白是十一月底。这期间兜兜转转，又扩充了海量的知识，终于在系统地看了jupiter之后，才终于搞明白了spring/boot test。人的水平不一样，看东西理解能力差别太大了。终于搞清楚了，现在我可太开心了~
 

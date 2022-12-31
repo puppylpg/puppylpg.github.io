@@ -18,7 +18,7 @@ springboot是基于spring的，[springboot test](https://docs.spring.io/spring-b
 {:toc}
 
 # `SpringBootTestContextBootstrapper`
-spring test提供了`@BootstrapWith`注解，可以让第三方框架是用自己的`TestContextBootstrapper`构建`TestContext`。springboot就实现了这样一个注解`SpringBootTestContextBootstrapper`，只要标注`@BootstrapWith(SpringBootTestContextBootstrapper.class)`，就能以springboot的方式构建自己的`ApplicationContext`。
+spring test提供了`@BootstrapWith`注解，可以让第三方框架使用自己的`TestContextBootstrapper`构建`TestContext`。springboot就实现了这样一个注解`SpringBootTestContextBootstrapper`，只要标注`@BootstrapWith(SpringBootTestContextBootstrapper.class)`，就能以springboot的方式构建自己的`ApplicationContext`。
 
 正如spring test的`@SpringJunitConfig`注解集成了`@ContextConfiguration`一样，springboot test提供了一堆集成了`@BootstrapWith(SpringBootTestContextBootstrapper.class)`的注解`@*Test`，`@SpringBootTest`就是其中最常用的一个。
 
@@ -48,7 +48,7 @@ springboot test的`@*Test`（可不是只有`@SpringBootTest`这一个注解）�
 
 springboot test默认是找标注了`@*Test`的本package或 **上级package**，直到找到这样的注解。一般情况下都能找到。
 
-比较特殊的情况是，工程是一个基于springboot的纯lib项目，src里没有启动类。此时如果想用springboot test测这个包，那么test代码里就要写上一个`@SpingBootApplication`。
+> 比较特殊的情况是，如果一个工程是纯lib项目，src里没有启动类，此时如果想用springboot test测这个包，那么test代码里就要写一堆configuration class，再写上一个`@SpingBootApplication`启动类，以进行自动配置。
 
 ## 为什么是`@SpringBootConfiguration`
 它其实就是`@Configuration`的alias，对spring和springboot来说，它其实就是一个普通的spring `@Configuration`，**只有springboot test对它提供了额外支持**。所以只有在springboot test里它才有点儿高于`@Configuration`的额外作用：
@@ -362,7 +362,7 @@ class MyApplicationArgumentTests {
 那岂不是可以通过args传入profiles信息了。
 
 # `@SpringBootTest`
-`@SpringBootTest`因为会扫描所有的autoconfig class，所以默认会构建一个完整的`ApplicationContext`！。但是，由于[Spring Mvc Test - MockMvc]({% post_url 2022-11-26-spring-mvc-test %})能在不启动server的情况下，单线程测试spring mvc，**所以`@SpringBootTest`在默认情况下虽然构建了完整的 `ApplicationContext`，[依然使用`MockMvc`执行servlet，而非真启动一个server](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.with-mock-environment)**：
+`@SpringBootTest`因为会扫描所有的autoconfig class，所以默认会构建一个完整的`ApplicationContext`！但是，由于[Spring Mvc Test - MockMvc]({% post_url 2022-11-26-spring-mvc-test %})能在不启动server的情况下，单线程测试spring mvc，**所以`@SpringBootTest`在默认情况下虽然构建了完整的 `ApplicationContext`，[依然使用`MockMvc`执行servlet，而非真启动一个server](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.spring-boot-applications.with-mock-environment)**：
 ```
 WebEnvironment webEnvironment() default WebEnvironment.MOCK
 ```
@@ -610,6 +610,184 @@ class MyOutputCaptureTests {
         assertThat(output).contains("World");
     }
 
+}
+```
+
+# springboot测试的层次
+参考：
+- 代码：https://github.com/puppylpg/spring-boot-testing-strategies
+- 非常好的blog：https://thepracticaldeveloper.com/guide-spring-boot-controller-tests/
+
+基于以上springboot test的知识，springboot有四个层次的测试：
+1. mock mvc manually：**手动构建`MockMvc`，没有使用spring构建`MockMvc`。任何其他mvc组件（filter、controller advice）如果想用，都得自己手动组装**。当然也不含任何service；
+2. only `MockMvc`：使用spring配置的`MockMvc`，但是也使用`ApplicationContext`，所以能给controller注入各种filter、controller advice。**但只有mvc相关的bean，没有service bean**；
+3. `@SpringBootTest` full test but `MockMvc`：还是`MockMvc`，但是已经使用了springboot的完整配置初始化了所有的bean。有`ApplicationContext`，给controller注入各种filter、controller advice，**而且有service bean**；
+4. `@SpringBootTest` full server test(without `MockMvc`)：也是使用完整的springboot配置，但是不再使用`MockMvc`，而是启动真正的server。此时需要用`TestRestTemplate`作为client发送http请求进行测试；
+
+**当然，无论哪一种，都可以使用`@MockMvc` mock service bean。即使启用完整的springboot，有了service bean，也可以用`@MockMvc`使用mock的service bean替换掉真的service bean**。
+
+## mock mvc manually
+`MockMvc`要自己手动构建、组装。
+```
+@ExtendWith(MockitoExtension.class)
+public class SuperHeroControllerMockMvcStandaloneTest {
+
+    private MockMvc mvc;
+
+    @Mock
+    private SuperHeroRepository superHeroRepository;
+
+    @InjectMocks
+    private SuperHeroController superHeroController;
+
+    /**
+     * This object will be magically initialized by the {@link JacksonTester#initFields(Object, ObjectMapper)} method below.
+     */
+    private JacksonTester<SuperHero> jsonSuperHero;
+
+    @BeforeEach
+    public void setup() {
+        // We would need this line if we would not use the MockitoExtension
+        // MockitoAnnotations.initMocks(this);
+        // Here we can't use @AutoConfigureJsonTesters because there isn't a Spring context
+        JacksonTester.initFields(this, new ObjectMapper());
+        // MockMvc standalone approach
+        mvc = MockMvcBuilders.standaloneSetup(superHeroController)
+                .setControllerAdvice(new SuperHeroExceptionHandler())
+                .addFilters(new SuperHeroFilter())
+                .build();
+    }
+
+    @Test
+    public void canRetrieveByIdWhenExists() throws Exception {
+        // given
+        given(superHeroRepository.getSuperHero(2))
+                .willReturn(new SuperHero("Rob", "Mannon", "RobotMan"));
+
+        // when
+        MockHttpServletResponse response = mvc.perform(
+                get("/superheroes/2")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andReturn().getResponse();
+
+        // then
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.getContentAsString()).isEqualTo(
+                jsonSuperHero.write(new SuperHero("Rob", "Mannon", "RobotMan")).getJson()
+        );
+    }
+}
+```
+
+## only mock mvc
+使用springboot构建`MockMvc`，这个时候mvc的组件也自动组装好了，我们直接用就行了。但是只有mvc相关的bean被实例化了，其他bean（service、repository）没有。
+```
+@AutoConfigureJsonTesters
+@WebMvcTest(SuperHeroController.class)
+public class SuperHeroControllerMockMvcWithContextTest {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @MockBean
+    private SuperHeroRepository superHeroRepository;
+
+    /**
+     * This object will be initialized thanks to {@link AutoConfigureJsonTesters}
+     */
+    @Autowired
+    private JacksonTester<SuperHero> jsonSuperHero;
+
+    @Test
+    public void canRetrieveByIdWhenExists() throws Exception {
+        // given
+        given(superHeroRepository.getSuperHero(2))
+                .willReturn(new SuperHero("Rob", "Mannon", "RobotMan"));
+
+        // when
+        MockHttpServletResponse response = mvc.perform(
+                get("/superheroes/2")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andReturn().getResponse();
+
+        // then
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.getContentAsString()).isEqualTo(
+                jsonSuperHero.write(new SuperHero("Rob", "Mannon", "RobotMan")).getJson()
+        );
+    }
+}
+```
+
+## springboot full test mock mvc
+虽然还是`MockMvc`，但是已经是完整的springboot `ApplicationContext`了，各种bean都有了。当然如果想替换掉真实的service bean，依然可以使用`@MockBean`。
+```
+@AutoConfigureJsonTesters
+@SpringBootTest
+@AutoConfigureMockMvc
+public class SuperHeroControllerSpringBootMockTest {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @MockBean
+    private SuperHeroRepository superHeroRepository;
+
+    /**
+     * This object will be initialized thanks to {@link AutoConfigureJsonTesters}
+     */
+    @Autowired
+    private JacksonTester<SuperHero> jsonSuperHero;
+
+    @Test
+    public void canRetrieveByIdWhenExists() throws Exception {
+        // given
+        given(superHeroRepository.getSuperHero(2))
+                .willReturn(new SuperHero("Rob", "Mannon", "RobotMan"));
+
+        // when
+        MockHttpServletResponse response = mvc.perform(
+                get("/superheroes/2")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andReturn().getResponse();
+
+        // then
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.getContentAsString()).isEqualTo(
+                jsonSuperHero.write(new SuperHero("Rob", "Mannon", "RobotMan")).getJson()
+        );
+    }
+}
+```
+
+## springboot full server test
+同样是完整的springboot `ApplicationContext`，各种bean都有，但不使用`MockMvc`，真实启动server。此时只能使用client去测试了。
+```
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+public class SuperHeroControllerSpringBootTest {
+
+    /**
+     * you can still mock beans and replace them in the context
+     */
+    @MockBean
+    private SuperHeroRepository superHeroRepository;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    public void canRetrieveByIdWhenExists() {
+        // given
+        given(superHeroRepository.getSuperHero(2))
+                .willReturn(new SuperHero("Rob", "Mannon", "RobotMan"));
+
+        // when
+        ResponseEntity<SuperHero> superHeroResponse = restTemplate.getForEntity("/superheroes/2", SuperHero.class);
+
+        // then
+        assertThat(superHeroResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(superHeroResponse.getBody().equals(new SuperHero("Rob", "Mannon", "RobotMan")));
+    }
 }
 ```
 
