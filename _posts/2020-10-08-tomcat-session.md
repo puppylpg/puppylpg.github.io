@@ -196,18 +196,26 @@ session只保证用户使用这个浏览器登录后，接下来发的请求都�
 **所以我觉得账户和session并没有什么关系，是完全两码事，要不要把二者关联起来，完全取决于server实现**：session只负责把你接下来同一个浏览器发的请求识别为同一个人发的，从而使http具有状态。至于要不要把账户和session绑定起来，完全是两码事。最典型的例子就是不需要账户登录的系统，访问server会使用一个session，无论访问多少次都会使用这个session。关掉浏览器再打开，再访问，就是另一个session。
 
 # `org.apache.catalina.Manager` - 管理session
-Manager是用来manage session的。Manager最简单的实现也可以把它理解为一个存放session的map，可以增删改查session，同时session不存在时还能自主创建session。
+Manager是用来manage session的。Manager最简单的实现也可以把它理解为一个存放session的map，可以增删改查session，同时session不存在时还能自主创建session。**manger的另一个功能是持久化session**。
 
 Manager接口有很多实现，主要是因为存放session的策略不同。比如**当服务器停机时，session要持久化起来吗？一般是要的，这样Tomcat重启后，session还可以从持久化存储里恢复到内存中。**
 
-Tomcat里StandardSession实现了Serializable接口，所以可以用Java自带的持久化方法持久化session对象。
+**Tomcat里`StandardSession`实现了Serializable接口，所以可以用Java自带的持久化方法持久化session对象**。
 
-- StandardManager：把session序列化到`SESSION.ser`文件中；
-- PersistentManager：把session持久化到文件或者数据库里；
+- `StandardManager`：**把session序列化到`SESSION.ser`文件中**；
+- `PersistentManager`：把session持久化到文件或者数据库里；
 
 由于持久化到文件或者数据库仅在于存储介质的不同，流程都是一样的，所以Tomcat抽象出了一个Store接口，实现类有FileStore和JDBCStore。看具体实现，前者就是在写文件，后者就是在使用sql语句将session insert到db。
 
-Manager的实现还有一个DistributedManager，用于分布式Tomcat集群使用。用户在一个服务器上发起了请求，**该Tomcat创建完session后要把session发送到整个Tomcat集群**，要不然下次请求打到另一台Tomcat就不被识别了。至于发送方式，可以是创建session的Tomcat将session发送到共享队列，其他Tomcat周期性从队列中同步session。
+`StandardManager`持久化session的路径默认是`servletContext.getAttribute(ServletContext.TEMPDIR)` + `SESSION.ser`：
+- https://stackoverflow.com/a/57739111/7676237
+- https://tomcat.apache.org/tomcat-9.0-doc/config/manager.html#Persistence_Across_Restarts
+
+但是实际使用springboot内嵌的tomcat时，发现tempdir是`/tmp/tomcat.8081.1430510583086709566/work/Tomcat/localhost/wtf`，但是持久化的位置确是`/tmp/7D61FD3B9F0EDBBC7FE2B09FF58494DEB1D82D5F/servlet-sessions/SESSIONS.ser`
+
+> `SESSION.ser`只有在tomcat关闭之后才有。tomcat重启之后，该文件会被删除。
+
+Manager的实现还有一个`DistributedManager`，用于分布式Tomcat集群使用。用户在一个服务器上发起了请求，**该Tomcat创建完session后要把session发送到整个Tomcat集群**，要不然下次请求打到另一台Tomcat就不被识别了。至于发送方式，可以是创建session的Tomcat将session发送到共享队列，其他Tomcat周期性从队列中同步session。
 
 存储session的好处：
 - 持久化、备份：宕机不丢失；
