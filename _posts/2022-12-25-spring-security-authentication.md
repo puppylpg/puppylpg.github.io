@@ -329,6 +329,8 @@ spring security默认使用session存放认证信息，对于form登录的用户
 
 > **恍然大明白，其实form登录的前后端系统，我们只发送了一次用户名密码，后面的请求都没有带。那么`UsernamePasswordAuthenticationFilter`只认证一次（post `/login`）太合情合理了！**
 
+同样，如果第一次的basic认证成功了但鉴权失败（403 forbidden），不仅第一次的请求会失败，因为接下来的请求带有session，也会失败。**请求带着session id，直接就认证通过了，所以甚至都不会再次触发basic认证**，想在浏览器里重新进行basic认证都没办法。欲哭无泪。而由于session默认是会被序列化的，重启服务后会继续生效，再加上basic认证一般都不会配置logout，在session过期前永远不可能认证通过了……
+
 ## basic认证禁用session
 因此basic认证需要禁用session，以让每次请求都带上用户名和密码信息。直接修改`HttpSecurity`即可：
 ```
@@ -426,6 +428,8 @@ Cookie: remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4
 	}
 ```
 **既然从cookie里解析出了user，那就取数据库中的user，把username、password、expireTime、key等信息再生成一次签名（这里用的是md5算法），和remember me cookie里的签名作比较就行了。因此，remember me在server重启之后依然能用，因为cookie里已经保留好必要信息了（username、signature）。**
+
+> 其实即使是把信息保存到了session里，在服务重启之后依然是能用的，因为tomcat默认持久化了session。详见[（七）How Tomcat Works - Tomcat Session]({% post_url 2020-10-08-tomcat-session %})
 
 如果发起了post `/logout`请求，server应该让浏览器清除掉`remember-me` cookie：
 ```
