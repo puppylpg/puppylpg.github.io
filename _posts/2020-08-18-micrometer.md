@@ -36,7 +36,7 @@ tags: micrometer
 - https://graphiteapp.org/
 - https://grafana.com/
 
-由于graphite是一个server，接收发送来的数据。jmx也是一个server，提供查询metric的方法。两个server都是被动接收请求，所以还需要一个中间人，从jmx处查询到数据，再发送给graphite。这个工具一般使用jmxtrans，名字直白易懂：jmx transport，用来传输jmx暴露的metric。
+由于graphite是一个server，jmx也是一个server，两个server都是被动接收请求，所以还需要一个中间人，从jmx处查询到数据，再发送给graphite。这个工具一般使用jmxtrans，名字直白易懂：jmx transport，用来传输jmx暴露的metric。
 
 - https://www.jmxtrans.org/
 - https://github.com/jmxtrans/jmxtrans/wiki
@@ -46,7 +46,7 @@ tags: micrometer
 
 另外使用jmxtrans比较麻烦，需要定义一套配置，jmxtrans按照配置抓取服务中的metric。定义配置本身就比较麻烦，而且多个服务就要定义多个配置。
 
-既然graphite是一个server，那为是么不让Java服务直接将自己的metric发送到graphite呢？这样直接砍去了jmx和jmxtrans两个环节。
+既然graphite是一个server，那为什么不让Java服务直接将自己的metric发送到graphite呢？这样直接砍去了jmx和jmxtrans两个环节。
 
 > metric -> graphite -> grafana
 
@@ -58,7 +58,7 @@ tags: micrometer
 在应用中统计metric一般还是用dropwizard，发送到graphite则可以使用dropwizard提供的另一个依赖：metrics-graphite，配置好graphite地址，就可以直接发送了。当然还可以配置一些细粒度的属性，比如metric的prefix、发送频率等。
 
 ## 大一统方案 - micrometer
-上述方案虽然简洁明了，但也存在一个致命缺陷：只能将自己使用dropwizard统计的metric通过dropwizard的metrics-graphite直接发送给graphite。第三方依赖比如tomcat，统计的metric是通过暴露jmx暴露的，想收集这些metric还是得通过jmx和jmxtrans。但是这些metric对于服务端又很重要，必须收集。如此一来还是逃不开链条很长的那一套。
+上述方案虽然简洁明了，但也存在一个致命缺陷：只能将自己使用dropwizard统计的metric通过dropwizard的metrics-graphite直接发送给graphite。第三方依赖比如tomcat，统计的metric是通过jmx暴露的，想收集这些metric还是得通过jmx和jmxtrans。但是这些metric对于服务端又很重要，必须收集。如此一来还是逃不开链条很长的那一套。
 
 micrometer则提供了一个大一统方案，解决了这个问题。
 
@@ -68,7 +68,7 @@ micrometer则提供了一个大一统方案，解决了这个问题。
 3. 用户自定义的metric和收集的第三方的metric要是一个统一的格式；
 4. 把该统一格式的metric发送到第三方统计server，可以是graphite，也可以是其他。
 
-> micrometer -> graphite ect -> grafana
+> micrometer -> graphite -> grafana
 
 - http://micrometer.io/
 
@@ -128,7 +128,7 @@ CompositeMeterRegistry是个特殊的registry，可以添加多个registry。mic
 
 注意事项：
 1. Timer统计的内容涵盖Counter，但不要滥用Timer，对于仅使用Counter就可以解决问题的场景，不要用Timer。
-2. Counter和Gauge是不同的东西，Counter仅用于累加，只增不减，所以在使用Gauge的场合使用Counter。
+2. Counter和Gauge是不同的东西，Counter仅用于累加，只增不减，所以不要在使用Gauge的场合使用Counter。
 
 > Timers are intended for measuring short-duration latencies, and the frequency of such events. All implementations of Timer report at least the total time and count of events as separate time series.
 
@@ -243,7 +243,7 @@ Micrometer uses Dropwizard Metrics as the underlying instrumentation library whe
 
 
 # spring boot + micrometer
-spring boot最大的优点（缺陷）就是自动配置。
+spring boot最大的优点（缺陷:D）就是自动配置。
 
 > 了解原理，自动配置是一个非常方便的属性，不明就里，自动配置能把你搞得云里雾里。
 
@@ -303,7 +303,7 @@ spring boot不自动配置了，properties里的配置自然也没用了。
 首先，看官方文档是非常非常必要的，看看spring已经做好了哪些：
 - https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#production-ready-metrics
 
-毕竟用的别人的代码，很多东西已经写好默认了，就不用动手了。这点不看文档、不看自动配置的那些代码，再手撸一遍就搞笑了。
+毕竟用的别人的代码，很多东西已经写好默认了，就不用动手了。如果不看文档、不看自动配置的那些代码，再手撸一遍就搞笑了。
 
 - Metrics.global
 - 其实还配置好了一个CompositeMeterRegistry，需要用的话可以直接注入
@@ -333,8 +333,10 @@ management:
         step: 1m
         host: localhost
         port: 2003
-        tags-as-prefix: metric,project,profile,host,port,pokemon # pokemon comes from `management.metrics.tags.pokemon`
-        graphite-tags-enabled: false # disable tag, use as hierarchical name
+        # key `pokemon`的value来自`management.metrics.tags.pokemon`，其他tag的value参考配置代码
+        tags-as-prefix: metric,project,profile,host,port,pokemon
+        # disable tag, use as hierarchical name
+        graphite-tags-enabled: false
         protocol: plaintext
       jmx:
         enabled: true
@@ -344,9 +346,10 @@ management:
           autotime:
             enabled: true
           metric-name: auto-time-for-all.http.server.requests
-    tags: # add common tags for meter
+    # add common tags for meter，也可以通过代码配置tag
+    tags:
       pokemon: pikachu
-      application: test-server
+      application: course-prophet
       author: puppylpg
 ```
 
@@ -379,7 +382,7 @@ management:
 > 这里使用management.metrics.web.server.request.autotime.metric-name将http.server.requests改名为all-time-for-all.http.server.reuqests。
 
 ### 标签作为前后缀
-可以给MeterRegistry配置common tag，从而给registry里的所有meter打一堆标签，奇偶位置分别为key和value：
+可以给MeterRegistry配置common tag，从而给registry里的所有meter打一堆标签，**奇偶位置分别为key和value**：
 ```
 meterRegistry.config().commonTags("profile", "test", "project", "test-server", "host", MachineUtils.getShortHostName(), "port", env.getProperty("server.port"));
 ```
@@ -387,20 +390,40 @@ meterRegistry.config().commonTags("profile", "test", "project", "test-server", "
 ```
 management.metrics.export.graphite.graphite-tags-enabled=false
 ```
-将会使用GraphiteHierarchicalNameMapper和GraphiteHierarchicalNamingConvention。
+将会使用`GraphiteHierarchicalNameMapper`和`GraphiteHierarchicalNamingConvention`。
 
-GraphiteHierarchicalNameMapper可以将其中的一些tag的key和value作为prefix，其余的将变成suffix：
+**GraphiteHierarchicalNameMapper可以将其中的一些tag的key和value作为prefix，其余的将变成suffix**：
 ```
 management.metrics.export.graphite.tags-as-prefix=profile,project,host,port
 ```
 均为dot分隔，添加在meter名字前后。
 
+假设配置了这么多tag又没有enable tag，"suffix" tag会变成suffix，因为它没有配置在`management.metrics.export.graphite.tags-as-prefix`里：
+```
+                // graphite name eg: test.test-server.DESKTOP-T467619.8090.auto.registry.new.counter.suffix.pika
+                registry.config()
+                        .commonTags(
+                                "metric", "micrometer",
+                                "project", "test-server",
+                                "profile", getProfilesConcatenation(),
+                                "host", MachineUtils.getShortHostName(),
+                                "port", env.getProperty("server.port"),
+                                // 没有在tags-as-prefix里配置，所以这个tag会变成suffix，而不是prefix
+                                "suffix", "pika"
+                        );
+```
+
 > GraphiteHierarchicalNameMapper: Defines the mapping between a combination of name + dimensional tags and a hierarchical name.
 
-GraphiteHierarchicalNamingConvention默认使用`NamingConvention.camelCase`，将meter本身的名字处理成驼峰写法。
+**`GraphiteHierarchicalNameMapper`拼接好名字之后，`GraphiteHierarchicalNamingConvention`默认使用`NamingConvention.camelCase`，将meter本身的名字处理成驼峰写法。**
 
-可以用上面说的`MeterRegistryCustomizer<GraphiteMeterRegistry>`，替换GraphiteMeterRegistry的NamingConvention为`NamingConvention.dot`，
-就全都是dot分隔的了。
+可以用上面说的`MeterRegistryCustomizer<GraphiteMeterRegistry>`，替换GraphiteMeterRegistry的NamingConvention为`NamingConvention.dot`，就全都是dot分隔的了：
+```
+    @Bean
+    MeterRegistryCustomizer<GraphiteMeterRegistry> graphiteMetricsNamingConvention() {
+        return registry -> registry.config().namingConvention(NamingConvention.dot);
+    }
+```
 
 ### 使用MeterRegistryCustomizer个性化MeterRegistry
 spring boot提供的properties文件里对MeterRegistry的配置项毕竟有限，而且表述复杂的配置也不容易。更多更复杂的配置可以在代码中使用MeterRegistryCustomizer来实现。
@@ -428,6 +451,7 @@ MeterRegistryCustomizer的个性化配置通过`MeterRegistryPostProcessor#postP
                                 "profile", getProfilesConcatenation(),
                                 "host", MachineUtils.getShortHostName(),
                                 "port", env.getProperty("server.port"),
+                                // 没有在tags-as-prefix里配置，所以这个tag会变成suffix，而不是prefix
                                 "suffix", "pika"
                         );
             }
@@ -439,16 +463,10 @@ MeterRegistryCustomizer的个性化配置通过`MeterRegistryPostProcessor#postP
                     .onMeterAdded(meter -> {
                         String registryClass = registry.getClass().getSimpleName();
                         NamingConvention namingConvention = registry.config().namingConvention();
-                        String conventionName = namingConventionName(namingConvention);
-
-                        // 刚开始创建的时候用的是GraphiteHierarchicalNamingConvention，被替换后就不是了
-                        if (namingConvention instanceof GraphiteHierarchicalNamingConvention) {
-                            conventionName = "graphiteHierarchicalNamingConvention";
-                        }
 
                         String meterConventionName = meter.getId().getConventionName(registry.config().namingConvention());
-//                        log.info("{}; {}; Meter Added: {}", registryClass, conventionName, meterConventionName);
-                        System.out.println(String.format("%s; %s; Meter Added: %s", registryClass, conventionName, meterConventionName));
+//                        log.info("{}; Meter Added: {}", registryClass, meterConventionName);
+                        System.out.println(String.format("%s; Meter Added: %s", registryClass, meterConventionName));
                         if (registry instanceof GraphiteMeterRegistry) {
 //                            log.info("Final graphite name for this meter: {}", nameMapper.toHierarchicalName(meter.getId(), namingConvention));
                             System.out.println("Final graphite name for this meter: " + nameMapper.toHierarchicalName(meter.getId(), namingConvention));
@@ -463,15 +481,6 @@ MeterRegistryCustomizer的个性化配置通过`MeterRegistryPostProcessor#postP
             joiner.add(activeProfile);
         }
         return joiner.toString();
-    }
-
-    private String namingConventionName(NamingConvention namingConvention) {
-        return namingConvention == NamingConvention.dot ? "dot" :
-                namingConvention == NamingConvention.camelCase ? "camel" :
-                        namingConvention == NamingConvention.identity ? "identity" :
-                                namingConvention == NamingConvention.slashes ? "slashes" :
-                                        namingConvention == NamingConvention.snakeCase ? "snake" :
-                                                namingConvention == NamingConvention.upperCamelCase ? "upperCamel" : "unknown";
     }
 
     /**
@@ -568,4 +577,3 @@ system:
 
 # 最后
 加了监控之后再看jvm的新生代老年代，抽象的概念是不是瞬间写实了？
-
