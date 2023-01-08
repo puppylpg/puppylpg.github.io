@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Springboot run"
+title: "SpringBoot - run"
 date: 2022-07-21 21:40:28 +0800
 categories: springboot
 tags: springboot
@@ -255,7 +255,11 @@ spring boot的配置实际上遵从这么一个优先级：
 
 第一种第二种本地跑的时候比较有用。**第三种docker上执行的时候非常有用**，毕竟镜像的cmd不好改，env可以随便加。
 
+都是profiles，last win strategy: https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config.files.profile-specific
+
 > 显然system properties优先级要高于os env，因为前者需要在命令行里指定。
+
+**WTF, ELASTIC_SEARCH_INDEX_STOREDKOL_NAME如果有横杠，用下划线代替……**
 
 最后发送environmentPrepared事件，调用listener处理。
 
@@ -494,5 +498,6 @@ springboot test autoconfig的ApplicationContextRunner其实也相当于自己配
 
 不用enable configuration properties，不会产生这个bean，导致配置失败：
 > 14:08:11.760 [main] DEBUG org.springframework.beans.factory.support.DefaultListableBeanFactory - Creating shared instance of singleton bean 'org.springframework.boot.context.properties.BoundConfigurationProperties'
+
 
 
