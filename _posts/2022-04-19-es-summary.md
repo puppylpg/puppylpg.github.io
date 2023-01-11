@@ -17,8 +17,9 @@ tags: elasticsearch
 - 聚合：[Elasticsearch：aggregation]({% post_url 2022-09-04-es-agg %})；
 - reindex和task：[Elasticsearch：alias、reindex、task]({% post_url 2022-05-02-es-reindex-task %})；
 - es对关系型数据的支持，同时也介绍了全局序数：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
-- es底层、集群：[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})；
+- es底层的分片、查询、数据提交：[Elasticsearch：内部原理]({% post_url 2022-05-05-es-deep-dive %})；
 - 调优、jvm内存、ssd、分页：[Elasticsearch：performance]({% post_url 2022-05-08-es-performance %})；
+- 配置集群，集群部署：[Elasticsearch：配置部署]({% post_url 2022-05-09-es-config-deploy %})；
 - index default template：[Elasticsearch：default index template]({% post_url 2022-05-05-es-template %})；
 - pipeline：[Elasticsearch：pipeline]({% post_url 2022-08-27-es-pipeline %})；
 - `_source`、`store`、`doc_values`、`index`，search：[Elasticsearch：_source store doc_values]({% post_url 2022-10-05-es-source-store-docvalues %})；
