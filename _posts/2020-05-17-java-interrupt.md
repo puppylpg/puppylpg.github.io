@@ -91,243 +91,245 @@ try {
 }
 ```
 
-# Demos
-看三个Demo——
+# 示例
+看三个示例——
 
 ## 传递InterruptedException，不捕获异常，直接抛给调用者
 ```java
-package example.thread.interrupt;
-
 /**
  * 当主线程发出interrupt信号的时候，子线程的sleep()被中断，抛出InterruptedException。
+ * 不处理该异常，直接交到上级caller。上级caller也一直不处理，最后整个线程直接结束。也相当于成功退出了线程。
  *
- * sleepBabySleep()不处理sleep()抛出的该异常，直接交到上级caller。上级caller，即doAPseudoHeavyWeightJob()也不处理，继续交给上级caller，最后直接整个线程挂了。也相当于成功退出了线程。
- * 
  * @author liuhaibo on 2018/06/14
  */
-public class InterruptDemo1 extends Thread {
+@Slf4j
+public class InterruptRethrow extends Thread {
 
     @Override
     public void run() {
         try {
-            doAPseudoHeavyWeightJob();
+            caller();
         } catch (InterruptedException e) {
-            System.out.println("=.= I(a thread) am dying...");
-            e.printStackTrace();
+           log.info("task exit...", e);
         }
     }
 
-    private void doAPseudoHeavyWeightJob() throws InterruptedException {
+    /**
+     * caller也不处理interrupt，交给上层caller。rethrow interrupt的时候会导致循环结束
+     */
+    private void caller() throws InterruptedException {
 
         for (int i = 0; i < Integer.MAX_VALUE; i++) {
-            System.out.println(i);
-            if (i > 10) {
-                Thread.currentThread().interrupt();
-            }
-            // quit if another thread let me interrupt
-            if (Thread.currentThread().isInterrupted()) {
-                System.out.println("Thread interrupted. Exiting...");
-                break;
-            } else {
-                sleepBabySleep();
-            }
+            log.info("task round: " + i);
+
+            task();
         }
     }
 
-    private void sleepBabySleep() throws InterruptedException {
+    /**
+     * 不处理interrupt，交给caller
+     */
+    private void task() throws InterruptedException {
             Thread.sleep(1000);
-            System.out.println("Slept for a while!");
+            log.info("slept for a while!");
     }
 
     public static void main(String[] args) throws InterruptedException {
-        InterruptDemo1 thread = new InterruptDemo1();
+        InterruptRethrow thread = new InterruptRethrow();
         thread.start();
-        Thread.sleep(5000);
+        Thread.sleep(3000);
         // let me interrupt
+        log.info("let me interrupt the task thread:D");
         thread.interrupt();
-        System.out.println("IN MAIN:" + thread.isInterrupted());
+        log.info("task thread interrupted? " + thread.isInterrupted());
     }
-
-    /* Output:
-    0
-    Slept for a while!
-    1
-    Slept for a while!
-    2
-    Slept for a while!
-    3
-    Slept for a while!
-    4
-    =.= I(a thread) am dying...
-    java.lang.InterruptedException: sleep interrupted
-    IN MAIN:false
-        at java.lang.Thread.sleep(Native Method)
-        at example.thread.interrupt.InterruptDemo1.sleepBabySleep(InterruptDemo1.java:36)
-        at example.thread.interrupt.InterruptDemo1.doAPseudoHeavyWeightJob(InterruptDemo1.java:30)
-        at example.thread.interrupt.InterruptDemo1.run(InterruptDemo1.java:11)
-    */
 }
+```
+输出：
+```
+2023-01-12 16:45:53 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:29 - task round: 0
+2023-01-12 16:45:54 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:40 - slept for a while!
+2023-01-12 16:45:54 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:29 - task round: 1
+2023-01-12 16:45:55 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:40 - slept for a while!
+2023-01-12 16:45:55 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:29 - task round: 2
+2023-01-12 16:45:56 [main] INFO  example.thread.interrupt.InterruptRethrow:63 - let me interrupt the task thread:D
+2023-01-12 16:45:56 [main] INFO  example.thread.interrupt.InterruptRethrow:65 - task thread interrupted? true
+2023-01-12 16:45:56 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:19 - task exit...
+java.lang.InterruptedException: sleep interrupted
+	at java.lang.Thread.sleep(Native Method)
+	at example.thread.interrupt.InterruptRethrow.task(InterruptRethrow.java:39)
+	at example.thread.interrupt.InterruptRethrow.caller(InterruptRethrow.java:31)
+	at example.thread.interrupt.InterruptRethrow.run(InterruptRethrow.java:17)
 ```
 
 ## 恢复中断状态
 ```java
-package example.thread.interrupt;
-
 /**
  * 当主线程发出interrupt信号的时候，子线程的sleep()被中断，抛出InterruptedException。
- * 
- * sleepBabySleep()在处理该异常的时候，重新设置interrupt flag为true，则子线程在检测中断flag的时候，成功退出线程。
- * （当然，如果子线程始终不检查是否被中断了，也永远不会退出。所以我们在做一个很耗时的操作时，应该有觉悟检查中断状态，以便收到中断信号时退出。）
+ * 在处理该异常的时候，重新设置interrupt flag为true，则在子线程中检测中断flag的时候，成功退出线程。
  *
  * @author liuhaibo on 2018/06/13
  */
-public class InterruptDemo2 extends Thread {
+@Slf4j
+public class InterruptReInterrupt extends Thread {
 
     @Override
     public void run() {
-        doAPseudoHeavyWeightJob();
+        caller();
     }
 
-    private void doAPseudoHeavyWeightJob() {
+    /**
+     * caller检测interrupt状态，并退出循环
+     */
+    private void caller() {
 
         for (int i = 0; i < Integer.MAX_VALUE; i++) {
-            System.out.println(i);
-            if (i > 10) {
-                Thread.currentThread().interrupt();
-            }
+            log.info("task round: " + i);
+
             // quit if another thread let me interrupt
             if (Thread.currentThread().isInterrupted()) {
-                System.out.println("Thread interrupted. Exiting...");
+                log.info("thread is interrupted. exiting...");
                 break;
             } else {
-                sleepBabySleep();
+                task();
             }
         }
     }
 
-    private void sleepBabySleep() {
+    /**
+     * task捕获了interrupt，但并不想处理，所以恢复interrupt状态
+     */
+    private void task() {
         try {
             Thread.sleep(1000);
-            System.out.println("Slept for a while!");
+            log.info("slept for a while!");
         } catch (InterruptedException e) {
-            System.out.println("Interruption happens...");
+            log.info("interruption happens...");
             Thread.currentThread().interrupt();
         }
     }
 
     public static void main(String[] args) throws InterruptedException {
-        InterruptDemo2 thread = new InterruptDemo2();
+        InterruptReInterrupt thread = new InterruptReInterrupt();
         thread.start();
-        Thread.sleep(5000);
+        Thread.sleep(3000);
         // let me interrupt
+        log.info("let me interrupt the task thread:D");
         thread.interrupt();
-        System.out.println("IN MAIN:" + thread.isInterrupted());
+        log.info("task thread interrupted? " + thread.isInterrupted());
     }
 
-    /* Output:
-    0
-    Slept for a while!
-    1
-    Slept for a while!
-    2
-    Slept for a while!
-    3
-    Slept for a while!
-    4
-    Interruption happens...
-    5
-    IN MAIN:false
-    Thread interrupted. Exiting...
-    */
 }
 ```
-**当然，如果子线程在耗时操作`doAPseudoHeavyWeightJob()`里始终不检查是否被中断了，也永远不会退出。所以我们在做一个很耗时的操作时，应该有觉悟检查中断状态，以便收到中断信号时退出。**
+输出：
+```
+2023-01-12 16:46:31 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:25 - task round: 0
+2023-01-12 16:46:32 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:43 - slept for a while!
+2023-01-12 16:46:32 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:25 - task round: 1
+2023-01-12 16:46:33 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:43 - slept for a while!
+2023-01-12 16:46:33 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:25 - task round: 2
+2023-01-12 16:46:34 [main] INFO  example.thread.interrupt.InterruptReInterrupt:55 - let me interrupt the task thread:D
+2023-01-12 16:46:34 [main] INFO  example.thread.interrupt.InterruptReInterrupt:57 - task thread interrupted? true
+2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:45 - interruption happens...
+2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:25 - task round: 3
+2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:29 - thread is interrupted. exiting...
+```
+
+
+**当然，如果子线程在耗时操作`caller()`里始终不检查是否被中断了，也永远不会退出。所以我们在做一个很耗时的操作时，应该有觉悟检查中断状态，以便收到中断信号时退出。**
 
 ## 错误的处理方式
 错误的处理方式 - 直接吞掉了该异常，也不上报给caller，也不继续重置interrupt flag为true：
 ```java
-package example.thread.interrupt;
-
 /**
  * 当主线程发出interrupt信号的时候，子线程的sleep()被中断，抛出InterruptedException。
- *
- * sleepBabySleep()在处理该异常的时候，直接把该异常吞了。此时interrupt flag为false，在子线程中检测中断flag的时候，不能成功退出线程，
+ * 在处理该异常的时候，相当于直接把该异常吞了。此时interrupt flag为false，在子线程中检测中断flag的时候，不能成功退出线程，
  * 直到i=11的时候，该子线程将自己的interrupt flag设为true，才再次在检查中断的时候，成功退出子线程。
  *
  * @author liuhaibo on 2018/06/13
  */
-public class InterruptDemo3 extends Thread {
+@Slf4j
+public class InterruptFailure extends Thread {
 
     @Override
     public void run() {
-        doAPseudoHeavyWeightJob();
+        caller();
     }
 
-    private void doAPseudoHeavyWeightJob() {
+    private void caller() {
 
         for (int i = 0; i < Integer.MAX_VALUE; i++) {
-            System.out.println(i);
-            // 当大于10时，直接自我了断
+            log.info("task round: " + i);
+
             if (i > 10) {
+                log.info("alert: process interruption wrongly. can't wait any longer. exit myself");
                 Thread.currentThread().interrupt();
             }
             // quit if another thread let me interrupt
             if (Thread.currentThread().isInterrupted()) {
-                System.out.println("Thread interrupted. Exiting...");
+                log.info("thread is interrupted. exit loop");
                 break;
             } else {
-                sleepBabySleep();
+                task();
             }
         }
     }
 
-    private void sleepBabySleep() {
+    /**
+     * task不处理interrupt，但是把interrupt吞了
+     */
+    private void task() {
         try {
             Thread.sleep(1000);
-            System.out.println("Slept for a while!");
+            log.info("slept for a while!");
         } catch (InterruptedException e) {
-            System.out.println("Interruption happens... But I do nothing.");
+            log.info("interruption happens... but I do nothing:D");
         }
     }
 
     public static void main(String[] args) throws InterruptedException {
-        InterruptDemo3 thread = new InterruptDemo3();
+        InterruptFailure thread = new InterruptFailure();
         thread.start();
-        Thread.sleep(5000);
+        Thread.sleep(3000);
         // let me interrupt
+        log.info("let me interrupt the task thread:D");
         thread.interrupt();
-        System.out.println("IN MAIN:" + thread.isInterrupted());
+        log.info("task thread interrupted? " + thread.isInterrupted());
     }
 
-    /* Output:
-    0
-    Slept for a while!
-    1
-    Slept for a while!
-    2
-    Slept for a while!
-    3
-    Slept for a while!
-    4
-    Interruption happens... But I do nothing.
-    5
-    IN MAIN:false
-    Slept for a while!
-    6
-    Slept for a while!
-    7
-    Slept for a while!
-    8
-    Slept for a while!
-    9
-    Slept for a while!
-    10
-    Slept for a while!
-    11
-    Thread interrupted. Exiting...
-     */
 }
 ```
+输出：
+```
+2023-01-12 16:50:24 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 0
+2023-01-12 16:50:25 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:25 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 1
+2023-01-12 16:50:26 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:26 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 2
+2023-01-12 16:50:27 [main] INFO  example.thread.interrupt.InterruptFailure:56 - let me interrupt the task thread:D
+2023-01-12 16:50:27 [main] INFO  example.thread.interrupt.InterruptFailure:58 - task thread interrupted? false
+2023-01-12 16:50:27 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:47 - interruption happens... but I do nothing:D
+2023-01-12 16:50:27 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 3
+2023-01-12 16:50:28 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:28 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 4
+2023-01-12 16:50:29 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:29 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 5
+2023-01-12 16:50:30 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:30 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 6
+2023-01-12 16:50:31 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:31 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 7
+2023-01-12 16:50:32 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:32 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 8
+2023-01-12 16:50:33 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:33 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 9
+2023-01-12 16:50:34 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:34 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 10
+2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:45 - slept for a while!
+2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 11
+2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:26 - alert: process interruption wrongly. can't wait any longer. exit myself
+2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:31 - thread is interrupted. exit loop    
+```
+
 对于最后一种情况，如果不是当i>10时，线程自己给自己置flag为true，然后进行了自我了断，那么i将一直增长到Integer.MAX_VALUE，才会结束for循环，线程才会退出。这也就是说，另一个线程（main thread）想要打断该线程的操作被该线程忽略了。
 
 # 参阅
@@ -335,4 +337,3 @@ public class InterruptDemo3 extends Thread {
 2. https://stackoverflow.com/questions/4906799/why-invoke-thread-currentthread-interrupt-in-a-catch-interruptexception-block
 3. https://stackoverflow.com/questions/10401947/methods-that-clear-the-thread-interrupt-flag
 4. https://stackoverflow.com/questions/2523721/why-do-interruptedexceptions-clear-a-threads-interrupted-status
-
