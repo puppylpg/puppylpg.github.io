@@ -66,7 +66,7 @@ es的查询是按照得分给结果排序的。如果返回top10，有两个mast
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/_search_options.html
 
 **所以整个es index其实就是一个大号hash map**：
-- 桶的个数就是分片的个数；
+- ~~桶的个数就是分片的个数~~（其实先分配到虚拟分片，再映射到实体分片。参考[Elasticsearch：数据重分配]({% post_url 2023-02-09-es-rehash %})）；
 - 同一分片的文档都算是hash冲突的文档；
 
 # 分片内部 - 还有segment
@@ -116,7 +116,7 @@ es是基于Lucene，Lucene就是按段搜索的。一个Lucene索引包含：
 3. 所有segment的结果合并，就是shard的结果；
 4. 所有shard的结果合并，就是整个index的搜索结果；
 
-段是一个接一个搜索的，所以如果段的个数太多，是会影响到搜索速度的。
+**段是一个接一个搜索的，所以如果段的个数太多，是会影响到搜索速度的。**
 
 ### 删改数据
 段不可变，那删改数据怎么办？

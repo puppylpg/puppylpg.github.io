@@ -55,7 +55,7 @@ redis server本身要开启cluster-enabled，否则不能识别cluster指令：
 
 **`CLUSTER NODES`** 可以显示cluster的所有node，其实就是`node.conf`里的内容。
 
-# Cluster数据结构
+# cluster数据结构
 redis集群使用`struct clusterState`表示，属性包括：
 - **`dict *nodes`：集群里所有的节点，key为节点name，value为`clusterNode`**；
 - `clusterNode *myself`：只想自己的指针。毕竟每个集群节点都记录了所有的clusterNode，得知道哪个是自己；
@@ -79,7 +79,7 @@ redis cluster使用`struct clusterNode`表示节点状态：
 **和sentinel对比一下，整个数据结构还是挺像的。state是总体，都有一个dict存着所有的node/instance。**
 
 # slot
-slot是cluster的核心。设计到：
+slot是cluster的核心。涉及到：
 - slot分配；
 - 分片sharding；
 - slot转移；
@@ -97,7 +97,7 @@ redis cluster必须对全部2^14个slot都在处理，否则该cluster不可用�
 
 > slot使用空格分隔，连续的slot，中间可以用`...`省略。
 
-只有2^14全都分配完毕了，整个cluster才正常上线。可以使用 **`CLUSTER INFO`**查看集群status。使用CLUSTER NODES查看各个node绑定的slot情况。
+**只有2^14全都分配完毕了，整个cluster才正常上线**。可以使用**`CLUSTER INFO`**查看集群status。使用CLUSTER NODES查看各个node绑定的slot情况。
 
 ## 数据结构
 clusterNode里有：
@@ -117,11 +117,11 @@ clusterState则记录整个集群slot的分配情况：
 
 redis server收到一条命令：
 1. 如果slot就在自己里面，直接操作；
-2. 否则返回：**MOVED <slot> <ip:port>**，代表取那个ip:port，slot在那里；
+2. 否则返回：**`MOVED <slot> <ip:port>`**，代表取那个ip:port，slot在那里；
 
 **不使用cluster模式（`-c`）启动的client识别不了该命令。会直接输出该命令，而不是重定向**。
 
-## CLUSTER GETKEYSINSLOT <slot> <count>
+## `CLUSTER GETKEYSINSLOT <slot> <count>`
 返回某个slot最多count个key。
 
 实现：每一个kv对除了存进了db，是一个dict。此外，这些kv还存进了一个`zskiplist *slots_to_keys`，跳表的score（节点的value）是slot number，节点的key是要存储的key。相当于对整个db存的key按照slot number从小到大排了个序。
@@ -129,9 +129,9 @@ redis server收到一条命令：
 > 涉及dict的range操作，redis就用跳表先排序。和zset的实现一个套路。
 
 ## sharding
-因为桶的个数是恒定的，redis的sharding操作要比rehash简单多了，只要把slot从一个节点挪到另一个就行了。
+**因为桶的个数是恒定的，redis的sharding操作要比rehash简单多了**，只要把slot从一个节点挪到另一个就行了。
 
-sharding是需要过程的。如果sharding一个slot的过程中，对该slot的请求来了，该redis找不到对应的key，有可能使挪到dst redis上了。所以redis会返回**ASK <slot> <ip:port>**，让client问问dst redis是不是在它上面。
+sharding是需要过程的。如果sharding一个slot的过程中，对该slot的请求来了，该redis找不到对应的key，有可能是挪到dst redis上了。所以redis会返回**`ASK <slot> <ip:port>`**，让client问问dst redis是不是在它上面。
 
 ASK和MOVED格式一样：
 - MOVED指的是slot不在我这儿，在别人那儿，你move到那里执行吧；
@@ -149,8 +149,8 @@ redis怎么知道自己是不是在sharding？因为sharding过程中，redis会
 cluster有主备，这点有点儿像sentinel了。所以也存在master和slave。
 
 cluster使用clusterNode表示instance，所以它里面有：
-- clusterNode *slaveof：如果我是slave，我要指向我的master；
-- clusterNode **slaves：指针数组，如果我是master，我要指向我所有的slave；
+- `clusterNode *slaveof`：如果我是slave，我要指向我的master；
+- `clusterNode **slaves`：指针数组，如果我是master，我要指向我所有的slave；
 
 如果master挂了，slave会取代它成为slave。类似sentinel，由其他master投票，得票最多的slave变为master。
 
