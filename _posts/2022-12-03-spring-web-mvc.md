@@ -2,8 +2,8 @@
 layout: post
 title: "Spring Web MVC"
 date: 2022-12-03 00:25:17 +0800
-categories: spring mvc
-tags: spring mvc
+categories: spring mvc cors
+tags: spring mvc cors
 ---
 
 SpringMVC的全称是[Spring Web MVC](https://docs.spring.io/spring-framework/docs/current/reference/html/web.html)，来自于它的module名`spring-webmvc`。
