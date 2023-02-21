@@ -224,13 +224,12 @@ ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以
 1. set property sources；
 2. set profiles：**profiles是从property sources里找的，所以profiles要后设置**。
 
-> 一个有意思的事情：profiles从properties里获取，获取profiles之后，又能读取profiles-specific properties。所以如果把配置profiles的properties放到profiles-specific properties里，就永远也不可能生效了。
+> 一个有意思的事情：profiles从properties里获取，获取profiles之后，把profiles-specific properties放到链表里properties的前面，所以优先级反而比properties高。**因此spring构建的时候读取配置文件的顺序并不是构建完毕后取properties属性的顺序，后者其实就是链表序**。另外如果把配置profiles的properties放到profiles-specific properties里，就永远也不可能生效了。
 
-**所以通过啥set profiles？只要不是profiles-specific properties就行。比如系统环境变量、系统properties，或者用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。（并且是注册到链表头，大概代表它是最高优先级吧）
+**所以通过啥set profiles？只要不是profiles-specific properties就行。比如系统环境变量、系统properties，或者用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。（并且是注册到链表头，代表它是最高优先级）
 - **名为commandLineArgs的SimpleCommandLinePropertySource**，且在list头，所以是最高优先级；
 
-为什么springboot的args要写成：`--spring.profiles.active=prod`，因为springboot使用的是spring的CommandLineArgs来解析args，所以它就得`--`开头：
-- https://stackoverflow.com/a/37439625/7676237
+> 为什么springboot的args要写成：`--spring.profiles.active=prod`，因为springboot使用的是spring的CommandLineArgs来解析args，所以它就得`--`开头：https://stackoverflow.com/a/37439625/7676237
 
 同时也理解了：**springboot是使用list存了一堆PropertySource，需要取某个property的时候，从前往后取。这个顺序就是优先级顺序。**
 
