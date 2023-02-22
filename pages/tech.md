@@ -13,7 +13,7 @@ permalink: /tech/
 {% if forloop.first %}<h2 class="c-archives__year" id="{{ this_year }}-ref">{{this_year}}</h2>
 <ul class="c-archives__list">{% endif %}
 <li class="c-archives__item">
-  {{ post.date | date: "%b %-d, %Y" }}: <a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+  {{ post.date | date: "%b %d, %Y" }}: <a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
   </li>{% if forloop.last %}</ul>{% else %}{% if this_year != next_year %}
 </ul>
 <h2 class="c-archives__year" id="{{ next_year }}-ref">{{next_year}}</h2>
