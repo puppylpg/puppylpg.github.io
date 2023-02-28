@@ -3,7 +3,7 @@ layout: post
 title: "序列化 - protobuf"
 date: 2020-5-15 03:09:06 +0800
 categories: protobuf serialization
-tags: protobuf serialization
+tags: protobuf Serialization
 ---
 
 https://developers.google.com/protocol-buffers/docs/overview
@@ -91,7 +91,6 @@ public class ApkInfo implements IWritable {
 1. read和write必须按照固定的顺序，二者必须一致，否则凉凉。因为实际上**二者默认了都按某个顺序序列化反序列化**，这种默认不能出现不一致；
 2. 不管某个field有没有数据，都要写一个数据。比如long类型的adContentId，如果不存在，也必须写个0；
 3. 这个写String，代码如下，具体实现是先写个boolean标识String是否存在，如果存在再写个长度，这个长度是String按照**某种编码方式**编码后的字节数，最后再写字节；
-
 ```
     public static int writeString(DataOutput out, String s) throws IOException {
         if (s.length() == 0) {
@@ -106,6 +105,7 @@ public class ApkInfo implements IWritable {
         }
     }
 ```
+
 具体每一个对象（long，int等）是怎么被写到DataOutput里的，有赖于DataOutput的实现。如果用DataOutputStream的话，它的writeLong方法实际是这么做的：
 ```
     /**
@@ -170,7 +170,7 @@ key：怎么既标识field number是5，又标识value是Varint？
 - 末尾3bit用来标识value的类型（所以protobuf实际序列化时的value只能有8种类型）；
 - 前面的bit代表field_number；
 
-这样的话只要读到key，就能知道这个字段的field number，和也能按照所标识的value的类型取到value值并序列化。
+这样的话只要读到key，就能知道这个字段的field number，也能按照所标识的value的类型取到value值并序列化。
 
 **其次，由于key本身是作为一个数字存储，所以key的字节是以Varint来存储的。**
 
@@ -180,16 +180,24 @@ key：怎么既标识field number是5，又标识value是Varint？
 - 这个字段的名称。这个需要在.proto源文件里根据field number找到。
 - 这个字段的实际类型（eg: Varint到底是int还是long）。这个也需要在源文件里找到。
 
-> 所以如果一个新protobuf（新增了字段）协议序列化后的字节被一个老protobuf（没有新增字段）反序列化的话，新增字段也能被反序列化出来，但是如果显示为肉眼可见的json，就是“field number : value”，因为不知道该字段的名字。类型的话基本能确定（虽然像到底是long还是int分不清，倒是无所谓了）
+> 所以如果一个新protobuf（新增了字段）协议序列化后的字节被一个老protobuf（没有新增字段）反序列化的话，新增字段也能被反序列化出来，但是如果显示为肉眼可见的json，就是“field number : value”，因为不知道该字段的名字。类型的话基本能确定（虽然到底是long还是int分不清，倒是无所谓了）
 
 **因为用的是key-value pair，如果一个field没有值，就不用序列化它了。而且，序列化和反序列化也不需要都按照相同的field顺序。**
 
 ### int32 vs. sint32 - ZigZag编码
-负数如果看做原码，实际是很大的一个数，所以如果用protobuf的int32存储负数，是需要5个字节的。
+**负数如果看做原码，实际是很大的一个数，所以如果用protobuf的int32存储负数，是需要5个字节的。ZigZag编码能解决这个问题，它能把所有的负数映射为非负数**：0 = 0, -1 = 1, 1 = 2, -2 = 3, 2 = 4, -3 = 5, 3 = 6 ... **output为自然数，input为所有整数，但是input的映射规则从0开始不断左右左右横跳**，很zigzag！
 
-ZigZag编码把偶数非负数x映射为非负偶数2x，负数则全部用非负奇数表示，比如-1用1表示，-2用3表示，-3用5表示等。这样所有的负数都用正数表示了，-1就不需要用5byte表示，1byte就够了。
+这么映射下来：
+1. 非负数x全都映射为非负偶数2x：0、2、4、6、8；
+2. 负数则全部映射为非负奇数：1、3、5、7、9；
 
-> `(n << 1) ^ (n >> 31)`，就实现ZigZag负数到正数的转换了。TODO: why? 需要复习一下补码了……
+**所有的负数都用正数表示了，-1就不需要用5byte表示，1byte就够了。**
+
+zigzag用函数表示很简单：
+```
+return v < 0 ? (- 2 * v  - 1) : 2 * v
+```
+但是用补码表示更高效：[`(n << 1) ^ (n >> 31)`](https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba)
 
 sint32就是使用ZigZag将数值全变为正数，再用变长编码序列化为字节。
 
