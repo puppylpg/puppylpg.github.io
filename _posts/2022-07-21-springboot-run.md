@@ -206,12 +206,12 @@ Environment代表app的运行环境，主要是两方面：
 
 ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以设置active和default profiles，可以操作property sources。
 
-假设创建的是StandardEnvironment，**它会在创建的时候就配置两个PropertySource**：
-- **名为systemProperties的PropertiesPropertySource**：使用`System.getProperties()`获取，结果是map，所以构建为Properties，实例化为PropertiesPropertySource。内容大概有：
+`AbstractEnvironment`会在初始化的时候调用`customizePropertySources(propertySources)`。假设创建的是StandardEnvironment，**它会在创建的时候就配置两个PropertySource（`StandardEnvironment#customizePropertySources`）**：
+- **名为`systemProperties`的`PropertiesPropertySource`**：使用`System.getProperties()`获取，结果是map，所以构建为Properties，实例化为PropertiesPropertySource。内容大概有：
     + os.arch -> amd64
     + user.name -> puppylpg
     + user.dir -> C:\Users\puppylpg\Codes\Java\spring-boot-example
-- **名为systemEnvironment的SystemEnvironmentPropertySource**：使用`System.getenv()`获取，结果也是map。不过实例化的时候用的是SystemEnvironmentPropertySource。内容大概有：
+- **名为`systemEnvironment`的`SystemEnvironmentPropertySource`**：使用`System.getenv()`获取，结果也是map。不过实例化的时候用的是SystemEnvironmentPropertySource。内容大概有：
     + JAVA_HOME -> C:\Program Files\Java\jdk1.8.0_191
     + USERNAME -> puppylpg
     + Path -> C:\Program Files (x86)\Common……
@@ -220,14 +220,13 @@ ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以
 
 **他俩是有先后顺序的**，这个顺序其实是取值的优先级。
 
-创建完ConfigurableEnvironment，接下来就是set它了。set当然也是两方面：
-1. set property sources；
-2. set profiles：**profiles是从property sources里找的，所以profiles要后设置**。
+> 如果是servlet相关的environment，还会在这俩之前注册`servletConfigInitParams`和`servletContextInitParams`。所以也可以看出来servlet config的优先级高于servlet context，二者都高于system property和system environment。
 
-> 一个有意思的事情：profiles从properties里获取，获取profiles之后，把profiles-specific properties放到链表里properties的前面，所以优先级反而比properties高。**因此spring构建的时候读取配置文件的顺序并不是构建完毕后取properties属性的顺序，后者其实就是链表序**。另外如果把配置profiles的properties放到profiles-specific properties里，就永远也不可能生效了。
+**最终这个property sources被保存到了`AbstractEnvironment#propertySources`。**
 
-**所以通过啥set profiles？只要不是profiles-specific properties就行。比如系统环境变量、系统properties，或者用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。（并且是注册到链表头，代表它是最高优先级）
-- **名为commandLineArgs的SimpleCommandLinePropertySource**，且在list头，所以是最高优先级；
+创建完`ConfigurableEnvironment`后，接下来就是set它了。set当然也是两方面：
+1. set property sources：如果command line有值，就构建一个`SimpleCommandLinePropertySource`，**添加到property source的最前面**（`addFirst(new SimpleCommandLinePropertySource(args))`）；
+2. set profiles：根据cmd args配置profile。**注意，此时的profiles不是从所有的property sources里找的。此时`application.yml`还没有注册为property source，所以还没有涉及到解析配置文件里的`spring.profiles.active`**；
 
 > 为什么springboot的args要写成：`--spring.profiles.active=prod`，因为springboot使用的是spring的CommandLineArgs来解析args，所以它就得`--`开头：https://stackoverflow.com/a/37439625/7676237
 
@@ -238,11 +237,10 @@ ConfigurableEnvironment主要体现在“可配置”。所以主要就是可以
 
 **取property是一个遍历PropertySource的过程，找到就return。所以list的位置就代表了优先级，开头的PropertySource优先级最高。一般是命令行参数PropertySource。**
 
-
 拿到profiles之后，配置了一个：
 - **名为configurationProperties的ConfigurationPropertySourcesPropertySource**：配置在最开头，我也不知道有啥用……
 
-spring boot的配置实际上遵从这么一个优先级：
+**spring boot的配置实际上遵从这么一个优先级**：
 - https://docs.spring.io/spring-boot/docs/1.5.6.RELEASE/reference/html/boot-features-external-config.html
 
 **command line args是比较高的优先级，毕竟是用户在执行程序的时候手动指定的。system properties和os environment靠后，properties文件在更靠后**。
@@ -260,9 +258,9 @@ spring boot的配置实际上遵从这么一个优先级：
 
 **WTF, ELASTIC_SEARCH_INDEX_STOREDKOL_NAME如果有横杠，用下划线代替……**
 
-最后发送environmentPrepared事件，调用listener处理。
+最后发送environmentPrepared事件，调用listener处理。**等等，environment设置完了？但是到现在一直没有处理`application.properties`呢？**
 
-就在以为只是平平无奇发个事件调用listener处理的时候，listener来搞事情了。有一个ApplicationListener叫ConfigFileApplicationListener，一听就是处理配置文件的！果然，它先使用SPI机制获取EnvironmentPostProcessor:
+就在以为只是平平无奇发个事件调用listener处理的时候，listener来搞事情了。有一个ApplicationListener叫`ConfigFileApplicationListener`，一听就是处理配置文件的！果然，它先使用SPI机制获取EnvironmentPostProcessor:
 ```
 org.springframework.boot.env.EnvironmentPostProcessor=\
 org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor,\
@@ -285,14 +283,18 @@ org.springframework.boot.reactor.DebugAgentEnvironmentPostProcessor
     + yaml格式：后缀为`yml`/`yaml`；
 - **的配置文件**。
 
-所以它就是spring boot的配置文件的配置方式的秘密！
+**所以它就是spring boot的配置文件的配置方式的秘密！**
 
 其中location和name是从之前的PropertySources里取的。配置完成后，PropertySources的最后多了一个（或多个）类似application.yml的配置，都是OriginTrackedMapPropertySource类型。
 
-> 比如用的是dev profile，那PropertySources里会在末尾依次添加两个OriginalTrOriginalTrackedMapPropertySource：`application-dev.yml`和`applicaiton.yml`。
+> **比如用的是dev profile，那PropertySources里会在末尾依次添加两个OriginalTrOriginalTrackedMapPropertySource：`application-dev.yml`和`applicaiton.yml`。**
 
-> 在properties文件里，也可以使用`spring.profiles.active`指定使用的profiles，但是只能在默认的`application.yml/properties`里指定，不能在profile specific files里指定。比如不能在application-dev.yml里指定spring.profiles.active=dev，指定也没卵用。毕竟boot都不知道启用了dev profile，又怎么能知道dev里指定的active的profiles呢。
+所以在properties文件里，也可以使用`spring.profiles.active`指定使用的profiles，但是只能在默认的`application.yml/properties`里指定，不能在profile specific files里指定。比如不能在application-dev.yml里指定spring.profiles.active=dev，指定也没卵用。毕竟boot都不知道启用了dev profile，又怎么能知道dev里指定的active的profiles呢。
 > - https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.profiles
+
+这就产生了一个有意思的事情：profiles从`application.properties`里获取，获取profiles之后，把profiles-specific properties放到链表里`application.properties`的前面，所以优先级反而比`application.properties`高。
+
+所以都可以通过啥set profiles？只要不是profiles-specific properties就行。比如系统环境变量、系统properties，或者用户的命令行参数**！也就是之前说的args。**ConfigurableEnvironment有一堆PropertySource，命令行参数也是PropertySource的一种**！所以命令行参数就作为一种PropertySource注册到ConfigurableEnvironment上了。
 
 最后的最后，ConfigFileApplicationListener不止做这个：
 - environmentPrepared：除了在这个阶段加载各种配置文件；
