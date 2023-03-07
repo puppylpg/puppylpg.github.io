@@ -165,6 +165,68 @@ m.root-servers.net.     511286  IN      AAAA    2001:dc3::35
 ```
 不仅给出了所有的13组NS，还给出了他们的ipv4地址和ipv6地址。
 
+我在namesilo买的域名，理所当然默认用的是namesilo的服务器：
+```
+$ dig NS puppylpg.xyz
+
+; <<>> DiG 9.16.37-Debian <<>> NS puppylpg.xyz
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 60851
+;; flags: qr rd ad; QUERY: 1, ANSWER: 7, AUTHORITY: 0, ADDITIONAL: 0
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;puppylpg.xyz.                  IN      NS
+
+;; ANSWER SECTION:
+puppylpg.xyz.           0       IN      NS      ns3.dnsowl.com.
+puppylpg.xyz.           0       IN      NS      ns2.dnsowl.com.
+puppylpg.xyz.           0       IN      NS      ns1.dnsowl.com.
+ns1.dnsowl.com.         0       IN      A       162.159.27.173
+ns1.dnsowl.com.         0       IN      A       162.159.26.136
+ns3.dnsowl.com.         0       IN      AAAA    2400:cb00:2049:1::a29f:1aea
+ns3.dnsowl.com.         0       IN      AAAA    2400:cb00:2049:1::a29f:1b62
+
+;; Query time: 0 msec
+;; SERVER: 172.26.240.1#53(172.26.240.1)
+;; WHEN: Mon Mar 06 20:52:03 CST 2023
+;; MSG SIZE  rcvd: 242
+```
+但namesilo的网站界面实在是太丑了。网站又丑又慢还不是原罪，namesilo的NS实在和行业翘楚cloudflare没法比：namesilo每次更新dns时要近一个小时才生效，**cloudflare配置一个新的dns记录秒生效**，体验上简直是云泥之别！
+
+> 而且cloudflare免费服务的一部分，其他还有一些放DDoS的安全措施、邮件转发等，操作起来也非常人性化。
+
+让cloudflare作为自己的NS就涉及到NS的变更：登录注册cloudflare，获取NS记录，然后在namesilo网站里把NS换成cloudflare的NS。等生效后，再查NS记录：
+```
+─➤  dig NS puppylpg.xyz
+
+; <<>> DiG 9.16.37-Debian <<>> NS puppylpg.xyz
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 50230
+;; flags: qr rd ad; QUERY: 1, ANSWER: 5, AUTHORITY: 0, ADDITIONAL: 0
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;puppylpg.xyz.                  IN      NS
+
+;; ANSWER SECTION:
+puppylpg.xyz.           0       IN      NS      yevgen.ns.cloudflare.com.
+puppylpg.xyz.           0       IN      NS      aryanna.ns.cloudflare.com.
+aryanna.ns.cloudflare.com. 0    IN      A       162.159.38.95
+aryanna.ns.cloudflare.com. 0    IN      A       172.64.34.95
+aryanna.ns.cloudflare.com. 0    IN      A       108.162.194.95
+
+;; Query time: 200 msec
+;; SERVER: 172.26.240.1#53(172.26.240.1)
+;; WHEN: Tue Mar 07 21:39:34 CST 2023
+;; MSG SIZE  rcvd: 192
+```
+NS成功从namesilo换成了cloudflare！之后就可以享受cloudflare的NS带来的便捷了。
+
+> 同样是NS，专业的吊打非专业的:D
+
 # DNS记录的类型
 - `A`：记录着该域名和ip（ipv4）的对应关系；
 - `AAAA`：同上，ipv6；
@@ -201,7 +263,7 @@ puppylpg.xyz.           0       IN      A       104.225.232.103
 ```
 
 ## `dig MX <domain>`
-用于获取域名记录的邮件服务器。电子邮件用一种特殊的DNS记录称为MX记录（Mail Exchange）。如果你发一封邮件给1234@qq.com,发送方服务器会对@分隔符后面的http://qq.com做一个MX记录查询，DNS返回的查询结果举个例子是receive.qq.com,发送方服务器就会连上http://receive.qq.com的特定端口（如25）开始传输邮件。
+用于获取域名记录的邮件服务器。电子邮件用一种特殊的DNS记录称为MX记录（Mail Exchange）。如果你发一封邮件给`1234@qq.com`,发送方服务器会对@分隔符后面的`qq.com`做一个MX记录查询，DNS返回的查询结果举个例子是`receive.qq.com`,发送方服务器就会使用smtp协议给`receive.qq.com`的特定端口（如25）发送邮件。
 
 没设置，所以没答案：
 ```
@@ -443,4 +505,5 @@ ns1.dnsowl.com.
 
 Ref：
 - https://www.ruanyifeng.com/blog/2016/06/dns.html
+
 
