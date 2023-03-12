@@ -115,7 +115,7 @@ text不开启正排索引，估计是开启后聚合出来的都是token，意�
 ## 性能
 doc_values是用磁盘的，但是如果jvm内存足够，会被放在内存里，加快访问速度。如果jvm内存不够大，**虽然放在磁盘上，但是也可以充分利用操作系统的page cache来优化访问磁盘的速度**。
 
-> page cache可参考：[Innodb - Buffer Pool¶]({% post_url 2022-01-23-innodb-buffer-pool %})；
+> page cache可参考：[Innodb - Buffer Pool]({% post_url 2022-01-23-innodb-buffer-pool %})；
 
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/docvalues-intro.html
 
@@ -311,3 +311,5 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+
+

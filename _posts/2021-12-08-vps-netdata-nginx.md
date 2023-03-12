@@ -658,7 +658,7 @@ update every被我改成300s一次了，感觉没必要一直监听端口是不�
 
 - https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/docker_engine/
 
-docker默认使用unix domain socket，所以还要开个端口暴露metric。docker默认可以配置端口暴露给prometheus监控。所以collector也就从这个端口手机数据：
+docker默认使用unix domain socket，所以还要开个端口暴露metric。docker默认可以配置端口暴露给prometheus监控。所以collector也就从这个端口收集数据：
 - https://docs.docker.com/config/daemon/prometheus/
 
 通过tcp连上了：
@@ -671,7 +671,7 @@ tcp        0      0 127.0.0.1:40178         127.0.0.1:9323          ESTABLISHED 
 tcp        0      0 127.0.0.1:9323          127.0.0.1:40178         ESTABLISHED 745066/dockerd
 ```
 
-### docker container - TODO
+### docker container
 - https://learn.netdata.cloud/docs/agent/collectors/collectors#containers-and-vms
 - 使用cgroups监控：https://learn.netdata.cloud/docs/agent/collectors/cgroups.plugin
 
@@ -682,8 +682,61 @@ tcp        0      0 127.0.0.1:9323          127.0.0.1:40178         ESTABLISHED 
 
 - https://learn.netdata.cloud/docs/agent/collectors/go.d.plugin/modules/springboot2/
 
+# netdata容器化
+[netdata官方支持容器化](https://learn.netdata.cloud/docs/installation/installation-methods/docker)：
+```
+$ docker run -d --name=netdata \
+  -p 19999:19999 \
+  -v netdataconfig:/etc/netdata \
+  -v netdatalib:/var/lib/netdata \
+  -v netdatacache:/var/cache/netdata \
+  -v /etc/passwd:/host/etc/passwd:ro \
+  -v /etc/group:/host/etc/group:ro \
+  -v /proc:/host/proc:ro \
+  -v /sys:/host/sys:ro \
+  -v /etc/os-release:/host/etc/os-release:ro \
+  --restart unless-stopped \
+  --cap-add SYS_PTRACE \
+  --security-opt apparmor=unconfined \
+  netdata/netdata:latest
+```
+把`/proc`、`/sys`等挂到容器里才能监控系统的状态。同时，**[创建三个volume，绑定到容器内部](https://docs.docker.com/storage/volumes/#start-a-container-with-a-volume)**，相当于把容器内的三个位置持久化了：
+- netdataconfig:/etc/netdata
+- netdatalib:/var/lib/netdata
+- netdatacache:/var/cache/netdata
+
+**这样即使删掉容器升级为高版本，也不怕config等数据丢失了。**
+
+但是netdata需要做一些个性化配置，难道要把我之前修改后的netdata的config也都挂到容器上？那样的话，用容器并没有带来多大便利。不过我算是想明白了，netdata监控那么多东西，我也不看:D，其实我真正需要修改的配置就两条：多久采集一次数据、一共保留多大的历史数据。最多再把hostname改了。想明白了之后，容器化就没有负担了。
+
+容器起来之后，修改一下上述配置即可。首先连上容器：
+```
+$ docker exec -it netdata bash
+$ cd /etc/netdata
+```
+因为netdata.conf默认不存在，所以先按照提示生成一个，然后再编辑：
+```
+$ curl -o /etc/netdata/netdata.conf http://localhost:19999/netdata.conf
+$ ./edit-config netdata.conf
+```
+改一下上面说的三个值就行了，其他的都不管了：
+```
+	update every = 3
+	dbengine disk space MB = 512
+	hostname = puppylpg's vps in docker
+```
+最后再重启容器就行了：
+```
+docker restart netdata
+```
+看一看配置：https://netdata.puppylpg.xyz/netdata.conf，完美！
+
+最后把实体机上的netdata[卸载的干干净净](https://learn.netdata.cloud/docs/installation/uninstall-netdata)，注意使用root权限：
+```
+curl https://my-netdata.io/kickstart.sh > /tmp/netdata-kickstart.sh && sh /tmp/netdata-kickstart.sh --uninstall
+```
+
 # 感想
 1. 其实很多理论，比如DNS、反向代理，买个域名配一配实际部署一下就知道哪些是哪些了；
 2. 通过折腾去了解各种理论，比如通过给VPS配置监控，部署netdata，进而了解unix socket domain，ip绑定，直观多了，既拓宽知识面，印象还深刻；
 3. 学计算机真省钱啊……买域名买服务器，一年才300。后面的各种服务只要你愿意付出精力，一毛钱不花就能学到很多。这投入和其他行业比实在是太低了……
-
