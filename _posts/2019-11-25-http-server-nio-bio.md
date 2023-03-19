@@ -78,6 +78,9 @@ server有一个主线程，监听端口，每来一个请求，主线程和它�
 关键点在于：**当某请求的read/write之类的资源准备好之后，线程再去读写请求，这时候不会有线程空等待io，也就避免了线程闲置时间**，线程和CPU都得到有效利用。
 
 事件驱动的模型又分为[Reactor Pattern](https://en.wikipedia.org/wiki/Reactor_pattern)和[Proactor Pattern](https://en.wikipedia.org/wiki/Proactor_pattern)。
+
+**强烈推荐[《高性能网络模式：Reactor 和 Proactor》](https://xiaolincoding.com/os/8_network_system/reactor.html)！****
+
 ## Reactor Pattern
 以Java NIO为例，需要一个Selector，监听各个事件，它的`select()`方法会阻塞，直到有事件发生。一旦某个事件发生，可以将产生这种事件的请求筛选出来，交给工作线程去处理。
 
