@@ -276,11 +276,14 @@ wireshark开启流量包抓取——
 对于https的情况，没法使用host过滤了。网络这一块儿有点儿失忆了，可能是根据http header里的Host过滤的？但是整个http都被tls加密了，所以无法解析内容。因此这里使用服务器的ip和端口来过滤http请求`ip.addr == 104.225.232.103 && tcp.port == 443`，然后发现包的内容都加密了，一堆无意义的字符。此时整个网络栈的结构为：
 1. IP
 2. TCP，请求由4个tcp segment组成
-3. TLS，tls里记录的有http-over-tls这一信息
+3. TLS，tls里记录的有http-over-tls这一信息，但是具体内容已经解析不出来了，加密了；
 
 可以很明显感知二者的一些区别：
 1. https协议的内容根本看不出来，加密了；
-2. 甚至都可以认为没有“https协议”一说，而是TLS，所有加密的内容是以TLS协议的格式发送的。而http协议则是以HTTP协议发送的，HTTP和TLS的概念相对应；
+2. **HTTP和TLS的概念相对应，是同一层的协议**。在https中，http协议被拆分放到了tls协议中，内容是以TLS协议的格式发送的。而http协议则是直接以HTTP协议发送的，
 3. 用了TLS之后，整个包都变大了，网络流量消耗更多；
 
 而客户端和服务端的加密解密势必也会更消耗CPU资源。所以安全是有代价的，但只要值得，都是可以接受的。
+
+https的具体握手过程可参考[《HTTPS RSA 握手解析》](https://xiaolincoding.com/network/2_http/https_rsa.html)。
+
