@@ -23,29 +23,31 @@ webflux，之前留下的未尽事宜，终于又碰上了。Reactive Programmin
 ## 多线程
 Java后端的代码经常是阻塞式的，所以多线程并行是Java后端经常使用的办法。比如传统的Java web编程，一个连接使用一个线程处理。或者读取数据库，也会使用线程池，阻塞式等待数据响应。
 
-> Usually, Java developers write programs by using blocking code. This practice is fine until there is a performance bottleneck. Then it is time to introduce additional threads, running similar blocking code. But this scaling in resource utilization can quickly introduce contention and concurrency problems.
+> Usually, Java developers write programs by using blocking code. **This practice is fine until there is a performance bottleneck. Then it is time to introduce additional threads, running similar blocking code**. But this scaling in resource utilization can quickly introduce contention and concurrency problems.
 >
-> Worse still, blocking wastes resources. If you look closely, as soon as a program involves some latency (notably I/O, such as a database request or a network call), resources are wasted because threads (possibly many threads) now sit idle, waiting for data.
+> Worse still, blocking wastes resources. If you look closely, as soon as a program involves some latency (notably I/O, such as a database request or a network call), **resources are wasted because threads (possibly many threads) now sit idle, waiting for data**.
 
-**但这些阻塞等待都是对资源的浪费，线程不可能一直加下去，想办法更充分利用资源才是处理更大规模并发的方式。**
+**但这些阻塞等待都是对资源的浪费，线程不可能一直加下去，想办法更充分利用资源才是处理更大规模并发的正解。**
 
-> So the parallelization approach is not a silver bullet. It is necessary to access the full power of the hardware
+> So **the parallelization approach is not a silver bullet**. It is necessary to access the full power of the hardware
 
 ## 异步
 使用异步方式写非阻塞的代码才是更加合理利用资源的方式。
 
-> The second approach mentioned earlier, seeking more efficiency, can be a solution to the resource wasting problem. By writing asynchronous, non-blocking code, you let the execution switch to another active task that uses the same underlying resources and later comes back to the current process when the asynchronous processing has finished.
+> The second approach mentioned earlier, seeking more efficiency, can be a solution to the resource wasting problem. **By writing asynchronous, non-blocking code, you let the execution switch to another active task that uses the same underlying resources and later comes back to the current process when the asynchronous processing has finished.**
 
 jvm提供了两种方式实现异步：
-1. callback：这种异步方法不返回值，而是接收一个callback参数，在结果可用时调用回调函数处理数据。比如各种listener、CompletableFuture等；
-2. Future/CompletableFuture：这种异步方法立刻返回一个`Future<T>`，可以轮询访问直到它里面的结果可用。比如ExecutorService在执行`Callable<T>`方法时会返回Future。Java8强化了Future，引入了CompletableFuture，可以进行异步结果的结合。
+1. callback：这种异步方法不返回值，而是接收一个callback参数，在结果可用时调用回调函数处理数据。比如各种listener、`CompletableFuture`等；
+2. `Future`/`CompletableFuture`：这种异步方法立刻返回一个`Future<T>`，可以轮询访问直到它里面的结果可用。比如`ExecutorService`在执行`Callable<T>`方法时会返回`Future`。Java8强化了`Future`，引入了`CompletableFuture`，可以进行异步结果的结合。
+
+> [CompletableFuture]({% post_url 2020-06-05-CompletableFuture %})
 
 但是这两种方式**在面对多层复杂组合（orchestrate）情况时**并不好用。
 
 ### callback: not readable
-callback在面对简单结果处理时会非常方便。一般在只做一步回调处理时很好用，写个onSuccess和onError就行了。但是如果对结果的处理逻辑非常复杂，需要形成callable逻辑的堆叠，callback就需要内嵌callback，形成callback地域（Callback Hell）：
+**callback在面对简单结果处理时会非常方便，在只做一层回调处理时很好用**，写个onSuccess和onError就行了。但是如果对结果的处理逻辑非常复杂，需要形成callable逻辑的堆叠，callback就需要内嵌callback，形成**callback地域（Callback Hell）**：
 
-比如异步获取用户的top5收藏，如果没有的话就展示它的suggestion。展示在ui上（所以是由ui线程做的）：
+比如异步获取用户的top5收藏进行展示，如果没有的话就展示建议：
 ```java
 userService.getFavorites(userId, new Callback<List<String>>() { 
   public void onSuccess(List<String> list) { 
@@ -85,7 +87,10 @@ userService.getFavorites(userId, new Callback<List<String>>() {
   }
 });
 ```
-**callback处理逻辑一旦超过一层，堆叠起来就很难看懂了。**
+
+> **因为需要展示在ui上，所以使用ui线程调用show方法**，这样主线程就能干其他事儿了。
+
+显然，**callback处理逻辑一旦超过一层，堆叠起来就很难看懂了。**
 
 同样逻辑的Reactor代码：
 ```java
@@ -97,13 +102,12 @@ userService.getFavorites(userId)
            .subscribe(uiList::show, UiUtils::errorPopup); 
 ```
 
-### CompletableFuture: easy to block, hard to compose
-java8的CompletableFuture在**异步结果的组合**上要比callback好一些。但依然有问题：
-- It is easy to end up with another blocking situation with Future objects by calling the get() method.
-- They do not support lazy computation.
-- They lack support for multiple values and advanced error handling.
+**reactor的代码写出来几乎和逻辑描述是一样的，所以非常好读。**
 
-比如，一步获取一些id，然后异步获取这些id的name和statistic组合起来：
+### `CompletableFuture`: easy to block, hard to compose
+java8的`CompletableFuture`在**异步结果的组合**上要比callback好一些。
+
+比如，异步获取一些id，然后异步获取这些id的name和statistic，组合起来：
 ```java
 CompletableFuture<List<String>> ids = ifhIds(); 
 
@@ -134,6 +138,10 @@ assertThat(results).contains(
 		"Name NameNicole has stats 106",
 		"Name NameABSLAJNFOAJNFOANFANSF has stats 121");
 ```
+可看到`CompletableFuture`虽然可以进行组合，但还是挺麻烦的。而且依然有其他问题：
+- It is easy to end up with another blocking situation with `Future` objects by calling the `get()` method.
+- They do not support lazy computation.
+- They **lack support for multiple values and advanced error handling**.
 
 同样逻辑的Reactor代码：
 ```java
@@ -163,7 +171,7 @@ assertThat(results).containsExactly(
 ```
 
 ## 所以什么是RP？
-reactive programming和callback思想类似（并不是出现了比callback更高效的东西），但写出来的代码就很流畅。**它的目标是解决jvm里传统异步（callback、future）的缺陷，实现[Composability and readability](https://projectreactor.io/docs/core/release/reference/index.html#_composability_and_readability)
+reactive programming和callback思想类似（并不是出现了比callback更高效的东西），但写出来的代码就很流畅。**它的目标是解决jvm里传统异步（callback、future）的缺陷，实现[Composability and readability](https://projectreactor.io/docs/core/release/reference/index.html#_composability_and_readability)**：
 + By “composability”, we mean **the ability to orchestrate multiple asynchronous tasks**
 + The ability to orchestrate tasks is tightly coupled to **the readability and maintainability of code**
 + As we saw, the callback model is simple, but one of its main drawbacks is that, for complex processes, you need to have a callback executed from a callback, itself nested inside another callback, and so on. That mess is known as `Callback Hell`.
