@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Elasticsearch：内部原理"
+title: "Elasticsearch：分片读写"
 date: 2022-05-05 02:06:38 +0800
 categories: elasticsearch pagecache
 tags: elasticsearch pagecache
@@ -13,10 +13,58 @@ tags: elasticsearch pagecache
 1. Table of Contents, ordered
 {:toc}
 
-# 分布式存储 - 写请求必须给到master shard
-可以发送请求到集群中的任一节点，每个节点都有能力处理任意请求。收到请求的节点被称为协调节点(coordinating node)。
+# 协调节点
+可以发送请求到集群中的任一节点，每个节点都有能力处理任意请求。收到请求的节点被称为[协调节点(coordinating node)](https://www.elastic.co/guide/cn/elasticsearch/guide/current/how-primary-and-replica-shards-interact.html)。
 
-协调节点收到写请求后：
+协调节点上有各种队列，称为**协调队列（coordinating queue）**：当客户端发送请求到协调节点时，协调节点会将请求放入对应的协调队列中，等待所有相关分片节点返回结果后再将结果汇总返回给客户端。**这些协调队列可以确保请求的有序处理，避免请求的重复执行和竞争条件，并且可以控制请求的并发数量，防止请求过载导致性能下降。**
+
+比如：Search Queue可以确保查询请求按照先后顺序执行，每个查询请求只有在相关分片节点返回结果后才能执行下一个查询请求，从而避免查询请求之间的竞争条件。同样，Index Queue可以确保索引请求的有序执行，保证每个分片节点都按照正确的顺序执行索引请求。
+
+1. Search Queue
+2. Indexing Queue
+3. Bulk Queue
+4. Percolate Queue
+5. Get Queue
+6. Enrich Queue
+
+**这些queue其实就是[Java相关线程池的queue](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-threadpool.html)**。
+
+coordinating queue在满了之后，会报错。比如enrich coordinating queue：
+> Could not perform enrichment, enrich coordination queue at capacity [1024/1024]'
+
+所以虽然协调节点在做比如search时会轮询所有拥有相关数据分片的节点，但一次search请求中干活最多的还是协调节点。**因此，当发送请求的时候， 为了扩展负载，更好的做法是轮询集群中所有的节点。即，把所有协调节点都用上**。
+
+# 分布式查询 - 任何一个shard都可以
+[在处理读取请求时](https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-read.html)，协调结点在每次请求的时候都会**通过轮询所有的副本分片来达到负载均衡**。
+
+> 所以增加副本数可以增加读的并发度。
+>
+> 但是也有翻车的风险：在文档被检索时，已经被索引的文档可能已经存在于主分片上但是还没有复制到副本分片。 在这种情况下，副本分片可能会报告文档不存在，但是主分片可能成功返回文档。
+
+## query then fetch - 两阶段检索
+
+> 参考：[分布式检索](https://www.elastic.co/guide/cn/elasticsearch/guide/current/distributed-search.html)
+
+es的查询是按照得分给结果排序的。如果返回top10，有两个master shard，那每个节点都要返回10个文档，最后由协调节点把这20个文档统一排序，返回top10。曾经，es的搜索方式`search_type`有两大类可选：
+- ~~`query_and_fetch`~~：一次请求，每个shard都返回10个文档；
+    + 缺点：每次传输数据太多；
+- `query_then_fetch`：请求要分两次。第一次只获取每个shard的10个文档的metadata，排完序后，协调节点再取最终的10篇文档；
+    + 缺点：总传输数据变少了，但是要分两次传输；
+
+**除非搜索只命中一个shard，`query_and_fetch`才会比`query_then_fetch`快，所以默认就是`query_then_fetch`**。后来`query_and_fetch`干脆没了。
+
+> 还有一种`search_type`是`dfs_query_then_fetch`，用于精确计算搜索关键词在整个索引的IDF：https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html
+
+## `_routing` - 缩小查询的shard范围
+存储时使用hash的方式，查询时就有了回报：指定_routing，瞬间可以把查询定位到一个shard：
+- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_search_options.html
+
+**所以整个es index其实就是一个大号hash map**：
+- ~~桶的个数就是分片的个数~~（其实先分配到虚拟分片，再映射到实体分片。参考[Elasticsearch：数据重分配]({% post_url 2023-02-09-es-rehash %})）；
+- 同一分片的文档都算是hash冲突的文档；
+
+# 分布式写入 - 写请求必须给到master shard
+[协调节点收到写请求后](https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-write.html)：
 1. 按照`_routing`确定请求应该写的分片；
 2. **把请求发给拥有该分片master shard的节点**；
 3. master shard写成功后，要不要返回写成功给协调节点，需要看情况：
@@ -39,35 +87,6 @@ tags: elasticsearch pagecache
 > The index operation only returns after **all active shards within the replication group** have indexed the document (sync replication).
 
 **但后来的es用`wait_for_active_shards`取代了它，可能是`consistency`导致写操作太慢了？毕竟“写之前check一下active shard够不够数”，和“等待足够的active shard都写入成功”相比，代价要小得多**。当然代价就是上面说的，有一种很巧的情况：刚检查完，replica挂了。不过为了这种小概率事件，`consistency`付出的代价太大了。**所以使用`wait_for_active_shards`取代`consistency`，也可以看作是es在风险和性能上的一个权衡**。
-
-# 分布式查询 - 任何一个shard都可以
-**在处理读取请求时，协调结点在每次请求的时候都会通过轮询所有的副本分片来达到负载均衡**。
-
-> 所以增加副本数可以增加读的并发度。
->
-> 但是也有翻车的风险：在文档被检索时，已经被索引的文档可能已经存在于主分片上但是还没有复制到副本分片。 在这种情况下，副本分片可能会报告文档不存在，但是主分片可能成功返回文档。
-
-- https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-read.html
-- 分布式检索：https://www.elastic.co/guide/cn/elasticsearch/guide/current/distributed-search.html
-
-## query then fetch - 两阶段检索
-es的查询是按照得分给结果排序的。如果返回top10，有两个master shard，那每个节点都要返回10个文档，最后由协调节点把这20个文档统一排序，返回top10。曾经，es的搜索方式`search_type`有两大类可选：
-- ~~`query_and_fetch`~~：一次请求，每个shard都返回10个文档；
-    + 缺点：每次传输数据太多；
-- `query_then_fetch`：请求要分两次。第一次只获取每个shard的10个文档的metadata，排完序后，协调节点再取最终的10篇文档；
-    + 缺点：总传输数据变少了，但是要分两次传输；
-
-**除非搜索只命中一个shard，`query_and_fetch`才会比`query_then_fetch`快，所以默认就是`query_then_fetch`**。后来`query_and_fetch`干脆没了。
-
-> 还有一种`search_type`是`dfs_query_then_fetch`，用于精确计算搜索关键词在整个索引的IDF：https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html
-
-## `_routing` - 缩小查询的shard范围
-存储时使用hash的方式，查询时就有了回报：指定_routing，瞬间可以把查询定位到一个shard：
-- https://www.elastic.co/guide/cn/elasticsearch/guide/current/_search_options.html
-
-**所以整个es index其实就是一个大号hash map**：
-- ~~桶的个数就是分片的个数~~（其实先分配到虚拟分片，再映射到实体分片。参考[Elasticsearch：数据重分配]({% post_url 2023-02-09-es-rehash %})）；
-- 同一分片的文档都算是hash冲突的文档；
 
 # 分片内部 - 还有segment
 - index：es索引，多个shard组成；

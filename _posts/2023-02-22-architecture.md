@@ -2,8 +2,8 @@
 layout: post
 title: "演进中的架构"
 date: 2023-02-22 23:56:34 +0800
-categories: microservice
-tags: microservice
+categories: microservice kubernetes
+tags: microservice kubernetes
 ---
 
 这是目前最震撼我的一篇总结。过于高屋建瓴，我就不指指点点了:D
@@ -102,6 +102,22 @@ tags: microservice
 > 没错，正是曼岛TT的sidecar，边三轮！
 
 **从长远来看，kubernetes可能如现在的linux一样，成为服务端的标准运行环境，从而淘汰spring cloud等对业务产生侵入的纯软件层面的解决方案。**
+
+#### sidecar
+kubernetes的一个服务有多个pod，每个pod一般只有一个container，但是也可以有多个container。**比如带sidecar的pod就是拥有两个container的pod**。
+
+**添加sidecar本质上就是在服务所在的pod里再起一个容器**。比如，如果想收集服务的日志（假设使用filebeat），一般的做法就是：
+1. **在服务所在的pod里再创建一个filebeat容器**；
+2. 并让服务容器和filebeat容器挂载同一个volume，这样filebeat就能读到服务容器的日志。之后filebeat按照配置把关心的某些日志发往logstash或kafka等组件；
+
+> 如果不需要保留日志，这个volume可以使用ephemeral volume，**既做到数据共享，又能够不持久化存储**：Ephemeral Volume通常用于存储短暂的数据，例如日志文件、临时文件等。另外，Ephemeral Volume还可以用于在容器之间共享数据。例如，多个容器可以共享一个Ephemeral Volume，以便在它们之间传递数据或共享状态。
+
+另外，在rancher上使用filebeat这种只做个性化配置的官方容器，一般的做法是：
+1. 在rancher上使用（kubernetes的）configmap创建配置文件，比如`filebeat.yml`；
+2. 把configmap作为一个volume，挂载在filebeat的容器上；
+3. 挂载点选filebeat读取配置文件的位置，比如`/filebeat.yml`。因为只把`filebeat.yml`挂载上去，所以sub path in volume设置为`filebeat.yml`；
+
+> 如果只想将其中的一个子目录挂载到容器中，可以使用`subPath`参数来指定子目录的路径，从而实现**只挂载volume的某个文件或文件夹到容器**。
 
 # 无服务（器）serverless/云计算
 一开始搞分布式是因为单台机器性能不足，后来搞分布式主要是为了容错能力，当然也能获得更好的性能。**serverless则从另一个角度出发：如果你想要几乎无尽的性能，同时又不想采用复杂的分布式方案**，那么花钱就行。比如亚马逊的lambda serverless计算平台、阿里云腾讯云的serverless。
