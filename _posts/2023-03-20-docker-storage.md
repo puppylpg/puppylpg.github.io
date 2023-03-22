@@ -144,7 +144,6 @@ docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /db
 
 # docker compose
 - https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes
-- 
 
 无论mount volume还是bind mount，在docker compose里用的都是[`volumes`](https://docs.docker.com/compose/compose-file/#volumes)关键字（或者参考[v3的文档](https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes)）。因此volume的语法有short syntax和long syntax：
 ```
