@@ -273,7 +273,7 @@ elasticsearch存放数据的位置：
 假设每个索引都存在副本，就可以直接下掉节点。**同时使用禁止分片分配，加快分片恢复速度**。
 
 ## 禁止分片分配
-设置禁止节点分配：
+设置禁止分片分配：
 ```json
 PUT /_cluster/settings
 {
@@ -321,7 +321,7 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 ## 新节点
 把旧节点所有数据copy到新节点所在的机器，可能要修改配置：
 - `node.name`：如果本身就是`node1`这种和机器无关的名称，无需修改；
-- `network.host`：如果用了`_site_`等非ip、hostname的值，无需求该；
+- `network.host`：如果用了`_site_`等非ip、hostname的值，无需修改；
 - `discovery.seed_hosts`：如果用了DNS，无需修改；
 
 新节点启动elasticsearch。
@@ -334,7 +334,7 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 {% endraw %}
 
 ## 允许分片分配
-开启节点分配：
+开启分片分配：
 ```json
 PUT /_cluster/settings
 {
