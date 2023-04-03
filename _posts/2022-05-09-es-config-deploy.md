@@ -306,9 +306,11 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 ```
 
 吃瓜节点的相关log，先是发现一个节点（nodeA）没了，消息来自master（nodeM）：
+{% raw %}
 ```
 [2023-04-03T15:03:42,505][INFO ][o.e.c.s.ClusterApplierService] [nodeC] removed {{nodeA}{IfvgMjsHRCqS4MKQiZ6naQ}{kA-_4F3DRTWElSlUUZbhqQ}{10.105.132.120}{10.105.132.120:9300}{cdfhilmrstw}{ml.machine_memory=609641574400, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69262, reason: ApplyCommitRequest{term=18, version=69262, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
 ```
+{% endraw %}
 然后把自己相关的索引replica分片变成主分片：
 ```
 [2023-04-03T15:03:42,534][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index1][5] primary-replica resync completed with 0 operations
@@ -324,10 +326,12 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 
 新节点启动elasticsearch。
 
+{% raw %}
 吃瓜节点的相关log，发现一个新的node（nodeB）加入，消息同样来自master：
 ```
 [2023-04-03T15:53:36,617][INFO ][o.e.c.s.ClusterApplierService] [nodeC] added {{nodeB}{IfvgMjsHRCqS4MKQiZ6naQ}{h0JTe5CsQe6wORb3kQ6rYQ}{10.105.132.124}{10.105.132.124:9300}{cdfhilmrstw}{ml.machine_memory=135211626496, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
 ```
+{% endraw %}
 
 ## 允许分片分配
 开启节点分配：
@@ -348,11 +352,13 @@ PUT /_cluster/settings
 
 新节点上的数据会直接恢复，并同步下线期间的translog。所有分片同步完translog后，都会变成replica。cluster state重新变为green。
 
+{% raw %}
 新节点（nodeB）的相关log：
 ```
 [2023-04-03T15:53:36,729][INFO ][o.e.c.s.ClusterApplierService] [nodeB] master node changed {previous [], current [{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}]}, added {{nodeD}{5hXjsmQiR6ad5w_feDNAaw}{MHvS3YF8RPuAQrYKGtYXbw}{10.105.132.121}{10.105.132.121:9300}{cdfhilmrstw}{ml.machine_memory=609639878656, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true},{nodeD}{tdKN6CHeRpmZxNd-sgLLpQ}{nVdtFXayTu206cqv43Di3A}{10.105.132.33}{10.105.132.33:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeF}{d8UzAE-DTIOxRMR81OWmQg}{pe3V7E70RQSKtXDtxMkSaA}{10.105.132.32}{10.105.132.32:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeC}{ekqiqzAzSaavjYE-TnNtYA}{3MX6YkY_SKaERocVWDl1dw}{10.105.132.34}{10.105.132.34:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
 ```
 现在的6个节点是B/C/D/E/F/M，没有了nodeA。
+{% endraw %}
 
 ## 更新DNS
 迁移完记得修改一下DNS，删掉旧节点ip，加入新节点ip。
