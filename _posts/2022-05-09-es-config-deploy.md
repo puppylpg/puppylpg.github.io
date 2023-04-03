@@ -18,6 +18,10 @@ tags: elasticsearch
 - red：有宕机的master shard；
 
 # 启动/关闭
+启动前要[设置一下`vm.max_map_count`](https://stackoverflow.com/a/51448773/7676237)，否则会启动失败：
+
+> max virtual memory areas vm.max_map_count [131072] is too low, increase to at least [262144]
+
 elasticsearch一般使用detach（`-d`）的方式[启动](https://www.elastic.co/guide/en/elasticsearch/reference/current/starting-elasticsearch.html)，可以顺带保留pid（`-p`）到文件内：
 ```
 ./bin/elasticsearch -d -p pid
@@ -43,6 +47,16 @@ ES_JAVA_OPTS="-Xms32g -Xmx32g" ./bin/elasticsearch -d -p pid
 
 如果只是重启节点，没必要先停用节点，这样会导致分片先分配出去，再分配回来，在集群数据比较大的情况下，非常耗时。**当然前提是必须有副本**。
 
+比如取消exclude name的设置：
+```json
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name" : null
+  }
+}
+```
+
 ## 重启节点 - 有副本时
 
 **如果数据存在副本，就可以先设置不要在集群宕机之后重新分配shard**，因为马上就重启回来了。
@@ -55,6 +69,16 @@ ES_JAVA_OPTS="-Xms32g -Xmx32g" ./bin/elasticsearch -d -p pid
         + `all`：启用shard分配；
 
 > 升级集群其实相当于轮流重启节点。
+
+比如设置禁止分片分配：
+```json
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable" : "none"
+  }
+}
+```
 
 # 配置的种类
 elasticsearch的[配置](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html)主要分为[dynamic和static](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#cluster-setting-types)：
@@ -76,6 +100,47 @@ elasticsearch不建议使用transient配置，可能会不稳定，另外迁移�
 2. Persistent setting
 3. `elasticsearch.yml` setting
 4. Default setting value
+
+通过[update setting api](https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html)设置：
+```json
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable" : "none"
+  }
+}
+```
+
+通过[get setting api](https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html)查看设置：
+```
+GET _cluster/settings
+```
+结果示例：
+```json
+{
+  "persistent" : {
+    "xpack" : {
+      "monitoring" : {
+        "collection" : {
+          "enabled" : "true"
+        },
+        "history" : {
+          "duration" : "30d"
+        }
+      }
+    }
+  },
+  "transient" : {
+    "cluster" : {
+      "routing" : {
+        "allocation" : {
+          "enable" : "none"
+        }
+      }
+    }
+  }
+}
+```
 
 # 集群配置
 
@@ -110,6 +175,20 @@ elasticsearch不建议使用transient配置，可能会不稳定，另外迁移�
 
 > When you provide a value for `network.host`, Elasticsearch assumes that you are moving from development mode to production mode。
 
+如果设置成机器ip，不具备可移植性，所以elasticsearch提供了[一些特殊值](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html#network-interface-values):
+- `_local_`：相当于localhost
+- `_site_`：节点都在同一个子网中，则应该使用`_site_`
+- `_global_`：节点在多个子网中或需要从外部访问，则应该使用`_global_`
+- `_[networkInterface]_`：网卡名。比如`_en0_`
+- `0.0.0.0`：比`_global_`少绑定了了ipv6
+
+使用示例：
+```
+network.host: [ "_site_" ]
+network.host: "_site_"
+network.host: _site_
+```
+
 ## 节点发现
 如前所述，[development模式下的节点发现](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/important-settings.html#discovery-settings)是默认开启的：
 1. 如果同一台机器启动多个elasticsearch，通信端口会从9300开始，依次增加；
@@ -129,11 +208,13 @@ discovery.seed_hosts:
    - seeds.mydomain.com 
    - [0:0:0:0:0:ffff:c0a8:10c]:9301
 ```
-可以用ip、hostname、甚至domain。因为这是一个static配置，所以需要重启节点才能生效，因此通过DNS配置domain才是比较合理的选择。
+可以用ip、hostname、甚至domain。因为这是一个static配置，所以需要重启节点才能生效，**因此通过DNS配置domain才是比较合理的选择**。
 
 > ip的端口如果不指定，默认是9300。**如果该节点不存在，也无所谓**。
 
-除了直接指定ip，还可以[增加一个中间层，provider](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/modules-discovery-hosts-providers.html#built-in-hosts-providers)，由provider产生ip，以此实现配置解耦。这样的话**在不重新配置该static配置（需要重启elasticsearch）的情况下也能做节点变更**。（DNS本身就像是一个中间层）
+除了直接指定ip，还可以[增加一个中间层，provider](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/modules-discovery-hosts-providers.html#built-in-hosts-providers)，由provider产生ip，以此实现配置解耦。这样的话**在不重新配置该static配置（需要重启elasticsearch）的情况下也能做节点变更**。
+
+> **DNS本身就像是一个中间层！如果`seed_hosts`使用了DNS，就不需要配置provider了！**
 
 [最简单的provider可以是一个文件](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/modules-discovery-hosts-providers.html#built-in-hosts-providers)：
 ```
@@ -188,4 +269,91 @@ elasticsearch存放数据的位置：
 # 高可用
 - https://www.elastic.co/guide/en/elasticsearch/reference/7.12/high-availability-cluster-design.html
 
+# 节点迁移实例
+假设每个索引都存在副本，就可以直接下掉节点。**同时使用禁止分片分配，加快分片恢复速度**。
+
+## 禁止分片分配
+设置禁止节点分配：
+```json
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable" : "none"
+  }
+}
+```
+吃瓜节点（nodeC）的相关log：
+```
+[2023-04-03T15:01:06,331][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [all] to [none]
+[2023-04-03T15:01:06,331][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [all] to [none]
+```
+
+## 停机
+然后给旧节点（nodeA）停机。此时cluster state为yellow，下掉的主分片对应的副本会转正，但是会缺少副本，所以是yellow。
+
+nodeA的相关log：
+```
+[2023-04-03T15:03:42,313][INFO ][o.e.n.Node               ] [nodeA] stopping ...
+[2023-04-03T15:03:42,333][INFO ][o.e.x.w.WatcherService   ] [nodeA] stopping watch service, reason [shutdown initiated]
+[2023-04-03T15:03:42,334][INFO ][o.e.x.m.p.l.CppLogMessageHandler] [nodeA] [controller/42927] [Main.cc@169] ML controller exiting
+[2023-04-03T15:03:42,334][INFO ][o.e.x.w.WatcherLifeCycleService] [nodeA] watcher has stopped and shutdown
+[2023-04-03T15:03:42,343][INFO ][o.e.x.m.p.NativeController] [nodeA] Native controller process has stopped - no new native processes can be started
+[2023-04-03T15:03:42,412][INFO ][o.e.c.c.Coordinator      ] [nodeA] master node [{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}] failed, restarting discovery
+org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:9300][disconnected] disconnected
+[2023-04-03T15:03:48,535][INFO ][o.e.n.Node               ] [nodeA] stopped
+[2023-04-03T15:03:48,535][INFO ][o.e.n.Node               ] [nodeA] closing ...
+[2023-04-03T15:03:48,554][INFO ][o.e.n.Node               ] [nodeA] closed
+```
+
+吃瓜节点的相关log，先是发现一个节点（nodeA）没了，消息来自master（nodeM）：
+```
+[2023-04-03T15:03:42,505][INFO ][o.e.c.s.ClusterApplierService] [nodeC] removed {{nodeA}{IfvgMjsHRCqS4MKQiZ6naQ}{kA-_4F3DRTWElSlUUZbhqQ}{10.105.132.120}{10.105.132.120:9300}{cdfhilmrstw}{ml.machine_memory=609641574400, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69262, reason: ApplyCommitRequest{term=18, version=69262, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
+```
+然后把自己相关的索引replica分片变成主分片：
+```
+[2023-04-03T15:03:42,534][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index1][5] primary-replica resync completed with 0 operations
+[2023-04-03T15:03:42,535][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index2][0] primary-replica resync completed with 0 operations
+[2023-04-03T15:03:42,607][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index3][14] primary-replica resync completed with 296 operations
+```
+
+## 新节点
+把旧节点所有数据copy到新节点所在的机器，可能要修改配置：
+- `node.name`：如果本身就是`node1`这种和机器无关的名称，无需修改；
+- `network.host`：如果用了`_site_`等非ip、hostname的值，无需求该；
+- `discovery.seed_hosts`：如果用了DNS，无需修改；
+
+新节点启动elasticsearch。
+
+吃瓜节点的相关log，发现一个新的node（nodeB）加入，消息同样来自master：
+```
+[2023-04-03T15:53:36,617][INFO ][o.e.c.s.ClusterApplierService] [nodeC] added {{nodeB}{IfvgMjsHRCqS4MKQiZ6naQ}{h0JTe5CsQe6wORb3kQ6rYQ}{10.105.132.124}{10.105.132.124:9300}{cdfhilmrstw}{ml.machine_memory=135211626496, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
+```
+
+## 允许分片分配
+开启节点分配：
+```json
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable" : null
+  }
+}
+```
+
+吃瓜节点的相关log：
+```
+[2023-04-03T15:54:37,036][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [none] to [all]
+[2023-04-03T15:54:37,036][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [none] to [all]
+```
+
+新节点上的数据会直接恢复，并同步下线期间的translog。所有分片同步完translog后，都会变成replica。cluster state重新变为green。
+
+新节点（nodeB）的相关log：
+```
+[2023-04-03T15:53:36,729][INFO ][o.e.c.s.ClusterApplierService] [nodeB] master node changed {previous [], current [{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}]}, added {{nodeD}{5hXjsmQiR6ad5w_feDNAaw}{MHvS3YF8RPuAQrYKGtYXbw}{10.105.132.121}{10.105.132.121:9300}{cdfhilmrstw}{ml.machine_memory=609639878656, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true},{nodeD}{tdKN6CHeRpmZxNd-sgLLpQ}{nVdtFXayTu206cqv43Di3A}{10.105.132.33}{10.105.132.33:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeF}{d8UzAE-DTIOxRMR81OWmQg}{pe3V7E70RQSKtXDtxMkSaA}{10.105.132.32}{10.105.132.32:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeC}{ekqiqzAzSaavjYE-TnNtYA}{3MX6YkY_SKaERocVWDl1dw}{10.105.132.34}{10.105.132.34:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
+```
+现在的6个节点是B/C/D/E/F/M，没有了nodeA。
+
+## 更新DNS
+迁移完记得修改一下DNS，删掉旧节点ip，加入新节点ip。
 
