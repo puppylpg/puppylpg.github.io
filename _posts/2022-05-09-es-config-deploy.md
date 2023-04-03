@@ -142,6 +142,8 @@ GET _cluster/settings
 }
 ```
 
+> 这里设置了监控保留最近30天的history信息。[但是很遗憾并无卵用](https://discuss.elastic.co/t/xpack-monitoring-history-duration-with-a-value-other-than-7d-does-not-work/238134/2?u=puppylpg)，不掏钱的话依旧只能保留7天……
+
 # 集群配置
 
 主要是配置集群节点之间的相互发现。
