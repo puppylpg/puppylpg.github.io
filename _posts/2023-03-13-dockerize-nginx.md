@@ -416,14 +416,34 @@ server 172.17.0.5:19999;
 ## chatgpt
 ```
 docker run -d \
---name chatgpt
---restart=always \
--e OPENAI_API_KEY="xxx" \
--e CODE="puppylpg" \
---env VIRTUAL_HOST=bibi.puppylpg.xyz \
---env LETSENCRYPT_HOST=bibi.puppylpg.xyz \
-yidadaa/chatgpt-next-web
+    --name chatgpt
+    --restart=always \
+    -e OPENAI_API_KEY="xxx" \
+    -e CODE="puppylpg" \
+    --env VIRTUAL_HOST=bibi.puppylpg.xyz \
+    --env LETSENCRYPT_HOST=bibi.puppylpg.xyz \
+    yidadaa/chatgpt-next-web
 ```
+
+## jupyter notebook
+给jupyter notebook加个密钥：
+```
+docker run --detach --name jupyter-base-notebook \
+    --restart=always \
+    -e JUPYTER_TOKEN=p***u \
+    --env VIRTUAL_HOST=jupyter.puppylpg.xyz \
+    --env LETSENCRYPT_HOST=jupyter.puppylpg.xyz \
+    jupyter/base-notebook
+```
+启动后，可以在jupyter内置的ternimal里，使用conda创建环境，安装依赖。**然后[手动把这个环境添加到jupyter的kernel里](https://ipython.readthedocs.io/en/stable/install/kernel_install.html#kernels-for-different-environments)**：
+```
+(base) jovyan@79097436643e:~$ conda deactivate
+jovyan@79097436643e:~$ python -m ipykernel install --user --name=test
+Installed kernelspec test in /home/jovyan/.local/share/jupyter/kernels/test
+```
+之后就可以使用该环境打开notebook了！
+
+> ipykernel这么重要。
 
 # docker compose
 docker compose起的服务和直接起container区别不大。但是有一点需要注意：**如果compose启动的service绑定到了自己的network上，而非默认的bridge，那么nginx-proxy无法访问到他们，无法为他们生成反向代理！**
@@ -552,58 +572,70 @@ server 192.168.96.3:8998;
 ```
 理论上来讲，跟上面的那些容器的反向代理配置没啥区别。最后去掉`VIRTUAL_PORT`使用默认的port就可以了，迷。
 
-但是该compose挂载了太多local directory，且为相对路径（相对于docker-compose的working directory。如果使用portainer，相对路径是`/data/compose`）。
+但是该compose挂载了太多local directory，且为相对路径（相对于docker-compose的working directory。如果使用portainer，相对路径是`/data/compose`）。**mount current directory[一般用于开发环境](https://docs.docker.com/compose/gettingstarted/#step-5-edit-the-compose-file-to-add-a-bind-mount)，像python这种不需要编译的，改代码后根本不需要重新部署服务即可生效**。
 
 > bind mount参考[Docker - storage](
 {% post_url 2023-03-20-docker-storage %})
 
-考虑改成volume：
+因此考虑改成volume：
 ```
 version: "3"
 services:
-ytdl_material:
-environment:
-ALLOW_CONFIG_MUTATIONS: 'true'
-ytdl_mongodb_connection_string: 'mongodb://ytdl-mongo-db:27017'
-ytdl_use_local_db: 'false'
-write_ytdl_config: 'true'
-VIRTUAL_HOST: download.puppylpg.xyz
-#VIRTUAL_PORT: 8998
-LETSENCRYPT_HOST: download.puppylpg.xyz
-LETSENCRYPT_EMAIL: puppylpg@puppylpg.xyz
-restart: always
-depends_on:
-- ytdl-mongo-db
+    ytdl_material:
+        environment: 
+            ALLOW_CONFIG_MUTATIONS: 'true'
+            ytdl_mongodb_connection_string: 'mongodb://ytdl-mongo-db:27017'
+            ytdl_use_local_db: 'false'
+            write_ytdl_config: 'true'
+            VIRTUAL_HOST: download.puppylpg.xyz
+            #VIRTUAL_PORT: 8998
+            LETSENCRYPT_HOST: download.puppylpg.xyz
+            LETSENCRYPT_EMAIL: puppylpg@puppylpg.xyz
+        restart: always
+        depends_on:
+            - ytdl-mongo-db
+        volumes:
+            - appdata:/app/appdata
+            - audio:/app/audio
+            - video:/app/video
+            - subscriptions:/app/subscriptions
+            - users:/app/users
+        #ports:
+        #    - "127.0.0.1:8998:17442"
+        image: tzahi12345/youtubedl-material:latest
+    ytdl-mongo-db:
+        image: mongo
+        #ports:
+        #    - "27017:27017"
+        logging:
+            driver: "none"          
+        container_name: mongo-db
+        restart: always
+        volumes:
+            - db:/data/db
+            - configdb:/data/configdb
 volumes:
-- appdata:/app/appdata
-- audio:/app/audio
-- video:/app/video
-- subscriptions:/app/subscriptions
-- users:/app/users
-#ports:
-# - "127.0.0.1:8998:17442"
-image: tzahi12345/youtubedl-material:latest
-ytdl-mongo-db:
-image: mongo
-ports:
-- "27017:27017"
-logging:
-driver: "none"
-container_name: mongo-db
-restart: always
-volumes:
-- db/:/data/db
-volumes:
-appdata:
-audio:
-video:
-subscriptions:
-users:
-db:
+    appdata:
+    audio:
+    video:
+    subscriptions:
+    users:
+    db:
+    configdb:
 ```
+
 从docker-compose 3开始，volume和service的默认前缀是项目名称。在portainer里是docker-composec创建时的stack名称。
 
 > mongo-db这个service通过`container_name`设置了别名，所以不会再加上该前缀。
+
+`/data/configdb`是[`mongo` image](https://stackoverflow.com/questions/56855283/what-is-data-configdb-path-used-for-in-mongodb)所使用到的另一个volume：
+```
+        "Volumes": {
+            "/data/configdb": {},
+            "/data/db": {}
+        },
+```
+如果不在compose里创建具名volume，则会生成匿名volume，每次重启新建一个，比较烦。所以也加到上述compose里了。
 
 # static resource
 nginx-proxy支持的是为container生成反向代理，不支持对static resource的反向代理。比如为puppylpg.xyz生成status resource的反向代理。
