@@ -45,7 +45,7 @@ jvm提供了两种方式实现异步：
 但是这两种方式**在面对多层复杂组合（orchestrate）情况时**并不好用。
 
 ### callback: not readable
-**callback在面对简单结果处理时会非常方便，在只做一层回调处理时很好用**，写个onSuccess和onError就行了。但是如果对结果的处理逻辑非常复杂，需要形成callable逻辑的堆叠，callback就需要内嵌callback，形成**callback地域（Callback Hell）**：
+**callback在面对简单结果处理时会非常方便，在只做一层回调处理时很好用**，写个onSuccess和onError就行了。但是如果对结果的处理逻辑非常复杂，需要形成callable逻辑的堆叠，callback就需要内嵌callback，形成**callback地狱（Callback Hell）**：
 
 比如异步获取用户的top5收藏进行展示，如果没有的话就展示建议：
 ```java
