@@ -372,9 +372,9 @@ PUT /my-index-000001?timeout=1m
 1. 请求实体类里，提供一个能把它转成http request的方法；
 2. 并提供一个能把http response转成响应实体类的方法就行了。
 
-这样的请求实体类：
+比如这样的请求类：
 ```
-public class XXRequest {
+public interface XXRequest {
     // fields
     ...
     
@@ -395,8 +395,8 @@ public class XXRequest {
 }
 ```
 
-但是elasticsearch没有直接在Request实体类里提供这样两种方法，它定义了一个Endpoint类，代表要生成的http request的每一部分，把这些方法拼凑起来，就生成了http request：
-```
+但是elasticsearch没有直接在Request类里提供这样两种方法，它定义了Endpoint类，**一个`Endpoint`关联了一个http request和它对应的response**：
+```java
 public interface Endpoint<RequestT, ResponseT, ErrorT> {
 
   /**
@@ -448,8 +448,8 @@ public interface Endpoint<RequestT, ResponseT, ErrorT> {
 
 }
 ```
-它的实现类`SimpleEndpoint`比较特别，通过方法回调来生成request，解析response：**通过各种用户传入的函数来生成想要的http request/response部分（用户自定义生成行为）**：
-```
+以它的实现类`SimpleEndpoint`为例说明Endpoint的使用方式。`SimpleEndpoint`通过**方法回调来**生成request、解析response：**通过各种用户传入的函数来生成想要的http request/response部分（用户自定义生成行为）**：
+```java
     private final Function<RequestT, String> method;
     private final Function<RequestT, String> requestUrl;
     private final Function<RequestT, Map<String, String>> queryParameters;
@@ -491,8 +491,77 @@ public interface Endpoint<RequestT, ResponseT, ErrorT> {
     }
 ```
 
-create index Request在类里定义了这么一个endpoint实现，它是SimpleEndpoint，传入了自己的http request生成行为：
+了解它之前，先**举个简单的例子**。假设我们要根据first name和last name生成全名，有的姓在前名在后，有的名在前姓在后——
+
+实体请求类：
 ```
+public class Name {
+    String first;
+    String last;
+}
+```
+响应类：
+```
+public class Person {
+    String fullName;
+    int age;
+    // ...
+}
+```
+
+第一种，提供两个方法：
+```
+public Person firstLast(Name name) {
+    String full = name.first + name.last;
+    return new Person(full, ...);
+}
+
+public Person lastFirst(Name name) {
+    String name.last + name.first;
+    return new Person(full, ...);
+}
+```
+显然，最后一句`new Person(full, ...)`重复了。当然可以把这一句封装为一个新的函数`newPerson(String full, ...)`，然后两个函数都调用该函数。**虽然最小化了代码重复，但都调用`newPerson(String full, ...)`依然是重复调用。**
+
+第二种，多加一个标记，代表生成full name的方式，可以放在Name实体类里，也可以给函数多加一个参数：
+```
+public Person name(Name name) {
+    String full = name.first ? name.first + name.last : name.last + name.first;
+    return new Person(full, ...);
+}
+```
+这种方式写的方法少，因为方法逻辑复杂了，所以一个方法就够了。但是需要额外的判定标记才能决定用哪种逻辑分支，逻辑比较耦合，不太推荐。
+
+第三种，**传入函数，相当于把一部分逻辑交给调用者**：
+```
+public Person name(Name name, BiFunction<String, String, String> fullNameGenerator) {
+    String full = fullNameGenerator.apply(name.first, name.last);
+    return new Person(full, ...);
+}
+```
+如果需要first last：
+```
+name(name, (a, b) -> a + b);
+```
+如果需要last first：
+```
+name(name, (a, b) -> b + a);
+```
+第三种方法，我们先写一个接受lambda的函数，再基于它写两个有不同lambda的name函数，就实现了两个生成策略。**第一个name函数已经写好了固定的逻辑，通过lambda暴露了不确定的逻辑，后面的两个name实现只需要提供lambda就行，达到了最大程度的代码复用。endpoint接口就是这样衍生出了一堆endpoint的！**
+
+> **以后写代码可以考虑一下第三种，它的主要优点就是：开放、好拓展、最小化重复代码。**
+
+**如果后来用户有了第三种名称生成方式：first-last**
+```
+name(name, (a, b) -> a + "-" + b);
+```
+
+**可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这并不能做到代码复用最大化。
+
+再看`SimpleEndpoint`，它就是通过这种方式，**让参数lambda承担了不同的Endpoint的独有逻辑，自己写完了共有逻辑**。
+
+比如`CreateIndexRequest`在类里定义了这么一个关于创建索引的endpoint实现，它是SimpleEndpoint的一个实例，传入了自己的http request生成行为：
+```java
 	/**
 	 * Endpoint "{@code indices.create}".
 	 */
@@ -541,11 +610,9 @@ create index Request在类里定义了这么一个endpoint实现，它是SimpleE
 ```
 其实就是从用户构造好的create index Request里，取index、取param、取body。
 
-**和把生成http request的方法直接写在Request里面相比，有什么好处呢？**
+**和把生成http request的方法直接写在Request里面相比，怎么体现其代码复用？**
 
-**好拓展endpoint！**
-
-按照普通写法，如果需要给原有request新增参数，就要override甚至重写原有Request类。**但是按照新的写法，我们只需要重写这个request相关的ENDPOINT对象，因为这个对象控制着request和response的生成行为**。
+比如，按照普通写法，如果需要给原有request新增参数，就要override原有Request类的某些方法。**但是按照新的写法，我们只需要重写lambda入参**。
 
 比如给createIndex新增一个[`filter_path`](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#common-options-response-filtering)参数，只需要新写一个ENDPOINT，给它的生成parameters的方法多加一个param就行了：` r -> Map.of("filter_path", "-*.big_field")`。
 
@@ -563,73 +630,51 @@ client.indices().create(c -> c.index("xxx"));
 
 > 倒不是一定要写这种模式，毕竟它理解成本高一些。不过看懂了这种模式就更容易看懂client的代码。
 
-**可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这样的话处理实体对象的逻辑就被写死了。如果能传函数，那可能原来两个函数才能做的事，一个函数就搞定了。
+最后看下Endpoint怎么被使用的——
 
-**举个例子**，生成全名的时候，有的姓在前名在后，有的名在前姓在后——
+在`RestClientTransport`里：
+```java
+    private <RequestT> org.elasticsearch.client.Request prepareLowLevelRequest(
+        RequestT request,
+        Endpoint<RequestT, ?, ?> endpoint,
+        @Nullable TransportOptions options
+    ) {
+        String method = endpoint.method(request);
+        String path = endpoint.requestUrl(request);
+        Map<String, String> params = endpoint.queryParameters(request);
 
-实体请求类：
-```
-public class Name {
-    String first;
-    String last;
-}
-```
-响应类：
-```
-public class Person {
-    String fullName;
-    int age;
-    // ...
-}
-```
+        org.elasticsearch.client.Request clientReq = new org.elasticsearch.client.Request(method, path);
 
-第一种，提供两个方法：
-```
-public Person firstLast(Name name) {
-    String full = name.first + name.last;
-    return new Person(full, ...);
-}
+        RequestOptions restOptions = options == null ?
+            transportOptions.restClientRequestOptions() :
+            RestClientOptions.of(options).restClientRequestOptions();
 
-public Person lastFirst(Name name) {
-    String name.last + name.first;
-    return new Person(full, ...);
-}
-```
-这种方式写的方法较多，因为每个方法的逻辑都固定了。
+        if (restOptions != null) {
+            clientReq.setOptions(restOptions);
+        }
 
-第二种，多加一个标记，代表生成full name的方式，可以放在Name实体类里，也可以给函数多加一个参数：
-```
-public Person name(Name name) {
-    String full = name.first ? name.first + name.last : name.last + name.first;
-    return new Person(full, ...);
-}
-```
-这种方式写的方法少，因为方法逻辑复杂了，所以一个方法就够了。但是需要额外的判定标记才能决定用哪种逻辑分支。
+        clientReq.addParameters(params);
 
-第三种，**传入函数，相当于把一部分逻辑交给用户**：
-```
-public Person name(Name name, BiFunction<String, String, String> fullNameGenerator) {
-    String full = fullNameGenerator.apply(name.first, name.last);
-    return new Person(full, ...);
-}
-```
-如果需要first last：
-```
-name(name, (a, b) -> a + b);
-```
-如果需要last first：
-```
-name(name, (a, b) -> b + a);
-```
-第三种方法，我们先写一个接受lambda的函数，再写两个有不同lambda的name函数，就实现了两个生成策略。**最开始的name函数已经写好了固定的逻辑，通过lambda暴露了不确定的逻辑，后面的两个name实现只需要提供lambda就行，达到了最大程度的代码复用。endpoint接口就是这样衍生出了一堆endpoint的！**
+        if (endpoint.hasRequestBody()) {
+            // Request has a body and must implement JsonpSerializable or NdJsonpSerializable
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-**以后写代码可以考虑一下第三种，它的主要优点就是：开放。因为开放，所以灵活，好拓展。**
+            if (request instanceof NdJsonpSerializable) {
+                writeNdJson((NdJsonpSerializable) request, baos);
+            } else {
+                JsonGenerator generator = mapper.jsonProvider().createGenerator(baos);
+                mapper.serialize(request, generator);
+                generator.close();
+            }
 
-**比如后来用户有了第三种名称生成方式：first-last**
+            clientReq.setEntity(new ByteArrayEntity(baos.toByteArray(), JsonContentType));
+        }
+        // Request parameter intercepted by LLRC
+        clientReq.addParameter("ignore", "400,401,403,404,405");
+        return clientReq;
+    }
 ```
-name(name, (a, b) -> a + "-" + b);
-```
-原有的name函数完全不用动。
+分别从endpoint取出method、url、parameter、body，组成request，比使用client发送请求。
 
 ## elasticsearch java vs. HLRC：全面碾压
 已废弃的RestHighLevelClient在两个地方很蹩脚：
