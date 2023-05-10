@@ -184,7 +184,7 @@ public void routing(Optional<String> v) {
   this.routing = v.orElse(null);
 }  
 ```
-毕竟内部使用的时候，不会给Optional参数传个null，要不然就真就是自己和自己过不去了……
+毕竟内部使用的时候，不会给Optional参数传个null，要不然真就是自己和自己过不去了……
 
 教训：**API参数用`Optional`无意义。**
 
@@ -314,7 +314,7 @@ SearchResponse<SomeApplicationData> results = client
 elasticsearchClient.search(s -> s.index("ddd").query(q -> q.term(t -> t.field("s").value(v -> v.stringValue("s")))), XXX.class);
 ```
 
-### endpoint
+### Endpoint
 所有的api其实就干两件事：
 1. 发送请求；
 2. 获取响应；
@@ -565,7 +565,7 @@ client.indices().create(c -> c.index("xxx"));
 
 **可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这样的话处理实体对象的逻辑就被写死了。如果能传函数，那可能原来两个函数才能做的事，一个函数就搞定了。
 
-举个例子，生成全名，有的姓在前名在后，有的名在前姓在后——
+**举个例子**，生成全名的时候，有的姓在前名在后，有的名在前姓在后——
 
 实体请求类：
 ```
@@ -613,15 +613,15 @@ public Person name(Name name, BiFunction<String, String, String> fullNameGenerat
     return new Person(full, ...);
 }
 ```
-用户如果需要first last：
+如果需要first last：
 ```
 name(name, (a, b) -> a + b);
 ```
-用户如果需要last first：
+如果需要last first：
 ```
 name(name, (a, b) -> b + a);
 ```
-第三种方法，我们省事儿了，因为我们把这部分不确定的逻辑交给了用户，自己只写了固定的逻辑。
+第三种方法，我们先写一个接受lambda的函数，再写两个有不同lambda的name函数，就实现了两个生成策略。**最开始的name函数已经写好了固定的逻辑，通过lambda暴露了不确定的逻辑，后面的两个name实现只需要提供lambda就行，达到了最大程度的代码复用。endpoint接口就是这样衍生出了一堆endpoint的！**
 
 **以后写代码可以考虑一下第三种，它的主要优点就是：开放。因为开放，所以灵活，好拓展。**
 
@@ -671,7 +671,7 @@ name(name, (a, b) -> a + "-" + b);
         WitakeMediaEs witakeMediaEs = hit.source();
 ```
 
-另外从elasticsearch client的开发者来，新的client更好维护，因为它的api可以由TypeScript生成。
+另外从elasticsearch client的开发者的角度来看，新的client更好维护，因为它的api可以由TypeScript生成。
 
 比如index create api：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html
@@ -687,7 +687,7 @@ name(name, (a, b) -> a + "-" + b);
 HLRC则要手动一个个实现endpoint，增加了维护成本：
 > Every class for every endpoint was created manually. Everything had to be kept in sync manually when new fields or parameters had been added resulting in high maintenance
 
-> TypeScript，有意思，有空看看。Java学JavaScript引入了val，JavaScript学Java的强类型衍生了TypeScript。
+> TypeScript，有意思，有空看看。Java学JavaScript引入了val，JavaScript学Java的强类型衍生了TypeScript:D
 
 ## elasticsearch java vs. spring data elasticsearch：各有千秋
 spring data elasticsearch的ElasticsearchRestTemplate也支持泛型，所以和elasticsearch-java一样，也不需要手动转换类：
@@ -792,7 +792,7 @@ spring boot可以这么设置：
         };
     }
 ```
-但是个别请求会不会有什么兼容问题就不得而知了，所以要写好继承测试。
+但是个别请求会不会有什么兼容问题就不得而知了，所以要写好集成测试。
 
 ## 序列化反序列化
 `RestHighLevelClient#search`返回的是`SearchResponse`，获取hits后（`searchResponse.getHits().getHits()`），得到的是`SearchHit[]`，从`SearchHit#getSourceAsMap`只能获取`Map<String, Object>`，必须把map手动转成自己想要的类。
