@@ -139,6 +139,7 @@ Ref:
 1. 基于LLRC；
 2. **json object mapper：对象和json互转，所以说是strongly typed requests and responses**，HLRC做不到这一点；
 3. transport layer：处理http请求；
+
 ```
 // 1. Create the low-level client
 RestClient restClient = RestClient.builder(
@@ -841,4 +842,3 @@ spring boot可以这么设置：
 流行的开源代码写的还是很好的，多看看确实不一定在哪儿就悟了，编程水平又提升了。
 
 Elasticsearch的client代码写的就已经很好了，期待看看Elasticsearch server的代码！
-
