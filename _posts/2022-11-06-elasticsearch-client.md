@@ -610,13 +610,33 @@ name(name, (a, b) -> a + "-" + b);
 ```
 其实就是从用户构造好的create index Request里，取index、取param、取body。
 
-**和把生成http request的方法直接写在Request里面相比，怎么体现其代码复用？**
+如果需要给原有request新增参数，普通写法要override原有Request类的某些方法。**按照新的写法，就是重写lambda入参**。其实没有本质区别，就是思路变了：逻辑从写在方法里，变成了写在lambda参数里。
 
-比如，按照普通写法，如果需要给原有request新增参数，就要override原有Request类的某些方法。**但是按照新的写法，我们只需要重写lambda入参**。
+比如一个endpoint：
+```java
+public static final Endpoint<FooRequest, FooResponse, ElasticsearchError> ENDPOINT =
+    new Endpoint.Simple<>(
+      r -> "POST",
+      r -> "/foo",
+      Endpoint.Simple.emptyMap(),
+      Endpoint.Simple.emptyMap(),
+      FooResponse.PARSER
+    );
+```
 
-比如给createIndex新增一个[`filter_path`](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#common-options-response-filtering)参数，只需要新写一个ENDPOINT，给它的生成parameters的方法多加一个param就行了：` r -> Map.of("filter_path", "-*.big_field")`。
+“继承”自它的另一个endpoint：
+```java
+public static final Endpoint<FooRequest, ReducedFooResponse, ElasticsearchError> FILTERED =
+    new Endpoint.Simple<>(
+      FooRequest.ENDPOINT::method,
+      FooRequest.ENDPOINT::requestUrl,
+      FooRequest.ENDPOINT::headers,
+      r -> Map.of("filter_path", "-*.big_field"), // should be a static value for realz
+      ReducedFooResponse.PARSER
+);
+```
 
-当然，因为响应也变了，所以response的deserializer也要改，直接把新的deserializer传入新的ENDPOINT对象里就行了。
+倒不是一定非要用lambda参数这种模式，不过多了一种写代码的思路也挺好的。
 
 ref：
 - https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0002-namespace-clients-and-endpoints.md
@@ -627,8 +647,6 @@ client.indices().create(c -> c.index("xxx"));
 ```
 
 > **elasticsearch client的层次向来都是分明的。比如普通的api，client可以直接调用；index相关的api，都在`client.indices()`之下。**
-
-> 倒不是一定要写这种模式，毕竟它理解成本高一些。不过看懂了这种模式就更容易看懂client的代码。
 
 最后看下Endpoint怎么被使用的——
 
@@ -887,3 +905,4 @@ spring boot可以这么设置：
 流行的开源代码写的还是很好的，多看看确实不一定在哪儿就悟了，编程水平又提升了。
 
 Elasticsearch的client代码写的就已经很好了，期待看看Elasticsearch server的代码！
+
