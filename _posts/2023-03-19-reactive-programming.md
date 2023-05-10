@@ -1,471 +1,844 @@
 ---
 layout: post
-title: "Reactive Programming"
-date: 2023-03-19 21:33:11 +0800
-categories: reactive
-tags: reactive
+title: "Elasticsearch：client"
+date: 2022-11-06 20:11:32 +0800
+categories: elasticsearch spring-data-elasticsearch
+tags: elasticsearch spring-data-elasticsearch
 ---
 
-webflux，之前留下的未尽事宜，终于又碰上了。Reactive Programming，RP，震惊我100年。
+elasticsearch有很多Java client，底层的、上层的，废弃的、现存的，需要好好梳理一下，不然编程的时候一脸懵逼，尤其是使用spring boot自动配置client的时候。
+- https://spinscale.de/posts/2022-03-03-running-the-elasticcc-platform-part-2.html
+
+另外spring data elasticsearch也提供了基于elasticsearch原生client的上层client，比如ElasticsearchRestTemplate，在此一起进行对比。
 
 1. Table of Contents, ordered
 {:toc}
 
-# Reactive Programming
-为什么要RP？看了半天，只有[《Reactor 3 Reference Guide》](https://projectreactor.io/docs/core/release/reference/index.html#intro-reactive)介绍的最清楚。
+# LLRC
+- https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/master/java-rest-low.html
 
+Elasticsearch Low Level Rest Client（LLRC）：
+- github：https://github.com/elastic/elasticsearch
+- maven仓库：https://mvnrepository.com/artifact/org.elasticsearch.client/elasticsearch-rest-client
+- 包名：`org.elasticsearch.client:elasticsearch-rest-client`
+- 类：`org.elasticsearch.client.RestClient`
 
+> 它的github地址就是elasticsearch的地址……所以它比较耦合，包含了elasticsearch所有的东西……
 
-阻塞式编程效率太低（Blocking Can Be Wasteful），为了服务于大量的并发用户，server端只能寻求两种方法：
-1. 并行化：使用更多线程，使用更多资源；
-2. 高效化：更进一步提高对资源的利用率；
+**它的包名是`org.elasticsearch.client:elasticsearch-rest-client`，无论已废弃的`org.elasticsearch.client:elasticsearch-rest-high-level-client`还是后面新出的`co.elastic.clients:elasticsearch-java`，底层都依赖它**：
+```
+<!-- https://mvnrepository.com/artifact/org.elasticsearch.client/elasticsearch-rest-client -->
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>elasticsearch-rest-client</artifactId>
+    <version>8.5.0</version>
+</dependency>
+```
 
-## 多线程
-Java后端的代码经常是阻塞式的，所以多线程并行是Java后端经常使用的办法。比如传统的Java web编程，一个连接使用一个线程处理。或者读取数据库，也会使用线程池，阻塞式等待数据响应。
+> 注意：LLRC的名字里没有`low`，而HLRC的名字里有`high`。
 
-> Usually, Java developers write programs by using blocking code. **This practice is fine until there is a performance bottleneck. Then it is time to introduce additional threads, running similar blocking code**. But this scaling in resource utilization can quickly introduce contention and concurrency problems.
+LLRC做比较底层的请求工作，比如：
+- 发送底层的HTTP请求；
+- 处理TLS、http basic认证等；
+- 选择cluster里的正确的节点，维护可使用的节点列表以发送http请求；
+
+> takes care of all transport-level concerns: HTTP connection pooling, retries, node discovery, and so on
+
+它内部使用的是Apache HttpClient。
+
+# HLRC
+- https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-overview.html
+
+Elaticsearch High Level Rest Client（HLRC）:
+- github：https://github.com/elastic/elasticsearch
+- maven仓库：https://mvnrepository.com/artifact/org.elasticsearch.client/elasticsearch-rest-high-level-client
+- 包名：`org.elasticsearch.client:elasticsearch-rest-high-level-client`
+- 类：`org.elasticsearch.client.RestHighLevelClient`
+
+基于LLRC，提供一些高层的封装，比如有Request和Response实体类（**但不支持泛型，所以用起来没那么方便**）。
+
+**7.15的时候被标记为deprecated（因为elasticsearch java client此时发布了，虽然还只是beta版），7.17.x之后就停止发布了**：
+- https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high.html
+
+# elasticsearch java
+> 这朴实无华的名字……
+
+- github：https://github.com/elastic/elasticsearch-java/
+- maven仓库：https://mvnrepository.com/artifact/co.elastic.clients/elasticsearch-java
+- 包名：`co.elastic.clients:elasticsearch-java`
+- 类：`co.elastic.clients.elasticsearch.ElasticsearchClient`
+
+> **包名用`co.elastic`是因为elasticsearch现在的官网是`elastic.co`**……之前用`org.elasticsearch`则很明显官网是`elasticsearch.org`，现在该网址301重定向到`https://www.elastic.co`。
 >
-> Worse still, blocking wastes resources. If you look closely, as soon as a program involves some latency (notably I/O, such as a database request or a network call), **resources are wasted because threads (possibly many threads) now sit idle, waiting for data**.
+> **它的名字里出现了java**（`elasticsearch-java`），而LLRC/HLRC的名字没出现java，出现的都是client，比如LLRC是`elasticsearch-rest-client`。
 
-**但这些阻塞等待都是对资源的浪费，线程不可能一直加下去，想办法更充分利用资源才是处理更大规模并发的正解。**
+第一个版本是7.15.0，但它是beta版：
+- https://github.com/elastic/elasticsearch-java/tags?after=v7.15.2
 
-> So **the parallelization approach is not a silver bullet**. It is necessary to access the full power of the hardware
+**[7.16是第一个正式版本](https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/7.16/introduction.html#_main_changes_since_version_7_15)。**
 
-## 异步
-使用异步方式写非阻塞的代码才是更加合理利用资源的方式。
+```
+    <dependency>
+      <groupId>co.elastic.clients</groupId>
+      <artifactId>elasticsearch-java</artifactId>
+      <version>8.4.3</version>
+    </dependency>
+```
+因为它引入了序列化反序列化对象的功能（明显优于HLRC的地方），Response能够直接取出泛型对象，不需要再手动转了。
 
-> The second approach mentioned earlier, seeking more efficiency, can be a solution to the resource wasting problem. **By writing asynchronous, non-blocking code, you let the execution switch to another active task that uses the same underlying resources and later comes back to the current process when the asynchronous processing has finished.**
+elasticsearch-java使用jsonp规范解析数据，同时把jackson作为底层实现，实现了jsonp的接口。具体可以参考elasticsearch-java里的：
+- `JacksonJsonProvider extends jakarta.json.spi.JsonProvider`: A partial implementation of JSONP's SPI on top of Jackson
+- `JsonpMapper`: A JsonpMapper combines a JSON-P provider and object serialization/deserialization based on JSON-P events
+- 和它的实现类`JacksonJsonpMapper implements JsonpMapper`
 
-jvm提供了两种方式实现异步：
-1. callback：这种异步方法不返回值，而是接收一个callback参数，在结果可用时调用回调函数处理数据。比如各种listener、`CompletableFuture`等；
-2. `Future`/`CompletableFuture`：这种异步方法立刻返回一个`Future<T>`，可以轮询访问直到它里面的结果可用。比如`ExecutorService`在执行`Callable<T>`方法时会返回`Future`。Java8强化了`Future`，引入了`CompletableFuture`，可以进行异步结果的结合。
-
-> [CompletableFuture]({% post_url 2020-06-05-CompletableFuture %})
-
-但是这两种方式**在面对多层复杂组合（orchestrate）情况时**并不好用。
-
-### callback: not readable
-**callback在面对简单结果处理时会非常方便，在只做一层回调处理时很好用**，写个onSuccess和onError就行了。但是如果对结果的处理逻辑非常复杂，需要形成callable逻辑的堆叠，callback就需要内嵌callback，形成**callback地域（Callback Hell）**：
-
-比如异步获取用户的top5收藏进行展示，如果没有的话就展示建议：
-```java
-userService.getFavorites(userId, new Callback<List<String>>() { 
-  public void onSuccess(List<String> list) { 
-    if (list.isEmpty()) { 
-      suggestionService.getSuggestions(new Callback<List<Favorite>>() {
-        public void onSuccess(List<Favorite> list) { 
-          UiUtils.submitOnUiThread(() -> { 
-            list.stream()
-                .limit(5)
-                .forEach(uiList::show); 
-            });
-        }
-
-        public void onError(Throwable error) { 
-          UiUtils.errorPopup(error);
-        }
-      });
-    } else {
-      list.stream() 
-          .limit(5)
-          .forEach(favId -> favoriteService.getDetails(favId, 
-            new Callback<Favorite>() {
-              public void onSuccess(Favorite details) {
-                UiUtils.submitOnUiThread(() -> uiList.show(details));
-              }
-
-              public void onError(Throwable error) {
-                UiUtils.errorPopup(error);
-              }
-            }
-          ));
-    }
-  }
-
-  public void onError(Throwable error) {
-    UiUtils.errorPopup(error);
-  }
-});
+jsonp默认已经声明在elasticsearch-java里了，所以如果系统里没有jackson，需要手动引入：
+```
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.12.3</version>
+    </dependency>
 ```
 
-> **因为需要展示在ui上，所以使用ui线程调用show方法**，这样主线程就能干其他事儿了。
+## 可能出现的jsonp依赖问题
+如果报错：
+> ClassNotFoundException: jakarta.json.spi.JsonProvider
 
-显然，**callback处理逻辑一旦超过一层，堆叠起来就很难看懂了。**
+就是jsonp的版本有问题（jakarta.json-api），很可能使用了1.x.x的jsonp依赖。
 
-同样逻辑的Reactor代码：
-```java
-userService.getFavorites(userId) 
-           .flatMap(favoriteService::getDetails) 
-           .switchIfEmpty(suggestionService.getSuggestions()) 
-           .take(5) 
-           .publishOn(UiUtils.uiThreadScheduler()) 
-           .subscribe(uiList::show, UiUtils::errorPopup); 
+**1.x版本的`jakarta.json:jakarta.json-api`的包名是`javax.json`，而非`jakarta.json`**，从2.x开始才把包名改成后者。
+
+所以如果出现：`ClassNotFoundException: jakarta.json.spi.JsonProvider`，可能是1.x版本的该依赖覆盖掉了`elasticsearch-java`里声明的2.x版本。此时需要手动引入2.x版本。
+
+`jakarta.json:jakarta.json-api` 2.x版本是elasticsearch-java的默认jsonp版本，但它可能被springboot等默认的1.x版本的jsonp给覆盖掉：
+```
+<!-- https://mvnrepository.com/artifact/jakarta.json/jakarta.json-api -->
+<dependency>
+    <groupId>jakarta.json</groupId>
+    <artifactId>jakarta.json-api</artifactId>
+    <version>2.1.1</version>
+</dependency>
 ```
 
-**reactor的代码写出来几乎和逻辑描述是一样的，所以非常好读。**
+### 为什么变包名？jakarta
+javaEE（一系列标准和实现，比如servlet、JPA、bean validation等）已经交给开源基金会Eclipse Foundation了。**所以package也改了，从原来的`javax`变成了`jakarta`**（雅加达，印尼首都。Java岛就在印尼）。Eclipse创建了一个顶级project：[Eclipse Enterprise for Java(EE4J)](https://github.com/eclipse-ee4j/ee4j)。所以以后EE4J发布的高版本的原javaEE的依赖的包名都是`jakarta`开头的了。
 
-### `CompletableFuture`: easy to block, hard to compose
-java8的`CompletableFuture`在**异步结果的组合**上要比callback好一些。
+- https://blogs.oracle.com/javamagazine/post/transition-from-java-ee-to-jakarta-ee
 
-比如，异步获取一些id，然后异步获取这些id的name和statistic，组合起来：
-```java
-CompletableFuture<List<String>> ids = ifhIds(); 
+但是移交有一个过渡的过程。**最开始的发布的jakarta包，只是包的名字不叫javax了，但是里面的类的包名还是原来的`javax.*`，之后的版本才改成`jakarta.*`**。比如servlet api到了5，才改成`jakarta.*`，之前servlet api 4，即使jar包的名字叫`jakarta.servlet-api`，包名依然是`javax.*`。
 
-CompletableFuture<List<String>> result = ids.thenComposeAsync(l -> { 
-	Stream<CompletableFuture<String>> zip =
-			l.stream().map(i -> { 
-				CompletableFuture<String> nameTask = ifhName(i); 
-				CompletableFuture<Integer> statTask = ifhStat(i); 
+> The highest impact item in this stage, however, is changing the package name in all the Java APIs from `javax.*` to `jakarta.*`.
 
-				return nameTask.thenCombineAsync(statTask, (name, stat) -> "Name " + name + " has stats " + stat); 
-			});
-	List<CompletableFuture<String>> combinationList = zip.collect(Collectors.toList()); 
-	CompletableFuture<String>[] combinationArray = combinationList.toArray(new CompletableFuture[combinationList.size()]);
+Ref:
+- https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/master/installation.html#class-not-found-jsonprovider
 
-	CompletableFuture<Void> allDone = CompletableFuture.allOf(combinationArray); 
-	return allDone.thenApply(v -> combinationList.stream()
-			.map(CompletableFuture::join) 
-			.collect(Collectors.toList()));
-});
+## 创建client
+- https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/master/connecting.html
 
+新的客户端包含三个主要组件，所以创建client也需要三步：
+1. 基于LLRC；
+2. **json object mapper：对象和json互转，所以说是strongly typed requests and responses**，HLRC做不到这一点；
+3. transport layer：处理http请求；
 
-
-List<String> results = result.join(); 
-assertThat(results).contains(
-		"Name NameJoe has stats 103",
-		"Name NameBart has stats 104",
-		"Name NameHenry has stats 105",
-		"Name NameNicole has stats 106",
-		"Name NameABSLAJNFOAJNFOANFANSF has stats 121");
 ```
-可看到`CompletableFuture`虽然可以进行组合，但还是挺麻烦的。而且依然有其他问题：
-- It is easy to end up with another blocking situation with `Future` objects by calling the `get()` method.
-- They do not support lazy computation.
-- They **lack support for multiple values and advanced error handling**.
+// 1. Create the low-level client
+RestClient restClient = RestClient.builder(
+    new HttpHost("localhost", 9200)).build();
 
-同样逻辑的Reactor代码：
-```java
-Flux<String> ids = ifhrIds(); 
+// 2,3. Create the transport with a Jackson mapper
+ElasticsearchTransport transport = new RestClientTransport(
+    restClient, new JacksonJsonpMapper());
 
-Flux<String> combinations =
-		ids.flatMap(id -> { 
-			Mono<String> nameTask = ifhrName(id); 
-			Mono<Integer> statTask = ifhrStat(id); 
+// And create the API client
+ElasticsearchClient client = new ElasticsearchClient(transport);
+```
 
-			return nameTask.zipWith(statTask, 
-					(name, stat) -> "Name " + name + " has stats " + stat);
-		});
+## 设计理念
+关于设计理念的介绍还是非常值得看看的：
+- https://github.com/elastic/elasticsearch-java/tree/main/docs/design
+- https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/api-conventions.html
 
-Mono<List<String>> result = combinations.collectList();
+### api参数为什么不用`Optional`？
+elasticsearch api的参数有些是必传的（比如query里的value），有些是可选的（比如query里的size），**对于可选参数，要不要把类型定义成`Optional`**？
+- https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0000-model-classes-optionals.md
 
+**API参数用了optional也白搭，对于`Optional`参数，API调用者依然可能传入null，所以还是得做参数的null check……**
 
+既然无论如何都要做null check，所以，最终选择：
+1. **必填API参数全都标注`@NotNull`**；
+2. **可选API参数全都标注`@Nullable`**；
 
-List<String> results = result.block(); 
-assertThat(results).containsExactly( 
-		"Name NameJoe has stats 103",
-		"Name NameBart has stats 104",
-		"Name NameHenry has stats 105",
-		"Name NameNicole has stats 106",
-		"Name NameABSLAJNFOAJNFOANFANSF has stats 121"
+这样IDE就能在编码层面做很好的提示。在内部调用可选参数的时候，可以让它的getter返回Optional。
+
+> We can however use Optional sanely: fields can be stored as nullable references, and translated to Optional when the getter is called. This also avoids excessive allocation of wrapping objects that may be long lived, and instead uses short-lived objects whose allocation may even be eliminated by inlining or escape analysis.
+
+```
+// Optional property
+@Nullable private String routing
+
+public Optional<String> routing() {
+  return Optional.of(this.routing);
+}
+
+public void routing(Optional<String> v) {
+  this.routing = v.orElse(null);
+}  
+```
+毕竟内部使用的时候，不会给Optional参数传个null，要不然就真就是自己和自己过不去了……
+
+教训：**API参数用`Optional`无意义。**
+
+### model class为什么用immutable + builder
+elasticsearch的request和response实体类怎么定义？pojo还是immutable data class + builder？
+- https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0001-model-classes-structure.md
+
+pojo的缺点：
+1. 可变；
+2. **setter是随时可以调用的，所以不知道啥时候setter全都调用过了，无法做数据完整性校验**：The class cannot know when all setters have been called, and so cannot enforce any internal consistency check except by exposing a validation method that has to be called explicitly.
+
+所以最终决定使用builder模式构建对象，对外只暴露getter方法。且因为没有setter，getter就可以忽略get前缀了，不需要`getName()`，直接用名字`name()`就行了。甚至还可以设置field为 public final，连getter方法都不用有了。
+
+谈到public final，elasticsearch还整了个活儿，哈哈哈：
+> Many developers freak out when they see public class fields ;-)
+
+jdk14引入的[record class](https://www.baeldung.com/java-record-keyword)也是创建不可变对象的利器。它大致相当于一个只有`@Getter`和`@AllArgsConstruct`（当然`@ToString`和`@HashCode`也是有的），没有`@Setter`的类。
+
+> [不过record class不提供builder模式，所以还是跟lombok差了点儿](https://www.baeldung.com/java-record-vs-lombok)。
+
+elasticsearch的pojo则结合了上述两者，immutable + builder。
+
+### 构建对象：使用lambda表达式
+- https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0001-model-classes-structure.md
+- https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/building-objects.html
+
+在构建嵌套对象上，如果嵌套对象的field传入一个`new Builder().xxx().build()`，会破坏构建的流畅性：
+```
+FooResponse r = client.foo(
+  FooRequest.builder()
+    .name("z")
+    .bar(Bar.builder()
+      .name("Raise the bar")
+      .build()
+    )
+  .build()
+);
+```
+所以elasticsearch java client更倾向于传入一个lambda函数，用于builder构建时做回调，比如：
+```
+FooResponse r = client.foo(foo -> foo
+  .name("z")
+  .bar(bar -> bar
+    .name("Raise the bar")
+  )
+);
+```
+调用者只需要考虑怎么设置这个嵌套builder的属性就行了，`new builder()`和`build()`的步骤已经由elasticsearch做了。
+
+elasticsearch java client几乎支持所有的嵌套对象都这么设置，同时也提供了上述传统的嵌套对象设置方法。比如query对象里的term对象：
+```
+        // 可以直接传入一个Term对象
+		public ObjectBuilder<Query> term(TermQuery v) {
+			this._kind = Kind.Term;
+			this._value = v;
+			return this;
+		}
+
+        // 也可以传入一个term builder的回调，elasticsearch用这个回调构建出Term对象
+		public ObjectBuilder<Query> term(Function<TermQuery.Builder, ObjectBuilder<TermQuery>> fn) {
+			return this.term(fn.apply(new TermQuery.Builder()).build());
+		}
+```
+
+> spring data elasticsearch在某些地方也有这种风格的代码。
+
+这样写：
+1. **不用import嵌套对象到当前类了**，因为使用的只是一个lambda Function；
+2. **这样写出来的代码如果可以换一下行，很像DSL query**；
+
+比如：
+```
+FooResponse r = client.foo(foo -> foo
+  .name("z")
+  .query(q -> q       // abstract query builder
+    .terms(tq -> tq   // choose the terms query implementation
+      .field("bar")   // build the terms query
+      .values("baz")
+    )
+  )
+);
+```
+**甚至lambda表达式的入参，根本不需要被关心，用b0、b1……就行。相当于写query的时候完全只想DSL是怎么写的就行了，根本不需要记忆term的builder是Term.Builder还是TermQuery.Builder**：
+```
+ElasticsearchClient client = ...
+SearchResponse<SomeApplicationData> results = client
+    .search(b0 -> b0
+        .query(b1 -> b1
+            .intervals(b2 -> b2
+                .field("my_text")
+                .allOf(b3 -> b3
+                    .ordered(true)
+                    .intervals(b4 -> b4
+                        .match(b5 -> b5
+                            .query("my favorite food")
+                            .maxGaps(0)
+                            .ordered(true)
+                        )
+                    )
+                    .intervals(b4 -> b4
+                        .anyOf(b5 -> b5
+                            .intervals(b6 -> b6
+                                .match(b7 -> b7
+                                    .query("hot water")
+                                )
+                            )
+                            .intervals(b6 -> b6
+                                .match(b7 -> b7
+                                    .query("cold porridge")
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        ),
+    SomeApplicationData.class 
 );
 ```
 
-## 所以什么是RP？
-reactive programming和callback思想类似（并不是出现了比callback更高效的东西），但写出来的代码就很流畅。**它的目标是解决jvm里传统异步（callback、future）的缺陷，实现[Composability and readability](https://projectreactor.io/docs/core/release/reference/index.html#_composability_and_readability)**：
-+ By “composability”, we mean **the ability to orchestrate multiple asynchronous tasks**
-+ The ability to orchestrate tasks is tightly coupled to **the readability and maintainability of code**
-+ As we saw, the callback model is simple, but one of its main drawbacks is that, for complex processes, you need to have a callback executed from a callback, itself nested inside another callback, and so on. That mess is known as `Callback Hell`.
-+ Reactor offers rich composition options, wherein **code mirrors the organization of the abstract process, and everything is generally kept at the same level (nesting is minimized)**. 
+> This example also highlights a useful naming convention for builder parameters in deeply nested structures. **For lambda expressions with a single argument, Kotlin provides the implicit `it` parameter and Scala allows use of `_`. This can be approximated in Java by using an underscore or a single letter prefix followed by a number representing the depth level (i.e. `_0`, `_1`, or `b0`, `b1` and so on).** Not only does this remove the need to create throw-away variable names, but it also improves code readability. Correct indentation also allows the structure of the query to stand out.
 
-之所以写起来很流畅，主要就是**Reactive Programming的代码直接对应了逻辑上的抽象层级，所以和callback比起来，用reactor写代码更贴近于直接思考问题的逻辑**。
+经验：用lambda参数构建builder时，IDE竟然不能自动补全！！！非常崩溃！后来发现，**先写后面的class参数，再写前面的lambda expression就能自动补全了……**
 
-> Reactive libraries, such as Reactor, aim to address these drawbacks of “classic” asynchronous approaches on the JVM while also focusing on a few additional aspects
-
-[Reactive Streams](http://www.reactive-streams.org/)是对RP模型的规定。主要是：
-- 发布订阅模式
-- backpressure：publisher根据consumer的反馈，决定自己push多少数据给consumer，以此来实现一定程度的速度控制，防止consumer处理不过来；
-
-在[reactive streams的规范](https://github.com/reactive-streams/reactive-streams-jvm/blob/v1.0.4/README.md)里有更详细的行为定义。包括onSubscribe()调用时机、request()调用等。
-
-因此reactive这个词虽然听起来稍微抽象一些，但实际上**它主要想表达的是[对产生的数据做出反应](https://projectreactor.io/docs/core/release/reference/index.html#_from_imperative_to_reactive_programming)**，所以是reactive。
-
-## 设计
-[reactive streams的规范](https://github.com/reactive-streams/reactive-streams-jvm/blob/v1.0.4/README.md)有以下比较重要的信息：
-
-A Subscription is shared by exactly one Publisher and one Subscriber for the purpose of mediating the data exchange between this pair. This is the reason why the subscribe() method does not return the created Subscription, but instead returns void; the Subscription is only passed to the Subscriber via the onSubscribe callback.
-
-
-# reactive/reactor/reactivex
-查reactive programming的时候发现几个其他的词，发现Google的结果总结比较烂，查了好久才明白。后来心血来潮问了问ChatGPT（3.5），发现回答异常出色，就直接作为答案贴在这里了。（格式稍加修改）
-
-> 搜索引擎不存在了:D
-
-## reactive/reactor/reactivex这几个词分别代表什么
-Reactive、Reactor 和 ReactiveX 都是和响应式编程相关的概念。
-
-Reactive 是一种面向数据流和变化传播的**编程范式**，它可以帮助我们更方便地处理异步事件和并发任务。在 Reactive 编程中，我们将数据视为不断变化的流，使用一组操作符来描述数据流之间的转换和操作，从而实现响应式的数据处理。
-
-Reactor 是一个基于 Java 语言实现的反应式**编程框架**，它提供了一组核心 API 来支持开发人员构建可响应的系统。Reactor 提供了许多有用的操作符和工具类，使得开发人员可以轻松地处理异步数据流和事件。
-
-ReactiveX 是一个跨平台的反应式**编程库**，它支持多种编程语言和平台，包括 Java、JavaScript、C#、Python 等。ReactiveX 封装了 Reactive 所需的一系列操作符和工具类，提供了统一的编程接口和语义，使得开发人员可以更加方便地进行跨平台开发和代码共享。
-
-## reactive-stream/reactive extension/rxjava/reactor/java9出现的时间线
-按照时间先后排序，以下是 Reactive Stream、Reactive Extension、RxJava、Reactor 和 Java 9 的出现时间线：
-- Reactive Extension（Rx）：2009 年，由微软公司的架构师 Erik Meijer 领导的团队开发的响应式编程库，最早支持 .NET 平台。
-- Reactive Stream：2013 年，由一批领先的响应式编程框架提供商和开发者共同制定的异步数据流处理标准规范。
-- RxJava：2013 年，由 Netflix 公司基于 Rx 开源项目开发的 Java 版本的响应式编程库，以实现异步事件驱动的数据流处理。
-- Reactor：2015 年，由 Pivotal 公司开源的响应式编程库，以实现基于 Reactive Stream 规范的异步数据流处理。
-- Java 9：2017 年，由 Oracle 公司发布的 JDK 版本，引入了 Reactive Stream API 和 Flow 接口，以支持基于 Reactive Stream 规范的异步数据流处理。
-
-总之，**Reactive Extension 是最早出现的响应式编程库，而 Reactive Stream 则是在该领域制定的第一个标准规范**。RxJava 和 Reactor 则分别是基于 Reactive Extension 和 Reactive Stream 规范的**具体实现**，Java 9 引入了 Reactive Stream API 和 Flow 接口，以原生支持 Reactive Stream 的能力。
-
-## java9为什么要自定义flow，而不是直接用reactive-streams的
-
-这个问题我感觉ChatGPT回答的不在点儿上，就抛弃它的答案了。
-
-从包名来看：
-- `Publisher`是reactive-streams的接口，包名是`org.reactivestreams`；
-    + reactor的`Flux`是它的一个实现，包名是`reactor.core`；
-    + reactive extension的`Flowable`是它的另一个实现，rxjava是reactive extension的一种，包名是`io.reactivex.rxjava3.core`；
-    + jdk9也有一种实现，而且没实现标准的`Publisher`，而是`Flow.Publisher`。所以肯定还需要有adapter做转换。
-- **reactive-streams在`org.reactivestreams`里除了定义了RP标准的接口`Publisher`/`Subscriber`/`Subscription`/`Processor`，里面还有一个`FlowAdapters.java`，用于和jdk9的`Flow.Publisher`等互转。**
-
-根据[Why Flow API?](https://www.baeldung.com/rxjava-vs-java-flow-api#why-flow-api)的解释：
-
-> the purpose of Flow API: **It was created to be a group of reactive specification interfaces in JDK without relay on third parties.** Moreover, Java expects Flow API to be accepted as standard interfaces for reactive specification and to be used in JDK or other Java-based libraries that implement the reactive specification for middlewares and utilities.
-
-# reactive vs. callback
-所谓push，我越听越觉得是由另一方执行回调。他们把数据搞出来给你（或者说他们输出到stdout），就是push给你。而不是你去轮询结果并自己处理（自己输出到stdout），那叫pull。
-
-干脆再问问ChatGPT——
-
-## 响应式编程和使用回调有什么区别
-
-**响应式编程和回调都是处理异步事件的编程模型**，但它们有一些区别。
-
-回调通常是指一个函数或方法被传递到另一个函数或方法中，以在某个时间点或事件发生时被调用。通常情况下，回调函数被视为异步操作的一部分，因此当异步操作完成时，回调函数将被调用来处理结果。因此，**回调通常用于处理单个异步操作**。
-
-响应式编程则更**侧重于处理数据流和多个异步操作之间的交互**。它使用观察者模式，其中一个可观察对象（通常是数据流）发送事件并将其传递给所有已注册的观察者。每个观察者可以根据需要处理这些事件，并可能产生其他事件。因此，**响应式编程用于处理多个异步操作和数据流之间的交互，而不仅仅是单个异步操作的结果**。
-
-## 响应式编程本质上是不是使用了回调
-
-**在响应式编程中，回调确实被用来处理异步事件。但是，响应式编程不仅仅是使用回调的简单集合。它采用了更高级别的抽象概念，例如可观察对象和观察者模式，以处理数据流和异步事件之间的交互。尽管每个观察者都有一个回调函数来处理事件，但这些回调函数通常被封装在响应式编程框架中，使得编程模型更加清晰和易于管理。**
-
-**此外，在响应式编程中，观察者可以订阅多个可观察对象，并且可以将它们的事件组合起来，产生新的事件，而这种组合可能会涉及到更复杂的逻辑，例如过滤、映射、合并、聚合等等，这些是传统回调模式所不具备的。**
-
-**因此，虽然响应式编程使用了回调，但它不仅仅是回调的简单集合，而是一种更高级别的编程模型，专门用于处理数据流和异步事件之间的交互**。
-
-## 通过回调可以达到响应式编程的效果吗
-
-是的，通过回调可以实现**一定程度上的**响应式编程效果。在回调机制中，当某个事件发生时，会触发预先定义好的回调函数，从而完成相应的操作。这种方式能够使程序对外部事件做出快速反应，从而实现响应式编程的效果。
-
-举个例子，当用户点击页面上的按钮时，可以使用回调函数来处理这个事件。当按钮被点击时，系统会触发绑定在按钮上的回调函数，从而执行相应的操作。这种方式能够使程序对用户交互做出即时反应，提升用户体验。
-
-不过需要注意的是，**回调函数的嵌套和耦合可能会导致代码难以维护。因此，在使用回调时，应该尽量避免回调嵌套和过多的耦合**。
-
-## 怎么理解响应式编程提到的push的概念？可以理解为就是回调吗
-
-响应式编程中的“push”概念是指数据的推送。**在传统的编程模型中，通常是由程序员主动查询某个数据并获取其最新值。而在响应式编程中，数据会被异步地推送给程序，这意味着程序员无需频繁地查询数据，而是可以通过订阅数据流来接收数据**。
-
-**与回调不同，响应式编程中的推送是以流的形式持续不断地发送数据**。当数据发生变化时，程序会自动向已经订阅该数据流的订阅者推送新的数据，这种数据推送的过程也被称为“事件流”。
-
-因此，**从这个角度来看，“push”可以理解为一种更高级别的回调机制**，它能够更方便地处理异步数据流，并且避免了频繁手动查询数据的麻烦。
-
-## reactive是怎么实现异步推送的
-
-在响应式编程中，异步推送通常是通过流（stream）来实现的。流可以被看作是一系列时间上连续的事件，每个事件都包含了一个值。程序可以监听某个流，并在流中有新事件加入时自动收到通知。
-
-在具体实现中，响应式编程库通常会提供类似于Observable（RxJava）、Flowable（RxJava2）、Flux（Reactor）、Stream（Java8）等用于表示数据流的类或接口。使用这些工具，程序员可以创建和操作各种不同类型的数据流，并定义订阅该流的行为。
-
-**当某个数据流产生了新事件时，响应式编程库会自动通知已经订阅该流的程序**，以便其能够及时处理数据的变化。整个过程是异步的，因此***程序员无需关心具体的线程管理和同步机制，而是可以专注于描述数据流的行为和对流的操作***。
-
-总之，响应式编程利用数据流和相关工具实现了高效的异步推送机制，使得程序员可以更方便地处理异步数据流，并且***以声明式的方式描述数据流的行为***。
-
-## 总结
-所以虽然目前暂时不清楚框架是怎么实现数据的异步推送的，但对于程序员来讲，一开始学习的时候只需要考虑怎么用框架就行了：怎么以声明式的方式描述数据流的行为。
-
-比如那个常举的例子：excel的表格计算就是一种RP。定义好sum函数（行为），每当修改表格产生新数据（数据流），最终的和就会发生改变。
-
-# Reactor
-下面就来简单学一下如何使用reactor框架进行RP编程（如何描述数据流的行为）。
-
-> 主要参考[《Reactor Core Features》](https://projectreactor.io/docs/core/release/reference/index.html#core-features)
-
-学习reactor的api用法，使用[
-lite-rx-api-hands-on](https://github.com/reactor/lite-rx-api-hands-on)非常不错！
-
-## 基础对象
-### [Flux](https://projectreactor.io/docs/core/release/reference/index.html#flux)
-
-Note that all events, even terminating ones, are optional: no `onNext` event but an `onComplete` event represents an empty finite sequence, but remove the onComplete and you have an infinite empty sequence (not particularly useful, except for tests around cancellation).
-
-
-Mono.never() is an outlier: it doesn’t emit any signal, which is not technically forbidden although not terribly useful outside of tests. 
-
-Note that you can use a Mono to represent no-value asynchronous processes that only have the concept of completion (similar to a Runnable). To create one, you can use an empty `Mono<Void>`. **因此mono有fromCallable/fromRunnable方法**
-
-### [subscribe](https://projectreactor.io/docs/core/release/reference/index.html#_simple_ways_to_create_a_flux_or_mono_and_subscribe_to_it)
-
-subscrbe会返回Disposable：These variants return a reference to the subscription that you can use to cancel the subscription when no more data is needed. Upon cancellation, the source should stop producing values and clean up any resources it created. This cancel-and-clean-up behavior is represented in Reactor by the general-purpose Disposable interface.
-
-**想让谁消费数据，就把谁注册为subscribe的consumer。想让哪个线程执行这个消费动作，就把哪个线程作为publishOn的对象。**
-
-下面这个就是有消费者，但是没有地方输出，所以看不见:D
+比如search请求，先写后面的XXX.class，再写前面的lambda就能有提示自动补全了……
 ```
-Flux<Integer> ints = Flux.range(1, 3); 
-ints.subscribe(); 
+elasticsearchClient.search(s -> s.index("ddd").query(q -> q.term(t -> t.field("s").value(v -> v.stringValue("s")))), XXX.class);
 ```
 
-因为publisher会出现error（RuntimeException），所以可能在消费的时候需要onError。subscribe方法可以直接提供一个lambda用于onError。同理可以再提供一个lambda用于onCompletion。
+### endpoint
+所有的api其实就干两件事：
+1. 发送请求；
+2. 获取响应；
 
-reactor提供了一个`BaseSubscriber`（extends BaseSubscriber, which is the recommended abstract class for user-defined Subscribers in Reactor），可以通过它方便实现一个subscriber而不是通过一堆lambda。从这个BaseSubscriber的实现里，也可以看到调用onNext如果出错了，也应该调用onError。
+尤其是它是个http请求，所以只需要考虑：
+1. 请求要转成什么样的：method、url、parameter、header、body；
+2. 响应要怎么把body转回来；
 
-**还可以看到subscriber默认在onSubscribe之后会request无穷无尽的数据。所以publisher会把数据一下子都push过来**：
+以create index api为例，因为它参数少，response也简单：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html
+
+它的请求需要设置：
+1. PUT
+2. url path: index
+2. parameter
+    1. wait_for_active_shards
+    2. master_timeout
+    3. timeout
+3. request body：可有可无
+
+比如：
 ```
-	protected void hookOnSubscribe(Subscription subscription){
-		subscription.request(Long.MAX_VALUE);
-	}
-```
-
-> By default, it triggers an unbounded request and behaves exactly as subscribe(). However, extending BaseSubscriber is much more useful when you want a custom request amount.
-
-有以下这么多hook可override：
-- hookOnSubscribe
-- hookOnNext
-- hookOnError
-- hookOnComplete
-- hookOnCancel
-- 还有一个所有人都会调用的hookOnFinally
-
-如果使用了backpressure，一开始onSubscribe时request的不是无穷个数据，那么onNext里必须继续request，否则就收不到数据了：
-```
-public class SampleSubscriber<T> extends BaseSubscriber<T> {
-
-	public void hookOnSubscribe(Subscription subscription) {
-		System.out.println("Subscribed");
-		request(1);
-	}
-
-	public void hookOnNext(T value) {
-		System.out.println(value);
-		request(1);
-	}
+PUT /my-index-000001?timeout=1m
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  }
 }
 ```
 
-> `SampleSubscriber` is the absolute minimum implementation of a Subscriber that performs **bounded requests**.
+它的响应需要设置：
+1. response body
+    1. json，三个字段：acknowledged、shards_acknowledged、index
 
-但是注意千万别用它同时subscribe两个流：Instances of BaseSubscriber (or subclasses of it) are single-use, meaning that a BaseSubscriber cancels its subscription to the first Publisher if it is subscribed to a second Publisher. That is because using an instance twice would violate the Reactive Streams rule that the onNext method of a Subscriber must not be called in parallel. As a result, anonymous implementations are fine only if they are declared directly within the call to Publisher#subscribe(Subscriber).
-
-
-Demand is capped at Long.MAX_VALUE, representing an unbounded request (meaning “produce as fast as you can”-basically disabling backpressure).
-
-[Intro To Reactor Core](https://www.baeldung.com/reactor-core)里可以看到一个纯匿名Subscriber。
-
-
-- https://projectreactor.io/docs/core/release/reference/index.html#producing.generate
-
-generate有点儿意思。同步产生流。
-
-- https://projectreactor.io/docs/core/release/reference/index.html#_handle
-- https://github.com/reactor/reactor-core#custom-sources--fluxcreate-and-fluxsink-monocreate-and-monosink
-
-SynchronousSink还可以起到filter的作用，因为你可以不调用next，不让这个元素传递给producer。
-
-## [Thread & Scheduler](https://projectreactor.io/docs/core/release/reference/index.html#schedulers)
-
-Reactor, like RxJava, can be considered to be concurrency-agnostic. That is, it does not enforce a concurrency model. **Rather, it leaves you, the developer, in command.** However, that does not prevent the library from helping you with concurrency.
-
-Obtaining a Flux or a Mono does not necessarily mean that it runs in a dedicated Thread. Instead, **most operators continue working in the Thread on which the previous operator executed. Unless specified, the topmost operator (the source) itself runs on the Thread in which the `subscribe()` call was made**. The following example runs a Mono in a new thread:
-
+比如：
 ```
-	public static void main(String... args) throws InterruptedException {
-		final Mono<String> mono = Mono.just("hello ")
-				.map(v -> v + "world ")
-				.log();
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "my-index-000001"
+}
+```
+> endpoint就是一个请求，带上response的deserializer，因为elasticsearch-java要能够反序列化响应。
 
-		Thread t = new Thread(() -> mono
-				.map(msg -> msg + "! ")
-				.subscribe(v ->
-						System.out.println(Thread.currentThread().getName() + ": " + v)
-				)
-		);
-		t.start();
-		t.join();
+普通的endpoint设计模式：
+1. 构建一个Request对象，设置好属性，比如index、参数timeout等；
+2. 里面有一个类似`send`的方法，能发送请求，返回响应；
+
+但是这样有两个问题：
+1. response类型不能拓展；
+2. **request对象里必须持有client引用，这样的request就不是一个静态的（constant、static）request了**；
+
+所以最好是把`send`方法独立出去，搞一个独立的client，有一个`send`方法，它接收一个请求，返回一个响应：
+1. 请求实体类里，提供一个能把它转成http request的方法；
+2. 并提供一个能把http response转成响应实体类的方法就行了。
+
+这样的请求实体类：
+```
+public class XXRequest {
+    // fields
+    ...
+    
+    // http request
+    
+    public String genIndex();
+    
+    public Map<String, String> genParameters();
+    
+    public String genPath();
+    
+    //
+    ...
+    
+    // http response
+    
+    public XxResponseDeserializer getResponseDeserializer();
+}
+```
+
+但是elasticsearch没有直接在Request实体类里提供这样两种方法，它定义了一个Endpoint类，代表要生成的http request的每一部分，把这些方法拼凑起来，就生成了http request：
+```
+public interface Endpoint<RequestT, ResponseT, ErrorT> {
+
+  /**
+   * The endpoint's identifier.
+   */
+  String id();
+
+  /**
+   * Get the endpoint's HTTP method for a request.
+   */
+  String method(RequestT request);
+
+  /**
+   * Get the URL path for a request.
+   */
+  String requestUrl(RequestT request);
+
+  /**
+   * Get the query parameters for a request.
+   */
+  default Map<String, String> queryParameters(RequestT request) {
+    return Collections.emptyMap();
+  }
+
+  /**
+   * Get the HTTP headers for a request.
+   */
+  default Map<String, String> headers(RequestT request) {
+    return Collections.emptyMap();
+  }
+
+  boolean hasRequestBody();
+
+  /**
+   * The entity parser for the response body.
+   */
+  JsonpDeserializer<ResponseT> responseDeserializer();
+
+  /**
+   * Is this status code to be considered as an error?
+   */
+  boolean isError(int statusCode);
+
+  /**
+   * The entity parser for the error response body. Can be {@code null} to indicate that there's no error body.
+   */
+  @Nullable
+  JsonpDeserializer<ErrorT> errorDeserializer(int statusCode);
+
+}
+```
+它的实现类`SimpleEndpoint`比较特别，通过方法回调来生成request，解析response：**通过各种用户传入的函数来生成想要的http request/response部分（用户自定义生成行为）**：
+```
+    private final Function<RequestT, String> method;
+    private final Function<RequestT, String> requestUrl;
+    private final Function<RequestT, Map<String, String>> queryParameters;
+    private final Function<RequestT, Map<String, String>> headers;
+    private final boolean hasRequestBody;
+    private final JsonpDeserializer<ResponseT> responseParser;
+
+    public SimpleEndpoint(
+        String id,
+        Function<RequestT, String> method,
+        Function<RequestT, String> requestUrl,
+        Function<RequestT, Map<String, String>> queryParameters,
+        Function<RequestT, Map<String, String>> headers,
+        boolean hasRequestBody,
+        JsonpDeserializer<ResponseT> responseParser
+    ) {
+        this.id = id;
+        this.method = method;
+        this.requestUrl = requestUrl;
+        this.queryParameters = queryParameters;
+        this.headers = headers;
+        this.hasRequestBody = hasRequestBody;
+        this.responseParser = responseParser;
+    }
+
+    @Override
+    public String id() {
+        return this.id;
+    }
+
+    @Override
+    public String method(RequestT request) {
+        return this.method.apply(request);
+    }
+
+    @Override
+    public String requestUrl(RequestT request) {
+        return this.requestUrl.apply(request);
+    }
+```
+
+create index Request在类里定义了这么一个endpoint实现，它是SimpleEndpoint，传入了自己的http request生成行为：
+```
+	/**
+	 * Endpoint "{@code indices.create}".
+	 */
+	public static final Endpoint<CreateIndexRequest, CreateIndexResponse, ErrorResponse> _ENDPOINT = new SimpleEndpoint<>(
+			"es/indices.create",
+
+			// Request method
+			request -> {
+				return "PUT";
+
+			},
+
+			// Request path
+			request -> {
+				final int _index = 1 << 0;
+
+				int propsSet = 0;
+
+				propsSet |= _index;
+
+				if (propsSet == (_index)) {
+					StringBuilder buf = new StringBuilder();
+					buf.append("/");
+					SimpleEndpoint.pathEncode(request.index, buf);
+					return buf.toString();
+				}
+				throw SimpleEndpoint.noPathTemplateFound("path");
+
+			},
+
+			// Request parameters
+			request -> {
+				Map<String, String> params = new HashMap<>();
+				if (request.masterTimeout != null) {
+					params.put("master_timeout", request.masterTimeout._toJsonString());
+				}
+				if (request.waitForActiveShards != null) {
+					params.put("wait_for_active_shards", request.waitForActiveShards._toJsonString());
+				}
+				if (request.timeout != null) {
+					params.put("timeout", request.timeout._toJsonString());
+				}
+				return params;
+
+			}, SimpleEndpoint.emptyMap(), true, CreateIndexResponse._DESERIALIZER);
+```
+其实就是从用户构造好的create index Request里，取index、取param、取body。
+
+**和把生成http request的方法直接写在Request里面相比，有什么好处呢？**
+
+**好拓展endpoint！**
+
+按照普通写法，如果需要给原有request新增参数，就要override甚至重写原有Request类。**但是按照新的写法，我们只需要重写这个request相关的ENDPOINT对象，因为这个对象控制着request和response的生成行为**。
+
+比如给createIndex新增一个[`filter_path`](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#common-options-response-filtering)参数，只需要新写一个ENDPOINT，给它的生成parameters的方法多加一个param就行了：` r -> Map.of("filter_path", "-*.big_field")`。
+
+当然，因为响应也变了，所以response的deserializer也要改，直接把新的deserializer传入新的ENDPOINT对象里就行了。
+
+ref：
+- https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0002-namespace-clients-and-endpoints.md
+
+**用户只需要操心怎么把Request实体类构建出来就行了：**
+```
+client.indices().create(c -> c.index("xxx"));
+```
+
+> **elasticsearch client的层次向来都是分明的。比如普通的api，client可以直接调用；index相关的api，都在`client.indices()`之下。**
+
+> 倒不是一定要写这种模式，毕竟它理解成本高一些。不过看懂了这种模式就更容易看懂client的代码。
+
+**可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这样的话处理实体对象的逻辑就被写死了。如果能传函数，那可能原来两个函数才能做的事，一个函数就搞定了。
+
+举个例子，生成全名，有的姓在前名在后，有的名在前姓在后——
+
+实体请求类：
+```
+public class Name {
+    String first;
+    String last;
+}
+```
+响应类：
+```
+public class Person {
+    String fullName;
+    int age;
+    // ...
+}
+```
+
+第一种，提供两个方法：
+```
+public Person firstLast(Name name) {
+    String full = name.first + name.last;
+    return new Person(full, ...);
+}
+
+public Person lastFirst(Name name) {
+    String name.last + name.first;
+    return new Person(full, ...);
+}
+```
+这种方式写的方法较多，因为每个方法的逻辑都固定了。
+
+第二种，多加一个标记，代表生成full name的方式，可以放在Name实体类里，也可以给函数多加一个参数：
+```
+public Person name(Name name) {
+    String full = name.first ? name.first + name.last : name.last + name.first;
+    return new Person(full, ...);
+}
+```
+这种方式写的方法少，因为方法逻辑复杂了，所以一个方法就够了。但是需要额外的判定标记才能决定用哪种逻辑分支。
+
+第三种，**传入函数，相当于把一部分逻辑交给用户**：
+```
+public Person name(Name name, BiFunction<String, String, String> fullNameGenerator) {
+    String full = fullNameGenerator.apply(name.first, name.last);
+    return new Person(full, ...);
+}
+```
+用户如果需要first last：
+```
+name(name, (a, b) -> a + b);
+```
+用户如果需要last first：
+```
+name(name, (a, b) -> b + a);
+```
+第三种方法，我们省事儿了，因为我们把这部分不确定的逻辑交给了用户，自己只写了固定的逻辑。
+
+**以后写代码可以考虑一下第三种，它的主要优点就是：开放。因为开放，所以灵活，好拓展。**
+
+**比如后来用户有了第三种名称生成方式：first-last**
+```
+name(name, (a, b) -> a + "-" + b);
+```
+原有的name函数完全不用动。
+
+## elasticsearch java vs. HLRC：全面碾压
+已废弃的RestHighLevelClient在两个地方很蹩脚：
+
+第一个就是请求的构造，因为没有上述lambda builder setter支持，嵌套对象每一个都要知道要构建什么builder，也免不了import进来。写出来的请求和DSL差很远：
+```
+        SearchResponse response = restHighLevelClient.search(
+                new SearchRequest(WITAKE_MEDIA)
+                        .source(
+                                new SearchSourceBuilder()
+                                        .query(QueryBuilders.termQuery("id", "0"))
+                        ),
+                RequestOptions.DEFAULT
+        );
+```
+另一个比较大的问题就是response不支持泛型，只能取出SearchHit，我们还要自己把search hit一个属性一个属性取出来（id、source等），手动转为实体类：
+```
+        SearchHit hit = Arrays.stream(response.getHits().getHits()).findFirst().get();
+```
+
+而ElasticsearchClient就很好地解决了上面两个问题：
+
+非常DSL，终于有了统一的视觉：
+```
+        SearchResponse<WitakeMediaEs> response = elasticsearchClient.search(s -> s
+                .index(WITAKE_MEDIA)
+                .query(q -> q
+                        .term(t -> t
+                                .field("id")
+                                .value(v -> v.stringValue("0"))
+                        )
+                ),
+                WitakeMediaEs.class
+        );
+```
+直接可以从search hit取出实体类对象，已经有jsonp为我们转换过了：
+```
+        Hit<WitakeMediaEs> hit = response.hits().hits().stream().findFirst().get();
+        WitakeMediaEs witakeMediaEs = hit.source();
+```
+
+另外从elasticsearch client的开发者来，新的client更好维护，因为它的api可以由TypeScript生成。
+
+比如index create api：
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html
+
+对应的TypeScript描述为：
+- https://github.com/elastic/elasticsearch-specification/blob/main/specification/indices/create/IndicesCreateRequest.ts
+
+> github项目：https://github.com/elastic/elasticsearch-specification
+
+能根据定义自动生成elasticsearch endpoint的代码，可以防止遗漏一些api的实现：
+> along with code generated classes to make sure, that new endpoints are exposed as soon as they are defined within the Elasticsearch source.
+
+HLRC则要手动一个个实现endpoint，增加了维护成本：
+> Every class for every endpoint was created manually. Everything had to be kept in sync manually when new fields or parameters had been added resulting in high maintenance
+
+> TypeScript，有意思，有空看看。Java学JavaScript引入了val，JavaScript学Java的强类型衍生了TypeScript。
+
+## elasticsearch java vs. spring data elasticsearch：各有千秋
+spring data elasticsearch的ElasticsearchRestTemplate也支持泛型，所以和elasticsearch-java一样，也不需要手动转换类：
+```
+        SearchHit<WitakeMediaEs> searchHit = hits.getSearchHits().stream().findFirst().get();
+        WitakeMediaEs witakeMediaEs = searchHit.getContent();
+```
+
+> 这个search hit是`org.springframework.data.elasticsearch.core.SearchHit<T>`不是`org.elasticsearch.search.SearchHit`。
+
+但是在构造请求上，还不如elasticsearch-java方便，很像rest high level client，没有使用太多回调函数式风格构建query builder：
+```
+        SearchHits<WitakeMediaEs> hits = elasticsearchRestTemplate.search(
+                new NativeSearchQueryBuilder()
+                        .withQuery(
+                                QueryBuilders.termQuery("id", "0")
+                        )
+                        .build(),
+                WitakeMediaEs.class
+        );
+```
+
+不过这个问题倒不是很大，因为spring data elasticsearch本身最大的优势就在于：它能根据查询接口方法自动生成请求。对于不太方便自动生成的请求，交给底层的ElasticsearchClient实现就行了。
+
+另外，spring data elasticsearch 4.4已经集成elasticsearch-java用来构建reactive client了：
+> Introduction of new imperative and reactive clients using the classes from the new Elasticsearch Java client
+
+> TODO：reactive client后面再研究。
+
+如果基于上述考虑混用二者，需要注意查询结果的反序列化：
+1. spring data elasticsearch使用`@Field`将java属性转换为elasticsearch字段名（[从3.2起](https://stackoverflow.com/a/56840690/7676237)）；
+2. elasticsearch-java使用jackson做属性转换，所以java对象的字段名和elasticsearch不一致时，要使用jackson的相关的注解进行转换，比如`@JsonProperty`、`@JsonIgnore`；
+
+因此，**实体类上可能要标注两套注解**，给不同的框架使用，不要混淆。
+
+比如下面的示例：
+```
+    @Id
+    @ReadOnlyProperty
+    @JsonIgnore
+    private String realId;
+
+    @Field(value = "id", type = FieldType.Keyword)
+    @JsonProperty(value = "id")
+    private String mediaId;
+```
+readId对应`_id`，因为标注了`@Id`，mediaId对应elasticsearch里自定义的`id`字段。之所以取名为mediaId而非id，是因为spring data elasticsearch默认会把名为id的当做`_id`（参考[Spring Data - Elasticsearch]({% post_url 2022-09-21-spring-data-elasticsearch %})）。加上`@ReadOnlyProperty`注解，是为了不让它自动生成一个`id` field。
+
+`@JsonIgnore`用于elaticsearch-java，因为elasticsarch里不存在这个field，所以转的时候要忽略。`@JsonProperty`是为了让mediaId转换成`id` field，实际上不存在mediaId。
+
+但是还有一个问题：`Instant`，**jackson默认转不了java8的对象，除了要新增包，还要给`ObjectMapper`注册上这个module，之后`ObjectMapper`才有了转换`Instant`对象的能力**。还好，elasticsearch-java的`JacksonJsonpMapper`支持传入自定义的`ObjectMapper`：
+```
+    @Bean
+    public ElasticsearchClient elasticsearchClient(RestHighLevelClient restHighLevelClient) {
+        // jackson to process java8 date/time
+        ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        return new ElasticsearchClient(new RestClientTransport(restHighLevelClient.getLowLevelClient(), new JacksonJsonpMapper(objectMapper)));
+    }
+```
+支持java8时间的包：
+```
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+```
+Ref:
+- https://codeboje.de/jackson-java-8-datetime-handling/
+
+如果想自动创建index，最好使用spring data elasticsearch，非常方便，直接就能根据entity的注解生成mapping和analyzer了。
+
+## 访问低版本elasticsearch server
+elasticsearch-java好是好，只可惜发布的不够早。7.15才出现了beta版本，很可能生产环境的elasticsearch版本要比这个低。但是elasticsearch-java默认不支持访问低版本的elasticsearch，这个client会校验server的response header，如果没有`X-Elastic-Product: Elasticsearch`，直接就拒绝处理response了。
+
+但是办法还是有的，既然缺header，手动补上就行了：
+可以修改底层的http client，默认给低版本elasticsearch server的response加上header `X-Elastic-Product: Elasticsearch`；
+
+- https://stackoverflow.com/a/74102828/7676237
+- https://stackoverflow.com/a/74304292/7676237
+
+spring boot可以这么设置：
+```
+    /**
+     * https://stackoverflow.com/a/74102828/7676237
+     */
+    @Bean
+    public RestClientBuilderCustomizer lowVersionElasticsearchCompatibility() {
+        return new RestClientBuilderCustomizer() {
+            @Override
+            public void customize(RestClientBuilder builder) {
+
+            }
+
+            public void customize(HttpAsyncClientBuilder builder) {
+                // this request & response header manipulation helps get around newer versions of
+                // elasticsearch-java client not working with older (<7.14) versions of Elasticsearch server
+                builder.addInterceptorLast(
+                        (HttpResponseInterceptor) (response, context) ->
+                                response.addHeader("X-Elastic-Product", "Elasticsearch")
+                );
+            }
+        };
+    }
+```
+但是个别请求会不会有什么兼容问题就不得而知了，所以要写好继承测试。
+
+## 序列化反序列化
+`RestHighLevelClient#search`返回的是`SearchResponse`，获取hits后（`searchResponse.getHits().getHits()`），得到的是`SearchHit[]`，从`SearchHit#getSourceAsMap`只能获取`Map<String, Object>`，必须把map手动转成自己想要的类。
+
+而`ElasticsearchClient#search`返回的是`SearchResponse<TDocument>`，它是带泛型的。获取hits后（`searchResponse.hits().hits()`），得到的是`List<Hit<T>>`，一路都是泛型，Hit也支持泛型，所以`Hit#source`直接就返回最终的类了。免去了自己手动转换的过程。
+
+为什么HLRC不能直接返回类？因为它的`SearchHit`内部的source的表示形式是自定义的`BytesReference`接口，其实现类比如`BytesArray`内部存放的就是`byte[]`。**它没有对象的类信息，所以`SearchHit`要么直接返回bytes，要么转换一下，把bytes转成`Map<String, Object>`，但也仅此而已了**。而java client则支持泛型，所以它的`Hit`内部对source的表示形式是`<TDocument> source`，直接就是一个对象。这个对象是怎么来的？使用`jakarta.json`反序列化来的。
+
+> 所以java client需要`jakarta.json-api`依赖。
+
+具体怎么反序列化的？
+```
+	protected static <TDocument> void setupHitDeserializer(ObjectDeserializer<Hit.Builder<TDocument>> op,
+			JsonpDeserializer<TDocument> tDocumentDeserializer) {
+
+		op.add(Builder::index, JsonpDeserializer.stringDeserializer(), "_index");
+		op.add(Builder::id, JsonpDeserializer.stringDeserializer(), "_id");
+		op.add(Builder::score, JsonpDeserializer.doubleDeserializer(), "_score");
+		op.add(Builder::type, JsonpDeserializer.stringDeserializer(), "_type");
+		op.add(Builder::explanation, Explanation._DESERIALIZER, "_explanation");
+		op.add(Builder::fields, JsonpDeserializer.stringMapDeserializer(JsonData._DESERIALIZER), "fields");
+		op.add(Builder::highlight, JsonpDeserializer.stringMapDeserializer(
+				JsonpDeserializer.arrayDeserializer(JsonpDeserializer.stringDeserializer())), "highlight");
+		op.add(Builder::innerHits, JsonpDeserializer.stringMapDeserializer(InnerHitsResult._DESERIALIZER),
+				"inner_hits");
+		op.add(Builder::matchedQueries, JsonpDeserializer.arrayDeserializer(JsonpDeserializer.stringDeserializer()),
+				"matched_queries");
+		op.add(Builder::nested, NestedIdentity._DESERIALIZER, "_nested");
+		op.add(Builder::ignored, JsonpDeserializer.arrayDeserializer(JsonpDeserializer.stringDeserializer()),
+				"_ignored");
+		op.add(Builder::shard, JsonpDeserializer.stringDeserializer(), "_shard");
+		op.add(Builder::node, JsonpDeserializer.stringDeserializer(), "_node");
+		op.add(Builder::routing, JsonpDeserializer.stringDeserializer(), "_routing");
+		op.add(Builder::source, tDocumentDeserializer, "_source");
+		op.add(Builder::seqNo, JsonpDeserializer.longDeserializer(), "_seq_no");
+		op.add(Builder::primaryTerm, JsonpDeserializer.longDeserializer(), "_primary_term");
+		op.add(Builder::version, JsonpDeserializer.longDeserializer(), "_version");
+		op.add(Builder::sort, JsonpDeserializer.arrayDeserializer(JsonpDeserializer.stringDeserializer()), "sort");
+
 	}
 ```
-**哪个线程调用的`subscribe()`，在哪个线程里跑**：
-```
-15:10:15.555 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | onSubscribe([Fuseable] FluxMapFuseable.MapFuseableSubscriber)
-15:10:15.557 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | request(unbounded)
-15:10:15.557 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | onNext(hello world )
-Thread-0: hello world ! 
-15:10:15.558 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | onComplete()
-```
+可以看到`Hit`给elasticsearch返回的每一项都设置了一个反序列化器：比如`_routing`就是简单的反序列化为string，`_score`反序列化为double，`_version`反序列化为long。**但是`_source`并没有简单序列化为string，而是是按照自定义的`tDocumentDeserializer`反序列化为对象**。
 
-In Reactor, the execution model and where the execution happens is determined by the Scheduler that is used.
+这个deserializer是一个NamedDeserializer，它deserialize的方式是使用外部传入的`JsonpMapper`里面的deserializer。由于代码调用一直在委托，实在看不出用的哪个的mapper，所以debug了一下，发现这个`JsonMapper`就是`RestClientTransport`里的`JsonMapper`。`RestClientTransport`是我们手动创建的，里面的`ObjectMapper`就是我们添加过java8 `Instant`支持的`ObjectMapper`。所以，最后相当于它拿着`ElasticsearchClient#search`需要传入对象的class参数，进行了反序列化。
 
-Scheduler和ExecutorService理解起来非常像！
+# 感想
+流行的开源代码写的还是很好的，多看看确实不一定在哪儿就悟了，编程水平又提升了。
 
-
-[在reactive中，使用Schedulers#boundedElastic()处理遗留的blocking code](https://projectreactor.io/docs/core/release/reference/index.html#faq.wrap-blocking)，其实就是多线程。
-
-	
-**While boundedElastic is made to help with legacy blocking code if it cannot be avoided, single and parallel are not**. As a consequence, the use of Reactor blocking APIs (block(), blockFirst(), blockLast() (as well as iterating over toIterable() or toStream()) inside the default single and parallel schedulers) results in an IllegalStateException being thrown.
-
-Custom Schedulers can also be marked as "non blocking only" by creating instances of Thread that implement the `NonBlocking` marker interface.
-
-所以reactor的大部分异步操作不能引入blocking代码。
-
-Reactor offers two means of switching the execution context (or Scheduler) in a reactive chain: publishOn and subscribeOn. Both take a Scheduler and let you switch the execution context to that scheduler. But the placement of publishOn in the chain matters, while the placement of subscribeOn does not. To understand that difference, you first have to remember that nothing happens until you subscribe.
-
-- https://projectreactor.io/docs/core/release/reference/index.html#_the_publishon_method
-
-publishOn影响的是消费动作onNext/onComplete/onError，所以从publishOn开始，执行动作的线程就切换了，直到出现新的publishOn。
-> Run onNext, onComplete and onError on a supplied Scheduler Worker.
-This operator influences the threading context where the rest of the operators in the chain below it will execute, up to a new occurrence of publishOn.
-
-
-subscribeOn影响的是subscribe/onScuscribe/request，所以放在哪里都无所谓。它决定了一开始的执行线程，直到碰到了publishOn。
-> Run subscribe, onSubscribe and request on a specified Scheduler's Scheduler.Worker. As such, placing this operator anywhere in the chain will also impact the execution context of onNext/onError/onComplete signals from the beginning of the chain up to the next occurrence of a publishOn.
-
-这个例子比较有意思：
-```
-Scheduler s = Schedulers.newParallel("parallel-scheduler", 4); 
-
-final Flux<String> flux = Flux
-    .range(1, 2)
-    .map(i -> 10 + i)  
-    .subscribeOn(s)  
-    .map(i -> "value " + i);  
-
-new Thread(() -> flux.subscribe(System.out::println));  
-```
-最后一个线程（subscribe发生的线程）只进行了subscribe，接下来的执行就被切换到线程池了：
-> This anonymous Thread is the one where the subscription initially happens, but subscribeOn immediately shifts it to one of the four scheduler threads.
-
-
-[Handling Errors](https://projectreactor.io/docs/core/release/reference/index.html#error.handling)
-
-Before you learn about error-handling operators, you must keep in mind that any error in a reactive sequence is a terminal event. Even if an error-handling operator is used, it does not let the original sequence continue. Rather, it converts the onError signal into the start of a new sequence (the fallback one). In other words, it replaces the terminated sequence upstream of it.
-
-TODO
-
-## spring & reactor
-- https://www.infoq.com/articles/reactor-by-example/
-
-## webflux - `WebClient`
-- https://dzone.com/articles/callback-hell-and-reactive-patterns
-
-# WebFlux
-- https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html
-
-# 异步JDBC
-既然想实现异步、非阻塞，那一定是端到端的，全链路的实现，某个点的阻塞调用都会导致整体出问题。
-- https://mp.weixin.qq.com/s?__biz=MzAxOTc0NzExNg==&mid=2665515772&idx=1&sn=205b10cfb2241cfe1b16c7f832b48197&chksm=80d672bfb7a1fba99cbbbc423984da5c9034fffd8ca12f6fc7098fe5d69c6d1e39152de45cbd&token=1358435034&lang=zh_CN#rd
-- [R2DBC](https://r2dbc.io/)
-
-# 总结
-交汇了！之前一直想看没看的前端、reactive、webflux，甚至kotlin。包括已看的ListenableFuture、CompletableFuture。
-
-
+Elasticsearch的client代码写的就已经很好了，期待看看Elasticsearch server的代码！
