@@ -140,7 +140,7 @@ Ref:
 2. **json object mapper：对象和json互转，所以说是strongly typed requests and responses**，HLRC做不到这一点；
 3. transport layer：处理http请求；
 
-```
+```java
 // 1. Create the low-level client
 RestClient restClient = RestClient.builder(
     new HttpHost("localhost", 9200)).build();
@@ -172,7 +172,7 @@ elasticsearch api的参数有些是必传的（比如query里的value），有�
 
 > We can however use Optional sanely: fields can be stored as nullable references, and translated to Optional when the getter is called. This also avoids excessive allocation of wrapping objects that may be long lived, and instead uses short-lived objects whose allocation may even be eliminated by inlining or escape analysis.
 
-```
+```java
 // Optional property
 @Nullable private String routing
 
@@ -212,7 +212,7 @@ elasticsearch的pojo则结合了上述两者，immutable + builder。
 - https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/building-objects.html
 
 在构建嵌套对象上，如果嵌套对象的field传入一个`new Builder().xxx().build()`，会破坏构建的流畅性：
-```
+```java
 FooResponse r = client.foo(
   FooRequest.builder()
     .name("z")
@@ -224,7 +224,7 @@ FooResponse r = client.foo(
 );
 ```
 所以elasticsearch java client更倾向于传入一个lambda函数，用于builder构建时做回调，比如：
-```
+```java
 FooResponse r = client.foo(foo -> foo
   .name("z")
   .bar(bar -> bar
@@ -235,7 +235,7 @@ FooResponse r = client.foo(foo -> foo
 调用者只需要考虑怎么设置这个嵌套builder的属性就行了，`new builder()`和`build()`的步骤已经由elasticsearch做了。
 
 elasticsearch java client几乎支持所有的嵌套对象都这么设置，同时也提供了上述传统的嵌套对象设置方法。比如query对象里的term对象：
-```
+```java
         // 可以直接传入一个Term对象
 		public ObjectBuilder<Query> term(TermQuery v) {
 			this._kind = Kind.Term;
@@ -256,8 +256,8 @@ elasticsearch java client几乎支持所有的嵌套对象都这么设置，同�
 2. **这样写出来的代码如果可以换一下行，很像DSL query**；
 
 比如：
-```
-FooResponse r = client.foo(foo -> foo
+```java
+FooResponse r = client.fooAction(foo -> foo
   .name("z")
   .query(q -> q       // abstract query builder
     .terms(tq -> tq   // choose the terms query implementation
@@ -268,7 +268,7 @@ FooResponse r = client.foo(foo -> foo
 );
 ```
 **甚至lambda表达式的入参，根本不需要被关心，用b0、b1……就行。相当于写query的时候完全只想DSL是怎么写的就行了，根本不需要记忆term的builder是Term.Builder还是TermQuery.Builder**：
-```
+```java
 ElasticsearchClient client = ...
 SearchResponse<SomeApplicationData> results = client
     .search(b0 -> b0
@@ -323,10 +323,7 @@ elasticsearchClient.search(s -> s.index("ddd").query(q -> q.term(t -> t.field("s
 1. 请求要转成什么样的：method、url、parameter、header、body；
 2. 响应要怎么把body转回来；
 
-以create index api为例，因为它参数少，response也简单：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html
-
-它的请求需要设置：
+以[create index api](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html)为例（因为它参数少，response也简单）。它的请求需要设置：
 1. PUT
 2. url path: index
 2. parameter
@@ -373,7 +370,7 @@ PUT /my-index-000001?timeout=1m
 2. 并提供一个能把http response转成响应实体类的方法就行了。
 
 比如这样的请求类：
-```
+```java
 public interface XXRequest {
     // fields
     ...
@@ -395,7 +392,7 @@ public interface XXRequest {
 }
 ```
 
-但是elasticsearch没有直接在Request类里提供这样两种方法，它定义了Endpoint类，**一个`Endpoint`关联了一个http request和它对应的response**：
+但是elasticsearch没有直接在Request类里提供这样两种方法，而是把这两种行为交给了Request类里的Endpoint，**一个`Endpoint`定义了如何从Request对象构建出底层的http请求，并定义了deserializer，表明如何把请求反序列化**。所以可以认为关联了一个http request和它对应的response：
 ```java
 public interface Endpoint<RequestT, ResponseT, ErrorT> {
 
@@ -448,7 +445,7 @@ public interface Endpoint<RequestT, ResponseT, ErrorT> {
 
 }
 ```
-以它的实现类`SimpleEndpoint`为例说明Endpoint的使用方式。`SimpleEndpoint`通过**方法回调来**生成request、解析response：**通过各种用户传入的函数来生成想要的http request/response部分（用户自定义生成行为）**：
+以它的实现类`SimpleEndpoint`为例说明Endpoint的使用方式。`SimpleEndpoint`通过**方法回调**来生成request、解析response：**通过各种用户传入的函数来生成想要的http request/response部分（用户自定义生成行为）**。想定义一个endpoint，就需要使用一系列lambda行为作为构造函数的参数：
 ```java
     private final Function<RequestT, String> method;
     private final Function<RequestT, String> requestUrl;
@@ -491,17 +488,19 @@ public interface Endpoint<RequestT, ResponseT, ErrorT> {
     }
 ```
 
+> 也可以不使用lambda，直接定义一系列接口方法，让实现类实现这些方法。这是两种理念，见下文。
+
 了解它之前，先**举个简单的例子**。假设我们要根据first name和last name生成全名，有的姓在前名在后，有的名在前姓在后——
 
 实体请求类：
-```
+```java
 public class Name {
     String first;
     String last;
 }
 ```
 响应类：
-```
+```java
 public class Person {
     String fullName;
     int age;
@@ -510,7 +509,7 @@ public class Person {
 ```
 
 第一种，提供两个方法：
-```
+```java
 public Person firstLast(Name name) {
     String full = name.first + name.last;
     return new Person(full, ...);
@@ -524,7 +523,7 @@ public Person lastFirst(Name name) {
 显然，最后一句`new Person(full, ...)`重复了。当然可以把这一句封装为一个新的函数`newPerson(String full, ...)`，然后两个函数都调用该函数。**虽然最小化了代码重复，但都调用`newPerson(String full, ...)`依然是重复调用。**
 
 第二种，多加一个标记，代表生成full name的方式，可以放在Name实体类里，也可以给函数多加一个参数：
-```
+```java
 public Person name(Name name) {
     String full = name.first ? name.first + name.last : name.last + name.first;
     return new Person(full, ...);
@@ -533,18 +532,18 @@ public Person name(Name name) {
 这种方式写的方法少，因为方法逻辑复杂了，所以一个方法就够了。但是需要额外的判定标记才能决定用哪种逻辑分支，逻辑比较耦合，不太推荐。
 
 第三种，**传入函数，相当于把一部分逻辑交给调用者**：
-```
+```java
 public Person name(Name name, BiFunction<String, String, String> fullNameGenerator) {
     String full = fullNameGenerator.apply(name.first, name.last);
     return new Person(full, ...);
 }
 ```
 如果需要first last：
-```
+```java
 name(name, (a, b) -> a + b);
 ```
 如果需要last first：
-```
+```java
 name(name, (a, b) -> b + a);
 ```
 第三种方法，我们先写一个接受lambda的函数，再基于它写两个有不同lambda的name函数，就实现了两个生成策略。**第一个name函数已经写好了固定的逻辑，通过lambda暴露了不确定的逻辑，后面的两个name实现只需要提供lambda就行，达到了最大程度的代码复用。endpoint接口就是这样衍生出了一堆endpoint的！**
@@ -552,11 +551,11 @@ name(name, (a, b) -> b + a);
 > **以后写代码可以考虑一下第三种，它的主要优点就是：开放、好拓展、最小化重复代码。**
 
 **如果后来用户有了第三种名称生成方式：first-last**
-```
+```java
 name(name, (a, b) -> a + "-" + b);
 ```
 
-**可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这并不能做到代码复用最大化。
+**可以学习这种“把函数做参数的函数”，这样写出来的函数的开放度更大一些**。之前经常写的函数都是把实体对象做参数，这可能并不能做到代码复用最大化。
 
 再看`SimpleEndpoint`，它就是通过这种方式，**让参数lambda承担了不同的Endpoint的独有逻辑，自己写完了共有逻辑**。
 
@@ -571,7 +570,6 @@ name(name, (a, b) -> a + "-" + b);
 			// Request method
 			request -> {
 				return "PUT";
-
 			},
 
 			// Request path
@@ -608,7 +606,7 @@ name(name, (a, b) -> a + "-" + b);
 
 			}, SimpleEndpoint.emptyMap(), true, CreateIndexResponse._DESERIALIZER);
 ```
-其实就是从用户构造好的create index Request里，取index、取param、取body。
+其实就是从用户构造好的create index Request里，取index、取param、取body、取header。
 
 如果需要给原有request新增参数，普通写法要override原有Request类的某些方法。**按照新的写法，就是重写lambda入参**。其实没有本质区别，就是思路变了：逻辑从写在方法里，变成了写在lambda参数里。
 
@@ -641,16 +639,44 @@ public static final Endpoint<FooRequest, ReducedFooResponse, ElasticsearchError>
 ref：
 - https://github.com/elastic/elasticsearch-java/blob/main/docs/design/0002-namespace-clients-and-endpoints.md
 
-**用户只需要操心怎么把Request实体类构建出来就行了：**
-```
-client.indices().create(c -> c.index("xxx"));
+## Endpoint怎么用
+endpoint接收一个request参数（或者更简洁的request lambda）。**所以用户侧只需要操心怎么通过lambda把Request实体类构建出来就行了：**
+```java
+elasticsearchClient.indices().create(c -> c.index("xxx"));
 ```
 
 > **elasticsearch client的层次向来都是分明的。比如普通的api，client可以直接调用；index相关的api，都在`client.indices()`之下。**
 
-最后看下Endpoint怎么被使用的——
+在client侧，create方法实际会把创建索引**相关的endpoint、用户提供的request（lambda）**一同交给底层的transport，用于发送请求：
+```java
+	public CreateIndexResponse create(CreateIndexRequest request) throws IOException, ElasticsearchException {
+		@SuppressWarnings("unchecked")
+		JsonEndpoint<CreateIndexRequest, CreateIndexResponse, ErrorResponse> endpoint = (JsonEndpoint<CreateIndexRequest, CreateIndexResponse, ErrorResponse>) CreateIndexRequest._ENDPOINT;
 
-在`RestClientTransport`里：
+		return this.transport.performRequest(request, endpoint, this.transportOptions);
+	}
+```
+**实际上，所有的方法实现都是把它对应的endpoint和request交给底层的transport**，因为endpoint已经包含所有的请求构建、响应解析逻辑了。
+
+而`Transport`实现就叫`RestClientTransport`，因为它是基于LLRC（RestClient）的。在`RestClientTransport`里：
+```java
+    public <RequestT, ResponseT, ErrorT> ResponseT performRequest(
+        RequestT request,
+        Endpoint<RequestT, ResponseT, ErrorT> endpoint,
+        @Nullable TransportOptions options
+    ) throws IOException {
+
+        org.elasticsearch.client.Request clientReq = prepareLowLevelRequest(request, endpoint, options);
+        org.elasticsearch.client.Response clientResp = restClient.performRequest(clientReq);
+        return getHighLevelResponse(clientResp, endpoint);
+    }
+```
+1. **先根据endpoint构造出request**；
+2. 再调用底层的LLRC发送request获取response；
+3. 最后使用endpoint里的`responseDeserializer`或者`errorDeserializer`解析请求/错误信息。**这里的解析就是反序列化，将响应体反序列化为对象**，因此用户调用`ElasticsearchClient`直接得到的就是对象；
+
+
+主要看一下第一步，怎么根据endpoint获取request——
 ```java
     private <RequestT> org.elasticsearch.client.Request prepareLowLevelRequest(
         RequestT request,
@@ -692,7 +718,17 @@ client.indices().create(c -> c.index("xxx"));
         return clientReq;
     }
 ```
-分别从endpoint取出method、url、parameter、body，组成request，比使用client发送请求。
+分别从endpoint取出method、url、parameter、body，组成request即可。
+
+**最后总结一下`Endpoint`的设计流程**：
+1. elasticsearch-java负责定义request类（比如`CreateIndexRequest`）让用户提供构建请求的素材，同时request类里定义一个endpoint实现（`Endpoint<CreateIndexRequest, CreateIndexResponse, ErrorResponse> _ENDPOINT`），代表一系列行为，用于组合素材、构造出底层请求、反序列化响应；
+2. 用户构建`CreateIndexRequest`请求（或lambda），用于提供素材：`elasticsearchClient.indices().create(c -> c.index("xxx"))`；
+3. **elasticsearch-java所有的方法实现都遵循如下模板：将相应的请求素材和endpoint交给底层的transport**；
+    1. transport使用endpoint从请求素材中组合出底层请求；
+    2. 使用LLRC发送底层请求、获取响应；
+    3. 使用endpoint里的deserializer反序列化响应；
+
+再回头看`ElasticsearchClient`的创建步骤：需要一个LLRC，使用LLRC构建transport。顺理成章！
 
 ## elasticsearch java vs. HLRC：全面碾压
 已废弃的RestHighLevelClient在两个地方很蹩脚：
@@ -832,7 +868,7 @@ elasticsearch-java好是好，只可惜发布的不够早。7.15才出现了beta
 - https://stackoverflow.com/a/74304292/7676237
 
 spring boot可以这么设置：
-```
+```java
     /**
      * https://stackoverflow.com/a/74102828/7676237
      */
@@ -857,7 +893,7 @@ spring boot可以这么设置：
 ```
 但是个别请求会不会有什么兼容问题就不得而知了，所以要写好集成测试。
 
-## 序列化反序列化
+## 反序列化response
 `RestHighLevelClient#search`返回的是`SearchResponse`，获取hits后（`searchResponse.getHits().getHits()`），得到的是`SearchHit[]`，从`SearchHit#getSourceAsMap`只能获取`Map<String, Object>`，必须把map手动转成自己想要的类。
 
 而`ElasticsearchClient#search`返回的是`SearchResponse<TDocument>`，它是带泛型的。获取hits后（`searchResponse.hits().hits()`），得到的是`List<Hit<T>>`，一路都是泛型，Hit也支持泛型，所以`Hit#source`直接就返回最终的类了。免去了自己手动转换的过程。
@@ -867,7 +903,7 @@ spring boot可以这么设置：
 > 所以java client需要`jakarta.json-api`依赖。
 
 具体怎么反序列化的？
-```
+```java
 	protected static <TDocument> void setupHitDeserializer(ObjectDeserializer<Hit.Builder<TDocument>> op,
 			JsonpDeserializer<TDocument> tDocumentDeserializer) {
 
@@ -901,8 +937,196 @@ spring boot可以这么设置：
 
 这个deserializer是一个NamedDeserializer，它deserialize的方式是使用外部传入的`JsonpMapper`里面的deserializer。由于代码调用一直在委托，实在看不出用的哪个的mapper，所以debug了一下，发现这个`JsonMapper`就是`RestClientTransport`里的`JsonMapper`。`RestClientTransport`是我们手动创建的，里面的`ObjectMapper`就是我们添加过java8 `Instant`支持的`ObjectMapper`。所以，最后相当于它拿着`ElasticsearchClient#search`需要传入对象的class参数，进行了反序列化。
 
+# spring boot配置client
+通过上文已经知道：
+1. LLRC是最基本的；
+2. LLRC可以构造出HLRC，HLRC已弃用；
+3. LLRC可以构造出transport，进而构造出ElasticsearchClient；
+
+## 2.x
+LLRC（`RestClient`）通过`RestClientBuilder`构造出来。springboot提供了`RestClientBuilderCustomizer`，所有的customizer会被收集构建为`RestClientBuilder`。如前文所写的`lowVersionElasticsearchCompatibility`这个customizer。
+```java
+		@Bean
+		RestClientBuilder elasticsearchRestClientBuilder(
+				ObjectProvider<RestClientBuilderCustomizer> builderCustomizers) {
+			HttpHost[] hosts = this.properties.getUris().stream().map(this::createHttpHost).toArray(HttpHost[]::new);
+			RestClientBuilder builder = RestClient.builder(hosts);
+			builder.setHttpClientConfigCallback((httpClientBuilder) -> {
+				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(httpClientBuilder));
+				return httpClientBuilder;
+			});
+			builder.setRequestConfigCallback((requestConfigBuilder) -> {
+				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(requestConfigBuilder));
+				return requestConfigBuilder;
+			});
+			if (this.properties.getPathPrefix() != null) {
+				builder.setPathPrefix(this.properties.properties.getPathPrefix());
+			}
+			builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
+			return builder;
+		}
+```
+有了`RestClientBuilder`之后，如果不存在HLRC相关的类，说明只使用LLRC，则通过builder直接构造HLRC：
+```java
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnMissingClass("org.elasticsearch.client.RestHighLevelClient")
+	@ConditionalOnMissingBean(RestClient.class)
+	static class RestClientConfiguration {
+
+		@Bean
+		RestClient elasticsearchRestClient(RestClientBuilder restClientBuilder) {
+			return restClientBuilder.build();
+		}
+
+	}
+```
+
+如果有HLRC相关的类，说明想使用HLRC，则自动构建HLRC：
+```java
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(org.elasticsearch.client.RestHighLevelClient.class)
+	@ConditionalOnMissingBean({ org.elasticsearch.client.RestHighLevelClient.class, RestClient.class })
+	static class RestHighLevelClientConfiguration {
+
+		@Bean
+		org.elasticsearch.client.RestHighLevelClient elasticsearchRestHighLevelClient(
+				RestClientBuilder restClientBuilder) {
+			return new org.elasticsearch.client.RestHighLevelClient(restClientBuilder);
+		}
+
+	}
+```
+然后再从HLRC里获取LLRC：
+```java
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(org.elasticsearch.client.RestHighLevelClient.class)
+	@ConditionalOnSingleCandidate(org.elasticsearch.client.RestHighLevelClient.class)
+	@ConditionalOnMissingBean(RestClient.class)
+	static class RestClientFromRestHighLevelClientConfiguration {
+
+		@Bean
+		RestClient elasticsearchRestClient(org.elasticsearch.client.RestHighLevelClient restHighLevelClient) {
+			return restHighLevelClient.getLowLevelClient();
+		}
+
+	}
+```
+**所以只有没有引入HLRC的包时，springboot才会直接配置LLRC，否则都是配置HLRC，再从HLRC获取LLRC**。大概是因为springboot要用上用户定义的那些builder customizer。
+
+从springboot3.0开始，才引入对`ElasticsearchClient`的自动配置，在此之前，需要自己配置`ElasticsearchClient`：
+```java
+@AutoConfigureAfter({ElasticsearchRestClientAutoConfiguration.class})
+@ConditionalOnClass(ElasticsearchClient.class)
+public class ElasticsearchClientAutoConfigure {
+
+    /**
+     * 新的elasticsearch java client：https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/7.16/migrate-hlrc.html
+     *
+     * @param lowLevelClient low level client
+     * @return 新client
+     */
+    @Bean
+    @ConditionalOnBean(RestClient.class)
+    @ConditionalOnMissingBean(ElasticsearchClient.class)
+    public ElasticsearchClient elasticsearchClient(RestClient lowLevelClient) {
+        // jackson to process java8 date/time
+        ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        return new ElasticsearchClient(new RestClientTransport(lowLevelClient, new JacksonJsonpMapper(objectMapper)));
+    }
+}
+```
+通过LLRC配置`ElasticsearchClient`。需要注意的是，**LLRC必须先于`ElasticsearchClient`实例化，所以需要加上`@AutoConfigureAfter({ElasticsearchRestClientAutoConfiguration.class})`**。
+
+另外还要自己实例化`JsonpMapper`以构建`RestClientTransport`。
+
+## 3.x
+springboot3.0引入对`ElasticsearchClient`的自动配置的同时，删除了对HLRC的自动配置！
+
+因为没有了HLRC相关的包，所以会使用LLRC的builder customizer直接配置出LLRC。之后可以使用LLRC配置出`RestClientTransport`：
+```java
+	@Import({ JacksonJsonpMapperConfiguration.class, JsonbJsonpMapperConfiguration.class,
+			SimpleJsonpMapperConfiguration.class })
+	@ConditionalOnBean(RestClient.class)
+	@ConditionalOnMissingBean(ElasticsearchTransport.class)
+	static class ElasticsearchTransportConfiguration {
+
+		@Bean
+		RestClientTransport restClientTransport(RestClient restClient, JsonpMapper jsonMapper,
+				ObjectProvider<TransportOptions> transportOptions) {
+			return new RestClientTransport(restClient, jsonMapper, transportOptions.getIfAvailable());
+		}
+
+	}
+```
+再配置出`ElasticsearchClient`：
+```java
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnBean(ElasticsearchTransport.class)
+	static class ElasticsearchClientConfiguration {
+
+		@Bean
+		@ConditionalOnMissingBean
+		ElasticsearchClient elasticsearchClient(ElasticsearchTransport transport) {
+			return new ElasticsearchClient(transport);
+		}
+
+	}
+```
+最重要的是，要在LLRC之后再配置`ElasticsearchClient`，所以springboot的自动配置已经加上了`@AutoConfigurationAfter`：
+```java
+@AutoConfiguration(after = { JacksonAutoConfiguration.class, JsonbAutoConfiguration.class,
+		ElasticsearchRestClientAutoConfiguration.class })
+@ConditionalOnClass(ElasticsearchClient.class)
+@Import({ ElasticsearchTransportConfiguration.class, ElasticsearchClientConfiguration.class })
+public class ElasticsearchClientAutoConfiguration {
+
+}
+```
+
+当然，`JsonpMapper`也会看情况自动配置：
+```java
+	@ConditionalOnMissingBean(JsonpMapper.class)
+	@ConditionalOnBean(ObjectMapper.class)
+	@Configuration(proxyBeanMethods = false)
+	static class JacksonJsonpMapperConfiguration {
+
+		@Bean
+		JacksonJsonpMapper jacksonJsonpMapper() {
+			return new JacksonJsonpMapper();
+		}
+
+	}
+
+	@ConditionalOnMissingBean(JsonpMapper.class)
+	@ConditionalOnBean(Jsonb.class)
+	@Configuration(proxyBeanMethods = false)
+	static class JsonbJsonpMapperConfiguration {
+
+		@Bean
+		JsonbJsonpMapper jsonbJsonpMapper(Jsonb jsonb) {
+			return new JsonbJsonpMapper(JsonProvider.provider(), jsonb);
+		}
+
+	}
+
+	@ConditionalOnMissingBean(JsonpMapper.class)
+	@Configuration(proxyBeanMethods = false)
+	static class SimpleJsonpMapperConfiguration {
+
+		@Bean
+		SimpleJsonpMapper simpleJsonpMapper() {
+			return new SimpleJsonpMapper();
+		}
+
+	}
+```
+可能基于jackson、jsonb，或者直接`SimpleJsonpMapper`。
+
+但是这里的JsonpMapper不支持传入自定义的ObjectMapper。因为[如果和其他地方共用一个ObjectMapper，会导致一个地方修改行为，影响到另一个地方](https://github.com/spring-projects/spring-boot/commit/a92ed5e2c2bc2fec62ae471df1a247cc69c9b03e)。而事实上ElasticsearchClient会[修改ObjectMapper的行为](https://github.com/spring-projects/spring-boot/issues/33426#issuecomment-1406287100)，所以共用的ObjectMapper如果在其他地方和这里设置的行为不一致，会导致错误。因此springboot在[构造JsonpMapper的时候不再支持传入ObjectMapper](https://github.com/spring-projects/spring-boot/commit/a92ed5e2c2bc2fec62ae471df1a247cc69c9b03e)。按照[springboot讨论的结果](https://github.com/spring-projects/spring-boot/issues/33426#issuecomment-1408945043)，如果想自定义ObjectMapper的行为，就自己构造一个JsonpMapper bean。
+
+[Jackson3会自动集成java8 time支持](https://github.com/FasterXML/jackson-modules-java8)，但是不知道什么时候会发布。
+
 # 感想
 流行的开源代码写的还是很好的，多看看确实不一定在哪儿就悟了，编程水平又提升了。
 
 Elasticsearch的client代码写的就已经很好了，期待看看Elasticsearch server的代码！
-
