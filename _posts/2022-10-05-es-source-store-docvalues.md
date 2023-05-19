@@ -44,25 +44,22 @@ Dates will always be rendered as strings, even if they were initially supplied a
 {:toc}
 
 # 存储方式
-elasticsearch有三种查询方式：
-- `fields`
-    + https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#search-fields-param
-    + 还能直接用`_source`：https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#source-filtering
-- `stored_fields`
-    + https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#stored-fields
-- `docvalue_fields`
-    + https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#docvalue-fields
+elasticsearch的`_search` API有三种查询参数，对应了不同的查询方式：
+- [`fields`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#search-fields-param)
+    + 还能直接用[`_source`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#source-filtering)
+- [`stored_fields`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#stored-fields)
+- [`docvalue_fields`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#docvalue-fields)
 
 
 其实对应了三种存储方式：
-- `fields`或默认的`_source`: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
-- `store`: https://www.elastic.co/guide/en/elasticsearch/reference/8.4/mapping-store.html
-- `doc_values`: https://www.elastic.co/guide/en/elasticsearch/reference/8.4/doc-values.html
+- [`fields`或默认的`_source`](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html)
+- [`store`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/mapping-store.html)属性
+- [`doc_values`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/doc-values.html)属性
 
 ## `_source` field
 **elasticsearch默认会把原始文档存成一个名为[`_source`](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html)的field，作为elasticsearch创建的文档结构的一部分**，如果查询的时候没有什么特殊参数，**返回的是符合条件的文档的`_source`字段（而不是这个文档的全部）**。
 
-`_source`是`store`类型的字段，对用户透明。
+> **`_source`是`store`类型的字段，对用户透明**。
 
 ## `store`
 [`store`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/mapping-store.html)是field的一个属性，默认store=false，即：field不单独存储到文档里。假设field的`index`属性为true（默认），这个field会出现在倒排索引里，所以field可查询。但是查询到这个文档后，返回的是`_source` field，是整个文档，而不是单独的某个字段。
@@ -71,7 +68,7 @@ elasticsearch有三种查询方式：
 
 > 返回的是`_source`里该字段的原始值。
 
-虽然直接返回`_source`是很快的，但是从`_source`里再取某几个字段，速度自然就变慢了。如果`_source`太大（比如有个context字段存了一篇文章），而经常用到的请求都只是查其中的小字段（比如title），那么可以给title设置`store=true`，只查title，且直接返回title。
+虽然直接返回`_source`是很快的，但是想从`_source`里取某几个字段，速度自然就变慢了。如果`_source`太大（比如有个context字段存了一篇文章），而经常用到的请求都只是查其中的小字段（比如title），那么可以给title设置`store=true`，只查title，且直接返回title。
 
 这是典型的以（存储）空间换（查询）时间，一般情况下不太用得到。
 
@@ -118,7 +115,7 @@ Lucene的`doc_values`是把倒排索引（key to value）倒过来（value to ke
 - Lucene的`doc_values`：https://blog.trifork.com/2011/10/27/introducing-lucene-index-doc-values/
 
 ### `index`
-关闭index并非就不能查找了，如果开启`doc_values`也是可以的（**[doc-value-only field](https://www.elastic.co/guide/en/elasticsearch/reference/current/doc-values.html#doc-value-only-fields)），可查但查的比index要慢，而且可聚合，尤其适用于那些不怎么用于查找、过滤的统计field。**
+关闭index并非就不能查找了，如果开启`doc_values`也是可以的（**[doc-value-only field](https://www.elastic.co/guide/en/elasticsearch/reference/current/doc-values.html#doc-value-only-fields)），可查，但查的比index要慢，而且可聚合，尤其适用于那些不怎么用于查找、过滤的统计field。**
 
 > Query performance on doc values is much slower than on index structures, but offers an interesting tradeoff between disk usage and query performance for fields that are only rarely queried and where query performance is not as important. This makes doc-value-only fields a good fit **for fields that are not expected to be normally used for filtering, for example gauges or counters on metric data.**
 
@@ -186,13 +183,17 @@ GET <index>/_search
 1. **规范化返回数据**：比如上述`epoch_millis`既存储了long又存储了string，就可以使用mapping统一返回string；
 2. Accepts multi-fields and field aliases
 3. Formats dates and spatial data types
-4. Retrieves runtime field values
+4. **Retrieves runtime field values**
 5. Returns fields calculated by a script at index time
 6. Returns fields from related indices using lookup runtime fields
 
-> 暂时只用到了第一条优势。
+> ~~暂时只用到了第一条优势~~。2023-05-19：现在也用到runtime field了。
 
-### 自定义转换
+**因为会用到mapping，所以对于runtime field这种实际没有被index的数据，虽然`_source`里没有该field，但是使用`fields`查询可以把它查出来。**
+
+> [Elasticsearch：runtime field]({% post_url 2023-05-19-es-runtime-field %})
+
+### 自定义转换：runtime field
 `fields`只能按照mapping进行转换，正常情况下没什么问题。但是如果有特殊的需求，比如`fields`只能让epoch_millis以string返回，如果我们就想让它以long返回，可以使用[runtime field](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime-override-values.html)转换数据，再用`fields`查出来：
 ```
 GET <index>/_search
@@ -271,7 +272,10 @@ GET <index>/_search
 
 `docvalue_fields`存储的内容和`_source`一样，但查询比`_source`轻量，毕竟不需要加载整个`_source`。而且`doc_value`默认为true。反正就算不查它，空间也已经占用过了。
 
-## `script_fields`查询
+## ~~`script_fields`查询~~
+
+> 建议使用runtime field取代script fields查询：[Elasticsearch：runtime field]({% post_url 2023-05-19-es-runtime-field %})
+
 介绍了这么多，顺便把[`script_fields`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#script-fields)也介绍了。
 
 上面说的基本都是空间换时间，**`script_fields`是典型的时间换空间**：不需要存，但每次查的时候都要临时计算。如果临时用一用，还是挺不错的：
@@ -323,9 +327,9 @@ GET /_search
 
 ![elastic-benachmarks](/assets/screenshots/Elasticsearch/storage/elastic-benachmarks.png)
 
-可以看出，需要取出的fields比较多的时候，使用`_source`更快，需要取出的fields较少时，从`doc_values`取更快。
+可以看出，**需要取出的fields比较多的时候，使用`_source`更快，需要取出的fields较少时，从`doc_values`取更快**。
 
-`store`以行的方式存储，取的fields少的时候，不如`doc_values`直接把整个field域的值取走快，但是如果取的fields比较多，相当于遍历所有fields了，`store`反而快了。当然官方建议不用`store`，除非存储非常充足，否则没必要单独存一遍，直接用`_source`就行了。
+`store`以行的方式存储，取的fields少的时候，不如`doc_values`直接把所有文档的整个field域的值（逻辑上列式存储的优势）取走快，但是如果取的fields比较多，相当于遍历所有fields了，`doc_values`的优势就没了。当然官方建议不用`store`，除非存储非常充足，否则没必要单独存一遍，直接用`_source`就行了。
 
 所以：取的field较少时建议使用`doc_values`，取的多（实验中是40+个fields）建议使用`_source`。土豪可以考虑开`store`。
 
@@ -334,4 +338,5 @@ GET /_search
 1. elasticsearch的实现也是要看一看的，正好又是Java实现的；
 
 > 这篇文章是国庆在周口写的~
+
 
