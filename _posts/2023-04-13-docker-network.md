@@ -110,7 +110,7 @@ round-trip min/avg/max = 0.054/0.057/0.061 ms
 同样只能通过ip通信。
 
 # iptables
-docker的网络隔离竟然是[通过`iptables`实现的]( https://docs.docker.com/network/iptables/)！
+docker的网络隔离竟然是[通过`iptables`实现的]( https://docs.docker.com/network/iptables/)！（也离不开虚拟网络设备）
 
 > 关于`iptables`，参考[Linux上使用iptables设置防火墙](https://blog.csdn.net/puppylpg/article/details/51173505)。
 
@@ -136,19 +136,22 @@ Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
 
 Chain FORWARD (policy DROP 0 packets, 0 bytes)
  pkts bytes target     prot opt in     out     source               destination
-  82M   91G DOCKER-USER  all  --  any    any     anywhere             anywhere                                                                                                                                      82M   91G DOCKER-ISOLATION-STAGE-1  all  --  any    any     anywhere             anywhere
+  82M   91G DOCKER-USER  all  --  any    any     anywhere             anywhere                                                                                                                                      
+  82M   91G DOCKER-ISOLATION-STAGE-1  all  --  any    any     anywhere             anywhere
  931K 1890M ACCEPT     all  --  any    br-7f97ab2bdd72  anywhere             anywhere             ctstate RELATED,ESTABLISHED
  1280 74796 DOCKER     all  --  any    br-7f97ab2bdd72  anywhere             anywhere
 78214 6170K ACCEPT     all  --  br-7f97ab2bdd72 !br-7f97ab2bdd72  anywhere             anywhere
   950 57000 ACCEPT     all  --  br-7f97ab2bdd72 br-7f97ab2bdd72  anywhere             anywhere
-  60M   57G ACCEPT     all  --  any    docker0  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                             58990 3575K DOCKER     all  --  any    docker0  anywhere             anywhere
+  60M   57G ACCEPT     all  --  any    docker0  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                             
+  58990 3575K DOCKER     all  --  any    docker0  anywhere             anywhere
   21M   31G ACCEPT     all  --  docker0 !docker0  anywhere             anywhere
 26929 1636K ACCEPT     all  --  docker0 docker0  anywhere             anywhere
 
 Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
  pkts bytes target     prot opt in     out     source               destination
 
-Chain DOCKER (2 references)                                                                                                                                                                                        pkts bytes target     prot opt in     out     source               destination
+Chain DOCKER (2 references)                                                                                                                                                                                        
+pkts bytes target     prot opt in     out     source               destination
 27504 1662K ACCEPT     tcp  --  !docker0 docker0  anywhere             172.17.0.7           tcp dpt:https
  3840  234K ACCEPT     tcp  --  !docker0 docker0  anywhere             172.17.0.7           tcp dpt:http
   330 17796 ACCEPT     tcp  --  !br-7f97ab2bdd72 br-7f97ab2bdd72  anywhere             172.18.0.3           tcp dpt:27017
@@ -159,7 +162,8 @@ Chain DOCKER-ISOLATION-STAGE-1 (1 references)
   21M   31G DOCKER-ISOLATION-STAGE-2  all  --  docker0 !docker0  anywhere             anywhere
   83M   91G RETURN     all  --  any    any     anywhere             anywhere
 
-Chain DOCKER-ISOLATION-STAGE-2 (2 references)                                                                                                                                                                      pkts bytes target     prot opt in     out     source               destination
+Chain DOCKER-ISOLATION-STAGE-2 (2 references)                                                                                                                                                                      
+pkts bytes target     prot opt in     out     source               destination
     0     0 DROP       all  --  any    br-7f97ab2bdd72  anywhere             anywhere
     0     0 DROP       all  --  any    docker0  anywhere             anywhere
   21M   31G RETURN     all  --  any    any     anywhere             anywhere
@@ -171,8 +175,15 @@ Chain DOCKER-USER (1 references)
 首先可以看到，**docker之所以能让`DOCKER` chain的优先级高于`FORWARD` chain，其实是玩了个trick**：
 ```
 Chain FORWARD (policy DROP 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination                                                                                                                                     82M   91G DOCKER-USER  all  --  any    any     anywhere             anywhere
-  82M   91G DOCKER-ISOLATION-STAGE-1  all  --  any    any     anywhere             anywhere                                                                                                                        931K 1890M ACCEPT     all  --  any    br-7f97ab2bdd72  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                      1280 74796 DOCKER     all  --  any    br-7f97ab2bdd72  anywhere             anywhere                                                                                                                             78214 6170K ACCEPT     all  --  br-7f97ab2bdd72 !br-7f97ab2bdd72  anywhere             anywhere                                                                                                                     950 57000 ACCEPT     all  --  br-7f97ab2bdd72 br-7f97ab2bdd72  anywhere             anywhere                                                                                                                      60M   57G ACCEPT     all  --  any    docker0  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                             58990 3575K DOCKER     all  --  any    docker0  anywhere             anywhere                                                                                                                                       21M   31G ACCEPT     all  --  docker0 !docker0  anywhere             anywhere                                                                                                                                   26929 1636K ACCEPT     all  --  docker0 docker0  anywhere             anywhere
+ pkts bytes target     prot opt in     out     source               destination                                                                                                                                     
+ 82M   91G DOCKER-USER  all  --  any    any     anywhere             anywhere
+  82M   91G DOCKER-ISOLATION-STAGE-1  all  --  any    any     anywhere             anywhere                                                                                                                       
+  931K 1890M ACCEPT     all  --  any    br-7f97ab2bdd72  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                     
+  1280 74796 DOCKER     all  --  any    br-7f97ab2bdd72  anywhere             anywhere                                                                                                                             78214 6170K ACCEPT     all  --  br-7f97ab2bdd72 !br-7f97ab2bdd72  anywhere             anywhere                                                                                                                     950 57000 ACCEPT     all  --  br-7f97ab2bdd72 br-7f97ab2bdd72  anywhere             anywhere                                                                                                                      
+  60M   57G ACCEPT     all  --  any    docker0  anywhere             anywhere             ctstate RELATED,ESTABLISHED                                                                                             
+  58990 3575K DOCKER     all  --  any    docker0  anywhere             anywhere                                                                                                                                       
+  21M   31G ACCEPT     all  --  docker0 !docker0  anywhere             anywhere                                                                                                                                   
+  26929 1636K ACCEPT     all  --  docker0 docker0  anywhere             anywhere
 ```
 **先把`FORWARD` chain的默认策略改成`DROP`，然后配置所有的流量都使用`DOCKER-USER` chain；所有非docker0的src，如果dst是docker0，就使用`DOCKER` chain**。所以本质上并不是优先级高于`FORWARD` chain，而是借助了iptables的`FORWARD` chain本身。
 
