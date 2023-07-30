@@ -28,12 +28,11 @@ es对关系型数据的处理方式：
 一对一的关系比较简单，可以考虑把两个对象合成一条文档存储起来，既不需要join，也不会产生冗余数据。
 
 ## object - flatten
-object是层级数据最简单的组织方式：嵌套。一个父object可以包含一个子object：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/object.html
+[object](https://www.elastic.co/guide/en/elasticsearch/reference/current/object.html)是层级数据最简单的组织方式：flatten，而非我们平常理解的嵌套。
 
 ### flatten
-嵌套一个object就是在定义mapping的时候出现了properties的嵌套。**而嵌套的属性，在es里实际是被flatten为每个属性的全路径名，并使用点分隔，存储为独立字段**：
-```
+包含一个object就是在定义mapping的时候出现了properties的嵌套。**但是这个嵌套的属性并非我们理解的那种嵌套，在es里object实际是被flatten为每个属性的全路径名，并使用点分隔，存储为独立字段**。比如：
+```json
 PUT my-index-000001/_doc/1
 { 
   "region": "US",
@@ -47,7 +46,7 @@ PUT my-index-000001/_doc/1
 }
 ```
 实际存储为：
-```
+```json
 {
   "region":             "US",
   "manager.age":        30,
@@ -57,14 +56,9 @@ PUT my-index-000001/_doc/1
 ```
 
 ### array of objects
-按照[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})所介绍的：
-1. inner object的mapping的dynamic属性继承自outer object，除非显式指定；
-2. es的任何一个field都能存放多个值，也就是可以存放数组；
+按照[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})所介绍的：es的任何一个field都能存放多个值，也就是可以存放数组。这意味着可以以数组的形式存储多个inner object。那是不是意味着object也可以存储一对多的关系？
 
-第二点意味着可以以数组的形式存储多个inner object。那是不是以为着object也可以存储一对多的关系？
-
-**不可以！因为object的每个field都会被flatten到单独的数组里，所以存成数组之后，每个object里的field都失去了原有的关联**：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html#nested-arrays-flattening-objects
+**不可以！因为object的[每个field都会被flatten到单独的数组里，存成数组之后，每个object里的field都失去了原有的关联](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html#nested-arrays-flattening-objects)**。
 
 > 换言之，last name和first name之间没有成组的关系了。
 
@@ -74,7 +68,7 @@ PUT my-index-000001/_doc/1
 - https://stackoverflow.com/a/72095595/7676237
 
 比如：
-```
+```json
 PUT my-index-000001/_doc/2
 { 
   "region": "US",
@@ -89,7 +83,7 @@ PUT my-index-000001/_doc/2
 }
 ```
 和
-```
+```json
 PUT my-index-000001/_doc/3
 { 
   "region": "US",
@@ -107,23 +101,60 @@ PUT my-index-000001/_doc/3
   }
 }
 ```
-**实际上并没有什么区别**！
+**实际上并没有什么区别**！使用`fields`查询可以发现：
+```json
+GET my-index-000001/_search
+{
+  "_source": ["manager.name.first", "manager.name.last"], 
+  "fields": [
+    "manager.name.first", "manager.name.last"
+  ]
+}
+```
+1. **两个first name实际上都是以数组的形式存储的**；
+2. **first name和last name分属两个数组，失去了关联**；
+
+```json
+    "hits": [
+      {
+        "_index": "my-index-000001",
+        "_id": "2",
+        "_score": 1,
+        "_source": {
+          "manager": {
+            "name": {
+              "first": "Lucy",
+              "last": "James"
+            },
+            "name.first": "Kate"
+          }
+        },
+        "fields": {
+          "manager.name.first": [
+            "Lucy",
+            "Kate"
+          ],
+          "manager.name.last": [
+            "James"
+          ]
+        }
+      }
+    ]
+```
 
 # 一对多
 一对多是最常见的关系型数据。就以一个用户和他发的所有博客为例进行阐述。
 
 ## nested - 存放于同一segment
-上面所说的无法使用object存储一对多关系，因为object的各个field被flatten到不同的array之后，失去了原有的联系。为了解决这个问题，引入了nested类型：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html
+上面所说的无法使用object存储一对多关系，因为object的各个field被flatten到不同的array之后，失去了原有的联系。为了解决这个问题，引入了[nested类型](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html)。
 
-**和object array相比，nested array能把子对象孤立起来，所以查的时候不会跨对象**：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html#nested-fields-array-objects
+**和object array相比，[nested array能把子对象孤立起来，所以查的时候不会跨对象](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html#nested-fields-array-objects)**。
 
 ### 存储于同一segment
 
-> 什么是segment：TODO
+> 什么是segment：[Elasticsearch：分片读写]({% post_url 2022-05-05-es-deep-dive %})
 
-**nested文档在逻辑上，依然一条嵌套了子文档的大文档。但是实际存储的时候，nested文档在物理上产生了n个子文档和1个父文档，并把他们存放在同一个segment上**：
+**nested文档在逻辑上，依然是一条嵌套了子文档的大文档。但是实际存储的时候，nested文档在物理上产生了n个子文档和1个父文档，并把他们存放在同一个segment上**：
 - 同一个segment：https://discuss.elastic.co/t/index-nested-documents-separately/11748/3
 - https://discuss.elastic.co/t/whats-nested-documents-layout-inside-the-lucene/59944
 - https://www.elastic.co/guide/en/elasticsearch/guide/current/nested-objects.html
@@ -139,14 +170,12 @@ PUT my-index-000001/_doc/3
 > **These extra nested documents are hidden; we can’t access them directly**. To update, add, or remove a nested object, we have to reindex the whole document. It’s important to note that, **the result returned by a search request is not the nested object alone; it is the whole document**.
 
 ### nested查询
-对nested使用普通的查询，只能查询非嵌套field，无法查询nested field。想查询nested field必须使用专用的nested query：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html#nested-fields-array-objects
-- nested query：https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-nested-query.html
+对nested使用普通的查询，只能查询非嵌套field，无法查询nested field。想查询nested field必须使用专用的[nested query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-nested-query.html)。
 
-> **毕竟是以分离的文档存储在segment上的，普通的query不会组装他们，但是nested query会**！
+> **毕竟是以分离的文档存储在segment上的，普通的query不会组装他们，但是nested query会**。
 
-创建一个nested index：
-```
+创建一个nested index，父文档为user，嵌套子文档为blogs：
+```json
 PUT user-blogs-nested
 {
   "mappings": {
@@ -157,7 +186,9 @@ PUT user-blogs-nested
     }
   }
 }
-
+```
+cortana和john各发了两篇blogs：
+```json
 PUT user-blogs-nested/_doc/1
 {
   "user" : "john",
@@ -189,7 +220,7 @@ PUT user-blogs-nested/_doc/2
 }
 ```
 查看mapping，`GET user-blogs-nested/_mapping`：
-```
+```json
 {
   "user-blogs-nested" : {
     "mappings" : {
@@ -231,8 +262,8 @@ PUT user-blogs-nested/_doc/2
   }
 }
 ```
-使用嵌套查询查询nested field：
-```
+使用nested query查询这样的文档：blogs（nest field）以halo为名，且内容包含amazing
+```json
 GET user-blogs-nested/_search
 {
   "query": {
@@ -273,7 +304,7 @@ GET user-blogs-nested/_search
 2. 进一步，可以使用`highlight`查看该匹配的子文档究竟是哪些地方和搜索匹配上了。
 
 查询结果：
-```
+```json
 {
   "took" : 1,
   "timed_out" : false,
@@ -350,8 +381,8 @@ GET user-blogs-nested/_search
 ```
 **如果偏要使用普通查询查nested field会怎样**？
 
-query非nested field，没有问题，能显示整个文档：
-```
+查询非nested field，没有问题，能显示整个文档：
+```json
 GET user-blogs-nested/_search
 {
   "query":{
@@ -367,8 +398,8 @@ GET user-blogs-nested/_search
   }
 }
 ```
-使用普通查询查找nested field，什么也查不出来：
-```
+**使用普通查询查找nested field，什么也查不出来**：
+```json
 GET user-blogs-nested/_search
 {
   "query":{
@@ -385,20 +416,16 @@ GET user-blogs-nested/_search
 }
 ```
 
-如果既想拥有nested文档的独立子文档特性，又想拥有object可以使用普通查询直接查的特性，可以给nested设置`include_in_root`/`include_in_parent`，把nested子文档的field在root文档/父文档里也存一遍。
-
-还可以设置`score_mode`之类的，详情参考nested query：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-nested-query.html
+> 如果既想拥有nested文档的独立子文档特性，又想拥有object可以使用普通查询直接查的特性，可以给nested设置`include_in_root`/`include_in_parent`，把nested子文档的field在root文档/父文档里也存一遍。
 
 ### inner hits - debug
-对nested和下面的parent child都适用：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/inner-hits.html    
+使用[inner hits](https://www.elastic.co/guide/en/elasticsearch/reference/current/inner-hits.html)显示匹配上的子文档，对于nested查询和parent child查询来说都非常有用。
     
 ### 优点
 快：
-> because of the way that nested objects are indexed, joining the nested documents to the root document at query time is fast—​almost as fast as if they were a single document.
+> because of the way that nested objects are indexed, joining the nested documents to the root document at query time is fast—almost as fast as if they were a single document.
 
-当然这个快是相对于parent child join来讲的。**nested文档都放在一个segment上，所以join起来特别快，快到仿佛存的就是一条文档**。parent child因为需要拿着id做进一步的查询，相比之下自然就满了。
+当然这个快是相对于parent child join来讲的。**nested文档都放在一个segment上，所以join起来特别快，快到仿佛存的就是一条文档**。parent child因为需要拿着id做进一步的查询，相比之下自然就慢了。
 
 **索引方便**：因为es在逻辑上呈现出来的nested文档其实就是一个文档，所以一次就可以传入整个文档，索引所有的父子文档。
 
@@ -575,7 +602,7 @@ GET user-blogs-join/_search
   }
 }
 ```
-**查询结果只显示父文档john**，因为它本身就是一个独立的文档，**不像nested显示的是整个父子文档的合在一起的大文档**：
+**查询结果只显示父文档john**，因为它本身就是一个独立的文档，**不像nested显示的是整个父子文档合在一起的大文档**：
 ```
 {
   "took" : 602,
@@ -611,8 +638,8 @@ GET user-blogs-join/_search
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/has-child.html
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-has-child-query.html
 
-使用父文档查子文档：
-```
+使用子文档查父文档：
+```json
 GET user-blogs-join/_search
 {
   "query": {
@@ -628,7 +655,7 @@ GET user-blogs-join/_search
 }
 ```
 查询结果只显示cortana发表的所有blog，他们都是独立的子文档：
-```
+```json
 {
   "took" : 0,
   "timed_out" : false,
@@ -686,7 +713,7 @@ GET user-blogs-join/_search
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-has-parent-query.html
 
 还可以使用bool查询，**在使用子文档查询父文档的同时，给父文档加上过滤条件**：
-```
+```json
 GET user-blogs-join/_search
 {
   "query": {
@@ -718,7 +745,7 @@ GET user-blogs-join/_search
 
 ### inner hits
 和nested查询一样，既然根据子文档查父文档，就可以使用inner hits + highlight查看到底是哪个子文档的哪个地方匹配上了搜索条件，从而搜索出了父文档：
-```
+```json
 GET user-blogs-join/_search
 {
   "query": {
@@ -942,7 +969,7 @@ GET user-blogs-join/_search
 }
 ```
 
-### 迷失的routing
+### 错误的routing
 如果routing指定错了怎么办？parent设定为u1，但是routing却指定为了u2：
 ```
 PUT user-blogs-join/_doc/b1?routing=u2
