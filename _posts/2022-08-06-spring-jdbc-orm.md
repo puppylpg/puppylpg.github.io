@@ -13,7 +13,7 @@ tags: spring jdbc orm hibernate mybatis
 
 # JDBC
 介绍实体类是blog：
-```
+```java
 /**
  * @author puppylpg on 2022/05/31
  */
@@ -30,7 +30,7 @@ public class Blog {
 ```
 
 serivce类就是增删改查blog：
-```
+```java
 /**
  * @author puppylpg on 2022/07/09
  */
@@ -45,8 +45,8 @@ public interface BlogService {
 ```
 
 ## DAO
-对于spring jdbc来讲，DAO基本是用JdbcTemplate实现的，毕竟它不能orm，只能相对底层手撸sql：
-```
+对于spring jdbc来讲，DAO基本是用`JdbcTemplate`实现的，毕竟它不能orm，只能相对底层手撸sql：
+```java
 /**
  * @author puppylpg on 2022/07/09
  */
@@ -92,7 +92,7 @@ public class BlogDao {
 ```
 
 service实现：
-```
+```java
 /**
  * @author puppylpg on 2022/07/09
  */
@@ -125,7 +125,7 @@ public class BlogServiceImpl implements BlogService {
 ```
 
 ## 配置
-```
+```java
     @Bean("hikari")
     public DataSource hikari() {
         HikariConfig config = new HikariConfig();
@@ -148,7 +148,7 @@ public class BlogServiceImpl implements BlogService {
     }
 ```
 当然，事务管理器必须得有：
-```
+```java
     /**
      * jdbc的transaction manager，相当于advice增强的角色
      */
@@ -159,11 +159,11 @@ public class BlogServiceImpl implements BlogService {
 ```
 
 ## 手动事务支持
-在TransactionProxyFactoryBean中手动组装事务：
+在`TransactionProxyFactoryBean`中手动组装事务：
 - target：给谁增强事务；
 - advice：哪个事务管理器；
 - pointcut：切点；
-```
+```java
     @Bean("blogService")
     public TransactionProxyFactoryBean proxyBlogService(@Qualifier("blogServiceTarget") BlogService blogService,
                                                         DataSourceTransactionManager dataSourceTransactionManager) {
@@ -177,11 +177,11 @@ public class BlogServiceImpl implements BlogService {
         return txProxy;
     }
 ```
-它和ProxyFactoryBean一样（[Spring - AOP]({% post_url 2021-11-22-spring-aop %})），只能代理一个bean，不能代理所有的bean。
+它和`ProxyFactoryBean`一样（[Spring - AOP]({% post_url 2021-11-22-spring-aop %})），只能代理一个bean，不能代理所有的bean。
 
 ## 自动事务支持
-直接使用@Transactional注解即可。比如：
-```
+直接使用`@Transactional`注解即可。比如：
+```java
     @Transactional
     @Override
     public void addOneFail(Blog blog) {
@@ -190,7 +190,7 @@ public class BlogServiceImpl implements BlogService {
         blogDao.insertError();
     }
 ```
-别忘了在配置里加上@EnableTransactionManagement注解以开启事务。
+别忘了在配置里加上`@EnableTransactionManagement`注解以开启事务。
 
 配置完了┓( ´∀` )┏
 
@@ -216,7 +216,7 @@ public class BlogServiceImpl implements BlogService {
 事务回滚之后，把插入的数据又删掉了。
 
 主程序：
-```
+```java
 public class SpringJdbcWithTransactionMain {
 
     public static void main(String... args) {
@@ -503,12 +503,12 @@ mybatis已经自己接入spring了，有mybatis-spring包，所以spring不再�
 
 ## xml mybatis
 同样作为orm，同样需要定义object relational映射。可以用xml定义，也可以用mybatis的注解定义。这些注解不是JPA规定的注解。
-```
+```java
 @Table(name="BLOG")
 public class Blog {
 
     @Id
-	@Column(name = "ID")
+    @Column(name = "ID")
     private int id;
     @Column(name = "TITME")
     private String title;
@@ -520,7 +520,7 @@ public class Blog {
 不过因为它是半自动的orm，所以除了默认的方法，其他方法都要自己去定义执行方式。大概率是用sql定义。
 
 比如`BlogDao.xml`：
-```
+```xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
@@ -542,7 +542,7 @@ public class Blog {
 > **在mybatis里，DAO一般指mapper。**
 
 一开始的mybatis也是通过xml定义配置。`mybatis-config`：
-```
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE configuration
     PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
@@ -561,13 +561,13 @@ public class Blog {
 
 </configuration>
 ```
-简直和hibernate.cfg.xml一模一样：
+简直和`hibernate.cfg.xml`一模一样：
 1. 数据源：不过这个文件里没定义数据源，后期才进行组装的，见main函数；
 2. mybatis相关设置；
 3. 加载orm映射文件，也就是entity和mapper；
 
-hibernate用的是SessionFactory，mybatis用的是SqlSessionFactory。结合spring的话，配置个SqlSessionFactoryBean就行了：
-```
+hibernate用的是`SessionFactory`，mybatis用的是`SqlSessionFactory`。结合spring的话，配置个`SqlSessionFactoryBean`就行了：
+```java
     @Bean
     public SqlSessionFactoryBean sessionFactoryBean(DataSource dataSource) throws IOException {
         SqlSessionFactoryBean sqlSessionFactoryBean = new SqlSessionFactoryBean();
@@ -582,7 +582,7 @@ hibernate用的是SessionFactory，mybatis用的是SqlSessionFactory。结合spr
 ```
 
 执行：
-```
+```java
     public static void main(String... args) {
         ApplicationContext applicationContext = new AnnotationConfigApplicationContext(SpringUseRawMybatisXmlConfig.class);
         SqlSessionFactory sqlSessionFactory = applicationContext.getBean(SqlSessionFactory.class);
@@ -605,34 +605,34 @@ hibernate用的是SessionFactory，mybatis用的是SqlSessionFactory。结合spr
 ## xml mapper的注册和使用
 因为mybatis是半自动的，所以怎么注册xml mapper成为了一个问题:
 - 可以在`mybatis-config.xml`里通过`<mapper>`手动注册xml mapper；
-- 也可以在声明SqlSessionFactoryBean的时候手动`setMapperLocations`注册xml mapper；
+- 也可以在声明`SqlSessionFactoryBean`的时候手动`setMapperLocations`注册xml mapper；
 
 **使用xml mapper，必须指定statement，以声明用的是xml mapper里定义的哪个statement**：
-```
+```java
             // 定义的xml mapper，只能这么去执行……
             session.insert("io.puppylpg.mybatis.raw.mapper.BlogDao.insert", blog);
 ```
 
 **xml mapper也可以使用namespace关联一个interface，使用interface mapper有一个好处：方法都定义的是Java的接口方法，所以可以直接调用**。比如：
-```
+```java
             // 如果是类mapper，就能这么执行
             BlogMapper mapper = session.getMapper(BlogMapper.class);
             mapper.insert(elasticsearch);
 ```
 
 ## mapper bean
-**注册好xml mapper之后**，虽然可以从SqlSession里获取mapper类进行调用，但还是不够方便。**mybatis-spring提供了`MapperScannerConfigurer`**，设置扫描mapper的路径`setBasePackage`，**可以把包里所有的interface注册为一个bean（`MapperFactoryBean`）**，需要用的时候直接@Autowire就行了，远比使用`SqlSession#getMapper`方便！
+**注册好xml mapper之后**，虽然可以从`SqlSession`里获取mapper类进行调用，但还是不够方便。**mybatis-spring提供了`MapperScannerConfigurer`**，设置扫描mapper的路径`setBasePackage`，**可以把包里所有的interface注册为一个bean（`MapperFactoryBean`）**，需要用的时候直接@Autowire就行了，远比使用`SqlSession#getMapper`方便！
 
 **`MapperFactoryBean`的自定义获取bean的方式，其实还是`SqlSession#getMapper`**：
-```
+```java
   @Override
   public T getObject() throws Exception {
     return getSqlSession().getMapper(this.mapperInterface);
   }
 ```
 
-配置`MapperScannerConfigurer`也很简单，指定好要用的SqlSessionFactory，设定好package就行了：
-```
+配置`MapperScannerConfigurer`也很简单，指定好要用的`SqlSessionFactory`，设定好package就行了：
+```java
     @Bean
     public MapperScannerConfigurer mapperScannerConfigurer(SqlSessionFactory sqlSessionFactory) {
         MapperScannerConfigurer mapperScannerConfigurer = new MapperScannerConfigurer();
@@ -643,8 +643,8 @@ hibernate用的是SessionFactory，mybatis用的是SqlSessionFactory。结合spr
         return mapperScannerConfigurer;
     }
 ```
-它实现了`BeanDefinitionRegistryPostProcessor`接口，会在该bean实例化之后，将mapper扫描为bean，注册到SqlSessionFactory里：
-```
+它实现了`BeanDefinitionRegistryPostProcessor`接口，会在该bean实例化之后，将mapper扫描为bean，注册到`SqlSessionFactory`里：
+```java
   public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
     if (this.processPropertyPlaceHolders) {
       processPropertyPlaceHolders();
@@ -676,16 +676,16 @@ mybatis本身提供了一个标记接口`@Mapper`，没有实际用处。**不�
 
 > 看这些自动配置类，又一次很明显地看出来：springboot的确就是把别人在开发项目的时候写到项目里的配置放到了auto config类里。
 
-## SqlSessionTemplate
-同样mybatis-spring提供了SqlSessionTemplate，通过SqlSessionFactory构建：
-```
+## `SqlSessionTemplate`
+同样mybatis-spring提供了`SqlSessionTemplate`，通过`SqlSessionFactory`构建：
+```java
     @Bean
     public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
         return new SqlSessionTemplate(sqlSessionFactory);
     }
 ```
-使用SqlSessionTemplate：
-```
+使用`SqlSessionTemplate`：
+```java
 /**
  * @author puppylpg on 2022/07/12
  */
@@ -718,15 +718,15 @@ public class BlogMybatisTemplateDao {
     }
 }
 ```
-SqlSessionTemplate支持上述两种mapper用法：
+`SqlSessionTemplate`支持上述两种mapper用法：
 1. xml mapper，需要指定statement；
 2. interface mapper，需要先`getMapper`再使用；
 
 但是不如`MapperScannerConfigurer`直接把mapper interface注册成spring bean方便。
 
 ## 事务
-跟之前一样，配置好jdbc的DataSourceTransactionManager，使用@Transactional标记一下就行了：
-```
+跟之前一样，配置好jdbc的`DataSourceTransactionManager`，使用`@Transactional`标记一下就行了：
+```java
     @Transactional
     @Override
     public void addOneFail(Blog blog) {
