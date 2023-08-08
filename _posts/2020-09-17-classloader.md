@@ -34,9 +34,9 @@ ClassLoader类的javadoc：
 
 # Java的ClassLoader体系
 Java一共定义了三个classloader，层级严格，分工明确：
-- BootstrapClassLoader：load最核心的Java类，比如rt.jar，jdk里的那些类大部分都在这个包里面，比如String；
-- ExtClassLoader：load一些其他的拓展类；
-- AppClassLoader：load用户自己指定的类；
+- `BootstrapClassLoader`：load最核心的Java类，比如rt.jar，jdk里的那些类大部分都在这个包里面，比如String；
+- `ExtClassLoader`：load一些其他的拓展类；
+- `AppClassLoader`：load用户自己指定的类；
 
 ## 位置
 Java规定了这三个类加载器所加载类的位置：
@@ -44,11 +44,11 @@ Java规定了这三个类加载器所加载类的位置：
 BootstrapClassLoader从`sun.boot.class.path`指定的位置加载java核心类。**这个位置不应该被随意修改**。
 
 可以看一下他的默认值：
-```
+```java
 System.out.println("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
 ```
 或者通过Launcher获取：
-```
+```java
         URL[] urLs = sun.misc.Launcher.getBootstrapClassPath().getURLs();
         for (URL url : urLs) {
             System.out.println(url.toExternalForm());
@@ -131,7 +131,7 @@ Invalid layout of preloaded class: use -XX:+TraceClassLoading to see the origin 
 
 ### `java.ext.dirs`
 ExtClassLoader从`java.ext.dirs`指定的位置加载一些额外依赖，查看这些路径：
-```
+```java
 System.out.println("java.ext.dirs: " + System.getProperty("java.ext.dirs"));
 ```
 默认是：
@@ -152,7 +152,7 @@ AppClassLoader从`java.class.path`指定的位置加载用户自定义的类。
 > 当然也可以像指定bootstrap或者ext的路径一样，使用`-Djava.class.path`命令行参数。不过java命令已经提供了更简单的`-cp`参数了，为什么还要用这么麻烦的东西呢？
 
 从命令行启动时，默认的classpath是启动时所在的文件夹。当用idea在IDE里按执行按钮启动程序时，idea已经帮忙将jdk和maven的依赖全都放入classpath里了：
-```
+```java
  System.out.println("java.class.path: " + System.getProperty("java.class.path"));
 ```
 可看到结果包含几部分：
@@ -220,47 +220,21 @@ AppClassLoader从`java.class.path`指定的位置加载用户自定义的类。
 
 ## ClassLoader
 ClassLoader是顶级基类，提供了加载一个class的流程：
-- `public Class<?> loadClass(String name) throws ClassNotFoundException`
+- `public Class<?> loadClass(String name) throws ClassNotFoundException`：这个方法是classloader的核心方法；
 
 在该方法里，定义了“根据类名加载类”的顺序问题：
-1. 如果已经加载过该类名对应的类，直接返回该Class对象；
-2. 否则获取该classloader的parent（父ClassLoader），使用parent加载类；
+1. **cache**：如果该类加载器已经加载过该类名对应的类，直接返回该Class对象；
+2. **find class**：否则获取该classloader的parent（父ClassLoader），使用parent加载类；
     1. 如果parent不为空，使用parent去**findClass**；
     2. 如果parent为空，说明该类的父类是BootstrapClassLoader，找到BootstrapClassLoader，让它去**findClass**；
-1. 找到就返回找到的class，找不到就throw ClassNotFoundException；
+1. 找不到就throw ClassNotFoundException；
+2. **resolve class**：找到就**resolve class**，[做一些Class的解析工作](https://docs.oracle.com/javase/specs/jls/se7/html/jls-12.html)，比如符号引用的解析。最终返回Class对象；
 
-以上代码实现了classloader的delegation机制。
+因此，**正是`loadClass()`方法实现了classloader的delegation机制。如果我们要自定义一个classloader，如果不是刻意修改掉双亲委派的模型，就不应该override `loadClass()`，而是应该override `findClass()`**，自定义类的查找逻辑即可。
 
-有两个地方需要注意：
-1. 寻找BootstrapClassLoader使用的是native方法`private native Class<?> findBootstrapClass(String name)`，因为BootstrapClassLoader本身就不是用Java实现的，自然也不可能用Java代码找到；
-2. **ClassLoader是抽象父类，没有定义`findClass`具体要去怎么find，留给具体的子类处理**；
+> 事实上ClassLoader父类也将findClass设为protected，交给子类去实现。
 
 一般，load class是从jvm所在的机器上去load的，比如从unix文件系统加载。但也可以从远程加载一个class，只需要子类在实现`findClass`方法时通过网络获取class binary字节码就行了。
-
-比如，假设要实现一个从网络获取字节码的classloader，起名为NetworkClassLoader：
-```
-   ClassLoader loader = new NetworkClassLoader(host, port);
-   Object main = loader.loadClass("Main", true).newInstance();
-        . . .
-```
-NetworkClassLoader可以使用loadClass接口去load一个class，但它需要在自己内部处理`findClass`的问题：
-```
-     class NetworkClassLoader extends ClassLoader {
-         String host;
-         int port;
-
-         public Class findClass(String name) {
-             byte[] b = loadClassData(name);
-             return defineClass(name, b, 0, b.length);
-         }
-
-         private byte[] loadClassData(String name) {
-             // load the class data from the connection
-              . . .
-         }
-     }
-```
-这里的findClass可以是通过socket读取一堆字节流，再`defineClass`将字节流解析为Class对象。
 
 ## URLClassLoader
 URLClassLoader是ClassLoader最常用的一个实现：从URL资源中加载类。
@@ -273,7 +247,7 @@ URLClassLoader的javadoc：
 > This class loader is used to load classes and resources from a search path of URLs referring to both JAR files and directories. Any URL that ends with a '/' is assumed to refer to a directory. Otherwise, the URL is assumed to refer to a JAR file which will be opened as needed.
 
 URLClassLoader实现`findClass`方法很简单：
-```
+```java
     String path = name.replace('.', '/').concat(".class");
     Resource res = ucp.getResource(path, false);
     if (res != null) {
@@ -297,9 +271,7 @@ URLClassLoader实现`findClass`方法很简单：
 > URLClassLoader里的URLs怎么来的？或者说URLClassPath里的URLs怎么来的？可以参考ExtClassLoader或者AppClassLoader的实现。
 
 ### defineClass
-defineClass并不是一个统一的接口，所以它在不同类里的形式有很多个，比如ClassLoader和URLClassLoader类里都有不止一个defineClass函数，且参数不一样。不过他们做的事情大致都是一样的：解析一坨byte（字节码），生成一个Class对象。即，将字节码翻译为类定义。
-
-而且这么多defineClass，最终基本都是依托抽象类ClassLoader里的`protected final Class<?> defineClass(String name, byte[] b, int off, int len, CodeSource cs)`实现的。
+寻找到class二进制之后，要defineClass：解析一坨byte，生成一个Class对象。即，将二进制按照class协议规范去解析，翻译为类定义。**这一步骤最终是由jvm实现的，所以`ClassLoader#defineClass(String name, byte[] b, int off, int len)`是一个native调用**。
 
 ## ExtClassLoader
 URLClassLoader完成了一个classloader应该有的所有功能。ExtClassLoader和AppClassLoader是两个在URLClassLoader基础上的具体classloader实现。
@@ -310,11 +282,11 @@ URLClassLoader完成了一个classloader应该有的所有功能。ExtClassLoade
 - Launcher对外提供了获取AppClassLoader的方法；
 
 Launcher创建ExtClassLoader：
-```
+```java
 ClassLoader extcl = ExtClassLoader.getExtClassLoader();
 ```
 刨除其他代码，最核心的创建ExtClassLoader的代码为：
-```
+```java
     final File[] dirs = getExtDirs();
     int len = dirs.length;
     for (int i = 0; i < len; i++) {
@@ -327,7 +299,7 @@ ClassLoader extcl = ExtClassLoader.getExtClassLoader();
 > 注意区分**父类（super）**和**父classloader**的区别。**在代码实现上**，ExtClassLoader继承了父类URLClassLoader，但是**在业务逻辑上**，它的父classloader是null（BootstrapClassLoader）
 
 dirs的获取方式在`getExtDirs()`里：
-```
+```java
     private static File[] getExtDirs() {
         String s = System.getProperty("java.ext.dirs");
         File[] dirs;
@@ -348,7 +320,7 @@ dirs的获取方式在`getExtDirs()`里：
 所以ExtClassLoader检索class的路径就是`java.ext.dirs`指定的位置。
 
 这些路径（File数组）最终会被处理为URL数组，作为构造URLClassLoader的参数：
-```
+```java
     /*
      * Creates a new ExtClassLoader for the specified directories.
      */
@@ -359,7 +331,7 @@ dirs的获取方式在`getExtDirs()`里：
     }
 ```
 如果对怎么把File处理为URL感兴趣，可以看一下`getExtURLs`的内部实现，尤其是`getFileURL(File)`方法：
-```
+```java
     static URL getFileURL(File file) {
         try {
             file = file.getCanonicalFile();
@@ -379,10 +351,8 @@ dirs的获取方式在`getExtDirs()`里：
 > 关于URL所支持的file协议，可以参考：https://en.wikipedia.org/wiki/File_URI_scheme
 
 ### accessible?
-ExtClassLoader唯一的获取方式就是`ExtClassLoader#getExtClassLoader()`，然而由于ExtClassLoader是default权限，只有`sun.misc.Launcher`所在的包`sun.misc`里的类能够访问该方法，我们是不能获取ExtClassLoader的。
-
-Launcher创建完ExtClassLoader之后，拿ExtClassLoader创建了AppClassLoader：
-```
+ExtClassLoader唯一的获取方式就是`ExtClassLoader#getExtClassLoader()`，然而由于ExtClassLoader是default权限，只有`sun.misc.Launcher`所在的包`sun.misc`里的类能够访问该方法，我们是不能获取ExtClassLoader的：
+```java
 ClassLoader extcl = ExtClassLoader.getExtClassLoader();
 private ClassLoader loader = AppClassLoader.getAppClassLoader(extcl);
 ```
@@ -390,7 +360,7 @@ Launcher并没有提供外部访问创建好的extcl的方法，所以（这个�
 
 ## AppClassLoader
 AppClassLoader的创建流程和ExtClassLoader倒是如出一辙：
-```
+```java
     public static ClassLoader getAppClassLoader(final ClassLoader extcl)
         throws IOException
     {
@@ -418,6 +388,15 @@ AppClassLoader的创建流程和ExtClassLoader倒是如出一辙：
 
 这里将File转为URL用了和ExtClassLoader同样的`getFileURL(File)`方法。
 
+Launcher创建完ExtClassLoader之后，**拿ExtClassLoader创建了AppClassLoader**：
+```java
+ClassLoader extcl = ExtClassLoader.getExtClassLoader();
+private ClassLoader loader = AppClassLoader.getAppClassLoader(extcl);
+```
+**所以ExtClassLoader就是AppClassLoader的parent**。
+
+> **二者是一种逻辑上的组合机制，不是代码结构上的继承，别混淆了**。
+
 ### accessible?
 和ExtClassLoader不同的是，Launcher对外提供了访问AppClassLoader的方法：
 ```
@@ -432,7 +411,7 @@ AppClassLoader的创建流程和ExtClassLoader倒是如出一辙：
 
 ## system class loader
 由于AppClassLoader使用的场合特别广泛：给定一个类的plain name，就可以使用AppClassLoader从classpath下load该class，获取Class对象，生成class实例。所以ClassLoader提供了一个static方法`getSystemClassLoader`，方便我们获取AppClassLoader：
-```
+```java
     public static ClassLoader getSystemClassLoader() {
         initSystemClassLoader();
         if (scl == null) {
@@ -475,10 +454,39 @@ AppClassLoader的创建流程和ExtClassLoader倒是如出一辙：
 
 Tomcat自定义了自己的类加载器，比如可以做一些优化：类缓存。所有已加载的类都保存起来，防止不用时被垃圾回收掉。下次再需要这些类是就不用再去加载解析类的字节码了。比如可以做一些安全验证：禁止用户加载`javax`开头的包，这样就算用户造了一个假的`javax.servlet.Servlet`类，也不会被Tomcat加载进来。其他比如说类预载入、动态载入等都是一些Java已有的classloader不具备的功能，这些都需要自定义的classloader去实现。
 
-假设我现在有一个很奇怪的需求：工程里所有以"example.classloader"开头的类，都用自定义的classloader加载，其他类都用系统的classloader去加载，且加载每一个类之前都要输出提示，该怎么做？
-
 ## 怎么自定义ClassLoader
-首先肯定是依托URLClassLoader或者ClassLoader类实现自定义的classloader。一般是override它的`findClass`方法。但是我们的需求改变了class load的delegation机制了：并不是所有的class都先交给parent去load，如果是"example.classloader"开头的类，自己亲自去load。而这个delegation逻辑是在`loadClass`里实现的，所以这里必须要override `loadClass`方法。
+首先肯定是依托URLClassLoader或者ClassLoader类实现自定义的classloader。**一般是override它的`findClass`方法**。
+
+### 自定义一个符合双亲委派的ClassLoader
+比如，假设要实现一个从网络获取字节码的classloader，起名为NetworkClassLoader：
+```java
+   ClassLoader loader = new NetworkClassLoader(host, port);
+   Object main = loader.loadClass("Main", true).newInstance();
+        . . .
+```
+NetworkClassLoader可以**使用`ClassLoader#loadClass`去load一个class，该方法是符合双亲委派的。我们只需要在自己内部处理`findClass`的问题**：
+```java
+     class NetworkClassLoader extends ClassLoader {
+         String host;
+         int port;
+
+         public Class findClass(String name) {
+             byte[] b = loadClassData(name);
+             return defineClass(name, b, 0, b.length);
+         }
+
+         private byte[] loadClassData(String name) {
+             // load the class data from the connection
+              . . .
+         }
+     }
+```
+这里的findClass可以是通过socket读取一堆字节流，再`defineClass`将字节流解析为Class对象。
+
+### 自定义一个不双亲委派的ClassLoader
+**但是，双亲委派机制也是Java 1.2之后才出现的，只是一个推荐，并非强制要求！**
+
+假设我现在有一个很奇怪的需求：工程里所有以"example.classloader"开头的类，都用自定义的classloader加载，其他类都用系统的classloader去加载，且加载每一个类之前都要输出提示，该怎么做？这个需求改变了class load的delegation机制：并不是所有的class都先交给parent去load，如果是"example.classloader"开头的类，自己亲自去load。而这个delegation逻辑是在`loadClass`里实现的，**所以这里必须要override `loadClass`方法**。
 
 ```java
 public class CustomClassLoader extends ClassLoader {
@@ -613,14 +621,45 @@ System.out.println("Parent of CustomClassLoader:" + customClassLoader.getClass()
 # 其他
 ## Tomcat的classloader
 
-## resolveClass
-> Links the specified class. This (misleadingly named) method may be used by a class loader to link a class. If the class c has already been linked, then this method simply returns. Otherwise, the class is linked as described in the "Execution" chapter of The Java™ Language Specification.
-
-> https://docs.oracle.com/javase/specs/jls/se7/html/jls-12.html
-
-TBD
-
 ## `Thread#contextClassLoader`
-https://stackoverflow.com/a/1771725/7676237
+线程的上下文类加载器是在线程创建时由创建线程的线程（即父线程）设置的。
 
+> 线程的上下文类加载器通常是父线程的类加载器，但也可以通过Thread构造函数中的contextClassLoader参数来指定。
+
+为什么要给线程设置个类加载器？
+
+在Java应用程序中，**线程的上下文类加载器通常会被用来加载一些非系统类库的类或资源，例如SPI机制中的服务实现类**。因为服务实现类通常由Java虚拟机提供的扩展类加载器或系统类加载器来加载，这些类加载器并不知道应用程序的类加载器，因此需要使用线程的上下文类加载器来加载应用程序的类或资源。
+
+**即：在线程里放一个AppClassLoader，以加载classpath上的用户类。这样系统类（由高层级ClassLoader比如BootstrapClassLoader加载）就可以去加载classpath上的用户类了。不然用自己的ClassLoader（`Class#getClassLoader()`，即BootstrapClassLoader）加载不了classpath上的类啊**！比如SPI——
+
+> [JDBC与SPI]({% post_url 2021-09-12-jdbc-and-spi %})
+
+假设我们有一个应用程序，它提供一个服务接口com.example.Service，并在classpath中定义了一个META-INF/services目录，目录下有一个文件com.example.Service，其中包含了服务接口的实现类名com.example.impl.ServiceImpl。
+
+现在，我们需要在应用程序中使用这个服务，我们可以通过以下代码来获取服务实例：
+```java
+ServiceLoader<Service> loader = ServiceLoader.load(Service.class);
+for (Service service : loader) {
+    service.doSomething();
+}
+```
+在上述代码中，ServiceLoader.load(Service.class)方法会返回一个ServiceLoader对象，它会根据META-INF/services目录中的服务实现类名，动态地加载服务实现类并返回一个可迭代的Service对象集合。
+
+在服务实现类中，如果需要调用应用程序中的类或资源，就需要使用应用程序的类加载器来加载。**但是，服务实现类通常是由Java虚拟机提供的扩展类加载器（ext classloader）或系统类加载器（bootstrap classloader）来加载的，它们并不知道应用程序的类加载器。这时候，就需要使用线程的上下文类加载器来加载应用程序的类或资源**，例如：
+```java
+Thread.currentThread().getContextClassLoader().getResourceAsStream("config.properties");
+```
+上述代码中，Thread.currentThread().getContextClassLoader()方法返回线程的上下文类加载器，getResourceAsStream("config.properties")方法会使用该类加载器来加载应用程序的配置文件。这样，服务实现类就可以使用应用程序的类加载器来加载应用程序的类或资源了。
+
+**我们看一下JDK里`ServiceLoader.load(Service.class)`的源代码，确实是用的thread context class loader在加载SPI的实现类**：
+```java
+    public static <S> ServiceLoader<S> load(Class<S> service) {
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        return ServiceLoader.load(service, cl);
+    }
+```
+
+**这其实是对双亲委派机制的一种“破坏”，或者说一种逆向应用——父加载器委托子加载器去加载子加载器才能找到的类**！
+
+> 此处的“破坏”无贬义色彩，仅指不再是纯粹的双亲委派机制。
 
