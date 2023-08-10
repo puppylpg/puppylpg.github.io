@@ -218,9 +218,12 @@ UTF-8可以和ASCII兼容，UTF-16/32则不可以。
 - https://developer.twitter.com/en/docs/basics/counting-characters
 
 # Java
-## char/Character
+## char
 ### 使用补充面板的字符
-Java中的char（或者它的包装类Character）**一开始是基于原始的Unicode，即UCS-2设计的，长度为2 byte**。所以即使后来Unicode扩充到了17个面板，**char还是只能表示BMP中的字符**。
+
+**Java中的char和码点是一一对应的。所以char并不和字符一一对应**，只是大多数情况下一个码点一个字符，所以大多数情况下一个char一个字符。
+
+char**一开始是基于原始的Unicode，即UCS-2设计的，长度为2 byte**。所以即使后来Unicode扩充到了17个面板，**char还是只能表示BMP中的字符**。
 
 如果想表示补充面板的字符，比如[emoji露齿笑，U+1F600](http://www.ltg.ed.ac.uk/~richard/utf-8.cgi?input=1F600&mode=hex)，要么直接使用代理对的码点：
 ```
@@ -288,12 +291,14 @@ Ref:
 - https://stackoverflow.com/a/9354024/7676237
 
 ## string.lentgh()
-Java的String可以理解为char数组，**实际上，String底层就是封装了一个char数组，用来保存数据**。char是UTF-16编码的，所以String也是UTF-16编码的。
-
-String的length方法返回的是**Unicode code units的个数**：
+官方文档说String的length方法返回的是**Unicode code units的个数**：
 > Returns the length of this string. The length is equal to the number of Unicode code units in the string.
 
-对于UTF-16来说，code units = 2 byte，一个char能表示一个BMP的字符，也就是一个code unit。补充面板的字符都需要两个char来表示，也就是两个code unit：
+由于char和code unit一一对应，所以也可以说返回的是char的个数。**实际上Java的String里面封装的就是一个char数组`char value[]`，用来保存数据**。`length()`方法返回的就是`value.length`。
+
+因为char是UTF-16编码的，所以可以认为String也是UTF-16编码的。
+
+补充面板的字符都需要两个char来表示，也就是两个code unit，所以**他们每个字符的length就是2**：
 ```
         // 一个像“冬”但不是“冬”的文字
         int notDongCodePoint = 0x2F81A;
@@ -306,7 +311,8 @@ String的length方法返回的是**Unicode code units的个数**：
 ```
 所以“冬”作为BMP字符，length=1；补充面板中的那个[像冬而不是冬的字符](http://www.ltg.ed.ac.uk/~richard/utf-8.cgi?input=2F81A&mode=hex)，length=2。
 
-> **length返回的不是码点（code point）数，更不是字节数，而是UTF-16的code unit数，或者说char的数目。**
+emoji在java里的length也都是2。
+> 但是在Elasticsearch中，一个 Emoji 表情符号的长度被视为一个字符。这是因为 **Elasticsearch 默认情况下使用的 Unicode Tokenizer （也就是[Standard Tokenizer](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-standard-tokenizer.html)）会将表情符号视为单个字符进行分词和处理**。所以如果使用Java给带emoji的string做截断，截断的位置和elasticsearch不一样。
 
 参阅：
 - http://reedbeta.com/blog/programmers-intro-to-unicode/#diversity-and-inherent-complexity
@@ -316,4 +322,3 @@ String的length方法返回的是**Unicode code units的个数**：
 本来以为仅仅是稍微系统了解一下Unicode，应该很简单的就总结完了的，没想到就算忽视了许多细节，依旧搞了两三天……好复杂……主要是了解的越多，碰到的不认识的东西越多。可见Unicode本身一定是一个复杂到爆的东西…… 
 
 Orz
-
