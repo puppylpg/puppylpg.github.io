@@ -16,7 +16,7 @@ servlet在“前”端基于jdk NIO实现了servlet nio，解绑了long connecti
 - 可能是client发数据发的比较慢；
 - 可能是keep-alive导致client断开后server不自知，还在等connection上的新请求，直到timeout；
 
-以上种种导致一个线程必须和一个connection绑定。NIO则使用一个看门人：selector，使用一个selector替n个thread监视n个connection，从而**以一个selector的代价解放了n个thread**。将thread和connection解耦，**模型从thread per connection变成了thread per thread**。
+以上种种导致一个线程必须和一个connection绑定。NIO则使用一个看门人：selector，使用一个selector替n个thread监视n个connection，从而**以一个selector的代价解放了n个thread**。将thread和connection解耦，**模型从thread per connection变成了thread per request**。
 
 在servlet 3.1标准里，添加了使用NIO读写servlet request/response的API。
 
