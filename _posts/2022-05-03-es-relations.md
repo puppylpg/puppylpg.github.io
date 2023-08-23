@@ -432,6 +432,8 @@ GET user-blogs-nested/_search
 ### 缺点
 因为segment是只读的，需要更新文档时只能在新的segment里创建文档。又因为nested文档必须把父文档和子文档都存放在同一个segment，**所以更新任何一个子文档或者父文档，就意味着重新索引整个文档到新的segment。所以nested文档不适合子文档频繁更新的情况**。
 
+> 部分更新nested数据需要用到脚本，参考[这篇文章](https://iridakos.com/programming/2019/05/02/add-update-delete-elasticsearch-nested-objects)。
+
 ## parent child - 存放于同一shard
 **nested文档使用隐式的独立文档存储子文档，parent child则使用一个显式的单独的field指明父子关系，用来关联父子文档**。
 
@@ -1185,4 +1187,3 @@ denormalizing的缺点在于数据会有多份，不好维护。所以更适合�
 1. 因地制宜：不同的系统因为不同的设计用途，带来了不同的特性。而在支持理念上比较相似的功能的时候，不同的特性往往导致大家的实现千差万别，但其中很重要的就是：按照自己的特性，因地制宜设计和实现功能。在分布式数据库里，join如果引入网络开销必然是十分耗时的，而es作为一个快速搜索数据库又不能允许这种非常慢的搜索，那怎么办？**那就不要让有关系的数据跨节点**！所以es提出的nested（同一segment）和parent join（同一shard），都是基于这个前提的。
 
 做软件要牢记自己的初衷，也要能想清楚自己的特性，才能提出适合自己的做法，做出有个性的东西。
-
