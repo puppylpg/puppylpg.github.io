@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Elasticsearch：sort、aggregation"
+title: "Elasticsearch：排序和聚合"
 date: 2022-04-22 23:45:54 +0800
 categories: elasticsearch
 tags: elasticsearch
@@ -18,9 +18,11 @@ tags: elasticsearch
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/sort-search-results.html
 
 ## 按照得分排序
-es的查询结果，如果没有显式排序，默认按照文档的搜索得分排序。分数越高的文档和搜索词的相关性越强。
+es的查询结果，如果没有显式排序，默认按照文档的搜索得分排序。分数越高的文档和搜索词的相关性越强。从5.0开始，[默认的搜索算法从TF/IDF变成了BM25](https://www.elastic.co/cn/blog/elasticsearch-5-0-0-released)。
 
-TF/IDF（term frequency–inverse document frequency）：
+> On the search side, the default relevance calculation has been changed from TF/IDF to the more modern BM25.
+
+虽然[BM25](https://www.elastic.co/cn/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables)和TF/IDF（term frequency–inverse document frequency）不一样，但按照TF/IDF来理解也差不多：
 1. TF：词语在该文档出现频率高；
 2. IDF：且并不是在所有文档出现频率都这么高；
 
@@ -311,5 +313,4 @@ PUT my-index-000001/_mapping
   }
 }
 ```
-
 
