@@ -16,7 +16,7 @@ Java相关的锁：
 - 显式锁和内置锁的比较，显式锁介绍: [锁]({% post_url 2019-12-10-lock %})；
 - CAS、ABA问题、AtomicStampedReference、CAS和锁的区别: [CAS vs. 锁]({% post_url 2019-12-09-cas-vs-lock %})；
 - [锁性能比较]({% post_url 2019-12-11-lock-performance-compare %})；
-- 内置锁synchronized的底层原理: [Java Monitor]({% post_url 2021-04-07-monitor %})；
+- 内置锁synchronized的底层原理: [synchronized和Monitor]({% post_url 2021-04-07-monitor %})；
 - 显式锁、Condition的实现原理：[AQS：显式锁的深层原理]({% post_url 2021-04-08-aqs %})；
 
 
