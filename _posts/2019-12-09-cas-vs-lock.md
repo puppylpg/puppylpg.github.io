@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "CAS vs. 锁"
+title: "CAS：也可以不用锁"
 date: 2019-12-09 01:02:19 +0800
 categories: Java CAS concurrency
 tags: Java CAS concurrency
@@ -310,4 +310,3 @@ Unsafe提供的CAS操作有：
 但是**竞争与可伸缩性是背道而驰的**，**CAS能提高竞争的效率，从而提高程序的可伸缩性**。但是只有完全消除竞争，才能实现真正的可伸缩性。eg：如果不是所有线程都必须使用同一个全局变量（eg：计数器），那么每个线程使用ThreadLocal保存原本争用的变量，使之不再需要争用，才是最高效的实现（有一种用空间换效率的感觉）。
 
 > 共享资源是线程增加时影响更大的处理能力的瓶颈。
-
