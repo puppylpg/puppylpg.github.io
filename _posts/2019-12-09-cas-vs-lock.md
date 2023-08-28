@@ -13,7 +13,7 @@ tags: Java CAS concurrency
 
 # 为什么使用CAS
 ## 锁的缺陷
-虽然使用锁可以实现对贡献变量的争取访问，但是使用锁有一些缺陷：
+虽然使用锁可以实现对共享变量的独占访问，但是使用锁有一些缺陷：
 
 - 线程切换开销：未获得锁的线程将会被挂起，被唤醒后将等待可用时间片，然后在被调度时恢复上下文。这存在着比较大的开销；
 - 优先级反转（Priority Inversion）：当一个线程等待锁时，什么都做不了。如果拿到锁的线程被延迟执行（缺页等），所有等待锁的线程都要延迟执行。如果拿到锁的线程优先级比较低，那么等待锁的高优先级线程相当于比它更低；
@@ -31,7 +31,7 @@ volatile和锁比起来，是一种更轻量级的同步机制：
 volatile**不会发生线程上下文切换**，所以说是一种**更轻量的同步机制**。但是volatile的缺陷也很明显，不能用于构建复合操作，因为不能保证原子性。
 
 ## CAS - Compare And Swap
-锁，也就是独占锁，本质上是一种**悲观**技术（只要不加锁，共享区域就会被搞乱）。所有的操作都是排他的。
+锁，也就是独占锁，本质上是一种**悲观**技术（悲观地认为，只要不加锁，共享区域就会被搞乱）。所有的操作都是排他的。
 
 **乐观**的方法一般比悲观的高效：先操作，如果发现没有被干扰，成了。如果被干扰了，白搞了，try again（或者也可以不try，取决于策略）。
 
@@ -39,12 +39,12 @@ CAS是由底层CPU支持的操作：比较并交换。如果值和预期相同�
 
 **CAS执行失败的时候，并不会挂起线程，而是被告知失败，由于未被挂起（不会阻塞），该线程可以决定是否重试**。
 
-CAS既支持原子性，有类似于volatile变量的机制，可以理解为一种泛化的volatile变量。
+CAS既支持原子性，又类似于volatile变量的机制，可以理解为一种泛化的volatile变量。
 
 # CAS
 ## CAS的语义
 CAS的语义等同于下面的伪代码（只是语义上，真正实现上是CPU搞的，非常高效）：
-```
+```java
 /**
  * SimulatedCAS
  * <p/>
@@ -61,23 +61,20 @@ public class SimulatedCAS {
         return value;
     }
 
-    public synchronized int compareAndSwap(int expectedValue, int newValue) {
+    public synchronized boolean compareAndSwap(int expectedValue, int newValue) {
         int oldValue = value;
-        if (oldValue == expectedValue)
+        if (oldValue == expectedValue) {
             value = newValue;
-        return oldValue;
-    }
-
-    public synchronized boolean compareAndSet(int expectedValue, int newValue) {
-        return (expectedValue == compareAndSwap(expectedValue, newValue));
+            return true;
+        } else {
+            return false;
+        }
     }
 }
 ```
-> - CompareAndSwap无论成功与否，均返回旧值；
-> - CompareAndSet返回boolean，可以辨别是否执行成功了；
 
 ## 使用场景
-读取A，根据A，计算得到B，判断A是否变了，没变则将A设为B。
+读取A的值，计算得到B，在set回去之前，判断A是否变了，没变则将A设为B。
 
 如果变了，则有不同的策略：
 - 如果是对一个共享的计数器执行+1操作，则失败后要继续重试；
@@ -87,7 +84,7 @@ public class SimulatedCAS {
 
 ## 使用CAS实现非阻塞功能
 比如非阻塞计数器：
-```
+```java
 /**
  * CasCounter
  * <p/>
@@ -107,24 +104,23 @@ public class CasCounter {
         int v;
         do {
             v = value.get();
-        } while (v != value.compareAndSwap(v, v + 1));
+        } while (!value.compareAndSwap(v, v + 1));
         return v + 1;
     }
 }
 ```
 
-可以看到CAS和加锁比，**主要缺陷**就是：使用CAS要自己考虑处理竞争问题（是否要重试之类的），而使用锁，锁自己会处理这些问题，我们只需要假设拿到锁，考虑怎么办就行了。
+可以看到CAS和加锁比，**主要缺陷**就是：**使用CAS要自己考虑处理竞争问题（是否要重试之类的），而使用锁，锁自己会处理这些问题，我们只需要假设拿到锁，考虑怎么用就行了**。
 
 使用CAS将一些阻塞算法换成非阻塞实现，是需要好好考虑的事情（一般由专家完成）。
 
 ## 性能
 > 在支持CAS的平台上，JVM会编译为相应的CAS指令，最坏情况，如果平台不支持CAS，JVM在底层会将其实现为**自旋锁**。现代处理器针对多处理器操作，一般都提供了这种指令。
 
-所以也可以从逻辑上，将CAS理解为一种更高效的自旋。那么CAS和锁一个无限重试，一个阻塞从而引入切换上下文开销，谁更快？
+所以也可以从逻辑上，将CAS理解为一种更高效的自旋。那么CAS和锁相比，一个无限重试，一个阻塞从而引入切换上下文开销，谁更快？
 
 结论：
 - 如果竞争程度特别高（极端情况，根本没有需要CPU计算的任务，就是在不停争用共享变量），锁的性能更好：
-- 在更真实的环境中，CAS比锁要高效；
 
 因为：
 - **CAS的不断重试其实在本就激烈的竞争环境中引入了更多的竞争**；
@@ -134,7 +130,7 @@ public class CasCounter {
 - 交通流量大，拥堵时，悲观的信号灯方式更高效，总能一次过一批车，而环岛就很堵，所有车都在慢慢挪动。但是低拥堵时期，环岛能实现更高吞吐（不用傻等），红绿灯就得傻等，很低效；
 - 以太网中，当低通信流量时，竞争机制很好，但是高拥堵时，令牌环网络反而更好；
 
-但是真实情况是，更多的时候还有计算任务，这样对共享变量的访问频率变会降低，通常CAS更高效。
+但是如果更多的时候是计算任务，这样对共享变量的访问频率变会降低，通常CAS更高效。
 
 ## ABA问题
 **CAS虽然compare and swap整个过程是原子操作，但是和它之前的操作不是原子的**，在做这个操作之前，可能休眠了，原值先被其他线程改成了其他值，又被改了回去。这一来一回的改动，该线程是不知道的。
@@ -151,8 +147,8 @@ public class CasCounter {
 1. 使用锁。检查、set（此时没必要使用compareAndSet了）两个动作变成原子操作；
 2. 加个版本号，得以感知是否发生了变动。
 
-Java提供了`AtomicStampedReference<V>`，它的compareAndSet就比`AtomicReference<V>`多了校验版本的功能。这个stamp就是版本号：
-```
+**Java提供了`AtomicStampedReference<V>`，它的compareAndSet就比`AtomicReference<V>`多了校验版本的功能。它的stamp参数就是版本号**：
+```java
     public boolean compareAndSet(V   expectedReference,
                                  V   newReference,
                                  int expectedStamp,
@@ -166,24 +162,28 @@ Java提供了`AtomicStampedReference<V>`，它的compareAndSet就比`AtomicRefer
              casPair(current, Pair.of(newReference, newStamp)));
     }
 ```
-不过这个stamp的增加不是程序自动维护的，而是由用户去设置……它的set和compareAndSet都要提供一个新的stamp……一般设置为`#getStamp() + 1`。但是为毛要这么设计？程序自己维护自动自增不好吗？
+的set和compareAndSet都要提供一个新的stamp，般设置为`AtomicStampedReference#getStamp() + 1`。
 
 参考：
 - https://www.cnblogs.com/549294286/p/3766717.html
 
-## 使用AtomicStampedReference的坑
-jdk有一堆AtomicXXX，AtomicReference是最通用的那一个。比如AtomicInteger可以算是AtomicReference的特例。但是AtomicStampedXXX只有AtomicStampedReference一个，如果想存带stamp的int，应该是用`AtomicStampedReference<Integer>`。但是，如果要获取其当前存储的值，无比用Integer而非int：
-```
+## 使用`AtomicStampedReference`的坑
+jdk有一堆AtomicXXX，AtomicReference是最通用的那一个。比如AtomicInteger可以算是AtomicReference的特例。但是AtomicStampedXXX只有AtomicStampedReference一个，如果想存带stamp的int，应该使用`AtomicStampedReference<Integer>`。
+
+> 类似泛型集合，没有IntList，只好用`List<Integer>`。
+
+但是，**如果要获取其当前存储的值，必须用Integer而非int**：
+```java
 Integer now = xxx.getReference()
 ```
-如果用int接收，则**发生了拆箱**。如果拆箱之后再调用copareAndSet：
-```
+如果用int接收，则**发生了拆箱**。如果拆箱之后再调用compareAndSet：
+```java
 xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
 ```
 此时由于该函数接收的第一个参数类型为Integer，所以**又会发生装箱**。
 
 装箱：
-```
+```java
     public static Integer valueOf(int i) {
         if (i >= IntegerCache.low && i <= IntegerCache.high)
             return IntegerCache.cache[i + (-IntegerCache.low)];
@@ -191,7 +191,7 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
     }
 ```
 -128~127的Integer是被IntegerCache这个东西cache好的：
-```
+```java
     private static class IntegerCache {
         static final int low = -128;
         static final int high;
@@ -226,17 +226,17 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
         private IntegerCache() {}
     }
 ```
-所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。AtomicStampedReference的compareAndSet是使用`==`来进行引用比较的，不是值比较。
+所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。**`AtomicStampedReference#compareAndSet`是使用`==`来进行引用比较的，不是值比较**。
 
-**所以用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为引用比较返回false而拒绝更新**。
+**所以如果用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为用的是引用比较返回false，拒绝更新**。
 
 
-# JVM里的CAS类 - 原子变量类：AtomicXxx
+# 原子变量类：AtomicXxx
 JVM里的CAS原子变量类直接利用了硬件对并发的支持。
 
 ## 底层CAS支持
 以AtomicInteger为例，它提供的compareAndSet复合操作：
-```
+```java
     /**
      * Atomically sets the value to the given updated value
      * if the current value {@code ==} the expected value.
@@ -251,7 +251,7 @@ JVM里的CAS原子变量类直接利用了硬件对并发的支持。
     }
 ```
 该操作使用了unsafe的compareAndSwapInt，这是一个native方法：
-```
+```java
 public final native boolean compareAndSwapInt(Object var1, long var2, int var4, int var5);
 ```
 > Unsafe是位于sun.misc包下的一个类，主要提供一些用于执行低级别、不安全操作的方法，如直接访问系统内存资源、自主管理内存资源等，这些方法在提升Java运行效率、增强Java语言底层资源操作能力方面起到了很大的作用。
@@ -264,7 +264,7 @@ Unsafe提供的CAS操作有：
 - compareAndSwapLong(Object o, long offset, long expected, long update);
 
 **offset指的是AtomicInteger的value字段在AtomicInteger对象中的内存偏移地址**：
-```
+```java
     static {
         try {
             valueOffset = unsafe.objectFieldOffset
@@ -278,7 +278,7 @@ Unsafe提供的CAS操作有：
 有了基础的CAS操作，可以利用其搞一些原子的复合操作。
 
 比如AtomicInteger的getAndAdd，就是一个原子复合操作：
-```
+```java
     /**
      * Atomically adds the given value to the current value.
      *
@@ -290,7 +290,7 @@ Unsafe提供的CAS操作有：
     }
 ```
 它使用的是unsafe的getAndAddInt，而这个方法就是使用unsafe自身的CAS操作compareAndSwapInt实现的：
-```
+```java
     public final int getAndAddInt(Object object, long valueOffset, int delta) {
         int oldValue;
         do {
