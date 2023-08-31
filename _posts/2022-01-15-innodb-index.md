@@ -2,8 +2,8 @@
 layout: post
 title: "Innodb - 索引"
 date: 2022-01-15 02:54:56 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: mysql innodb skiplist
+tags: mysql innodb skiplist
 ---
 
 在[Innodb - 页]({% post_url 2022-01-14-innodb-page %})中，介绍了页内行记录的排列方式——类似于一个拥有一层目录的跳表，可以加速行的定位。既然现在页与页之间也构成了双向链表，那么类比**页内跳表**，可以在页与页之间构建一个**页间跳表**，以加速页的定位。
