@@ -41,7 +41,7 @@ innodb索引即数据，有两种page：存放数据记录的叶子节点page、
 # 碎片区（fragment）
 一个表至少有聚簇索引，一个聚簇索引至少两个段，一个段至少一个区，一个区1MB，那岂不是只要创建个表就得占用2MB？哪怕只存储一条数据也要占2MB，这也太浪费了。
 
-所以这里又有了一个折中：innodb创建的第一个区叫碎片区，这个区不属于任何段。在这个区里，page既可以做叶子节点也可以做非叶子节点。当需要存储数据的时候，就从碎片区分配一页。只有当一个段赵勇超过32个碎片区页面（0.5MB）之后，才开始以区为单位为段分配空间。
+所以这里又有了一个折中：innodb创建的第一个区叫碎片区，这个区不属于任何段。在这个区里，page既可以做叶子节点也可以做非叶子节点。当需要存储数据的时候，就从碎片区分配一页。只有当一个段拥有超过32个碎片区页面（0.5MB）之后，才开始以区为单位为段分配空间。
 
 > 所以段可以由区组成，也可以由页组成（碎片区的页）。
 
@@ -92,7 +92,7 @@ MySQL [(none)]> show variables like 'datadir';
 ## 连接mysql
 因为使用的是WSL里的mysql client连接windows docker里的mysql server，比较好玩，所以介绍一下连接过程。
 
-## 远程tcp连接
+### 远程tcp连接
 使用WSL（Debian）里的mysql client连接docker里的mysql。**默认linux的mysql客户端用的是unix domain socket连接mysql**，docker里的mysql server和WSL相当于不在同一个系统上，所以WSL里自然没有`/run/mysqld/mysqld.sock`。因此直接启动WSL里的mysql client是连不上的docker里的mysql的：
 ```
 ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/run/mysqld/mysqld.sock' (2)
@@ -111,7 +111,7 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 MySQL [(none)]> 
 ```
 
-## 本地socket连接
+### 本地socket连接
 mysql是在docker里启动的，所以会在这个container里创建socket。可以去docker里求证。
 
 首先使用bash打开这个container：
@@ -601,7 +601,7 @@ root@cc38467fca81:/var/lib/mysql/pokemon# ibd2sdi user.ibd
 从中可以找到列信息等。
 
 ## 系统数据库
-mysql还有一些自己创建的的数据库，其实就是mysql用mysql用来管理mysql自己的数据……
+mysql还有一些自己创建的的数据库，其实就是mysql用mysql来管理mysql自己的数据……
 
 > 使用我自己的功能来管理我自己 ┓( ´∀` )┏
 
@@ -617,5 +617,4 @@ MySQL [(none)]> show databases;
 +--------------------+
 4 rows in set (0.001 sec)
 ```
-
 
