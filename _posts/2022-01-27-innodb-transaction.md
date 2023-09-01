@@ -130,7 +130,7 @@ buffer pool的页在修改之后成为脏页，为什么不直接刷到磁盘？
 
 > 当然，如果直接写磁盘，不使用buffer pool，也不会有持久性什么事儿了。如果直接写磁盘，innodb可以保证数据一定是持久的。
 
-## 又一个pool
+## 又一个pool：redo log刷盘时机
 事实上redo log也有类似于buffer pool的log pool，redo log也不是直接往磁盘写，而是先往log pool写，再周期性写到磁盘上。
 
 额，又一个pool？？？引入redo log就是因为有个buffer pool。现在同样的问题——redo log还没从log pool写到磁盘上数据库就崩溃了怎么办？再来个redo redo log？
@@ -145,6 +145,11 @@ buffer pool的页在修改之后成为脏页，为什么不直接刷到磁盘？
 - **如果事务在完成前就崩了，那刷不刷盘都不重要**：如前所述。
 
 > 所以redo log不需要再搞个redo redo log。不然岂不无限套娃，没完了……
+
+### redo log影响多大性能
+虽然不直接刷buffer pool的脏页到磁盘而是选择写入顺序的redo log里，已经极大提升了性能。但实际上，redo log刷盘时机也可以优化。redo log默认是一个事务结束时，redo log才会刷盘，对于语句比较多的事物，有多大影响？
+
+参考[这个](https://www.modb.pro/db/70174)，如果事务里有1000条update，组成一个事务，时间能从4s降到0.2s，还是很多的。
 
 ## redo log结构
 redo log为什么很小？因为需要记录的东西不多：
