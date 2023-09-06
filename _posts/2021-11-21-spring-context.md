@@ -6,26 +6,26 @@ categories: spring
 tags: spring
 ---
 
-[Spring - bean的生命周期]({% post_url 2021-11-16-spring-bean-lifecycle %})介绍了spring bean的生命周期需要经过哪些步骤，但是这些只是一半的工作。bean之所以有这些步骤可做，是因为bean的容器在配合它：虽然已经定义了各种操作bean的接口，比如BeanPostProcessor等，如果容器不去响应他们，也就没法完成这些所谓的回调。只有bean和容器协同使用这些接口，才能完成完整的spring框架功能。
+[Spring - bean的生命周期]({% post_url 2021-11-16-spring-bean-lifecycle %})介绍了spring bean的生命周期需要经过哪些步骤，但是这些只是一半的工作。bean之所以有这些步骤可做，是因为bean的容器在配合它：虽然已经定义了各种操作bean的接口，比如BeanPostProcessor等，如果容器不去响应他们，也就没法完成这些所谓的回调。只有bean和容器协同使用这些接口，才能实现完整的spring框架功能。
 
 1. Table of Contents, ordered
 {:toc}
 
 # ApplicationContext启动流程
 以启动AnnotationConfigApplicationContext为例：
-```
+```java
 ApplicationContext context = new AnnotationConfigApplicationContext(xxx.class);
 ```
 其中xxx.class，是以注解方式实现的bean配置。
 
 之后就可以从context里获取bean了：
-```
+```java
 Car car = context.getBean("car", Car.class);
 ```
 也就是说，当创建ApplicationContext完之后，整个容器就启动完毕了，并完成了bean的初始化工作。这些都是怎么做到的？
 
 查看AnnotationConfigApplicationContext的构造函数：
-```
+```java
 	public AnnotationConfigApplicationContext(Class<?>... annotatedClasses) {
 		this();
 		register(annotatedClasses);
@@ -34,7 +34,7 @@ Car car = context.getBean("car", Car.class);
 ```
 
 第一步，this函数就是在准备读取配置的工具。这里的配置是带annotation的Java类配置：
-```
+```java
 		this.reader = new AnnotatedBeanDefinitionReader(this);
 		this.scanner = new ClassPathBeanDefinitionScanner(this);
 ```
@@ -43,10 +43,8 @@ Car car = context.getBean("car", Car.class);
 ## ResourceLoader
 spring既然有各种形式的配置：xml，java class，就同时拥有配套的读取配置的工具。哪怕只读xml，也有按照file路径读取、从classpath下读取等不同实现。这些都是ResourceLoader的各种不同实现类来完成的，以后再介绍。
 
-***
-
 第二步，register实际就是开始用reader读取注解标注的java类配置：
-```
+```java
 	public void register(Class<?>... annotatedClasses) {
 		Assert.notEmpty(annotatedClasses, "At least one annotated class must be specified");
 		this.reader.register(annotatedClasses);
@@ -65,45 +63,45 @@ spring既然有各种形式的配置：xml，java class，就同时拥有配套�
 6. 销毁bean；
 
 再看refresh函数的步骤，基本完美对应了销毁前的各种工作：
-```
-				// Tell the subclass to refresh the internal bean factory.
-				ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
-    
-				// Prepare the bean factory for use in this context.
-				prepareBeanFactory(beanFactory);
+```java
+// Tell the subclass to refresh the internal bean factory.
+ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
-				// Allows post-processing of the bean factory in context subclasses.
-				postProcessBeanFactory(beanFactory);
+// Prepare the bean factory for use in this context.
+prepareBeanFactory(beanFactory);
 
-				// Invoke factory processors registered as beans in the context.
-				invokeBeanFactoryPostProcessors(beanFactory);
+// Allows post-processing of the bean factory in context subclasses.
+postProcessBeanFactory(beanFactory);
 
-				// Register bean processors that intercept bean creation.
-				registerBeanPostProcessors(beanFactory);
+// Invoke factory processors registered as beans in the context.
+invokeBeanFactoryPostProcessors(beanFactory);
 
-				// Initialize message source for this context.
-				initMessageSource();
+// Register bean processors that intercept bean creation.
+registerBeanPostProcessors(beanFactory);
 
-				// Initialize event multicaster for this context.
-				initApplicationEventMulticaster();
+// Initialize message source for this context.
+initMessageSource();
 
-				// Initialize other special beans in specific context subclasses.
-				onRefresh();
+// Initialize event multicaster for this context.
+initApplicationEventMulticaster();
 
-				// Check for listener beans and register them.
-				registerListeners();
+// Initialize other special beans in specific context subclasses.
+onRefresh();
 
-				// Instantiate all remaining (non-lazy-init) singletons.
-				finishBeanFactoryInitialization(beanFactory);
+// Check for listener beans and register them.
+registerListeners();
 
-				// Last step: publish corresponding event.
-				finishRefresh();
+// Instantiate all remaining (non-lazy-init) singletons.
+finishBeanFactoryInitialization(beanFactory);
+
+// Last step: publish corresponding event.
+finishRefresh();
 ```
 
 ## 初始化BeanFactory
 为什么要初始化BeanFactory？
 
-BeanFactory接口定义了一堆bean获取的方法。**之前已经读取了bean config，现在可以把config转成BeanDefinitionRegistry装入BeanFactory里了**。
+BeanFactory接口定义了一堆获取bean的方法。**之前已经读取了bean config，现在可以把config转成BeanDefinitionRegistry装入BeanFactory里了**。
 
 之后，就可以从factory里获取bean了。
 
@@ -136,8 +134,6 @@ BeanDefinition作为和bean定义语法相对应的语法结构，自然是bean�
 ## bean post process
 实例化bean前后，初始化bean前后，都可以调用bean post process做一些改动。
 
-TODO: InitDestroyAnnotationBeanPostProcessor是什么时候注册到spring容器上的？？？？？？？？？
-
 ## 初始化国际化相关的消息源
 
 ## 注册listener
@@ -148,6 +144,7 @@ TODO: InitDestroyAnnotationBeanPostProcessor是什么时候注册到spring容器
 - `BeanWrapper`：填充bean属性；
 
 ## 发布ApplicationContext完成事件
+见下文容器事件。
 
 # 配置文件
 spring可以使用外部配置文件配置一些变量，并在bean配置里引用。比如数据库的地址、用户名密码、一些自定义的周期任务的时间等等。
@@ -158,7 +155,7 @@ spring可以使用外部配置文件配置一些变量，并在bean配置里引�
 - order：属性文件优先级顺序；
 - placeholderPrefix/placeholderSuffix：配置占位符格式。默认是`${`和`}`；
 
-```
+```xml
 <!--1.使用传统的PropertyPlaceholderConfigurer引用属性文件  -->
 <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" p:fileEncoding="utf-8">
 	<property name="locations">
@@ -208,8 +205,8 @@ spring本身提供的事件根定义是ApplicationEvent，主要是容器相关�
 - ContextClosedEvent
 - ContextStoppedEvent
 
-所以我们可以定义一个主要是容器相关的事件ApplicationContextEvent的子类，创建一种新事件：
-```
+所以我们可以定义一个容器相关的事件ApplicationContextEvent的子类，创建一种新事件：
+```java
 public class MailSendEvent extends ApplicationContextEvent {
 	private String to;
 	
@@ -227,7 +224,7 @@ source是事件里必须有的，代表事件源，也就是ApplicationContext�
 
 ## listener
 再创建一个listener，接收这种事件：
-```
+```java
 public class MailSendListener implements ApplicationListener<MailSendEvent>{
 
 	public void onApplicationEvent(MailSendEvent event) {
@@ -239,8 +236,7 @@ public class MailSendListener implements ApplicationListener<MailSendEvent>{
 注意，spring的listener不需要判断接收事件的类型是不是自己感兴趣的！**因为spring只会把事件发给匹配它的listener，而不是所有的listener**！怎么做到的？
 
 spring将事件委托给了SimpleApplicatonEventMulticaster，看它触发事件的时候是怎么通知listener的：
-```
-
+```java
 	ResolvableType type = (eventType != null ? eventType : resolveDefaultEventType(event));
 	for (final ApplicationListener<?> listener : getApplicationListeners(event, type)) {
 	    ...
@@ -252,7 +248,7 @@ spring将事件委托给了SimpleApplicatonEventMulticaster，看它触发事件
 
 ## 事件触发
 我们要持有spring容器，才能使用它发布事件。持有的方式就是借助于回调接口`ApplicationContextAware`：
-```
+```java
 public class MailSender implements ApplicationContextAware {
 
 	private ApplicationContext ctx ;
@@ -275,5 +271,4 @@ public class MailSender implements ApplicationContextAware {
 ## 事件用途
 比如创建一个`ApplicationListener<ContextRefreshedEvent>`，在容器构建好之后做一些操作（获取所有的bean，做一些奇奇怪怪的修改）。
 
-如果对逻辑的处理可以拆成异步的几部分，也可以用事件，比如上述mail send事件。
-
+如果对逻辑的处理可以拆成几部分，也可以用事件，比如上述mail send事件。
