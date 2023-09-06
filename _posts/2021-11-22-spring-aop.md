@@ -70,7 +70,7 @@ AOP的接口由AOP联盟制作。
 所以需要手动指定这两点。
 
 接口：一个要考试、要玩耍、会崩溃的学生：
-```
+```java
 public interface Student {
    void examine(String name);
    void play(String name);
@@ -78,7 +78,7 @@ public interface Student {
 }
 ```
 原生类：一个正常的学生实现：
-```
+```java
 public class NaiveStudent implements Student {
 
 	@Override
@@ -101,7 +101,7 @@ public class NaiveStudent implements Student {
 但这还不够——一个优秀的学生，考前要知道复习，考后要记得放松休息。
 
 考前复习增强：
-```
+```java
 /**
  * 考前要知道复习
  */
@@ -120,7 +120,7 @@ public class PrepareBeforeExam implements MethodBeforeAdvice {
 ```
 
 考后放松增强：
-```
+```java
 /**
  * 玩后要知道休息
  */
@@ -140,7 +140,7 @@ public class SleepAfterPlay implements AfterReturningAdvice {
 ```
 
 其实来个环绕增强，可以一步搞定前面的两种增强。考前放松，考后休息一步到位：
-```
+```java
 /**
  * 考前复习 + 考后放松
  */
@@ -171,7 +171,7 @@ public class PrepareThenRelaxAroundExam implements MethodInterceptor {
 ```
 
 异常处理的增强：
-```
+```java
 /**
  * 一般处理异常的都叫xxxManager。它能把处理异常的代码从主代码中分离出来。
  * 但是这个处理异常的代码只是在异常发生后，像拦截器一样被调用一下，它并不能阻止异常被继续抛出。
@@ -199,7 +199,7 @@ public class BreakdownManager implements ThrowsAdvice {
 > 换个角度想想，如果spring在增强里把异常吞掉了，虽然事务的确回滚了，但是程序猿却不知道曾发生过这个异常，这就很离谱。
 
 把advice和target组装起来：
-```
+```java
 /**
  * @author puppylpg on 2022/07/04
  */
@@ -245,7 +245,7 @@ public class OnlyAdvice {
 
 > `FactoryBean`是一种特殊的bean，是使用一个自定义的工厂组装bean。当调用getBean获取bean的时候，返回的并不是factory bean本身，而是调用了`FactoryBean#getObject`方法，返回了这个factory用自定义的方法造出的bean。
 
-`ProxyFactoryBean`可以设置一下几个属性：
+`ProxyFactoryBean`可以设置以下几个属性：
 - target：基于谁进行增强，即被代理对象；
 - proxyInterfaces：代理要实现哪些接口。其实就是被代理类的接口；
 - proxyTargetClass：代理哪个类。和上面的属性二选一。如果是代理类，只能CGLib；
@@ -254,7 +254,7 @@ public class OnlyAdvice {
 - singleton：默认为true。如果不是singleton，就别用CGLib了；
 
 获取加强版学生：
-```
+```java
     private static void run(Class<?>... annotatedClasses) {
         ApplicationContext applicationContext = new AnnotationConfigApplicationContext(annotatedClasses);
 
@@ -300,18 +300,18 @@ BUT THE EXCEPTION STILL THROW
 ```
 examine和play都织入了增强。
 
-不过有个问题：examine前需要复习，play前还需要复习吗？**如果想只对examine注入增强怎么办？这是一个指定切点的问题**。
+不过有个问题：examine前需要复习，play前还需要复习吗？**如果只想对examine注入增强怎么办？这是一个指定切点的问题**。
 
 这也是上面的“[WRONG after]/[WRONG before]/[WRONG around]”输出的原因。
 
-显然，如果像上面一样只用增强，还要在增强之前判断一下该方法是不是我们要增强的方法`if ("examine".equals(method.getName()))`，非常啰嗦。显然，在接口里再抽象出一个统一的match方法会更好，而这就是在判断切点。
+显然，如果像上面一样只用增强，还要在增强之前判断一下该方法是不是我们要增强的方法`if ("examine".equals(method.getName()))`，非常啰嗦，在接口里再抽象出一个统一的match方法会更好，而这就是在判断切点。
 
 ## 切面advisor：只增强特定切点
 **在哪儿注入，注入什么，这两个问题加起来就是切面**。
 
 ### 切点
 注入代码的地方用切点表示。spring用`Pointcut`表示切点，有两种过滤方式：类符不符合要求、方法符不符合要求。所以Pointcut里有两种filter：
-```
+```java
 public interface Pointcut {
 
 	/**
@@ -338,7 +338,7 @@ public interface Pointcut {
 > 虽然可以在实现增强的时候先判断一下类和方法是不是目标类和方法，但是这样对开发者的负担过重了。如果框架能提前让开发者指定只给特定的方法注入增强，也就是切点，那么开发者的开发工作会清晰简洁很多。这一点很像spring容器提供的事件触发机制：只有接收相应事件的listener才能收到事件，而不是所有的listener。
 
 ### 切面`Advisor`
-spring用`Advisor`接口表示切面，用这个词大概是因为提出advice（增强）的人（advisor）会告诉你在哪里（pointcut）注入哪些（advice）？可能是吧。**反正没有Aspect这个接口**。
+spring用`Advisor`接口表示切面，用这个词大概是因为提出advice（增强）的人（advisor）会告诉你在哪里（pointcut）注入什么东西（advice）？可能是吧。**反正没有Aspect这个接口**。
 
 切面接口类型：
 - `Advisor`：**只包含一个增强Advice**，但是没定义切点，所以默认对所有切入点生效。也就是上面举的例子。**因为太宽泛，一般不会直接使用**；
@@ -361,7 +361,7 @@ spring用`Advisor`接口表示切面，用这个词大概是因为提出advice�
 **是通过方法名来定义切点的。**
 
 搞一个只会给examine方法（但没说方法调用前还是方法调用后）进行增强的切面：
-```
+```java
 /**
  * {@link NaiveStudent#examine(String)}切面，但是advice还没决定，需要后期{@link #setAdvice(Advice)}。
  *
@@ -383,7 +383,7 @@ public class ExamAdvisor extends StaticMethodMatcherPointcutAdvisor {
 **切面所定义的切点只是“在哪个方法”，但是在方法“之前”还是“之后”则由增强决定**。比如上面说的AfterReturnAdvice。
 
 同理，其他两个切面：
-```
+```java
 /**
  * {@link NaiveStudent#play(String)}切面，但是advice还没决定，需要后期{@link #setAdvice(Advice)}。
  *
@@ -424,7 +424,7 @@ public class BreakdownAdvisor extends StaticMethodMatcherPointcutAdvisor {
 ```
 
 配置的时候，先把advice放入advisor，这样切面就完整了（切点 + 增强）：
-```
+```java
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
     public ExamAdvisor examAdvisor() {
@@ -466,7 +466,7 @@ public class BreakdownAdvisor extends StaticMethodMatcherPointcutAdvisor {
     }
 ```
 切面定义好了，和之前一样，配置一个ProxyFactoryBean用于生成代理对象bean就行了：
-```
+```java
     /**
      * 如果一个bean是{@link org.springframework.beans.factory.FactoryBean}，getBean的时候，
      * get的不是这个factory bean本身，而是它产生的bean。
@@ -509,7 +509,7 @@ BUT THE EXCEPTION STILL THROW
 
 ### `RegexpMethodPointcutAdvisor`
 regex匹配切点的切面只需要配置一下想要的正则就行了，切点为所有play方法：
-```
+```java
     /**
      * 能正则匹配的切面
      */
@@ -536,7 +536,7 @@ regex匹配切点的切面只需要配置一下想要的正则就行了，切点
 spring之前提供了一种 ~~`DynamicMethodMatcherPointcutAdvisor`~~，不过后来弃用了。可以通过动态切点`DynamicMethodMatcherPointcut` + `DefaultPointcutAdvisor`的方式，组成一个动态切面。
 
 之前说过，`Pointcut`判断类是否符合，用的是`ClassFilter`：
-```
+```java
 public interface ClassFilter {
 
 	/**
@@ -557,7 +557,7 @@ public interface ClassFilter {
 就是简单和类名匹配一下，看类名是不是自己想增强的类。不是的话就不是pointcut。
 
 判断方法是否符合也是一样的，`MethodMatcher`：
-```
+```java
 public interface MethodMatcher {
 
 	/**
@@ -620,7 +620,7 @@ public interface MethodMatcher {
 所以想用动态切面，除了要实现`boolean matches(Method method, Class<?> targetClass, Object[] args)`，还要实现`boolean matches(Method method, Class<?> targetClass)`和`boolean isRuntime()`，**先使用后两个方法进行“剪枝”**。
 
 一个示例实现（DynamicMethodMatcherPointcut已经实现isRuntime方法恒为true了）：
-```
+```java
 public class PrepareDynamicPointcut extends DynamicMethodMatcherPointcut {
 	private static List<String> toPrepare = new ArrayList<String>();
 
@@ -674,7 +674,7 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
 凡是满足相应名称的bean，通通生成代理bean。
 
 只要名称是Teacher结尾的bean，通通注入“提前复习”这一增强：
-```
+```xml
 	<bean id="naiveStudent" class="com.smart.advisor.NaiveStudent" />
 	<bean id="naiveTeacher" class="com.smart.advisor.NaiveTeacher" />
 	<bean id="prepareAdvice" class="com.smart.advisor.PrepareBeforeAdvice" />
@@ -692,8 +692,7 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
 上面花里胡哨讲了一大堆切面，不就是想说：切面代表着切点和增强嘛，有了切面，既知道在哪里注入，又知道要注入什么。**既然如此，切面不就指明了所有要代理的bean的信息吗？**
 
 所以定义一堆切面之后：
-```
-
+```java
     /**
      * 不能再用这个了，这是一个不完善的切面，会被{@link #defaultAdvisorAutoProxyCreator()}
      * 检测到，用的时候发现这个切面不完整：UnknownAdviceTypeException
@@ -739,7 +738,7 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
     }
 ```
 就可以自动给符合这些切面的bean创建动态代理了：
-```
+```java
     /**
      * 一个{@link org.springframework.beans.factory.config.BeanPostProcessor}，能自动检测所有的切面bean，
      * 所有被该切面匹配的bean都会生成代理对象。
@@ -751,8 +750,8 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
 }
 ```
 
-现在可以直接获取Student类型的bean了，因为spring只创建了增强后的Student，而之前的那些配置都会先创建普通的Student，再创建增强的Student，所以要使用名称作区分：
-```
+现在可以直接获取Student类型的bean了：之前的那些配置都会先创建普通的Student，再创建增强的Student，会有两个Student类型的bean，所以要使用名称作区分。现在spring只创建了增强后的Student，直接通过类型获取bean就可以了：
+```java
         // 这里只需要使用类型就行了，因为只会有一个名为naiveStudent的bean，它在创建的时候会被BeanPostProcessor处理一下，变成增强bean，但名字没变
         Student strengthen = applicationContext.getBean(Student.class);
 ```
@@ -779,7 +778,7 @@ BUT THE EXCEPTION STILL THROW
 
 ## 这些`BeanPostProcessor`是谁
 以`DefaultAdvisorAutoProxyCreator`为例。因为它是给所有符合切面的bean创建动态代理，所以在它的父类`AbstractAutoProxyCreator`的`postProcessBeforeInstantiation`里：
-```
+```java
 		// Create proxy here if we have a custom TargetSource.
 		// Suppresses unnecessary default instantiation of the target bean:
 		// The TargetSource will handle target instances in a custom fashion.
@@ -798,7 +797,7 @@ BUT THE EXCEPTION STILL THROW
 3. createProxy：创建的流程几乎等于之前手动配置ProxyFactoryBean。不过这里创建的是ProxyFactory；
 
 而获取bean相关的切面也很直白：
-```
+```java
 	protected List<Advisor> findEligibleAdvisors(Class<?> beanClass, String beanName) {
 		List<Advisor> candidateAdvisors = findCandidateAdvisors();
 		List<Advisor> eligibleAdvisors = findAdvisorsThatCanApply(candidateAdvisors, beanClass, beanName);
@@ -851,7 +850,7 @@ BUT THE EXCEPTION STILL THROW
 
 ## 无事务方法调用有事务增强方法
 这个问题最常见的一个场景就是“无事务方法调用有事务增强方法，会导致有事务增强的方法得不到增强”：
-```
+```java
 a() {
     b()
 }
@@ -859,7 +858,9 @@ a() {
 @Transactional
 b()
 ```
-如果方法a没有开启事务，b开启事务，直接调用b是会得到AOP的事务增强的，但是如果调用a，那么其实是同类中的方法调用，b也不会有事务增强。
+如果方法a没有开启事务，b开启事务：
+- 直接调用b是会得到AOP的事务增强的；
+- 但是如果调用的是a，那么其实是同类中的方法调用，b也不会有事务增强。
 
 同理，把@Transaction换成@Cacheable也都是一个道理，通过调用a间接调用b时，b产生的结果不会被缓存。
 
@@ -874,4 +875,3 @@ spring IOC是spring的基础，但spring AOP才是spring的杀手锏！因为AOP
 等等。
 
 spring通过AOP让程序猿的开发变得简单了太多太多，隐藏了开发中的样板代码和苦力活，让开发变得有意思起来！spring aop是我爱上spring的关键！
-
