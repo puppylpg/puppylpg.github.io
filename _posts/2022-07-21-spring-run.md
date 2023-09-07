@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Spring run"
+title: "Spring - run"
 date: 2022-07-21 21:41:28 +0800
 categories: spring
 tags: spring
@@ -11,7 +11,7 @@ springboot既然都走一遭了，spring也走一遭吧。
 1. Table of Contents, ordered
 {:toc}
 
-# BeanFactory
+# `BeanFactory`
 首先说一下spring最核心的BeanFactory接口。看到这个接口的第一印象是这个接口太复杂了！它衍生出了各种子接口，看得人眼花缭乱。但其实如果这么想，是把问题想颠倒了——与其说BeanFactory接口多，不如说BeanFactory功能多。而spring把BeanFactory拆解为一系列接口和衍生子接口，正是为了拆解BeanFactory的功能，把这些功能分门别类进行管理，使之变得有条理起来。如果不进行拆分，把所有的接口方法全扔到BeanFactory里，那才叫窒息！
 
 现在再看BeanFactory及其子接口，瞬间变得亲切起来：
@@ -29,11 +29,11 @@ springboot既然都走一遭了，spring也走一遭吧。
 
 经过这么一拆解，BeanFactory的繁多的功能显得有条理了一些。而BeanFactory的实现类基本把上面的大部分接口都实现了，比如下面介绍的ApplicationContext。
 
-# ApplicationContext
+# `ApplicationContext`
 **如果说BeanFactory是发动机，那么ApplicationContext就是一辆完整的车：它以发动机为核心，同时配备了底盘、轮胎、车架、刹车等等系统。所以ApplicationContext才是面向程序员的接口，相较之下，BeanFactory显得有点儿太底层了。**
 
 ApplicationContext，看它的接口定义：
-```
+```java
 interface ApplicationContext extends EnvironmentCapable, ListableBeanFactory, HierarchicalBeanFactory,
 		MessageSource, ApplicationEventPublisher, ResourcePatternResolver
 ```
@@ -46,14 +46,13 @@ The ability to resolve messages, supporting internationalization. Inherited from
 
 它主要就是这些接口的聚合体，是一个能直接加载config的context。
 
-# BeanDefinitionReader + ClassPathBeanDefinitionScanner
+# `BeanDefinitionReader` + `ClassPathBeanDefinitionScanner`
 
 AnnotationConfigApplicationContext还实现了BeanDefinitionRegistry接口。
 
 - BeanDefinition getBeanDefinition(String beanName)
 - registerBeanDefinition(String beanName, BeanDefinition 
 - beanDefinition)removeBeanDefinition(String beanName)
-
 
 先初始化AnnotatedBeanDefinitionReader。（此处涉及到BeanNameGenerator，默认是AnnotationBeanNameGenerator）。
 
@@ -63,7 +62,7 @@ Environment:
 - https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#beans-environment
 - https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#beans-definition-profiles-enable
 
-还涉及到ConditionEvaluator，evaluate @Conditional。
+**还涉及到ConditionEvaluator，evaluate `@Conditional`**。
 
 要给context（registry）注册annotation post processors，所以创建了一个DefaultListableBeanFactory。给这个bean factory设置AnnotationAwareOrderComparator，用于支持@Ordered。还要给bean factory设置AutowireCandidateResolver的实现者ContextAnnotationAutowireCandidateResolver，用于识别bean是否符合某个注入策略（按类型注入、按名称注入等。@Resource的怨念……），还能支持@Lazy。
 
@@ -77,15 +76,15 @@ Environment:
 - （如果检测到JPA的类）PersistenceAnnotationBeanPostProcessor
 
 
-（所以spring容器需要用到的组件自己不是靠@Bean注册上去的……因为spring容器这一套初始化好了之后，才支持@Bean，@Configuration吧……）这个时候spring也得像我们一样，自己组装组件去写代码。
+> **所以spring容器需要用到的组件自己不是靠@Bean注册上去的……因为spring容器这一套初始化好了之后，才支持@Bean，@Configuration……这个时候spring也得像我们一样，自己组装组件去写代码。**
+>
+> springboot在spring的context完成之前，则是使用SPI注册组件。
 
 AnnotatedBeanDefinitionReader初始化结束。
 
-然后创建ClassPathBeanDefinitionScanner。~~就不看了。也不咋用xml配置了~~。
+然后创建ClassPathBeanDefinitionScanner。第二个new的是用来扫描base package的bean definition scanner……
 
-wtf，说错了。AnnotationConfigApplicationContext怎么可能有xml的reader。第二个new的是用来扫描base package的bean definition scanner……
-
-ClassPathBeanDefinitionScanner，它会包含
+ClassPathBeanDefinitionScanner，它会包含：
 - include filter
 - exclude filter
 
@@ -116,17 +115,17 @@ AbstractTypeHierarchyTraversingFilter是AnnotationTypeFilter的父类，还挺�
 
 等等。
 
-这时候就要用ConditionEvaluator判断了：如果是@Conditional标记的类，就判断一下是不是应该跳过。
+**这时候就要用ConditionEvaluator判断了：如果是@Conditional标记的类，就判断一下是不是应该跳过。**
 
 > 注意：这里只是判断是否跳过，并不是不处理。如果符合@Conditional的条件，是要直接处理的。**@Conditional并不代表最后处理**！只是在springboot的实现中，它的那些auto configuration类上标注的@Conditional是需要最后处理的。他们最后被处理是因为他们是为了做auto configuration，而不是因为他们是@Conditional。
 
 @Configuration的类，本身会被配置为一个bean。会从annotation获取配置的信息。比如如果有@Description，就获取内容，set到BeanDefinition的description里。
 
 # refresh
-refresh和destroy都是不允许并发，所以加锁。
+refresh和destroy都不允许并发，所以加锁。
 
 ## prepare refresh
-```
+```java
 		// Initialize any placeholder property sources in the context environment
 		initPropertySources();
 
@@ -140,8 +139,8 @@ refresh和destroy都是不允许并发，所以加锁。
 设置一堆东西：
 - StandardBeanExpressionResolver，好像是处理spel的。BeanExpressionResolver接口；
 - ResourceEditorRegistrar：往PropertyEditorRegistrar里注册处理某个class所使用的PropertyEditor。具体编辑啥，后面可以查查
-- ApplicationContextAwareProcessor，一个BeanPostProcessor。**用于给所有xxxAware的bean设置xxx。真省事儿，一个bean post processor就设置完了**。**注意，这个bean post processor是直接手动`addBeanPostProcessor`添加到ApplicationContext里的**
-    ```
+- ApplicationContextAwareProcessor，它是一个BeanPostProcessor。**用于给所有xxxAware的bean设置xxx。真省事儿，一个bean post processor就设置完了**。**注意，这个bean post processor是直接手动`addBeanPostProcessor`添加到ApplicationContext里的**
+    ```java
     	private void invokeAwareInterfaces(Object bean) {
     		if (bean instanceof Aware) {
     			if (bean instanceof EnvironmentAware) {
@@ -173,7 +172,7 @@ refresh和destroy都是不允许并发，所以加锁。
     + systemProperties：getEnvironment().getSystemProperties()
     + systemEnvironment：getEnvironment().getSystemEnvironment()
 - 那么这些bean怎么get呢？按照名字或者类型get。而存放他们的地方，在DefaultSingletonBeanRegistry里，其实就是一个map：
-    ```
+    ```java
     /** Cache of singleton objects: bean name --> bean instance */
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<String, Object>(64);
     ```
@@ -199,7 +198,6 @@ BeanDefinitionRegistryPostProcessor继承了BeanFactoryPostProcessor，所以它
 
 后者（处理BeanFactory）在bean definition注册好了之后，就修改bean definition：Modify the application context's internal bean definition registry after its standard initialization. 
 
-
 之前已经注册过一个名为`org.springframework.context.annotation.internalConfigurationAnnotationProcessor`的BeanDefinitionRegistryPostProcessor了，它实际是ConfigurationClassPostProcessor。
 
 这个BeanDefinitionRegistryPostProcessor不得了，**它有最高优先级，因为他要先把@Configuration里的@Bean注册的BeanDefinition全都读出来，然后其他的BeanFactoryPostProcessor才能去修改这些BeanDefinition**：This post processor is Ordered.HIGHEST_PRECEDENCE as it is important that any Bean methods declared in Configuration classes have their respective bean definitions registered before any other BeanFactoryPostProcessor executes.
@@ -211,7 +209,7 @@ BeanDefinitionRegistryPostProcessor继承了BeanFactoryPostProcessor，所以它
 这是一个BeanFactoryPostProcessor的用法。
 
 再从bean factory里获取其他的BeanFactoryPostProcessor：
-```
+```java
 String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanDefinitionRegistryPostProcessor.class, true, false);
 ```
 > 从这里开始，貌似后面都开始从BeanFactory（map）里根据type获取bean了（无论是spring自己提前put进去的，还是程序猿自己的@Bean被解析了然后put进去的）。从这里开始，bean已经都注册上了，可以这么获取了。
@@ -229,13 +227,13 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanDefinitionRegi
 经过这一通操作，我们自定义的bean都注册好了。
 
 再获取所有的BeanFactoryPostProcessor：
-```
+```java
 String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanFactoryPostProcessor.class, true, false);
 ```
 按上面的顺序再来一遍（已经在上面执行过的就不再执行了）。这里主要是为了处理我们也自定义的BeanFactoryPostProcessor。因为ConfigurationClassPostProcessor已经分析完了所有的@Configuration，这里我们自定义的BeanFactoryPostProcessor也会出现了。
 
 比如我们的BeanFactoryPostProcessor可能会给修改某个BeanDefinition，添加一个属性：
-```
+```java
 	public void postProcessBeanFactory(ConfigurableListableBeanFactory bf) throws BeansException {
 		BeanDefinition bd = bf.getBeanDefinition("car");
 		bd.getPropertyValues().addPropertyValue("brand", "奇瑞QQ");
@@ -249,7 +247,7 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanFactoryPostPro
 
 ## register bean post processor
 又是从BeanFactory里直接按照类型获取所有的BeanPostProcessor：
-```
+```java
 String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanPostProcessor.class, true, false);
 ```
 接下来先给bean post processor排序：
@@ -262,7 +260,7 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanPostProcessor.
 > 他们比较重要，所以单独都拎出来放到BeanFactory里了。牌面！
 
 最后spring还手动添加了一个ApplicationListenerDetector，它也是一个BeanPostProcessor，专门用来检测实现ApplicationListener接口的bean的：
-```
+```java
 		@Override
 		public Object postProcessAfterInitialization(Object bean, String beanName) {
 			if (bean instanceof ApplicationListener) {
@@ -308,7 +306,7 @@ BeanPostProcessor既可以直接`addBeanPostProcessor`到ApplicationContext里�
 除此之外，自动注册BeanPostProcessor就行了。
 
 ### BeanPostProcessor instances and AOP auto-proxying
-这一段也说命了上述BeanPostProcessor的流程：
+这一段也说明了上述BeanPostProcessor的流程：
 Classes that implement the BeanPostProcessor interface are special and are treated differently by the container. 
 1. All BeanPostProcessor instances and beans that they directly reference are instantiated on startup, as part of the special startup phase of the ApplicationContext. 
 2. Next, all BeanPostProcessor instances are registered in a sorted fashion and applied to all further beans in the container. 
@@ -343,7 +341,7 @@ new一个SimpleApplicationEventMulticaster，它是ApplicationEventMulticaster�
 - 实体类
 - singleton
 - 非@Lazy
-```
+```java
 if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
 ```
 那就初始化它！
@@ -366,7 +364,7 @@ if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
 
 接着initialize bean：
 - 如果bean是Aware，就判断它是那种Aware，然后set相应的东西，很暴力。
-    ```
+    ```java
     	private void invokeAwareMethods(final String beanName, final Object bean) {
 		if (bean instanceof Aware) {
 			if (bean instanceof BeanNameAware) {
@@ -451,4 +449,3 @@ spring自己记录下每一步都有啥：
 > Tracking the application startup steps with specific metrics can help understand where time is being spent during the startup phase, but it can also be used as a way to better understand the context lifecycle as a whole.
 
 @since spring 5.3, springboot 2.4
-
