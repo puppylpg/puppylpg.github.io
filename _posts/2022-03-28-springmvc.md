@@ -61,7 +61,7 @@ spring mvc基于spring，要处理http请求。它选择继续站在前人的肩
 Tomcat怎么发现servlet？将servlet配置在该web app的`web.xml`里。
 
 DispatcherServlet作为servlet，也不例外：
-```
+```xml
 <servlet>
     <servlet-name>mvc</servlet-name>
     <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
@@ -78,7 +78,7 @@ DispatcherServlet作为servlet，也不例外：
 ```
 
 ### annotation
-**从Servlet 3.0起，可以不再使用web.xml了**。servlet规范推出了一套支持annotation的配置逻辑：tomcat会查找`javax.servlet.ServletContainerInitializer`的实现类，它可以直接配置servlet。**所以找到它就相当于找到了web.xml**。
+**从Servlet 3.0起（spring 4.0支持Servlet 3.0），可以不再使用web.xml了**。servlet规范推出了一套支持annotation的配置逻辑：tomcat会查找`javax.servlet.ServletContainerInitializer`的实现类，它可以直接配置servlet。**所以找到它就相当于找到了web.xml**。
 
 > 为了用annotation配置，原来web.xml里有的tag都有了对应的annotation，比如现在可以用@WebServlet来配置一个servlet了。
 
@@ -89,12 +89,14 @@ spring使用这个初始化类把mvc相关的组件都初始化起来：**`Sprin
 > 它的名字非常精准：initialize web application。**而在onStartup方法里，DispatcherServlet就被创建并注册了**！
 
 **没有了web.xml，用户要怎么自定义一些web app相关的配置**？在自己的SpringServletContainerInitializer搞定这些。所以理论上我们只要写一个WebApplicationInitializer就行了！当然不需要完全重写，spring已经有了抽象类`AbstractAnnotationConfigDispatcherServletInitializer`，它在实现了`WebApplicationInitializer`的同时，还为用户暴露了几个配置接口:
-- 通过覆写getRootConfigClasses，把自己app里的spring配置类告诉spring，由它注册到容器AnnotationConfigWebApplicationContext里；
-- 通过覆写getServletConfigClasses，**把配置放到一个新的AnnotationConfigWebApplicationContext里，这个web application context会被用来创建DispatcherServlet**。所以这里放的配置一般就是mvc相关的，比如WebMvcConfigurer实现类，以覆盖默认的mvc行为；
+- 通过覆写getRootConfigClasses，把自己app里的spring配置类（业务层配置）告诉spring，由它注册到容器AnnotationConfigWebApplicationContext里（**业务层spring容器**）；
+- 通过覆写getServletConfigClasses，**把配置放到一个新的AnnotationConfigWebApplicationContext里，这个web application context会被用来创建DispatcherServlet**。所以这里放的配置一般就是mvc相关的，比如WebMvcConfigurer实现类，以覆盖默认的mvc行为（**web层spring容器**）；
 - 通过覆写getServletMappings，**配置DispatcherServlet这个唯一servlet映射的url**；
 
+> 这里涉及到两个spring容器：**业务层spring容器和web层spring容器，且二者是父子容器——web层spring容器是业务层spring容器的子容器，所以业务bean访问不到web bean，但反之可以**。他们的具体实现类都是AnnotationConfigWebApplicationContext。
+
 所以我们只要写个类 extends AbstractAnnotationConfigDispatcherServletInitializer，按照需求覆写上面的几个方法就行了：
-```
+```java
 public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
   
   @Override
@@ -213,7 +215,7 @@ handler interceptor其实挺好记：
 > **只是转换，并不是渲染view。渲染view在最后。**
 
 比如`ModelAndViewMethodReturnValueHandler`专门处理返回`ModelAndView`的controller返回的数据。它的supportsReturnType的实现：
-```
+```java
  	@Override
 	public boolean supportsReturnType(MethodParameter returnType) {
 		return ModelAndView.class.isAssignableFrom(returnType.getParameterType());
@@ -283,7 +285,7 @@ spring默认会注册下面三种resolver（顺序）：
 > **`@ControllerAdvice`的Javadoc**：Specialization of @Component for classes that declare @ExceptionHandler, @InitBinder, or @ModelAttribute methods to be shared across multiple @Controller classes.
 
 比如下面这个示例，`@ControllerAdvice`和`@ExceptionHandler`组合使用，甚至还加了`@ResponseStatus`：
-```
+```java
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -306,7 +308,7 @@ public class GlobalExceptionHandler {
 }
 ```
 `@ExceptionHandler`默认被上述`ExceptionHandlerExceptionResolver`持有，它会负责发现所有的`@ExceptionHandler`：
-```
+```java
 	private void initExceptionHandlerAdviceCache() {
 		if (getApplicationContext() == null) {
 			return;
@@ -388,7 +390,7 @@ view都渲染完了，请求确实处理完了。
 在DispatcherServlet之前，spring也有参与，比如：javax.servlet.Filter接口spring也继承了。所以在进入servlet之前也调用了spring的filter。用的还挺多的，包括spring security。可以再学学filter接口。
 
 还有一个好玩儿的东西：spring处理请求的时候，把request#attribute当做临时传参的地方了。不过接下来会立刻擦掉：
-```
+```java
 	@Override
 	protected HandlerMethod getHandlerInternal(HttpServletRequest request) throws Exception {
 		request.removeAttribute(PRODUCIBLE_MEDIA_TYPES_ATTRIBUTE);
@@ -401,4 +403,3 @@ view都渲染完了，请求确实处理完了。
 	}
 ```
 finally语句，确保一定擦掉。不让用户看见。233，小动作。
-
