@@ -25,9 +25,9 @@ tags: spring springboot mvc
 另外借助springboot定义好的名为web的[logging group](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#features.logging.log-groups)，可以直接配置`logging.level.web=debug`以让所有的web相关日志都输出debug，非常方便。
 
 # servlet context初始化
-那么springboot启动内嵌的tomcat之后，后面应该还是调用SpringMVC的`SpringServletContainerInitializer`做初始化工作吧？也不是了。
+那么springboot启动内嵌的tomcat之后，后面应该还是使用SPI自动监测servlet的`ServletContainerInitializer`或者SpringMVC的`SpringServletContainerInitializer`做初始化工作吧？也不是了。
 
-**servlet规范不变，所以还是使用`ServletContainerInitializer`初始化container，但不是SpringMVC的`SpringServletContainerInitializer`，而是springboot的`ServletContainerInitializer`。[按照springboot的说法](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.embedded-container.context-initializer)，这样做可以避免别的实现了servlet的SPI规范的第三方依赖对servlet容器进行初始化。**
+**servlet的初始化使用的还是`ServletContainerInitializer`，但不再是随随便便检测到的`ServletContainerInitializer`，也不再是SpringMVC的`SpringServletContainerInitializer`，而是springboot手动指定的自己的`ServletContainerInitializer`实现。[按照springboot的说法](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.embedded-container.context-initializer)，这样做可以避免别的实现了servlet的SPI规范的第三方依赖对servlet容器进行初始化。**
 > Embedded servlet containers do not directly execute the `jakarta.servlet.ServletContainerInitializer` interface or Spring's `org.springframework.web.WebApplicationInitializer` interface. **This is an intentional design decision intended to reduce the risk that third party libraries designed to run inside a war may break Spring Boot applications.**
 
 这一安全考虑也可以参考[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})“`WebApplicationInitializer`是怎么被发现的”，**因为tomcat确实会把classpath上所有的相关类都收集起来做servlet的初始化，比较失控**。
@@ -45,7 +45,7 @@ springboot怎么做到阻止别人的？
 > If you need to perform servlet context initialization in a Spring Boot application, you should register a bean that implements the `org.springframework.boot.web.servlet.ServletContextInitializer` interface. The single onStartup method provides access to the `ServletContext` and, if necessary, can easily be used as an adapter to an existing `WebApplicationInitializer`.
 
 springboot的`ServletContextInitializer`和SpringMVC的`WebApplicationInitializer`，这俩用来自定义初始化servlet容器的接口长得一模一样，甚至连方法的javadoc都是抄的……
-```
+```java
 public interface WebApplicationInitializer {
 
 	/**
@@ -107,7 +107,7 @@ springboot启动mvc的流程：
 > 关于tomcat `Server`，参考[（九）How Tomcat Works - Tomcat Service]({% post_url 2020-10-09-tomcat-service %})。
 
 这一串调用里会涉及到异步启动。**但很明显，这个异步启动只是为了让下一级的各个子`Container`组件并行执行以加快启动时间**。之后的阻塞式`get()`说明了依然是全都执行完毕后才能进行后面的操作：
-```
+```java
         for (Container child : children) {
             results.add(startStopExecutor.submit(new StartChild(child)));
         }
@@ -130,7 +130,7 @@ springboot启动mvc的流程：
 
 ### 调用`ServletContainerInitializer`
 tomcat启动到`Context` container的时候，就涉及到`ServletContainerInitializer`的调用了。和SpringMVC的入口一样，springboot亦如此：
-```
+```java
             // Call ServletContainerInitializers
             for (Map.Entry<ServletContainerInitializer, Set<Class<?>>> entry :
                 initializers.entrySet()) {
@@ -156,30 +156,32 @@ tomcat启动到`Context` container的时候，就涉及到`ServletContainerIniti
 **虽然springboot手动往embed tomcat只注册了自己的`ServletContainerInitializer`，它是怎么做到不让embed tomcat探测别人的SPI实现的？**
 
 tomcat的[WebappServiceLoader](https://github.com/apache/tomcat/blob/af983a45c8e3f2252c1a14d52024dde63ffffff2/java/org/apache/catalina/startup/WebappServiceLoader.java#L187)会遍历所有的jar包，并从jar里加载文件：
-```
+```java
 uri = new URI("jar:" + baseExternal + "!/" + entryName);
 ```
 这显然是为了使用SPI机制。
 
 `ContextConfig`用于配置`Context` container，它会探测`ServletContainerInitializer`的SPI实现：
-```
+```java
 detectedScis = loader.load(ServletContainerInitializer.class);
 ```
 它是默认的Context config类：the default context configuration class for deployed web applications.
 
 在apache `Tomcat`的main函数里，tomcat在加载web app的时候，自动就注册上这个config类了：
-```
+```java
 tomcat.addWebapp(path, war.getAbsolutePath());
 ```
-所以正常tomcat一定会探测`ServletContainerInitializer`的SPI实现。
+所以正常的tomcat一定会探测`ServletContainerInitializer`的SPI实现。
 
 **springboot启动的是embed tomcat。创建完`Tomcat`实例之后，手撸了一组tomcat的`Container`组件，手动配置了`Context` container，没有使用标准的`ContextConfig`类配置`Context`，所以失去了探测`ServletContainerInitializer`的SPI实现的功能。**
+
+> springboot启动的是被魔改的tomcat。
 
 因此，springboot就能放心给这个embed tomcat手动设置自己的`ServletContainerInitializer`实现了。
 
 ### 调用`ServletContextInitializer`，注册`DispatcherServlet`
 和SpringMVC的原理一样，springboot的`ServletContainerInitializer`的实现类要调用springboot的`ServletContextInitializer`初始化servlet容器。`ServletWebServerApplicationContext`就提供了一个`ServletContextInitializer`——`selfInitialize`方法：
-```
+```java
 	private void selfInitialize(ServletContext servletContext) throws ServletException {
 		prepareWebApplicationContext(servletContext);
 		registerApplicationScope(servletContext);
@@ -195,25 +197,23 @@ tomcat.addWebapp(path, war.getAbsolutePath());
 - `FilterRegistrationBean`：filter wrapper
 - `DispatcherServletRegistrationBean`：`DispatcherServlet` wrapper
 
-> `DispatcherServletRegistrationBean`有个autoconfig class：`DispatcherServletAutoConfiguration`，所以是启动过程种自动配置的。它创建的时候也创建了`DispatcherServlet`。
+> `DispatcherServletRegistrationBean`有个autoconfig class：`DispatcherServletAutoConfiguration`，所以是启动过程中自动配置的。它创建的时候也创建了`DispatcherServlet`。
 
 **这些`RegistrationBean`有个共同的`onStartup`方法，把自己注册到`ServletContext里`！**
 
 如果加入了spring security支持，还会有`DelegatingFilterProxyRegistrationBean`：
 - `DelegatingFilterProxyRegistrationBean`：springSecurityFilterChain
 
-如果还有其他的servlet，比如配置了h2 database web console，还会再产生一个普通的`ServletRegistrationBean`：
+一般情况下只会有`DispatcherServlet`一个servlet（`DispatcherServletRegistrationBean`），如果还有其他的servlet，比如配置了h2 database web console，还会再产生一个普通的`ServletRegistrationBean`：
 - `ServletRegistrationBean`：比如`WebServlet`，url=h2-console，启动了一个h2 web console。
-
-否则按理来说只会有`DispatcherServlet`一个servlet（`DispatcherServletRegistrationBean`）
 
 ## 启动`TomcatWebServer`
 启动完tomcat，初始化完servlet container之后，springboot还给`BeanFactory`注册了启动关闭`TomcatWebServer`（embed tomcat wrapper）的lifecycle：
-```
-			getBeanFactory().registerSingleton("webServerGracefulShutdown",
-					new WebServerGracefulShutdownLifecycle(this.webServer));
-			getBeanFactory().registerSingleton("webServerStartStop",
-					new WebServerStartStopLifecycle(this, this.webServer));
+```java
+getBeanFactory().registerSingleton("webServerGracefulShutdown",
+		new WebServerGracefulShutdownLifecycle(this.webServer));
+getBeanFactory().registerSingleton("webServerStartStop",
+		new WebServerStartStopLifecycle(this, this.webServer));
 ```
 
 最后`ServletWebServerApplicationContext#finishRefresh`的时候，调起`LifecycleProcessor#onRefresh`，启动所有`Lifecycle` bean的start方法（有点儿像tomcat lifecycle的方式），这个时候就启动`TomcatWebServer`了！
@@ -221,10 +221,12 @@ tomcat.addWebapp(path, war.getAbsolutePath());
 注意这个时候启动的是`TomcatWebServer`，不是tomcat。tomcat在创建`TomcatWebServer`完成之前就启动了。
 
 这个时候会输出那句著名的：
+```java
+logger.info("Tomcat started on port(s): " + getPortsDescription(true) + " with context path '"
+		+ getContextPath() + "'");
 ```
-				logger.info("Tomcat started on port(s): " + getPortsDescription(true) + " with context path '"
-						+ getContextPath() + "'");
-```
+
+> Tomcat started on port(s): 8081 (http) with context path '/wtf' :D
 
 然后发布`TomcatWebServer`启动完毕事件。
 
@@ -237,4 +239,3 @@ servlet提供了标准的`@WebServlet`/`@WebFilter`/`@WebListener`以注册servl
 第一次试图了解springboot tomcat还是四年前，刚工作一年整，对spring了解一般，springboot更是不了解。当时啥也没探究出来，太惨了……
 
 加油吧菜鸡o(╥﹏╥)o，把前置知识都理解清楚了，一切都水到渠成了。
-
