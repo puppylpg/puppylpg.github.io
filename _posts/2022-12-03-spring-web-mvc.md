@@ -26,8 +26,10 @@ tomcat分两条线：
 
 根据[SpringMVC：HTTP请求处理全流程]({% post_url 2022-03-28-springmvc %})的介绍，**SpringMVC的理念是让servlet容器调用SpringMVC，从而进行SpringMVC的初始化**。tomcat寻找实现`ServletContainerInitializer`接口的类来初始化servlet，寻找方式是SPI：jar包需要有一个文件`META-INF/services/javax.servlet.ServletContainerInitializer`，文件内容为接口的实现类的类名。
 
+> 也只能靠SPI了，毕竟不能想spring一样做component scan。
+
 找到这样的实现类后，tomcat会在`Context` container的标准实现`StandardContext`里调用他们，对servlet容器进行初始化：
-```
+```java
             // Call ServletContainerInitializers
             for (Map.Entry<ServletContainerInitializer, Set<Class<?>>> entry :
                 initializers.entrySet()) {
@@ -48,7 +50,7 @@ SpringMVC对`ServletContainerInitializer`接口的实现为`SpringServletContain
 **SpringMVC的这个实现并没有直接初始化servlet container，而是委托给了`WebApplicationInitializer`**。所以程序猿可以实现spring提供的`WebApplicationInitializer`以初始化`DispatcherServlet`。
 
 **一个最简单的`WebApplicationInitializer`实现**：
-```
+```java
 public class MyWebApplicationInitializer implements WebApplicationInitializer {
 
     @Override
@@ -75,7 +77,7 @@ public class MyWebApplicationInitializer implements WebApplicationInitializer {
 2. 把servlet放到`Wrapper`里；
 3. **把`Wrapper`挂到`Context`上**；
 
-```
+```java
         Wrapper wrapper = (Wrapper) context.findChild(servletName);
 
         // Assume a 'complete' ServletRegistration is one that has a class and
@@ -115,14 +117,14 @@ public class MyWebApplicationInitializer implements WebApplicationInitializer {
 “只要实现一个`WebApplicationInitializer`，它就会自动被用来初始化servlet”。谁发现的这个实现类？它怎么就被用来初始化servlet了？需要配置成bean吗？不需要。
 
 `SpringServletContainerInitializer`会使用`WebApplicationInitializer`初始化servlet，但是看`SpringServletContainerInitializer`的方法就会发现，`WebApplicationInitializer`的实现类们是从调用者传进来的：
-```
+```java
 public void onStartup(@Nullable Set<Class<?>> webAppInitializerClasses, ServletContext servletContext)
 			throws ServletException
 ```
 传进来之后才开始进入到spring的一亩三分地，所以“实例化`WebApplicationInitializer`的实现类”显然不是spring干的。
 
 SpringMVC的调用者是谁？servlet容器，或者说tomcat。在tomcat的`StandardContext`中：
-```
+```java
             // Call ServletContainerInitializers
             for (Map.Entry<ServletContainerInitializer, Set<Class<?>>> entry :
                 initializers.entrySet()) {
@@ -151,7 +153,7 @@ and implements `javax.servlet.ServletContainerInitializer`. According to the Ser
 接下来的事情就比较简单了，tomcat是怎么实例化这些类的？**通过`clazz = Introspection.loadClass(context, className)`直接从classpath上找相关的类，找到一个实例化一个。**
 
 找到和initializer相关联的类之后，通过`Context#addServletContainerInitializer`把他们关联起来：
-```
+```java
     /**
      * Add a ServletContainerInitializer instance to this web application.
      *
@@ -191,7 +193,7 @@ spring把它`web.xml`里配置的init param使用`ServletContext`/`ServletConfig
 3. **`DispatcherServlet`被映射到了什么mapping上？由`String[] getServletMappings()`方法指定**；
 
 我们只要override上面三个方法并给出具体实现就行了。比如：
-```
+```java
 public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
 
     @Override
@@ -213,7 +215,7 @@ public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServl
 **RootConfg里放的是root wac的spring bean配置；App1Config里放的是DispatcherServlet的子wac的spring bean配置；最后把DispatcherServlet映射到了`/app1/*`上，所有context path + `/app1/*`开头的url都交给`DispatcherServlet`处理**。
 
 大致等价以下`web.xml`：
-```
+```xml
 <web-app>
 
     <listener>
@@ -249,7 +251,7 @@ public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServl
 > If an application context hierarchy is not required, applications may configure a “root” context only and leave the contextConfigLocation Servlet parameter empty.
 
 只配置root wac的代码相当于下面的`web.xml`：
-```
+```xml
 <web-app>
 
     <listener>
@@ -276,7 +278,7 @@ public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServl
 ```
 
 同理，也可以只配置`DispatcherServlet`的config，不配置root wac config。反正`DispatcherServlet`用的是子wac，bean无论放到父wac还是子wac，都能获取到：
-```
+```java
 public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
 
     @Override
@@ -298,7 +300,7 @@ public class MyWebAppInitializer extends AbstractAnnotationConfigDispatcherServl
 总之一般不需要用那么多层级。
 
 除了上面三个最重要的方法，还有一些其他可以自定义的方法，比如注册servlet `Filter`：
-```
+```java
 public class MyWebAppInitializer extends AbstractDispatcherServletInitializer {
 
     // ...
@@ -315,7 +317,9 @@ public class MyWebAppInitializer extends AbstractDispatcherServletInitializer {
 **springboot不走寻常路，SpringMVC是接入servlet，通过servlet container调起SpringMVC并初始化`DispatcherServlet`；springboot是让servlet接入它……它启动一个自己的`WebServerApplicationContext`（一种`ApplicationContext`），然后调起一个内嵌servlet container。所以所有servlet规范的`Filter`和`Servlet`都可以以bean的形式注册到springboot的`WebServerApplicationContext`里，等启动内嵌servlet container的时候，springboot再把他们添加到container里**：
 > Spring Boot follows a different initialization sequence. **Rather than hooking into the lifecycle of the Servlet container, Spring Boot uses Spring configuration to bootstrap itself and the embedded Servlet container. Filter and Servlet declarations are detected in Spring configuration and registered with the Servlet container**.
 
-**调用关系反转了，springboot翻身做主人了……6！**
+所以在springboot里，可以看不到对servlet容器的显式配置。但是在springmvc里，无论写配置代码还是使用配置文件，都免不了以servlet容器的方式配置对springmvc的调用。
+
+> **调用关系反转了，springboot翻身做主人了……6！**
 
 springboot的embed container：
 - https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.embedded-container
@@ -326,7 +330,7 @@ springboot的embed container：
 因为servlet的`ServletContextListener`提供了创建和销毁web applicaiton时候的回调。`ContextLoaderListener`在`contextInitialized`的时候初始化了spring的`WebApplicationContext`。
 
 其中有一步就是从`ServletContext`里取出`contextConfigLocation`参数的值，把它设置为wac的config location：
-```
+```java
 		String configLocationParam = sc.getInitParameter(CONFIG_LOCATION_PARAM);
 		if (configLocationParam != null) {
 			wac.setConfigLocation(configLocationParam);
@@ -379,7 +383,7 @@ CORS规范规定，**在跨域发送能修改数据的请求（ajax、除了GET�
 - https://www.ruanyifeng.com/blog/2016/04/cors.html
 
 host1发送到host2的GET请求之前，会先发个预检请求问问可不可以：
-```
+```bash
 curl 'https://host2.com/v1.0.0/brand-analyze/advice/search-all?keyword=Snapcha' \
   -X 'OPTIONS' \
   -H 'authority: host2.com' \
@@ -398,7 +402,7 @@ curl 'https://host2.com/v1.0.0/brand-analyze/advice/search-all?keyword=Snapcha' 
 问问带token和userid这俩header的get请求行不行。
 
 host2的服务器说可以：
-```
+```properties
 access-control-allow-credentials: true
 access-control-allow-headers: token, userid
 access-control-allow-methods: GET
@@ -420,7 +424,7 @@ x-xss-protection: 1; mode=block
 `Access-Control-Max-Age: 86400`代表这一段时间内不用预检了，所以第一次CORS请求强制发送完预检请求之后，很长时间内接下来的请求都不会强制预检了。
 
 预检请求通过后，此时host1再向host2发正式请求：
-```
+```bash
 curl 'https://host2.com/v1.0.0/brand-analyze/advice/search-all?keyword=Snapcha' \
   -H 'authority: host2.com' \
   -H 'accept: application/json, text/plain, */*' \
@@ -465,5 +469,4 @@ groovy markup不错：https://docs.spring.io/spring-framework/docs/current/refer
 
 # 感想
 在经历了Spring `MockMvc`从一个简单的角度过了SpringMVC的流程后，对SpringMVC更理解了。再一看SpringMVC的文档，果然是。不容易啊，一开始为了SpringMVC先研究了tomcat，都2020年的事儿了。
-
 
