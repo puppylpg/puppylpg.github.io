@@ -16,7 +16,7 @@ tags: elasticsearch
 # ingest pipeline
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html
 
-ingest pipeline的思想比较直白，正如开头所说，很好理解。关键是在整个pipeline上，能做哪些操作。组成pipeline的操作的是各类processor，所以其实就是学习一下各种processor的用法。
+ingest pipeline理解起来比较直白，关键是在整个pipeline上，能做哪些操作。组成pipeline的操作的是各类processor，所以其实就是学习一下各种processor的用法。
 
 ## pipeline api
 - create: https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html
@@ -25,12 +25,10 @@ ingest pipeline的思想比较直白，正如开头所说，很好理解。关�
 pipeline可以重复创建，会直接覆盖上次的同名pipeline。设置pipeline主要就是设置processor，各个processor顺次执行。
 
 ## `_simulate`
-pipeline有一个非常重要的api：`_simulate`，用来测试pipeline是否符合预期。
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html#test-pipeline
-- simulate api: https://www.elastic.co/guide/en/elasticsearch/reference/current/simulate-pipeline-api.html
+学习pipeline之前，先来了解一个非常重要的api：[`_simulate`](https://www.elastic.co/guide/en/elasticsearch/reference/current/simulate-pipeline-api.html)，用来[测试pipeline](https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html#test-pipeline)是否符合预期。
 
 比如搞一个pipeline：删掉数据里的年龄，如果身高大于180就增加一个tall tag
-```
+```json
 PUT _ingest/pipeline/student_process
 {
   "processors": [
@@ -51,7 +49,7 @@ PUT _ingest/pipeline/student_process
 }
 ```
 然后使用simulate api模拟它在不同数据上的表现，可以添加verbose参数，详细展示每一步操作：
-```
+```json
 POST /_ingest/pipeline/_simulate?verbose
 {
   "pipeline": {
@@ -81,7 +79,7 @@ POST /_ingest/pipeline/_simulate?verbose
 }
 ```
 结果：
-```
+```json
 {
   "docs" : [
     {
@@ -176,7 +174,7 @@ processor才是pipeline的灵魂！
 - remove
 - set：添加简单数据
 - enrich：根据其他的数据库，做映射匹配，并添加匹配到的数据
-- script：（**最后processor，杀手锏**）当要做的功能比较复杂，其他processor都太简单时，直接使用script写代码处理数据。当然，如果其他processor直接就能做到，直接使用会其他processor会更简单直白
+- script：（**最后的processor，杀手锏**）当要做的功能比较复杂，其他processor都太简单时，直接使用script写代码处理数据。当然，如果其他processor直接就能做到，直接使用其他processor会更简单直白
 - foreach：处理数组数据的processor
 - pipeline：一个processor，用于引用其他pipeline。有了这个，**pipeline之间就可以像函数一样相互“调用”了**
 
@@ -189,7 +187,7 @@ remove processor非常简单。主要注意它有两个设置：
 1. if：设置前置条件；
 2. ignore_missing：默认为false，如果数据里没有这个field，会报错；
 
-另外它的field看起来是单数，实际可以设置单个field，也可以设置一个数据，一次性删除多个field。
+另外它的field看起来是单数，实际可以设置单个field，也可以设置一个数组，一次性删除多个field。
 
 ## script
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/script-processor.html
@@ -199,7 +197,7 @@ remove processor非常简单。主要注意它有两个设置：
 比如，要从数据的description字段里提取所有的url。虽然有[grok processor](https://www.elastic.co/guide/en/elasticsearch/reference/current/grok-processor.html)，但它只能提取一个url，不能多次提取。这时候就要使用script processor写代码了。
 
 多次匹配description里的url，并以数组的形式放到新的urls字段里：
-```
+```json
 PUT _ingest/pipeline/urls_extract
 {
   "processors": [
@@ -225,8 +223,7 @@ PUT _ingest/pipeline/urls_extract
 ```
 注意null值处理，如果description为null代码会报错。对null的判断可以放在代码里，也可以放在if属性里。
 
-Thanks to @Sagar Patel:
-- https://stackoverflow.com/questions/72949027/is-it-possible-to-set-new-field-value-when-analyzing-document-being-indexed-in-e
+> [Thanks to @Sagar Patel](https://stackoverflow.com/questions/72949027/is-it-possible-to-set-new-field-value-when-analyzing-document-being-indexed-in-e)
 
 ## enrich
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html
@@ -239,7 +236,7 @@ enrich首先要设置一个enrich policy，指定怎么根据另一个索引匹�
 假设提取出urls之后，需要获取每个url对应的“推广信息”，而我们恰好已经有了一个索引url_info，放的全是url和它对应的推广信息。那就可以直接使用url_info这个数据库，把推广信息enrich过来。
 
 首先可以设置一个policy：从url_info里enrich数据（所以里放的是url和它对应的rawUrl），匹配的字段（key）是url，匹配后添加的字段（values）是rawUrl/platform/brandId/type等：
-```
+```json
 PUT _enrich/policy/url_lookup_policy
 {
   "match": {
@@ -252,7 +249,7 @@ PUT _enrich/policy/url_lookup_policy
 > 即使不写入enrich_fields，match_field也会作为被enrich的field之一出现在最终enrich的数据里。
 
 然后根据policy生成一个enrich index：
-```
+```json
 PUT _enrich/policy/url_lookup_policy/_execute
 ```
 - enrich policy: https://www.elastic.co/guide/en/elasticsearch/reference/current/put-enrich-policy-api.html
@@ -271,7 +268,7 @@ enrich index其实是一个`.enrich-<index>-<timestamp>`命名的索引，可以
 终于可以根据policy设置enrich processor了——
 
 数据中要匹配的字段是urls（多个url），使用的policy是刚刚的url_lookup_policy（所以和urls匹配的字段是url_info里的url字段，匹配后添加的是url/rawUrl/platform/brandId/type字段）
-```
+```json
 PUT _ingest/pipeline/url_lookup
 {
   "processors": [
@@ -290,7 +287,7 @@ PUT _ingest/pipeline/url_lookup
   ]
 }
 ```
-**如果max_matches>1，enrich的数据是一个数组（否则是一个json object）**。因为：
+**如果max_matches > 1，enrich的数据是一个数组（否则是一个json object）**。因为：
 1. 一个url可能匹配到多个url_info里的url；
 2. 更何况urls本身就是多值的，会匹配到url_info里的多个url；
 
@@ -299,10 +296,10 @@ PUT _ingest/pipeline/url_lookup
 ## foreach
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/foreach-processor.html
 
-**专门为array设计的：对array的每一个值执行一个processor**。所以它的功能其实都体现在这个“内嵌的”processor里。
+**专门为array设计的：对array的每一个值执行一次processor**。所以它的功能其实都体现在这个“内嵌的”processor里。
 
-比如上面的每个url都找到了rawUrl，并存放到了数组rawUrls里。假设每个rawUrl都有一个对应的商品信息，那么久可以对每个rawUrl再来一次enrich，给他们都添加上branding信息（省略branding_lookup_policy，和url_lookup_policy类似）：
-```
+比如上面的每个url都找到了rawUrl，并存放到了数组rawUrls里。假设每个rawUrl都有一个对应的商品信息，那么就可以对每个rawUrl再来一次enrich，给他们都添加上branding信息（省略branding_lookup_policy，和url_lookup_policy类似）：
+```json
 PUT _ingest/pipeline/branding_lookup
 {
   "processors": [
@@ -367,13 +364,13 @@ PUT _ingest/pipeline/branding_lookup
 ## pipeline
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/pipeline-processor.html
 
-pipeline相互调用。
+pipeline之间相互调用。
 
 比如把上面所有的pipeline组合起来，就是一条大的pipeline：
 1. 从description里提取urls；
 2. urls里的每一个url都尝试enrich其rawUrl，最终都放到rawUrls数组里；
 3. 遍历rawUrls数组，给每个rawUrlenrich品牌信息，放到每个rawUrl下的brandingAnalyses里：
-```
+```json
 PUT _ingest/pipeline/branding
 {
   "processors": [
@@ -397,6 +394,7 @@ PUT _ingest/pipeline/branding
 ```
 完美。
 
+整个数据处理的流程如图：
 ![media_enrich](/assets/screenshots/Elasticsearch/pipeline/media_enrich.png)
 
 # 使用pipeline
@@ -418,4 +416,3 @@ PUT _ingest/pipeline/branding
 # 性能分析
 还能统计pipeline的使用频率和时间消耗，强啊：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html#get-pipeline-usage-stats
-
