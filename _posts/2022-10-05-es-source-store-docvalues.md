@@ -7,7 +7,7 @@ tags: elasticsearch lucene
 ---
 
 一切始于一个奇怪的现象：elasticsearch以`epoch_millis`存储时间戳的时候，竟然可以接受string（字面值为long）存储，且使用起来和long毫无区别：
-```
+```json
 GET <index>/_search
 {
   "query": {
@@ -145,7 +145,7 @@ Lucene的`doc_values`是把倒排索引（key to value）倒过来（value to ke
 - https://github.com/spring-projects/spring-data-elasticsearch/issues/2318#issuecomment-1264448733
 
 假设updateTime和timestamp两个field都是epoch_millis类型，存入的都是long而非string：
-```
+```json
 GET <index>/_search
 {
   "fields": ["updateTime", "timestamp", "likes"],
@@ -153,7 +153,7 @@ GET <index>/_search
 }
 ```
 结果`fields`返回的是string，`_source`返回的是存入时的long：
-```
+```json
       {
         "_index" : "<index>",
         "_type" : "_doc",
@@ -195,7 +195,7 @@ GET <index>/_search
 
 ### 自定义转换：runtime field
 `fields`只能按照mapping进行转换，正常情况下没什么问题。但是如果有特殊的需求，比如`fields`只能让epoch_millis以string返回，如果我们就想让它以long返回，可以使用[runtime field](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime-override-values.html)转换数据，再用`fields`查出来：
-```
+```json
 GET <index>/_search
 {
   "runtime_mappings": {
@@ -214,7 +214,7 @@ GET <index>/_search
 }
 ```
 返回的是long：
-```
+```json
 {
   "took" : 2,
   "timed_out" : false,
@@ -279,7 +279,7 @@ GET <index>/_search
 介绍了这么多，顺便把[`script_fields`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#script-fields)也介绍了。
 
 上面说的基本都是空间换时间，**`script_fields`是典型的时间换空间**：不需要存，但每次查的时候都要临时计算。如果临时用一用，还是挺不错的：
-```
+```json
 GET /_search
 {
   "query": {
@@ -305,7 +305,7 @@ GET /_search
 }
 ```
 也可以用script获取`_source`里的field：
-```
+```json
 GET /_search
 {
   "query": {
@@ -321,7 +321,38 @@ GET /_search
 - `doc['my_field'].value`：会把field缓存到内存里，所以更快，但需要占用内存；
 - `params['_source']['my_field']`：每次都从`_source`里解析，所以慢，但省内存；
 
-# `stored_fields`、`docvalue_fields`、`fields`查询速度比对
+# 脚本
+在从painless脚本里访问文档的字段时，也因为存储类型不同，产生了[不同的访问方式](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/modules-scripting-fields.html)。
+
+只有doc_values字段才能用[`doc['xxx']`](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/modules-scripting-fields.html#modules-scripting-doc-vals)访问，其他的只能去`_source`里取：[`params._source.xxx`](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/modules-scripting-fields.html#modules-scripting-source)。如果是stored fields，可以使用[`params._fields['xxx']`](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/modules-scripting-fields.html#modules-scripting-stored)。
+
+同样的，能用doc values就尽量不用source。source本身就是stored fields所以和其他stored fields速度差不多。除非source过大，这时候读取整个source再从里面提取field的速度要慢于直接的stored fields。
+
+但是使用doc要做双重判断：
+- 判断key存在：`doc.containsKey('xxx')`
+- 判断值存在：`doc['xxx'].size() > 0`
+
+然后才能安全取值：`doc['xxx'].value`，非常麻烦。es8推出了[`field()`](https://www.elastic.co/guide/en/elasticsearch/reference/8.10/script-fields-api.html) API，来简化这个问题。但是目前还没有稳定。
+
+## params
+在Elasticsearch的Script脚本中，可以通过params参数访问以下变量：
+
+- params._source：表示文档的原始源（source）。
+- params._fields：表示文档的字段（fields）。
+- params._now：表示当前时间戳。
+- params._score：表示文档的得分（score）。
+- params._index：表示文档所在的索引（index）。
+- params._type：表示文档的类型（type）。
+- params._id：表示文档的ID。
+- params._version：表示文档的版本号（version）。
+- params._routing：表示文档的路由（routing）。
+- params._parent：表示文档的父文档（parent）。
+- params._now：表示当前时间戳。
+- 除了以上预定义的变量外，还可以通过自定义的params参数传递其他变量给脚本使用。
+
+> 没找到相关资料，以上回答来自chatgpt。
+
+# 查询速度比对
 一个实验：
 - https://sease.io/2021/02/field-retrieval-performance-in-elasticsearch.html
 
@@ -338,5 +369,4 @@ GET /_search
 1. elasticsearch的实现也是要看一看的，正好又是Java实现的；
 
 > 这篇文章是国庆在周口写的~
-
 
