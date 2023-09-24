@@ -103,6 +103,22 @@ Java的最小并发单元是线程：
 这一切的罪魁祸首，都是因为程序的并发单元（异步pipeline）和java的并发单元（线程）不一致：
 > This programming style is at odds with the Java Platform because the application's unit of concurrency — the asynchronous pipeline — is no longer the platform's unit of concurrency.
 
+### 异步框架的本质
+> [Java 21 new feature: Virtual Threads #RoadTo21](https://www.youtube.com/watch?v=5E0LU85EnTI&ab_channel=Java)
+
+异步框架如jdk里的CompletableFuture，或者Reactive programming。
+
+为了避免阻塞代码block cpu，程序猿将代码分割成小块，每一块代码都有输入和输出，每一块代码都被写成了lambda，然后使用异步框架组装他们。异步框架的功能就是
+1. **使用正确的输入调用lambda**；
+1. **得到输出**；
+1. **把输出作为下一个lambda的输入**；
+
+以上，就创造出了处理数据的pipeline，**异步框架的责任就是帮你以正确的顺序执行每一个lambda，把他们分配给不同的线程，以便充分利用CPU**。一旦lambda有了返回，**会有一个handler触发信号**，把返回结果进行下一个lambda处理。
+
+异步编程能够极大提高CPU使用率，缺点就是到处都是lambda，到处都在调用lambda，并把结果转发给另一个lambda。如果看代码的stack trace，几乎看不到业务代码，只能看到框架在调用lambda。
+
+这种风格会导致debug、异常处理、测试、维护特别蛋疼。如果错误不在业务代码内，而是因为业务返回了一个null，并在框架代码里出发了一个NPE，炸了……stack trace啥也看不出来，不知道null来自哪儿。
+
 ## 虚线程：继续thread per request
 要解决问题，还是得让程序员写thread per request风格的代码！而这一切也很简单，只要jdk实现的thread能高效一些就行了！
 > To enable applications to scale while remaining harmonious with the platform, we should strive to preserve the thread-per-request style. We can do this by implementing threads more efficiently, so they can be more plentiful. 
@@ -124,6 +140,19 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
 
 看到这的时候我已经激动了！我在学校里刚学server的时候每来一个request就new一个thread的代码就是最终归宿了！最初版非nio的Tomcat也可以回归了！对程序猿的要求大大降低，这什么神仙jdk团队！
 
+### 虚线程的底层实现
+> [Java 21 new feature: Virtual Threads #RoadTo21](https://www.youtube.com/watch?v=5E0LU85EnTI&ab_channel=Java)
+
+**本质上还是需要os线程执行任务**，所以jdk维护了一个修改过的fork join pool，里面都os线程，作为虚线程的执行者。**虚拟线程就像mount到线程池里的os线程上一样，任务还是通过虚拟线程，最终由这些os线程执行的**。如果让虚线程打印`Thread.currentThread()`，会得到ForkJoinPool-1-worker-1，说明虚线程mount到了fork join pool 1的worker1上。这个pool创建的并不大，线程数和CPU核数一致。
+
+> 就像docker的内核，本质还是os的内核。
+
+**当碰到blocking操作，虚线程会从os线程上把自己unmount下来（`Contination#yield`），把自己的stack保存到heap里。JDK里所有的blocking代码现在都会在block的时候调用`Contination#yield`**。当取到数据之后，jdk也有一个handler会监视这些数据，并触发一个信号，调用`Continuation#run`，重新恢复虚线程的上下文，并把虚线程放到fork join pool里的os线程的wait列表里。
+
+> monitor handler是框架里的核心调度者。
+
+**但是此时mount虚线程的os线程并不一定还是之前的那一个**。
+
 ## 返祖
 **使用虚线程不需要学习新的理念，唯一不适的就是对于已经学过异步编程的人，需要忘掉那些所学的技能。不仅程序开发者受益，框架设计者也可以提供简单易用的api了，不用为了考虑扩展性搞nio了**：
 > Using virtual threads does not require learning new concepts, though it may require unlearning habits developed to cope with today's high cost of threads. Virtual threads will not only help application developers — they will also help framework designers provide easy-to-use APIs that are compatible with the platform's design without compromising on scalability.
@@ -137,7 +166,11 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
 线程能跑的，虚线程都能跑，还能支持thread local变量：
 > A virtual thread can run any code that a platform thread can run. In particular, virtual threads support thread-local variables and thread interruption, just like platform threads. This means that existing Java code that processes requests will easily run in a virtual thread. Many server frameworks will choose to do this automatically, starting a new virtual thread for every incoming request and running the application's business logic in it.
 
+### 什么时候不应该用虚线程
+虚线程执行代码，会比os线程执行代码带来更多的开销，因为代码最终还是要在os线程上执行的，所以虚线程的执行代价等于os线程的开销加上虚线程自己的开销。
+
+但是，正如docker之于os一样，这点儿开销是值得的，能够提升并发度进而提升CPU利用率。什么时候不值得？当不需要并发度的时候。比如纯计算任务，使用虚线程性能只会下降。
+
 # 感想
 我哭了！就等下个月19号[java 21](https://openjdk.org/projects/jdk/21/)发布了！发了我就测性能！
-
 
