@@ -2,8 +2,8 @@
 layout: post
 title: "Virtual Thread"
 date: 2023-08-21 00:07:01 +0800
-categories: java jvm NIO
-tags: java jvm NIO
+categories: java
+tags: java
 ---
 
 [JDK 21](https://openjdk.org/projects/jdk/21/)下个月就要发布了，[Virtual Threads](https://openjdk.org/jeps/444)也正式成为发布特性。虚线程的引入，大概从此会改变Java项目的架构。
@@ -151,7 +151,31 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
 
 > monitor handler是框架里的核心调度者。
 
-**但是此时mount虚线程的os线程并不一定还是之前的那一个**。
+但是此时mount虚线程的os线程并不一定还是之前的那一个。
+
+**为了支持虚线程自动从os线程上umount自己，jdk重写了所有的blocking操作**。比如最常见的`Thread#sleep`：
+```java
+    public static void sleep(long millis) throws InterruptedException {
+        if (millis < 0) {
+            throw new IllegalArgumentException("timeout value is negative");
+        }
+
+        long nanos = MILLISECONDS.toNanos(millis);
+        ThreadSleepEvent event = beforeSleep(nanos);
+        try {
+            if (currentThread() instanceof VirtualThread vthread) {
+                vthread.sleepNanos(nanos);
+            } else {
+                sleep0(nanos);
+            }
+        } finally {
+            afterSleep(event);
+        }
+    }
+```
+会对当前线程做判断：
+- 如果是虚线程，则jvm自己控制虚线程“挂起”，也就是umount；
+- 如果是os线程，则像之前的jdk一样调用native代码（`sleep0`）由操作系统挂起os线程；
 
 ## 返祖
 **使用虚线程不需要学习新的理念，唯一不适的就是对于已经学过异步编程的人，需要忘掉那些所学的技能。不仅程序开发者受益，框架设计者也可以提供简单易用的api了，不用为了考虑扩展性搞nio了**：
@@ -173,4 +197,6 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
 
 # 感想
 我哭了！就等下个月19号[java 21](https://openjdk.org/projects/jdk/21/)发布了！发了我就测性能！
+
+> lei le~ [Virtual Thread benchmark]({% post_url 2023-09-25-virtual-thread-benchmark %})
 
