@@ -2,8 +2,8 @@
 layout: post
 title: "Virtual Thread benchmark"
 date: 2023-09-25 23:34:11 +0800
-categories: java jmh
-tags: java jmh
+categories: java jmh jmeter
+tags: java jmh jmeter
 ---
 
 JDK21如期发布，[Virtual Thread]({% post_url 2023-08-21-virtual-thread %})的benckmark来了！
@@ -11,7 +11,7 @@ JDK21如期发布，[Virtual Thread]({% post_url 2023-08-21-virtual-thread %})�
 1. Table of Contents, ordered
 {:toc}
 
-# 使用
+# client压测
 虚线程的意义在于：使用虚线程（可以是直接new，也可以是虚线程池，当然我们倾向于线程池）跑blocking任务更高效，所以不必使用reactive框架继续分解任务了。但因为依然使用（虚）线程池，所以仍然需要异步提交任务。
 
 以sleep模拟blocking任务，分别使用os线程和虚线程执行。
@@ -52,7 +52,7 @@ JDK21如期发布，[Virtual Thread]({% post_url 2023-08-21-virtual-thread %})�
 
 简单运行一下，第一个方法需要2864ms，第二个只需要1516ms。
 
-# jmh
+## jmh
 想更科学精准地量化效果，还是得jmh！
 
 引入依赖：
@@ -390,6 +390,197 @@ ThreadsBenchmark.virtualThreadPerTask    avgt    5  0.220 ± 0.005   s/op
 Process finished with exit code 0
 
 ```
+
+# server压测
+使用虚线程实现服务端，压测一下。
+
+当前（2023-09-26）springboot还没有正式发布3.2，但是已经有了3.2.0-M3。根据[All together now: Spring Boot 3.2, GraalVM native images, Java 21, and virtual threads with Project Loom](https://spring.io/blog/2023/09/09/all-together-now-spring-boot-3-2-graalvm-native-images-java-21-and-virtual)、[Embracing Virtual Threads](https://spring.io/blog/2022/10/11/embracing-virtual-threads)和[Working with Virtual Threads in Spring 6](https://www.baeldung.com/spring-6-virtual-threads)，可以先使用milestone版本的springboot测试一下虚线程在服务端的表现。
+
+配置一个简单的web服务：
+```java
+@Tag(name = "thread相关", description = "看看是不是虚线程")
+@RestController
+@RequestMapping("/thread")
+public class ThreadController {
+
+    @GetMapping("/name")
+    public String getThreadName() {
+        return Thread.currentThread().toString();
+    }
+
+    @GetMapping("/benchmark")
+    public String benchmark() throws InterruptedException {
+        Thread.sleep(Duration.ofMillis(1000));
+        return Thread.currentThread().toString();
+    }
+}
+```
+开启虚线程：
+```yaml
+spring:
+    threads:
+        virtual:
+            enabled: true
+```
+开启虚线程的效果：
+```bash
+$ curl -u hello:world http://localhost:8081/wtf/thread/benchmark
+VirtualThread[#78,tomcat-handler-0]/runnable@ForkJoinPool-1-worker-1
+```
+使用的是虚线程，实际的执行者是fork join pool。
+
+不开启虚线程的效果：
+```bash
+$ curl -u hello:world http://localhost:8081/wtf/thread/benchmark
+Thread[#58,http-nio-8081-exec-2,5,main]
+```
+使用的是os线程。
+
+
+## jmeter
+使用jmeter对server进行压测。jmeter有两种模式，gui和cli，一般创建配置文件使用gui，真正的压测使用cli。
+
+建议使用sdkman安装最新版jmeter（5.6），因为Debian bookworm默认的jmeter（2.13）已经没法使用java21执行了。
+启动jmeter之后，会收到提示：
+```
+$ jmeter
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+================================================================================
+Don't use GUI mode for load testing !, only for Test creation and Test debugging.
+For load testing, use CLI Mode (was NON GUI):
+   jmeter -n -t [jmx file] -l [results file] -e -o [Path to web report folder]
+& increase Java Heap to meet your test requirements:
+   Modify current env variable HEAP="-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m" in the jmeter batch file
+Check : https://jmeter.apache.org/usermanual/best-practices.html
+================================================================================
+
+```
+官方建议使用cli模式进行压测。
+
+### 配置文件
+配置文件是一个xml格式，咱也不会写，就使用gui创建吧，创建好后会自动生成一个xml文件。
+
+参考[使用 JMeter 进行压力测试](https://www.cnblogs.com/stulzq/p/8971531.html)，因为发送的请求需要basic auth，所以还参考了[Basic Authentication in JMeter](https://www.baeldung.com/jmeter-basic-auth)。
+
+大概要做的：
+1. 添加一个线程组，配置线程数（1000），压测持续多久；
+2. 在thread group上（右键）配置一些元件（config element）。依次添加：
+    1. http请求默认值（http request defaults）；
+    2. http授权管理器（http authorization manager），给`http://localhost:8081/wtf/thread/benchmark`配置basic认证；
+    3. 构造http请求：右键thread group，添加sampler，构造http请求（http request）。由于是get请求，比较简单，所以啥也不用写，http request defaults里已经配置过了；
+    4. 判断结果的正确性：assertion，response assertion。这里判断text response里包含（contains）ForkJoinPool或者Thread即可；
+    4. 最后再配置个查看结果的监听器（listener），查看结果树（view results tree）；
+
+然后就可以试运行了，jmeter会提示保存xml配置。
+
+有了配置文件，就能用cli进行压测了：
+```bash
+$ jmeter -n -t vthread.jmx -l vthread1k.txt -e -o vthread-webreportk
+```
+想关闭的话，另开一个console，使用jmeter提供的关闭指令：
+```bash
+~/.sdkman/candidates/jmeter/current/bin $ shutdown.sh
+```
+结果保存在vthread-webreport1000下。
+
+**关闭指令一定要用shutdown，而非stoptest**：
+- shutdown：Run the Shutdown client to stop a non-GUI instance gracefully
+- stoptest：Run the Shutdown client to stop a non-GUI instance abruptly
+
+### 结果
+测试的时候，执行shutdown时出现了不同的情况：shutdown os线程测试时，请求100%正常结束：
+```bash
+pichu@pebian ~/jmeter/vthread $ jmeter -n -t thread.jmx -l thread-1k.txt -e -o thread-webreport-1k                                     
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+Creating summariser <summary>
+Created the tree successfully using thread.jmx
+Starting standalone test @ 2023 Sep 26 20:15:42 CST (1695730542580)
+Waiting for possible Shutdown/StopTestNow/HeapDump/ThreadDump message on port 4445
+summary +    676 in 00:00:17 =   39.0/s Avg:  6689 Min:  1804 Max:  9845 Err:     0 (0.00%) Active: 676 Started: 676 Finished: 0
+summary +   1673 in 00:00:30 =   55.7/s Avg: 12555 Min:  1160 Max: 19980 Err:     0 (0.00%) Active: 1000 Started: 1000 Finished: 0
+summary =   2349 in 00:00:47 =   49.6/s Avg: 10867 Min:  1160 Max: 19980 Err:     0 (0.00%)
+summary +   1645 in 00:00:30 =   54.9/s Avg: 18328 Min:  1453 Max: 23212 Err:     0 (0.00%) Active: 1000 Started: 1000 Finished: 0
+summary =   3994 in 00:01:17 =   51.7/s Avg: 13940 Min:  1160 Max: 23212 Err:     0 (0.00%)
+summary +   1521 in 00:00:30 =   50.7/s Avg: 19074 Min:  2052 Max: 23383 Err:     0 (0.00%) Active: 1000 Started: 1000 Finished: 0
+summary =   5515 in 00:01:47 =   51.4/s Avg: 15356 Min:  1160 Max: 23383 Err:     0 (0.00%)
+Command: Shutdown received from /127.0.0.1
+summary +   1569 in 00:00:30 =   52.3/s Avg: 19225 Min:  1368 Max: 25939 Err:     0 (0.00%) Active: 469 Started: 1000 Finished: 531
+summary =   7084 in 00:02:17 =   51.6/s Avg: 16213 Min:  1160 Max: 25939 Err:     0 (0.00%)
+summary +    468 in 00:00:07 =   64.9/s Avg: 20338 Min: 16689 Max: 24892 Err:     0 (0.00%) Active: 0 Started: 1000 Finished: 1000
+summary =   7552 in 00:02:25 =   52.2/s Avg: 16468 Min:  1160 Max: 25939 Err:     0 (0.00%)
+Tidying up ...    @ 2023 Sep 26 20:18:07 CST (1695730687246)
+... end of run
+```
+shutdown虚线程测试时，出现了19个timeout，而且超时时间都在130s左右，所以在计算平均时长时，对数据产生了较大影响：
+```bash
+$ jmeter -n -t vthread.jmx -l vthread-1k_.txt -e -o vthread-webreport-1k_
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+Creating summariser <summary>
+Created the tree successfully using vthread.jmx
+Starting standalone test @ 2023 Sep 26 20:27:57 CST (1695731277128)
+Waiting for possible Shutdown/StopTestNow/HeapDump/ThreadDump message on port 4445
+summary +     20 in 00:00:03 =    7.2/s Avg:  1197 Min:  1097 Max:  1557 Err:     0 (0.00%) Active: 31 Started: 31 Finished: 0
+summary +   1297 in 00:00:30 =   43.2/s Avg:  2864 Min:  1099 Max: 21224 Err:     0 (0.00%) Active: 365 Started: 365 Finished: 0
+summary =   1317 in 00:00:33 =   40.2/s Avg:  2839 Min:  1097 Max: 21224 Err:     0 (0.00%)
+summary +   1177 in 00:00:30 =   39.2/s Avg:  6269 Min:  1129 Max: 38270 Err:     0 (0.00%) Active: 698 Started: 698 Finished: 0
+summary =   2494 in 00:01:03 =   39.7/s Avg:  4458 Min:  1097 Max: 38270 Err:     0 (0.00%)
+summary +   1519 in 00:00:30 =   50.6/s Avg: 13400 Min:  1140 Max: 60812 Err:     0 (0.00%) Active: 1000 Started: 1000 Finished: 0
+summary =   4013 in 00:01:33 =   43.2/s Avg:  7842 Min:  1097 Max: 60812 Err:     0 (0.00%)
+summary +   1394 in 00:00:30 =   46.5/s Avg: 15647 Min:  1134 Max: 85170 Err:     0 (0.00%) Active: 1000 Started: 1000 Finished: 0
+summary =   5407 in 00:02:03 =   44.0/s Avg:  9854 Min:  1097 Max: 85170 Err:     0 (0.00%)
+Command: Shutdown received from /127.0.0.1
+summary +    957 in 00:00:31 =   30.8/s Avg: 31093 Min:  1130 Max: 87056 Err:     0 (0.00%) Active: 122 Started: 1000 Finished: 878
+summary =   6364 in 00:02:34 =   41.3/s Avg: 13048 Min:  1097 Max: 87056 Err:     0 (0.00%)
+summary +    121 in 00:00:40 =    3.0/s Avg: 76252 Min: 64833 Max: 130372 Err:    19 (15.70%) Active: 0 Started: 1000 Finished: 1000
+summary =   6485 in 00:03:14 =   33.5/s Avg: 14227 Min:  1097 Max: 130372 Err:    19 (0.29%)
+Tidying up ...    @ 2023 Sep 26 20:31:11 CST (1695731471000)
+... end of run
+```
+因此，平均时长意义不大，可以看更详细的响应时间分布数据。
+
+#### 响应时间分布
+![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeDistribution.png)
+
+![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeDistribution.png)
+
+可以看到虚线程对大部分请求的响应都很快（除了最后timeout的那些请求），os线程响应明显比较慢。
+
+#### 响应时间分位数
+![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimesPercentiles.png)
+
+![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimesPercentiles.png)
+
+虚线程由于对大部分请求的响应都很快，所以中位数比较低，只有1771ms。os线程对大部分请求的响应都偏慢，所以中位数比较高，达到了19881ms，差了一个量级。
+
+#### 响应时间区间统计
+![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeOverview.png)
+
+![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeOverview.png)
+
+os线程的响应时长几乎全在1500ms以上，虚线程有很多响应都在1500ms以下。结合整个程序的负载（`Thread.sleep(Duration.ofMillis(1000))`）来看，显然虚线程要合理得多。
+
+#### 不同压力下的响应时间
+![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeVsRequest.png)
+
+![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeVsRequest.png)
+
+几乎所有的qps下，虚线程都表现的要比os线程好很多。
+
+### visualvm
+![vthread](/assets/screenshots/jmeter/vthread/vthread.png)
+
+![thread](/assets/screenshots/jmeter/vthread/thread.png)
+
+测试的时候还可以使用visualvm查看两种服务的系统metric，很明显os thread时创建了非常多的线程，对cpu和内存都造成了不小的压力。虚线程时整个jvm里创建的os线程很少，cpu和内存gc频率都要好不少。
 
 # 感想
 说JDK21是革命性的确实不为过。**虚线程可以在维持原有编程风格的前提下，对blocking code的执行效率提升这么多**，那么reactive式的异步编程框架真的还有用吗？谁的效率更高？退一万步说，即使reactive仍有优势，这些优势还足以让程序猿不惜以碎片化代码、高难度的组装代码、高难度的debug为代价吗？
