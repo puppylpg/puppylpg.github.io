@@ -14,11 +14,11 @@ spring有webmvc和webflux，这里只介绍基于servlet的spring webmvc相关�
 {:toc}
 
 # 和servlet的关系
-spring security[通过servlet容器标准的Filter把功能集成到servlet容器里](https://docs.spring.io/spring-security/reference/servlet/index.html)。在设计上，**它只强制原有应用使用servlet容器，但不强制原有应用一定要使用spring框架。**
+spring security[通过servlet容器标准的`Filter`接口把功能集成到servlet容器里](https://docs.spring.io/spring-security/reference/servlet/index.html)。在设计上，**它只强制原有应用使用servlet容器，但不强制原有应用一定要使用spring框架。**
 
-> Spring Security integrates with the Servlet Container by using a standard Servlet Filter. This means it works with any application that runs in a Servlet Container. More concretely, you do not need to use Spring in your Servlet-based application to take advantage of Spring Security.
+> Spring Security integrates with the Servlet Container by using a standard Servlet Filter. This means it works with any application that runs in a Servlet Container. **More concretely, you do not need to use Spring in your Servlet-based application to take advantage of Spring Security**.
 
-**但是spring security本身是基于spring框架的，所以使用spring会额外给服务引入spring webmvc框架，但只是security的实现基于它，原有的业务代码可以无视这一点。**
+**但是spring security本身是基于spring框架的，所以使用spring security会额外给服务引入spring webmvc框架，但只是security的实现基于它，原有的业务代码可以无视这一点。**
 
 # 架构
 **[这篇文档](https://docs.spring.io/spring-security/reference/servlet/architecture.html)非常清晰地梳理了spring security的架构！**
@@ -32,7 +32,7 @@ filter的实现可以从两方面发挥作用：
 1. 通过是否调用filter chain，决定请求是否继续走下去（走到最后一个，处理逻辑是servlet）：Prevent downstream Filter instances or the Servlet from being invoked. **In this case, the Filter typically writes the `HttpServletResponse`**；
 2. 通过在filter chain的前、后执行相关代码，相当于做一些请求的前置、后置操作：Modify the HttpServletRequest or HttpServletResponse used by the downstream Filter instances and the Servlet.；
 
-```
+```java
 public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) {
 	// do something before the rest of the application
     chain.doFilter(request, response); // invoke the rest of the application
@@ -45,7 +45,7 @@ public void doFilter(ServletRequest request, ServletResponse response, FilterCha
 > 不过如果是spring，就提供两个方法了，而不是在一个`doFilter`方法里搞定几方面的东西，更合理。
 
 Filter配置在Context container里：
-```
+```xml
 <filter>
    <filter-name>LogFilter</filter-name>
    <filter-class>LogFilter</filter-class>
@@ -84,7 +84,7 @@ Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，
 ## 如何注册Filter - `DelegatingFilterProxy`
 按理来说，注册Filter是和spring无关的行为，因为注册Filter可以通过servlet配置来完成，此时还没有开始初始化servlet，也没有创建spring的`ApplicationContext`。
 
-但是spring security提供了一个`DelegatingFilterProxy`，它是一个servlet Filter，但是它的`doFilter`逻辑比较特殊：从spring `ApplicationContext`里取出一个filter bean，调用它的`doFilter`处理逻辑。所以它把逻辑委托给filter bean了。
+但是spring security提供了一个`DelegatingFilterProxy`，它是一个servlet Filter，比较特殊的是它的`doFilter`逻辑：从spring `ApplicationContext`里取出一个filter bean，调用它的`doFilter`处理逻辑。所以它把逻辑委托给filter bean了。
 
 > servlet Filter注册的时候不需要调用`doFilter`，启动tomcat之后就会初始化servlet，初始化spring的wac。**当有请求过来的时候，再调用Filter的`doFilter`。此时去wac里取bean是完全来得及的**。所以`DelegatingFilterProxy`能这么做，都是因为servlet容器的注册启动、接受请求是两条有先后顺序的时间线。
 
@@ -92,15 +92,19 @@ Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，
 
 之所以这么想是因为没有意识到“桥”的作用：**注册一个`DelegatingFilterProxy`确实只能将逻辑delegate到一个filter bean上，但是如果这个spring的filter bean支持将逻辑再delegate到一堆别的bean上呢**？这不就相当于只给servlet容器注册了一个Filter，之后只要写一堆spring的bean就行了嘛？此时的编程又回到了spring相关的编程了。这就是“桥”的意义。
 
+> 类似多路复用了。管道就一条，大家共用一下。
+
 spring security已经提供了这样的一个filter bean实现，`FilterChainProxy`。`DelegatingFilterProxy`将filter逻辑委托给它，它再寻找`SecurityFilterChain`，和原有filter chain一起过滤request、response。
 
 ![filterchainproxy](/assets/screenshots/spring/security/filterchainproxy.png)
 
 因此这里一共涉及两个代理proxy：
 1. 注册到servlet上的delegating Filter，它是一个代理，实际实现filter功能的是spring wac里的filter bean（`FilterChainProxy`）。所以它是`FilterChainProxy`的proxy，名字叫delegating filter proxy；
-2. spring wac里的这个filter bean，它即使一个被代理bean，也是一个代理bean，类似demultiplexer，它把功能分散到了一堆别的bean身上，就是`SecurityFilterChain`。所以它是security filter chain的proxy，名字叫filter chain proxy；
+2. spring wac里的这个filter bean，它既是一个被代理bean，也是一个代理bean，类似demultiplexer，它把功能分散到了一堆别的bean身上，就是`SecurityFilterChain`。所以它是security filter chain的proxy，名字叫filter chain proxy；
 
 最后`SecurityFilterChain`则明显是在模拟servlet的filter chain的概念：一堆filter，有一个不同意，则请求不会继续流转下去。但其实这些bean维护在spring的wac中，并不注册在servlet上。所以它的名字叫security filter chain，是security的filter chain，不是servlet的filter chain。
+
+> 用`DispatcherServlet`这个servlet取代所有servlet，把请求分发给所有的`@Controller`；用`DelegatingFilterProxy`这个filter取代（secutiry相关的）所有filter，把filter逻辑放到自己的wac里的filter bean上。我算是看出来了，spring是想掏空servlet容器:D
 
 ## 盗版filter chain - `SecurityFilterChain`
 显然spring的filter chain是在盗版servlet的filter chain。通过`DelegatingFilterProxy`把请求从正统filter chain上引流到自己的盗版filter chain上。
@@ -111,11 +115,11 @@ spring security已经提供了这样的一个filter bean实现，`FilterChainPro
 
 > 所以可以理解为它里面实际存储了filter的二维数组。
 
-只有第一个符合请求的`SecurityFilterChain`会生效，其他的`SecurityFilterChain`将不再执行。
+**只有第一个符合请求的`SecurityFilterChain`会生效，其他的`SecurityFilterChain`将不再执行。**
 
 > Only the first SecurityFilterChain that matches is invoked
 
-多条filter chain的目的是什么？为了简化配置。比如url以user开头的请求都按照配置a的权限进行校验，而以admin开头的请求都按照另一些权限做更严格的校验。
+多条filter chain的目的是什么？为了支持不同的配置链。比如url以user开头的请求都按照配置a的权限进行校验，而以admin开头的请求都按照另一些权限做更严格的校验。
 
 ## 如何验证
 `ExceptionTranslationFilter`是security filter chain上的一个filter，它是spring security的核心filter。
@@ -123,7 +127,7 @@ spring security已经提供了这样的一个filter bean实现，`FilterChainPro
 ![exceptiontranslationfilter](/assets/screenshots/spring/security/exceptiontranslationfilter.png)
 
 它的伪代码如下：
-```
+```java
 try {
 	filterChain.doFilter(request, response);
 } catch (AccessDeniedException | AuthenticationException ex) {
@@ -155,7 +159,7 @@ try {
 > 其实就是一种上下文切换，所以要保存上下文……而spring选择把上下文保存在了session里。
 
 spring security对请求暂存的抽象是`RequestCache`，上面介绍的把请求缓存在session里，是它的默认实现`HttpSessionRequestCache`：
-```
+```java
         if (this.createSessionAllowed || request.getSession(false) != null) {
 			// Store the HTTP request itself. Used by
 			// AbstractAuthenticationProcessingFilter
@@ -169,7 +173,7 @@ spring security对请求暂存的抽象是`RequestCache`，上面介绍的把请
 > session是tomcat创建的。`request.getSession()`可以直接获取session，如果没有session，会新建一个。`request.getSession(false)`则不新建，如果没有就返回null。
 
 spring security还提供了`CookieRequestCache`实现，把request暂存到cookie里，cookie名为`REDIRECT_URI`，cookie直接放到response里。这样的话服务器端就不需要暂存请求了。
-```
+```java
 		String redirectUrl = UrlUtils.buildFullRequestUrl(request);
 		Cookie savedCookie = new Cookie(COOKIE_NAME, encodeCookie(redirectUrl));
 		savedCookie.setMaxAge(COOKIE_MAX_AGE);
@@ -189,8 +193,10 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 ## spring security借助spring mvc注册Filter到servlet容器
 虽然引入spring security的服务本身可以不使用SpringMVC，但是spring security本身是要依赖SpringMVC的。
 
-**spring security的关键其实就是如何把`DelegatingFilterProxy`作为一个`Filter`注册到servlet容器上**。spring security基于spring mvc，[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})说过，SpringMVC通过`WebApplicationInitializer`初始化servlet容器。所以spring security提供了基于它的抽象实现类`AbstractSecurityWebApplicationInitializer`，**在wac初始化的时候，手动把这个`Filter`添加到servlet上的即可**：
-```
+> 流程应该是：request先被spring security的filter引入spring的wac，spring security的filter bean都在spring的wac里，经过验证之后，出了spring wac，继续走servlet container流程上的下一个filter，最后到了servlet，该servlet是和spring无关的。相当于中间因为要用security filter，所以绕路到了spring wac，但最终的servlet并不是spring mvc的dispatcher servlet。
+
+**spring security的关键其实就是如何把`DelegatingFilterProxy`作为一个`Filter`注册到servlet容器上**。spring security基于spring mvc，[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})说过，SpringMVC通过`WebApplicationInitializer`初始化servlet容器。所以spring security提供了基于它的抽象实现类`AbstractSecurityWebApplicationInitializer`，**在wac初始化的时候，手动把这个`Filter`添加到servlet上即可**：
+```java
 Dynamic registration = servletContext.addFilter(filterName, filter);
 ```
 Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"springSecurityFilterChain"`。不仅如此，它委托给的那个`FilterChainProxy`在wac里的bean的名字也叫`"springSecurityFilterChain"`：`new DelegatingFilterProxy("springSecurityFilterChain")`。
@@ -556,4 +562,3 @@ springboot会默认给spring security配置以下内容：
 
 # 感想
 spring security的这些思路真的不错！真的是把spring玩儿明白了！
-
