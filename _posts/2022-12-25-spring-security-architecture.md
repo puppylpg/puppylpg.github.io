@@ -187,10 +187,7 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 
 ## 如何返回错误
 
-# 配置
-[spring security的配置](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html)其实就是在配置最核心的`SecurityFilterChain`，所以跟架构放一起介绍。
-
-## spring security借助spring mvc注册Filter到servlet容器
+# spring security借助spring mvc注册Filter到servlet容器
 虽然引入spring security的服务本身可以不使用SpringMVC，但是spring security本身是要依赖SpringMVC的。
 
 > 流程应该是：request先被spring security的filter引入spring的wac，spring security的filter bean都在spring的wac里，经过验证之后，出了spring wac，继续走servlet container流程上的下一个filter，最后到了servlet，该servlet是和spring无关的。相当于中间因为要用security filter，所以绕路到了spring wac，但最终的servlet并不是spring mvc的dispatcher servlet。
@@ -199,6 +196,9 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 ```java
 Dynamic registration = servletContext.addFilter(filterName, filter);
 ```
+
+> **它只`ServeletContext#addFilter`，不`ServeletContext#addServlet`。所以spring security不涉及servlet。与之相对的，springmvc的`AbstractDispatcherServletInitializer`则是`ServeletContext#addServlet`**。两个对照着看，意图都很明显。
+
 Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"springSecurityFilterChain"`。不仅如此，它委托给的那个`FilterChainProxy`在wac里的bean的名字也叫`"springSecurityFilterChain"`：`new DelegatingFilterProxy("springSecurityFilterChain")`。
 
 > 属于是梅开二度了……
@@ -208,7 +208,7 @@ Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"s
 > 所以这里注册`Filter`是手动在实例化的时候通过代码注册上去的，不是通过`web.xml`配置文件注册上去的！毕竟`WebApplicationInitializer`的本意就是：初始化的时候想干嘛就干嘛！
 
 之前说过，使用spring security的工程不一定显式使用了spring框架，**所以原工程不一定有spring mvc的配置。这种情况下spring security的配置（依然是spring bean配置）怎么被启用**？spring security的`AbstractSecurityWebApplicationInitializer` **支持手动传入一个配置类，并实例化这个配置类里的bean**：
-```
+```java
 		if (this.configurationClasses != null) {
 			AnnotationConfigWebApplicationContext rootAppContext = new AnnotationConfigWebApplicationContext();
 			rootAppContext.register(this.configurationClasses);
@@ -218,7 +218,7 @@ Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"s
 此时spring security自己启动一个`AnnotationConfigWebApplicationContext`作为root wac。
 
 这个配置类示例：
-```
+```java
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -232,7 +232,7 @@ public class SecurityConfig {
 }
 ```
 它通过`@EnableWebSecurity`启用了spring security的相关bean，并通过`@Configuration`成为spring bean配置类。所以可以直接把这个配置类显式传给spring security：
-```
+```java
 public class SecurityWebApplicationInitializer
 	extends AbstractSecurityWebApplicationInitializer {
 
@@ -243,14 +243,14 @@ public class SecurityWebApplicationInitializer
 ```
 
 如果服务本身就使用了SpringMVC框架，那么一定有wac，所以不用手动传入spring security的config类了：
-```
+```java
 public class SecurityWebApplicationInitializer
 	extends AbstractSecurityWebApplicationInitializer {
 
 }
 ```
 只需要按照[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})的方式加载我们的spring security相关的config类就行了：
-```
+```java
 public class MvcWebApplicationInitializer extends
 		AbstractAnnotationConfigDispatcherServletInitializer {
 
@@ -268,17 +268,20 @@ public class MvcWebApplicationInitializer extends
 **所以总结起来整个架构的配置就一句话：spring security借助spring mvc注册Filter到servlet容器。**
 
 一切配置完毕，按照SpringMVC的约定，wac一定和servlet绑定起来了，所以可以从servlet里拿到wac：
-```
+```java
 WebApplicationContextUtils.getWebApplicationContext(getServletContext(), attrName)
 ```
 拿wac干什么？`DelegatingFilterProxy`要从它里面取`SecurityFilterChain`啊！
+
+# 配置
+[spring security的配置](https://docs.spring.io/spring-security/reference/servlet/configuration/java.html)其实就是在配置最核心的`SecurityFilterChain`，所以跟架构放一起介绍。
 
 ## `HttpSecurity` - 配置`SecurityFilterChain`
 配置spring security，除了配置基本组件（比如认证的用户名和密码）外，最主要的就是通过配置至少一个`SecurityFilterChain`来控制spring security的行为！
 
 ### 默认的那条security filter chain
 springboot默认配置的`SecurityFilterChain`是：
-```
+```java
 	/**
 	 * The default configuration for web security. It relies on Spring Security's
 	 * content-negotiation strategy to determine what sort of authentication to use. If
@@ -309,7 +312,7 @@ springboot默认配置的`SecurityFilterChain`是：
 
 所有的`SecurityFilterChain`会被自动注入到`WebSecurityConfiguration`里（就是通过`@EnableWebSecurity` import进来的那个spring security的配置类）。
 
-spring security支持多条filter chain，那么问题来了：springboot自动配置只在bean不存在的情况下才会自动配置，如果我们自动配置了一条security filter chain，这条默认的还会有吗？回的。因为这个自动配置的bean没有声明为conditional on missing bean。
+spring security支持多条filter chain，那么问题来了：springboot自动配置只在bean不存在的情况下才会自动配置，**如果我们自动配置了一条security filter chain，这条默认的还会有吗？会的。因为这个自动配置的bean没有声明为conditional on missing bean**。
 
 **多条`SecurityFilterChain`之间可以设定优先级，优先级高的filter chain在前面**。
 
@@ -317,7 +320,7 @@ spring security支持多条filter chain，那么问题来了：springboot自动�
 **spring security提供了便捷的方法帮助快速配置security filter chain——`HttpSecurity`！**
 
 `@EnableWebSecurity`import了`HttpSecurityConfiguration`，它也是一个配置类，会自动配置“一堆”`HttpSecurity`对象（注意是一堆，是prototype，不是singleton）：
-```
+```java
 	@Bean(HTTPSECURITY_BEAN_NAME)
 	@Scope("prototype")
 	HttpSecurity httpSecurity() throws Exception {
@@ -345,17 +348,17 @@ spring security支持多条filter chain，那么问题来了：springboot自动�
 		return http;
 	}
 ```
-`HttpSecurity`里已经预设好一些属性了，所以每次新建一个filter chain的时候，不用担心东西最基础的东西都要重新设置一遍，比如session管理、request cache等等。我们只需要专注于定义自己需要的过滤行为就行了。正因如此，一下子就能把一个很复杂的过滤规则拆开成多个规则了。
+`HttpSecurity`里已经预设好一些属性了，所以每次新建一个filter chain的时候，不用担心最基础的东西都要重新设置一遍，比如session管理、request cache等等。我们只需要专注于定义自己需要的过滤行为就行了。正因如此，一下子就能把一个很复杂的过滤规则拆开成多个规则了。
 
 > 这里设置的`PasswordEncoder`比较有意思，是个`LazyPasswordEncoder`。而它其实就是个wrapper，等到实际执行的时候，从`ApplicationContext`里寻找类型为`PasswordEncoder`的bean，并把实际功能实现delegate给它。所以 **虽然spring security在我们配置`PasswordEncoder`之前就设置好了`PasswordEncoder`，但实际用的还是我们配置的`PasswordEncoder`**……这和`DelegatingFilterProxy`的思想一毛一样啊！
 
 `HttpSecurity`其实是一个builder，build后生成的实体是`DefaultSecurityFilterChain`，是`SecurityFilterChain`的实现。
-```
+```java
 public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<DefaultSecurityFilterChain, HttpSecurity>
 		implements SecurityBuilder<DefaultSecurityFilterChain>, HttpSecurityBuilder<HttpSecurity> {
 ```
 `HttpBuilder`会在`performBuild`里，构造出一个`DefaultSecurityFilterChain`：
-```
+```java
 	@Override
 	protected DefaultSecurityFilterChain performBuild() {
 		ExpressionUrlAuthorizationConfigurer<?> expressionConfigurer = getConfigurer(
@@ -375,7 +378,7 @@ public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<Defaul
 因此，我们可以通过`HttpSecurity`工具类比较方便地构造出`SecurityFilterChain`对象。
 
 比如配置多条优先级不同的filter chain：
-```
+```java
 /**
  * {@link org.springframework.security.access.prepost.PreAuthorize}需要通过{@link EnableMethodSecurity}手动开启。。。
  *
@@ -545,13 +548,152 @@ public class MultipleSecurityFilterChainConfig {
 我们最常配置的当然是url权限！
 
 也可以直接用[权限注解](https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/expression-based.html)直接做[方法级别的权限设置](https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/expression-based.html#_method_security_expressions)：
-```
+```java
 @PreAuthorize("hasRole('USER')")
 public void create(Contact contact);
 ```
 当然，一两个特殊的权限可以用权限注解，大部分相同的权限可以直接配置到security filter chain里：which means that access will only be allowed for users with the role "ROLE_USER". **Obviously the same thing could easily be achieved using a traditional configuration and a simple configuration attribute for the required role.**
 
 一遍遍写相同的权限注解不嫌累啊？
+
+## 升级spring security 6
+spring security很方便，但是使用起来最头疼的问题是api三天两头变……
+
+security5升级到6又发生了大变化。如果要升级，需要先升级到5.8，此时在6里会删掉的api在5.8里标注了deprecated。
+- [`authorizeHttpRequests`里的各种url matcher替换为`requestMatchers`](https://docs.spring.io/spring-security/reference/5.8/migration/servlet/config.html#use-new-requestmatchers)
+- [`authorizeHttpRequests`外的各种url matcher替换为`securityMatchers`](https://docs.spring.io/spring-security/reference/5.8/migration/servlet/config.html#use-new-security-matchers)
+- 所有的配置均返回`HttpSecurity`对象本身，相关配置使用customizer定义细节；
+
+虽然又变了，但是平心而论，本次升级还是让配置security方便了不少，尤其是第三点。
+
+security 5：
+```java
+        http.csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .and()
+                .antMatcher("/basic")
+                .httpBasic()
+                .and()
+                // basic auth不要用session
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+
+        return http.build();
+```
+
+security 6：
+```java
+        return http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+                .securityMatcher("/basic")
+                .httpBasic(Customizer.withDefaults())
+                // basic auth不要用session
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .build();
+```
+可以看到csrf方法本身返回`HttpSecurity`，因此不需要通过`and`方法再转回`HttpSecurity`；而csrf的相关配置均在csrf方法里通过customizer搞定了，非常方便！
+
+上面的配置转成spring security 6后如下：
+```java
+/**
+ * {@link org.springframework.security.access.prepost.PreAuthorize}需要通过{@link EnableMethodSecurity}手动开启。。。
+ *
+ * @author puppylpg on 2022/12/16
+ */
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class MultipleSecurityFilterChainConfig {
+
+    /**
+     * 配置用户。
+     * 默认会创建一个DelegatingPasswordEncoder，实际就是使用bcrypt加密。
+     * 之所以deprecated是因为密码应该从外部读取，而不是使用password encoder在运行的时候生成。
+     */
+    @Bean
+    public UserDetailsService userDetailsService() {
+        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
+        manager.createUser(User.withDefaultPasswordEncoder().username("guest").password("guest").roles("no auth").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("hello").password("world").roles("USER").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("actuator").password("exposeall").roles("ENDPOINT_ADMIN").build());
+        manager.createUser(User.withDefaultPasswordEncoder().username("puppylpg").password("puppylpg").roles("USER", "ADMIN").build());
+        return manager;
+    }
+
+    /**
+     * admin才能查看h2-console。
+     * user权限会返回403 forbidden
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        return http.securityMatcher("/h2-console/**")
+                .authorizeHttpRequests(request -> request.anyRequest().hasRole("ADMIN"))
+                .formLogin(Customizer.withDefaults())
+                .build();
+    }
+
+    /**
+     * /actuator相关url。
+     * 优先级可以和前一条重复，只要这两条chain匹配的url不重叠，不会有什么问题。
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain actuatorAuth(HttpSecurity http) throws Exception {
+        // 这条链匹配的url
+        return http.securityMatcher(EndpointRequest.toAnyEndpoint())
+                // 这条链的权限
+                .authorizeHttpRequests(request -> request.anyRequest().hasRole("ENDPOINT_ADMIN"))
+                .httpBasic(withDefaults())
+                // basic auth不要用session
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .build();
+    }
+
+    /**
+     * user相关的url只能admin才能看
+     */
+    @Bean
+    @Order(2)
+    protected SecurityFilterChain formAuth(HttpSecurity http) throws Exception {
+        // opendoc csrf支持开启后，配不配置cookie里都有`XSRF-TOKEN`
+        return http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+                // 这些请求不仅要认证，还要拥有相应角色
+                // but这样配置的话，"/user-api/users/"仍然不需要角色认证
+                .securityMatcher("/user-api/users")
+                .authorizeHttpRequests(request -> request.anyRequest().hasRole("ADMIN"))
+                // 使用表单提交用户名和密码的方式认证：人的认证
+                // 返回302，Location: http://localhost:8080/login
+                .formLogin(Customizer.withDefaults())
+                .build();
+    }
+
+    /**
+     * /basic url需要使用basic认证
+     */
+    @Bean
+    @Order(3)
+    protected SecurityFilterChain basicAuth(HttpSecurity http) throws Exception {
+        return http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+                .securityMatcher("/basic")
+                .httpBasic(Customizer.withDefaults())
+                // basic auth不要用session
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .build();
+    }
+
+    /**
+     * 其他请求。没设置优先级，为last
+     */
+    @Bean
+    public SecurityFilterChain formLoginFilterChain(HttpSecurity http) throws Exception {
+        return http.authorizeHttpRequests(request -> request.anyRequest().authenticated())
+                .formLogin(withDefaults())
+                // remember me过期时间
+                // remember me加密用到的key
+                .rememberMe(rm -> rm.tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(2)).key("hellokugou"))
+                .build();
+    }
+}
+```
 
 # 集成springboot
 - https://docs.spring.io/spring-security/reference/servlet/getting-started.html#servlet-hello-auto-configuration
@@ -561,4 +703,22 @@ springboot会默认给spring security配置以下内容：
 - 自动配置一个`UserDetailsService` bean，并创建一个名为`user`的用户，密码会在启动时打印到log里：Using generated security password: 8e557245-73e2-4286-969a-ff57fe326336；
 
 # 感想
-spring security的这些思路真的不错！真的是把spring玩儿明白了！
+**最后再总结一下spring security注册和使用Filter的流程**：
+1. 借助springmvc，为servlet容器添加security相关的filter。完成这件任务的是**`AbstractSecurityWebApplicationInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑试试add filter到servlet context；
+2. 如果项目本身使用了springmvc，springmvc会为servlet容器添加dispatcher servlet。完成这件任务的是**`AbstractDispatcherServletInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑试试add servlet到servlet context；此时request的流程是：
+    1. http
+    2. 进入servlet 容器
+        1. servlet filter
+        2. 进入springmvc
+            1. security filter
+            2. dispatcher servlet
+2. 如果项目本身没使用springmvc，项目一定自己往servlet context上注册了servlet（要不然用servlet容器干嘛）；此时request的流程是：
+    1. http
+    2. 进入servlet 容器
+        1. servlet filter
+        2. 进入springmvc
+            1. security filter
+        3. **出了springmvc**：
+            1. 自己注册的servlet
+
+spring security的这些思路真的不错！真的是把springmvc玩儿明白了！
