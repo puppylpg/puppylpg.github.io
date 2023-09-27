@@ -491,6 +491,30 @@ $ jmeter -n -t vthread.jmx -l vthread1k.txt -e -o vthread-webreportk
 - stoptest：Run the Shutdown client to stop a non-GUI instance abruptly
 
 ### 结果
+对jmeter cli输出内容的解释：
+- `Creating summariser <summary>`：创建了一个汇总器（summariser）对象，用于收集测试结果的摘要信息。
+- `Created the tree successfully using thread.jmx`：成功地使用 thread.jmx 文件创建了测试计划。
+- `Starting standalone test @ 2023 Sep 26 20:15:42 CST (1695730542580)`：开始运行独立的测试，显示了测试开始的时间戳。
+- `Waiting for possible Shutdown/StopTestNow/HeapDump/ThreadDump message on port 4445`：等待可能的关闭/停止测试/堆转储/线程转储消息，监听端口为 4445。
+- `summary + ...`：这是对测试结果的汇总信息。每一行代表一个时间段内的统计数据。
+  - `+` 表示这是新增的统计数据，`=` 表示这是累计的统计数据。
+  - `summary`：汇总数据的标识。
+  - `+/-`：表示新增或减少的请求数量。
+  - `in 00:00:30`：**表示该时间段的持续时间**。
+  - `=   39.0/s`：平均每秒的请求数量。
+  - `Avg:  6689`：平均响应时间。
+  - `Min:  1804`：最小响应时间。
+  - `Max:  9845`：最大响应时间。
+  - `Err:     0 (0.00%)`：错误数量和错误百分比。
+  - `Active: 676`：当前活动的线程数。
+  - `Started: 676`：已启动的线程数。
+  - `Finished: 0`：已完成的线程数。
+- `Command: Shutdown received from /127.0.0.1`：收到来自 127.0.0.1 的关闭命令。
+- `Tidying up ...`：结束测试并进行清理。
+- `... end of run`：测试运行结束。
+
+从下面的输出可以看到，jmeter的qps并不是固定的。从最后的图标可以看到，jmeter会变换qps测试响应。
+
 测试的时候，执行shutdown时出现了不同的情况：shutdown os线程测试时，请求100%正常结束：
 ```bash
 pichu@pebian ~/jmeter/vthread $ jmeter -n -t thread.jmx -l thread-1k.txt -e -o thread-webreport-1k                                     
@@ -584,4 +608,3 @@ os线程的响应时长几乎全在1500ms以上，虚线程有很多响应都在
 
 # 感想
 说JDK21是革命性的确实不为过。**虚线程可以在维持原有编程风格的前提下，对blocking code的执行效率提升这么多**，那么reactive式的异步编程框架真的还有用吗？谁的效率更高？退一万步说，即使reactive仍有优势，这些优势还足以让程序猿不惜以碎片化代码、高难度的组装代码、高难度的debug为代价吗？
-
