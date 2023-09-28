@@ -31,7 +31,7 @@ tags: spring test
 
 ## 直接绑定controller
 在配置上完全不考虑spring的语境，只指定要测试的controller（可以额外加上filter、controller advice等组件），由`MockMvc`自动创建一个`WebApplicationContext`，用于构建`MockMvc`：
-```
+```java
 class MyWebTests {
 
     MockMvc mockMvc;
@@ -55,7 +55,7 @@ class MyWebTests {
 
 ## 使用SpringMVC配置
 指定SpringMVC配置文件，根据配置文件自动创建好一个`WebApplicationContext`，用于构建`MockMvc`：
-```
+```java
 @SpringJUnitWebConfig(locations = "my-servlet-context.xml")
 class MyWebTests {
 
@@ -74,7 +74,7 @@ class MyWebTests {
 这种方法更“集成”一些，因为它加载的是真实的SpringMVC配置，而且可以在配置里指定很多bean，能把这些bean直接`@Autowired`到test class里。**不需要手动注入依赖到controller里。**
 
 当然，也可以配置文件里声明mock的bean，未必都是真实的：
-```
+```xml
 <bean id="accountService" class="org.mockito.Mockito" factory-method="mock">
     <constructor-arg value="org.example.AccountService"/>
 </bean>
@@ -91,7 +91,7 @@ config class同理。
 
 ## 构建`MockMvc`
 `StandaloneMockMvcBuilder`有一堆配置方法，可以完善mvc组件，注册filter，也可以给请求默认添加一些全局设置，比如：
-```
+```java
 // static import of MockMvcBuilders.standaloneSetup
 
 MockMvc mockMvc = standaloneSetup(new MusicController())
@@ -101,7 +101,7 @@ MockMvc mockMvc = standaloneSetup(new MusicController())
     .alwaysExpect(content().contentType("application/json;charset=UTF-8"))
     .build();
 ```
-给所有request添加accept header，内容为application/json。**如果和传入的请求设置了同样的properties，默认请求的properties会被覆盖**。但是`MockMvc`本身不构建请求，它只提供一些默认的`RequestBuilder`。请求在调用request前从外部传进来，并给没设置的properties使用默认的`RequestBuilder`设置一下。
+上面的示例给所有request默认添加accept header，内容为application/json。**如果传入的请求设置了同样的properties，以请求为准**。`MockMvc`本身不构建请求，它只提供一些默认的`RequestBuilder`。如果请求没设置的properties，使用默认的`RequestBuilder`设置一下。
 
 > `DefaultMockMvcBuilder`同理。
 
@@ -112,19 +112,19 @@ MockMvc mockMvc = standaloneSetup(new MusicController())
 发送请求之前先使用`MockMvcRequestBuilders`构造请求。
 
 一个post请求，带上accept header：
-```
+```java
 post("/hotels/{id}", 42).accept(MediaType.APPLICATION_JSON)
 ```
 file upload, multipart：
-```
+```java
 multipart("/doc").file("a1", "ABC".getBytes("UTF-8"))
 ```
 **通过URI template指定query parameters**：
-```
+```java
 get("/hotels?thing={thing}", "somewhere")
 ```
-**add Servlet request parameters that represent either query or form parameters**：
-```
+**使用`param()`方法给Servlet request添加query parameters或者form parameters**：
+```java
 get("/hotels").param("thing", "somewhere")
 ```
 **query parameter和form parameter只有在check query string的时候才有区别**：
@@ -146,11 +146,11 @@ get("/hotels").param("thing", "somewhere")
 > Keep in mind, however, that query parameters provided with the URI template are decoded while request parameters provided through the `param(…)` method are expected to already be decoded.
 
 **`MockMvc`推荐直接测controller mapping，不要加上context path和servlet path**。如果非要带上这俩测完整的url，要把他们指明了。否则`MockMvc`会把整个url当做controller mapping处理，不考虑context path和servlet path：
-```
+```java
 mockMvc.perform(get("/app/main/hotels/{id}").contextPath("/app").servletPath("/main"))
 ```
 context path和servlet path也可以设置到`MockMvc`的`defaultRequest()`里，就不用在每个请求里单独设置了：
-```
+```java
 class MyWebTests {
 
     MockMvc mockMvc;
@@ -166,13 +166,13 @@ class MyWebTests {
 
 ## 断言响应 - `MockMvcResultMatchers`
 使用`andExpect()`：
-```
+```java
 mockMvc.perform(get("/accounts/1")).andExpect(status().isOk());
 ```
 断言来自`MockMvcResultMatchers`。
 
 使用`andExpectAll()`的好处是，会断言所有，即使有的失败了，也会继续执行后续的断言：
-```
+```java
 mockMvc.perform(get("/accounts/1")).andExpectAll(
     status().isOk(),
     content().contentType("application/json;charset=UTF-8")
@@ -191,19 +191,19 @@ mockMvc.perform(get("/accounts/1")).andExpectAll(
     7. 包括servlet相关的：such as request and session attributes.
 
 `model()`方法返回`ModelResultMatchers`，然后使用`ModelResultMatchers`断言binding or validation failed：
-```
+```java
 mockMvc.perform(post("/persons"))
     .andExpect(status().isOk())
     .andExpect(model().attributeHasErrors("person"));
 ```
 如果感觉断言的还不够，可以使用`andReturn()`获取结果，自己直接获取结果里的某一部分做断言：
-```
+```java
 MvcResult mvcResult = mockMvc.perform(post("/persons")).andExpect(status().isOk()).andReturn();
 // ...
 ```
 
 也可以通过`MockMvc`给所有请求加上默认断言，`alwaysExpect()`：
-```
+```java
 standaloneSetup(new SimpleController())
     .alwaysExpect(status().isOk())
     .alwaysExpect(content().contentType("application/json;charset=UTF-8"))
@@ -214,7 +214,7 @@ standaloneSetup(new SimpleController())
 
 ## 一些其他操作 - `MockMvcResultHandlers`
 比如`print`，把response输出到`System.out`：
-```
+```java
 mockMvc.perform(post("/persons"))
     .andDo(print())
     .andExpect(status().isOk())
@@ -229,13 +229,14 @@ mockMvc.perform(post("/persons"))
 
 `MockMvc`测试异步servlet时生动地揭示了spring test和异步servlet的本质：
 1. 先测试返回的异步结果；
-2. 再手动调用异步dispatch，然后校验真正的（异步计算出来的）结果；
+2. **再手动调用异步dispatch，然后校验真正的（异步计算出来的）结果**；
 
-它不仅生动地说明了异步servlet就像`Future`一样分两部分：`Future`本身、通过`Future`获取到的真正的结果。还揭示了spring test的本质：其实是在一个线程里手动执行servlet啦~
+**它不仅生动地说明了异步servlet就像`Future`一样分两部分：`Future`本身、通过`Future`获取到的真正的结果。还揭示了spring test的本质：其实是在一个线程里手动执行servlet**。
+
 > In Spring MVC Test, **async requests can be tested by asserting the produced async value first, then manually performing the async dispatch, and finally verifying the response.**
 
 第一次执行，因为是异步的，所以直接返回了，没有实质的结果。第二次执行的时候把第一次的结果放进去，并手动执行async逻辑，再对（真正的）结果进行判断：
-```
+```java
 @Test
 void test() throws Exception {
     MvcResult mvcResult = this.mockMvc.perform(get("/path"))
@@ -255,9 +256,9 @@ void test() throws Exception {
 
 - https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#spring-mvc-test-vs-end-to-end-integration-tests
 
-# `MockMvc`是怎么模拟servlet容器的
+# `MockMvc`模拟servlet容器：springmvc的本质
 以一个纯手工打造`StandaloneMockMvcBuilder`的例子为入口，分析一下`MockMvc`初始化和处理请求的流程：
-```
+```java
 @ExtendWith(MockitoExtension.class)
 public class SuperHeroControllerMockMvcStandaloneTest {
 
@@ -298,9 +299,8 @@ public class SuperHeroControllerMockMvcStandaloneTest {
     }
 }
 ```
-`MockMvc`builder的前期设置无非是在set一些属性，只有最后的`build()`生成`MockMvc`对象这一步，揭示了`MockMvc`的本质，**同时也很大程度上揭示了SpringMVC的本质**。
-
-```
+`MockMvc`builder的前期设置无非是在set一些属性，只有最后的`build()`生成`MockMvc`对象这一步，揭示了`MockMvc`的本质，**同时也很大程度上揭示了SpringMVC的本质**：
+```java
 	public final MockMvc build() {
 		WebApplicationContext wac = initWebAppContext();
 		ServletContext servletContext = wac.getServletContext();
@@ -325,10 +325,11 @@ public class SuperHeroControllerMockMvcStandaloneTest {
 				this.dispatcherServletCustomizers);
 	}
 ```
+下面一步一步来分解——
 
 ## `WebApplicationContext`
 对于`StandaloneMockMvcBuilder`来说，因为没有spring `WebApplicationContext`，所以首先要搞一个`WebApplicationContext`，wac：
-```
+```java
     	@Override
     	protected WebApplicationContext initWebAppContext() {
     		MockServletContext servletContext = new MockServletContext();
@@ -344,13 +345,13 @@ public class SuperHeroControllerMockMvcStandaloneTest {
 
 ### `ServletContext` - war包里共享的servlet配置
 **[`ServletContext`里放的是一个war包里所有servlet需要共享的配置](https://www.javatpoint.com/servletcontext)，可以认为它是从`web.xml`读的数据**。因为servlet需要这些数据，所以servlet有`getServletContext`方法，以获取`ServletContext`。之后再调用它的：
-- `getInitParameter`：**自定义的初始化参数**；
+- `getInitParameter`：**获取自定义的初始化参数**；
 - `getAttribute`/`setAttribute`
 
 等方法以获取数据、临时保存数据。
 
-这里的`ServletContext`实现是`MockServletContext`：
-```
+MockMvc里的`ServletContext`实现是`MockServletContext`：
+```java
     	public MockServletContext(String resourceBasePath, @Nullable ResourceLoader resourceLoader) {
     		this.resourceLoader = (resourceLoader != null ? resourceLoader : new DefaultResourceLoader());
     		this.resourceBasePath = resourceBasePath;
@@ -381,7 +382,7 @@ public class SuperHeroControllerMockMvcStandaloneTest {
 2. 让`ServletContext`持有`WebApplicationContext`：`org.springframework.web.context.WebApplicationContext.ROOT` -> `WebApplicationContext`；
 
 第二个关联比较tricky：没办法像第一种方式一样去做关联，即使把wac set到`ServletContext`里，**仅根据`ServletContext`的接口仍然不能把wac get出来。毕竟`ServletContext`在前一层，不可能为SpringMVC提供专门的`getWebApplicationContext()`方法，没提供wac相关的setter/getter。但是servlet还是给基于它的框架提供了一种通用的实现：`ServletContext#setAttribute/getAttribute`**
-```
+```java
 servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, wac);
 ```
 这里用到的key是`org.springframework.web.context.WebApplicationContext.ROOT`。**它是和`ServletContext`关联的root wac**！
@@ -393,7 +394,7 @@ servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_A
 
 #### 填充controller、controller advice
 填充的都是SpringMVC需要的bean：
-```
+```java
     		wac.addBeans(this.controllers);
     		wac.addBeans(this.controllerAdvice);
 
@@ -408,7 +409,7 @@ servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_A
 ```
 
 #### 填充`@RequestMapping`处理器
-```
+```java
     		RequestMappingHandlerAdapter ha = config.requestMappingHandlerAdapter(mvcContentNegotiationManager,
     				mvcConversionService, mvcValidator);
     		if (sc != null) {
@@ -424,7 +425,7 @@ servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_A
 - `RequestMappingHandlerAdapter`：处理url mapping对应的请求
 
 `RequestMappingHandlerMapping`是一个`InitializingBean`：
-```
+```java
     	/**
     	 * Detects handler methods at initialization.
     	 * @see #initHandlerMethods
@@ -444,7 +445,7 @@ bean创建之后会自动调用注册功能，把所有controller的mapping注�
 - 还有method lookup，是controller的方法名；
 
 #### 填充`ViewResolver`
-```
+```java
     		wac.addBeans(initViewResolvers(wac));
     		wac.addBean(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME, this.localeResolver);
     		wac.addBean(DispatcherServlet.THEME_RESOLVER_BEAN_NAME, new FixedThemeResolver());
@@ -453,17 +454,17 @@ bean创建之后会自动调用注册功能，把所有controller的mapping注�
 用的是`InternalResourceViewResolver`。
 
 #### 填充session相关bean
-```
+```java
     		this.flashMapManager = new SessionFlashMapManager();
     		wac.addBean(DispatcherServlet.FLASH_MAP_MANAGER_BEAN_NAME, this.flashMapManager);
 ```
 
 #### 填充自定义拓展的bean
-```
+```java
     		extendMvcSingletons(sc).forEach(wac::addBean);
 ```
-protected方法，且默认实现返回空，摆明是让子类拓展的：
-```
+它是protected方法，且默认实现返回空，摆明是让子类拓展的：
+```java
     	protected Map<String, Object> extendMvcSingletons(@Nullable ServletContext servletContext) {
     		return Collections.emptyMap();
     	}
@@ -482,7 +483,7 @@ protected方法，且默认实现返回空，摆明是让子类拓展的：
 所以创建`MockServletConfig`的时候，把之前创建的`ServletContext`放了进去。
 
 `ServletConfig` vs. `ServletContext`：
-1. **`ServletConfig`的主要作用，就是在`Servlet#init`的时候从里面读取一些配置信息，过后就基本不用了**；
+1. **`ServletConfig`的主要作用，就是初始化servlet：在`Servlet#init`的时候从里面读取一些配置信息，过后就基本不用了**；
 2. **`ServletContext`则是上下文信息，除了能获取一些公共配置之外，还能当做全局容器通过`getAttribute/setAttribute`放一些东西，起到传参的作用**；
 
 SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConfig`也仅仅是针对它一个人的config。**config里设置的servlet name是`""`，也就是说`DispatcherServlet`对应的名字是`""`**。即：url里不需要指定servlet的名字了。
@@ -503,7 +504,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     4. resource base path设置为空；
 
 开始初始化。javadoc的介绍是，**先把servlet里的配置参数放到bean里：Map config parameters onto bean properties of this servlet**, and invoke subclass initialization
-```
+```java
     	@Override
     	public final void init() throws ServletException {
 
@@ -530,7 +531,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     	}
 ```
 它所做的就是先把`ServletConfig`里的init parameter取出来，放到了properties里：
-```
+```java
     		public ServletConfigPropertyValues(ServletConfig config, Set<String> requiredProperties)
     				throws ServletException {
 
@@ -559,7 +560,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 **所以在`web.xml`里设置值和在spring配置文件里设置，都一样。**
 
 然后继续init servlet，Javadoc的介绍是，**在bean properties设置完毕后，开始创建wac**：invoked after any bean properties have been set. Creates this servlet's `WebApplicationContext`
-```
+```java
     	@Override
     	protected final void initServletBean() throws ServletException {
     		getServletContext().log("Initializing Spring " + getClass().getSimpleName() + " '" + getServletName() + "'");
@@ -592,12 +593,12 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 ```
 **这里又创建了一个wac，不过它是属于`DispatcherServlet`的wac。之前创建的那个wac是和`ServletContext`关联的wac，是root wac。**
 
-> 所以用来关联的key是`org.springframework.web.context.WebApplicationContext.ROOT`，尾缀为root。不同wac之间出现了层级关系。
-
+> 所以之前用来关联root wac的key是`org.springframework.web.context.WebApplicationContext.ROOT`，尾缀为root。不同wac之间出现了层级关系。
+>
 > `TestDispatcherServlet`的wac直接设置为了root wac，主要是为了省事儿。可以参考[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %}) hierarchy。
 
 对于`DispatcherServlet`来说，它的wac需要init这些东西：
-```
+```java
     	protected void initStrategies(ApplicationContext context) {
     		initMultipartResolver(context);
     		initLocaleResolver(context);
@@ -616,19 +617,19 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 
 ## 完成MockMvc
 `DispatcherServlet`也创建好了，把`DispatcherServlet`、`filter`、`ServletContext`都放在一起，创建出`MockMvc`实例（**`MockMvc`为什么要拿到这些组件？因为没有servlet容器，它自己要调用servlet、filter的执行方法！**）：
-```
+```java
     MockMvc mockMvc = new MockMvc(dispatcherServlet, filters);
 ```
-什么，你说没有`ServletContext`？都有servlet了，自然就有`ServletContext`：
-```
+怎么获取`ServletContext`？都有servlet了，自然就有`ServletContext`：
+```java
     this.servletContext = servlet.getServletContext();
 ```
-`Servlet`既能获取`ServletContext`，又能获取`ServletConfig`
+**`Servlet`既能获取`ServletContext`，又能获取`ServletConfig`**
 - `ServletContext getServletContext()`
 - `ServletConfig getServletConfig()`
 
 最后`MockMvc`会设置这几个东西以方便对结果做出处理：
-```
+```java
     		mockMvc.setDefaultRequest(defaultRequestBuilder);
     		mockMvc.setGlobalResultMatchers(globalResultMatchers);
     		mockMvc.setGlobalResultHandlers(globalResultHandlers);
@@ -640,7 +641,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 
 ### 构造请求
 构造请求的时候，肯定涉及到url。**使用`UriComponentsBuilder`生成uri的方法不错，学学**：
-```
+```java
     	private static URI initUri(String url, Object[] vars) {
     		Assert.notNull(url, "'url' must not be null");
     		Assert.isTrue(url.startsWith("/") || url.startsWith("http://") || url.startsWith("https://"), "" +
@@ -651,7 +652,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 **还可以调用urlencode**，太方便了！
 
 **构造请求的时候，会判断请求url是否符合context path，不符合tomcat就处理不了，趁早报错**：
-```
+```java
     	private void updatePathRequestProperties(MockHttpServletRequest request, String requestUri) {
     		if (!requestUri.startsWith(this.contextPath)) {
     			throw new IllegalArgumentException(
@@ -678,7 +679,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 
 ### 处理请求 - `perform()`
 构建完request之后，开始用`MockMvc`处理请求，得到结果：
-```
+```java
     	public ResultActions perform(RequestBuilder requestBuilder) throws Exception {
     		if (this.defaultRequestBuilder != null && requestBuilder instanceof Mergeable) {
     			requestBuilder = (RequestBuilder) ((Mergeable) requestBuilder).merge(this.defaultRequestBuilder);
@@ -742,15 +743,15 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     	}
 ```
 **`MockMvc`为什么能得到结果，它又不是servlet容器？谜底在这两行：**
-
+```java
     		MockFilterChain filterChain = new MockFilterChain(this.servlet, this.filters);
     		filterChain.doFilter(request, servletResponse);
-
+```
 **servlet（`DispatcherServlet`）被包装成一个filter，注册到filter chain的最后！然后执行这个filter chain的时候就执行了servlet的逻辑！所以`MockMvc`是在一个线程里调用了servlet的逻辑！！！单线程执行！！！**
 
 > Registered filters are invoked through the `MockFilterChain` from spring-test, **and the last filter delegates to the `DispatcherServlet`**.
 
-```
+```java
     	public MockFilterChain(Servlet servlet, Filter... filters) {
     		Assert.notNull(filters, "filters cannot be null");
     		Assert.noNullElements(filters, "filters cannot contain null values");
@@ -762,8 +763,8 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     		return Arrays.asList(allFilters);
     	}
 ```
-这个被包装成的filter就是个servlet的wrapper，把`Servlet#service`的逻辑放到了`Filter#doFilter`里：
-```
+这个被包装成的filter就是个servlet的wrapper，包装的方式也很直白，就是**把`Servlet#service`的逻辑放到了`Filter#doFilter`里**：
+```java
     	/**
     	 * A filter that simply delegates to a Servlet.
     	 */
@@ -797,8 +798,8 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     		}
     	}
 ```
-从代码来看，整个filter只执行了第一个，为什么？
-```
+从代码来看，整个filter只执行了第一个，而不是foreach遍历，为什么？
+```java
     	@Override
     	public void doFilter(ServletRequest request, ServletResponse response) throws IOException, ServletException {
     		Assert.notNull(request, "Request must not be null");
@@ -819,7 +820,7 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
     	}
 ```
 因为每一个filter处理逻辑的最后都要有`filterChain.doFilter(servletRequest, servletResponse)`这么一句话：
-```
+```java
         @Override
         public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
             var httpServletResponse = (HttpServletResponse) servletResponse;
@@ -827,15 +828,15 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
             filterChain.doFilter(servletRequest, servletResponse);
         }
 ```
-**上一个filter执行完后要自觉触发filter chian的下一个，这是filter的约定！**
+**上一个filter执行完后，如果请求符合条件，当前filter会主动触发filter chian的下一个filter，让请求继续执行下去。**
 
-为什么一定要上一个filter手动调用下一个filter？**因为filter还有一个约定：如果不调用下一个filter，就起到了阻止请求处理的作用，请求就返回了（不调用filter了，也不调用servlet了，请求不就相当于提前处理完结束了嘛！）**。比如spring security，就是通过这个阻止那些验证不通过的请求的！
-
+> 如果不调用下一个filter，就起到了阻止请求处理的作用，请求就返回了（不调用filter，也不会调用最后的servlet，请求就相当于提前结束了！）。比如spring security，就是通过这个阻止那些验证不通过的请求的！
+>
 > Either invoke the next entity in the chain using the FilterChain object (chain.doFilter()), or not pass on the request/response pair to the next entity in the filter chain **to block the request processing**
 
 #### `DispatcherServlet`处理请求
 `DispatcherServlet`处理请求的关键在于根据url mapping找到处理它的方法：
-```
+```java
     	@Override
     	@Nullable
     	protected HandlerMethod getHandlerInternal(HttpServletRequest request) throws Exception {
@@ -860,8 +861,8 @@ SpringMVC就一个servlet——`DispatcherServlet`，所以创建的`ServletConf
 ## 结果处理
 结果处理可以直接`andExpect()`，也可以通过`andReturn()`获取`MvcResult`，或者更进一步`andReturn().getResponse()`，获取`HttpServletResponse`。
 
-## tomcat在哪儿
-没有tomcat！**`MockMvc`的整个流程的重点其实就是构造出`DispatcherServlet`，之后就手动运行`Servlet#service`获取结果**：
+## tomcat在哪儿？
+没有tomcat！**`MockMvc`的整个流程的重点其实就是构造出`DispatcherServlet`，之后手动运行`Servlet#service`获取结果**：
 1. **构造`DispatcherServlet`**
     1. 构造`ServletContext`
 	1. 构造root `WebApplicationContext`，填充mvc相关的bean
@@ -878,4 +879,3 @@ servlet处理后的结果还被`TestDispatcherServlet`移花接木到了`MvcResu
 `MockMvc`是测试SpringMVC的mvc层的重要手段，是spring test出的专门测web layer的非常方便的工具！大好评！
 
 无心插柳柳成荫，本来是研究springboot test的，没想到通过spring test的MockMvc，更加深刻地理解了SpringMVC :D
-
