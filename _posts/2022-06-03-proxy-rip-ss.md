@@ -51,10 +51,11 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 
 使用仅存的baidu查了一下，看来是ip被封了之后得使用小钱钱解决问题了：
 - 被封了：https://www.bandwagonhost.net/3174.html
-- 检测自己被封了：https://www.bandwagonhost.net/1934.html
-- 换ip：https://www.bandwagonhost.net/1983.html
+- 检测自己被封了：https://kiwivm.64clouds.com/VPS_ID/main-exec.php?mode=blacklistcheck
+    + https://tcp.ping.pe/puppylpg.xyz:443
+- 换ip：https://bwh89.net/ipchange.php
 
-> 每当代理挂了之后，使用百度的我总感觉自己很可怜。仿佛困在地道里吃最后一点战备粮的可怜人……绝望而无力……
+> 每当代理挂了之后，使用百度的时候总感觉自己很可怜。是困在地道里吃最后一点战备粮的可怜人……绝望而无力……
 
 一个比较有用的地方是使用https://port.ping.pe/检测自己端口是否被封了。可以看到除了中国大陆的client，其他地方都能ping通。被GFW封了无疑。
 
@@ -98,4 +99,3 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 
 # 后记
 看着妹子像个刚学会上网的老年人一样开心，感觉无比舒心。没白折腾一天。
-
