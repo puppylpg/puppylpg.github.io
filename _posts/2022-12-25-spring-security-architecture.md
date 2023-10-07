@@ -704,8 +704,8 @@ springboot会默认给spring security配置以下内容：
 
 # 感想
 **最后再总结一下spring security注册和使用Filter的流程**：
-1. 借助springmvc，为servlet容器添加security相关的filter。完成这件任务的是**`AbstractSecurityWebApplicationInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑试试add filter到servlet context；
-2. 如果项目本身使用了springmvc，springmvc会为servlet容器添加dispatcher servlet。完成这件任务的是**`AbstractDispatcherServletInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑试试add servlet到servlet context；此时request的流程是：
+1. 借助springmvc，为servlet容器添加security相关的filter。完成这件任务的是**`AbstractSecurityWebApplicationInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑就是add filter到servlet context；
+2. 如果项目本身使用了springmvc，springmvc会为servlet容器添加dispatcher servlet。完成这件任务的是**`AbstractDispatcherServletInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑就是add servlet到servlet context；此时request的流程是：
     1. http
     2. 进入servlet 容器
         1. servlet filter
