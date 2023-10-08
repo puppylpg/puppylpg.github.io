@@ -8,7 +8,7 @@ tags: spring security
 
 spring security主要解决三个问题：
 - Authentication：认证。谁在访问；
-- Authorization：权限。某用户能不能访问；
+- Authorization：权限。这个用户能不能访问；
 - protection：防止一些常见的攻击；
 
 前两个问题是最基础的，也是两个递进的问题——知道了谁在访问（Authentication），才能判断他有没有资格访问（Authorization）。
@@ -27,9 +27,12 @@ spring security主要解决三个问题：
 
 ![securitycontextholder](/assets/screenshots/spring/security/securitycontextholder.png)
 
-## `SecurityContextHolder` - 人柱力
+## `SecurityContextHolder`
+
+> 一个容器，或者说存放认证信息的盒子。
+
 最简单往`SecurityContextHolder`里设置`SecurityContext`的方法就是手动创建一个测试authentication并set进去：
-```
+```java
 SecurityContext context = SecurityContextHolder.createEmptyContext();
 Authentication authentication =
     new TestingAuthenticationToken("username", "password", "ROLE_USER");
@@ -37,12 +40,12 @@ context.setAuthentication(authentication);
 
 SecurityContextHolder.setContext(context);
 ```
-`SecurityContextHolder`使用`ThreadLocal`存储authentication，所以相当于是全局变量，可在同一线程执行的任意地方获取、修改authentication。**因此可以使用`SecurityContextHolder#getContext`在任何地方获取到authentication。**
+`SecurityContextHolder`使用`ThreadLocal`存储authentication，所以相当于是（该线程的）全局变量，可在同一线程执行的任意地方获取、修改authentication。**因此可以使用`SecurityContextHolder#getContext`在任何地方获取到authentication。**
 
 > By default, `SecurityContextHolder` uses a `ThreadLocal` to store these details, which means that the SecurityContext is always available to methods in the same thread, **even if the `SecurityContext` is not explicitly passed around as an argument to those methods**. Using a `ThreadLocal` in **this way is quite safe if you take care to clear the thread after the present principal’s request is processed. Spring Security’s `FilterChainProxy` ensures that the `SecurityContext` is always cleared.**
 
-**缺点是必须做好善后工作，最后要清理掉线程里保存的该状态。spring security在`FilterChainProxy`的最后会清掉`SecurityContext`**：
-```
+**缺点是必须做好善后工作，在本次请求的最后要清理掉线程里保存的该状态。spring security在`FilterChainProxy`的最后会清掉`SecurityContext`**：
+```java
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
@@ -66,8 +69,10 @@ SecurityContextHolder.setContext(context);
 ```
 按照servlet filter chain的规范，在filter chain的后面做的都属于后操作。**而`FilterChainProxy`是spring security的入口，等filter chain调用完毕之后，spring security也一定结束了。此时清理掉`SecurityContext`正合适。**
 
+> 但是这么做的话，岂不是每个请求都要认证一遍？会不会产生太多的认证开销？**为了避免这种重复的认证开销，Spring Security使用了会话管理（session）和缓存机制（cache）来优化性能。见下文。**
+
 ## `SecurityContext` - wrapper
-所以其实它也没干啥。
+`Authentication`的wrapper，所以其实它也没干啥，就是get/set `Authentication`。
 
 ## `Authentication`
 看起来挺唬人，但是里面的用户名（principal）、密码（credentials）、权限（authorities），其实基本都是string。
@@ -87,22 +92,23 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 
 > You can inject multiple `AuthenticationProviders` instances into `ProviderManager`. Each `AuthenticationProvider` performs a specific type of authentication. For example, **`DaoAuthenticationProvider` supports username/password-based authentication, while `JwtAuthenticationProvider` supports authenticating a JWT token.**
 
-`ProviderManager`可以设置一个父`AuthenticationManager`作为默认的认证方式（比如基于用户名密码的认证）。多个`ProviderManager`也可以可以共享父`AuthenticationManager`，比如spring security的多条`SecurityFilterChain`可以有有一些相同的认证机制。
+`ProviderManager`可以设置一个父`AuthenticationManager`作为默认的认证方式（比如基于用户名密码的认证）。多个`ProviderManager`也可以可以共享父`AuthenticationManager`，比如spring security的多条`SecurityFilterChain`可以有一些相同的认证机制。
 
-**一旦认证完，验证了一个用户的身份，获取了它的权限，就可以把密码删了，以防止密码泄露。后面的认证流程基本权限就够用了**。通过`ProviderManager#eraseCredentialsAfterAuthentication`控制这一行为：
+**一旦认证完，验证了一个用户的身份，获取了它的权限，就可以把密码删了，以防止密码泄露。后面的鉴权流程只需要基本权限就够用了**。通过`ProviderManager#eraseCredentialsAfterAuthentication`控制这一行为：
 
 > **By default, `ProviderManager` tries to clear any sensitive credentials information from the `Authentication` object that is returned by a successful authentication request. This prevents information, such as passwords, being retained longer than necessary in the `HttpSession`.**
 
-对于`User`，删除密码就意味着：
-```
+对于`User`对象，删除密码就意味着：
+```java
 	@Override
 	public void eraseCredentials() {
 		this.password = null;
 	}
 ```
+简单而纯粹。
 
 # 权限认证filter
-介绍spring security架构时说过，spring security提供了[很多filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)放在自己的security filter chain上以完成各个功能。**`UsernamePasswordAuthenticationFilter`就是其中用`AuthenticationManager`来做用户名密码校验生成`Authentication`的filter**。
+介绍spring security架构时说过，spring security提供了[很多filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)放在自己的security filter chain上以完成各个功能。**`UsernamePasswordAuthenticationFilter`就是其中使用`AuthenticationManager`来做用户名密码校验以生成`Authentication`的filter**。
 
 ![abstractauthenticationprocessingfilter](/assets/screenshots/spring/security/abstractauthenticationprocessingfilter.png)
 
@@ -142,11 +148,11 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 
 `FilterSecurityInterceptor`，和`ExceptionTranslationFilter`也都是spring security提供的filter chain上的filter。
 
-因为要让用户登录，要重定向到登录页，所以此时`ExceptionTranslationFilter`用来转换错误的`AuthenticationEntryPoint`是`LoginUrlAuthenticationEntryPoint`。从中也可以看到，返回的并非直接是登录页，而是`/login` endpoint，再有client发起`/login`请求，才重新通过自定义的controller返回登录页。
+因为要让用户登录，要重定向到登录页，所以此时`ExceptionTranslationFilter`用来转换错误的`AuthenticationEntryPoint`是`LoginUrlAuthenticationEntryPoint`。从中也可以看到，返回的并非直接是登录页，而是`/login` endpoint，再由client发起`/login`请求，才重新通过自定义的controller返回登录页。
 
 > In most cases, the `AuthenticationEntryPoint` is an instance of `LoginUrlAuthenticationEntryPoint`.
 
-再次提交用户名密码之后，就是上一节讲的核心认证逻辑的内容了。不过[有几个地方就确定了](https://docs.spring.io/spring-security/reference/_images/servlet/authentication/unpwd/usernamepasswordauthenticationfilter.png)：
+再次提交用户名密码之后，就是上一节讲的核心认证逻辑的内容了。不过[有几个之前没确定的地方现在就确定了](https://docs.spring.io/spring-security/reference/_images/servlet/authentication/unpwd/usernamepasswordauthenticationfilter.png)：
 1. 构造的`Authentication`用的是`UsernamePasswordAuthenticationFilter`，构造成`UsernamePasswordAuthenticationToken`；
 2. `AuthenticationManager` 里肯定有根据构造成`UsernamePasswordAuthenticationToken`存储的位置做相关验证的`AuthenticationProvider`;
 3. `AuthenticationSuccessHandler`一般是`SimpleUrlAuthenticationSuccessHandler`，要在认证成功后把请求重定向到之前请求的资源url；
@@ -154,7 +160,7 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 所以还会涉及到之前[Spring Security - 架构]({% post_url 2022-12-25-spring-security-architecture %})介绍的请求缓存和重定向的逻辑。
 
 默认情况下，spring security已经设置好了登录页。也可以通过手动配置覆盖它：
-```
+```java
 public SecurityFilterChain filterChain(HttpSecurity http) {
 	http
 		.formLogin(withDefaults());
@@ -162,7 +168,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) {
 }
 ```
 比如通过设置form相关的supplier重定义它的行为：
-```
+```java
 public SecurityFilterChain filterChain(HttpSecurity http) {
 	http
 		.formLogin(form -> form
@@ -173,7 +179,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) {
 }
 ```
 手动指定`loginPage`属性后，要自己渲染login页面（可以使用thymeleaf搞定）。不仅如此，还要自定义一个controller，将`/login`对应到（使用thymeleaf创建的）view上：
-```
+```java
 @Controller
 class LoginController {
 	@GetMapping("/login")
@@ -191,19 +197,19 @@ spring boot应该能帮忙简化这些行为。
 
 ![basicauthenticationentrypoint](/assets/screenshots/spring/security/basicauthenticationentrypoint.png)
 
-不过此时处于filter chain上的filter不再是`UsernamePasswordAuthenticationToken`，而是`BasicAuthenticationFilter`，它创建的还是`UsernamePasswordAuthenticationToken`。后面的认证流程不变。
+此时处于filter chain上的filter不再是`UsernamePasswordAuthenticationToken`，而是`BasicAuthenticationFilter`，它创建的还是`UsernamePasswordAuthenticationToken`。后面的认证流程不变。
 
 这个时候不像表单登录，认证前的请求是不缓存的，**因为客户端有能力重新发送之前的请求**！所以不需要server自动帮它做重定向。
 
 > **The `RequestCache` is typically a `NullRequestCache` that does not save the request since the client is capable of replaying the requests it originally requested.**
-
+>
 > 666，原来是这样约定的……spring security属实把需求拿捏了。
 
 同样，basic认证也是spring security默认支持的。也同样，如果使用了spring security自定义配置，就需要手动配置basic认证。
 
 > Spring Security’s HTTP Basic Authentication support in is enabled by default. However, as soon as any servlet based configuration is provided, HTTP Basic must be explicitly provided.
 
-```
+```java
 @Bean
 public SecurityFilterChain filterChain(HttpSecurity http) {
 	http
@@ -240,7 +246,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) {
 [测试用in memory user](https://docs.spring.io/spring-security/reference/5.8/servlet/authentication/passwords/in-memory.html)。有多种方式创建user：
 
 **直接指定用户，此时密码用“密文”。就像在数据库里一样，这时候的用户信息已经是处理过的了，不再是原始信息**：
-```
+```java
 @Bean
 public UserDetailsService users() {
 	UserDetails user = User.builder()
@@ -257,7 +263,7 @@ public UserDetailsService users() {
 }
 ```
 但是既然是测试用，不如直接指定明文得了，反正都不安全。此时指定的是加密前的用户密码，存储到memory之前会使用`User.withDefaultPasswordEncoder()`加密一下：
-```
+```java
 @Bean
 public UserDetailsService users() {
 	// The builder will ensure the passwords are encoded before saving in memory
@@ -295,7 +301,7 @@ LDAP (Lightweight Directory Access Protocol)，[一般接入公司人员组织�
 >
 > `UserDetailsService` is used by `DaoAuthenticationProvider` for retrieving a username, password, and other attributes for authenticating with a username and password.
 
-**最终，认证通过的authentication（`UsernamePasswordAuthenticationToken`）被设置到了全局`SecurityContextHolder`里。**
+**最终，认证通过的authentication（`UsernamePasswordAuthenticationToken`）被设置到了（线程）全局`SecurityContextHolder`里。**
 
 > Ultimately, the returned `UsernamePasswordAuthenticationToken` will be set on the `SecurityContextHolder` by the authentication Filter.
 
@@ -318,7 +324,11 @@ LDAP (Lightweight Directory Access Protocol)，[一般接入公司人员组织�
 
 `RequestAttributeSecurityContextRepository`则是把`SecurityContext`放在request里，作为一个attribute：`javax.servlet.ServletRequest.setAttribute(String, Object)`。把`SecurityContext`只和这个request关联，并不会让接下来的request也能检索到context。**它的主要作用是防止请求出错导致session被清理，报错页面访问不到user信息了**。
 
-因此，在不同request间持久化context用`HttpSessionSecurityContextRepository`，为了防止单个request报错后依然要访问context，用`RequestAttributeSecurityContextRepository`。它俩场景不同，不如一起用了。所以spring security提供了`DelegatingSecurityContextRepository`，默认把context同时使用这两种方式持久化。
+因此：
+1. 在不同request间持久化context用`HttpSessionSecurityContextRepository`；
+2. 为了防止单个request报错后依然要访问context，用`RequestAttributeSecurityContextRepository`。
+
+它俩场景不同，不如一起用了。所以spring security提供了`DelegatingSecurityContextRepository`，默认把context同时使用这两种方式持久化。
 
 **security filter chain里的`SecurityContextPersistenceFilter`是用来做context的持久化的**。
 
@@ -333,7 +343,7 @@ spring security默认使用session存放认证信息，对于form登录的用户
 
 ## basic认证禁用session
 因此basic认证需要禁用session，以让每次请求都带上用户名和密码信息。直接修改`HttpSecurity`即可：
-```
+```java
 http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 ```
 - STATELESS：session创建策略实际上不使用session，也不从session里取认证信息。
@@ -358,7 +368,7 @@ http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 cookie指明了以下两部分信息：
 1. 明文：给谁用什么算法加密的，过期时间是什么时候；
 2. 密文：加密后的值；
-```
+```java
 base64(username + ":" + expirationTime + ":" + algorithmName + ":"
 algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
 ```
@@ -413,7 +423,7 @@ Cookie: remember-me=aGVsbG86MTY3MjIyMDU0ODQyNjplMThiYzZmMDY2ZDZmNjE0NjRjZGU4OGU4
 ```
 
 `RememberMeServices`会把`remember-me` key对应的cookie取出来：
-```
+```java
 	protected String extractRememberMeCookie(HttpServletRequest request) {
 		Cookie[] cookies = request.getCookies();
 		if ((cookies == null) || (cookies.length == 0)) {
@@ -439,7 +449,7 @@ remember-me=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
 
 ## 配置
 可以配置remember me的过期时间、算法涉及到的额外key等：
-```
+```java
     @Bean
     @Order(2)
     protected SecurityFilterChain configure(HttpSecurity http) throws Exception {
@@ -466,6 +476,7 @@ remember-me=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
 其实看到这里，差不多也就能感受到spring security的本质了：
 - **一切认证工具都是为了往`SecurityContextHolder`放一个authentication**；
 - 一切认证校验都是从`SecurityContextHolder`取authentication，看是否符合当前方法/url的权限。符合则继续执行，不符合则结束请求，往http response写入401/403等status、给body写入一些自定义的内容；
+- 所谓的避免重复认证（同一session只认证一次），不过是把该session id放到了cookie里。又因为根据规范session在下次打开浏览器的时候必须不一样，所以发明了remember me，只不过是往cookie里放了一个多少天内都不会自动清除的id罢了。和session id相比，它不会在浏览器重启后被清理；
 
 尤其是第一点，无论是spring security默认的`UsernamePasswordAuthenticationFilter`，或者其他的认证filter，甚至是我们自己添加一个其他的什么认证filter（比如添加一个校验header里的token的filter），**只要它能在我们认证通过的情况下往`SecurityContextHolder`放一个authentication就行了**。当然，认证不通过、或者没有进行认证的情况下，最好自定义一个对应的`AuthenticationEntryPoint`，以返回和filter相对应的报错。
 
@@ -475,4 +486,3 @@ remember-me=; Max-Age=0; Expires=Thu, 01-Jan-1970 00:00:10 GMT; Path=/wtf
 spring security对需求拿捏得是真准啊。我反而是通过功能在认识需求了:D
 
 spirng security确实6，这么多功能，尤其是对请求的缓存、对认证消息的缓存、remember me，看得我越来越通透了。
-
