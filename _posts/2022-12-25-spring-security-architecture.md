@@ -312,9 +312,9 @@ springboot默认配置的`SecurityFilterChain`是：
 
 所有的`SecurityFilterChain`会被自动注入到`WebSecurityConfiguration`里（就是通过`@EnableWebSecurity` import进来的那个spring security的配置类）。
 
-spring security支持多条filter chain，那么问题来了：springboot自动配置只在bean不存在的情况下才会自动配置，**如果我们自动配置了一条security filter chain，这条默认的还会有吗？会的。因为这个自动配置的bean没有声明为conditional on missing bean**。
+spring security支持多条filter chain。**多条`SecurityFilterChain`之间可以设定优先级，优先级高的filter chain在前面**。
 
-**多条`SecurityFilterChain`之间可以设定优先级，优先级高的filter chain在前面**。
+> 如果我们自己配置了一条security filter chain，这条默认的就不再配置了。
 
 ### 怎么配置security filter chain
 **spring security提供了便捷的方法帮助快速配置security filter chain——`HttpSecurity`！**
@@ -485,18 +485,89 @@ public class MultipleSecurityFilterChainConfig {
 
 > **context path即使被修改了，这里的url matcher也不用考虑。因为tomcat在匹配url的时候已经去掉context path，此时传给Filter的是后面的url**。
 
-**我们配置security filter chain时，配置的是更高层次的功能，不是直接配置filter**。spring security提供了[非常多的filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)来完成相关功能，**根据我们配置的行为，spring security会在各个security filter chain上注册不同的filter**。
+**我们配置security filter chain时，配置的是更高层次的功能（比如使用form还是basic认证），而非直接配置filter**。spring security提供了[非常多的filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)来完成相关功能，**根据我们配置的行为，spring security会在各个security filter chain上注册不同的filter**。
 
+#### filter chain上的具体filter
 比如我们刚刚的4条filter chain的信息可以从log里看出来。每一条filter chain匹配什么url、**注册了哪些filter用于认证**，都打印了出来：
-- 2022-12-30 16:31:37.013  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/h2-console/**'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@48e8b558, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@1f7b645, org.springframework.security.web.context.SecurityContextPersistenceFilter@bdcf938, org.springframework.security.web.header.HeaderWriterFilter@57eab8d0, org.springframework.security.web.csrf.CsrfFilter@4c26ef1a, org.springframework.security.web.authentication.logout.LogoutFilter@28b4fb6c, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@37744595, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@728af88b, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@49299c17, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@4d541e83, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@7e40403a, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@7840ca88, org.springframework.security.web.session.SessionManagementFilter@1e7c54d, org.springframework.security.web.access.ExceptionTranslationFilter@3f547b47, org.springframework.security.web.access.intercept.AuthorizationFilter@8142cac]
-- 2022-12-30 16:31:37.039  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/user-api/users'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@2a1e7cbf, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@13021eff, org.springframework.security.web.context.SecurityContextPersistenceFilter@33535f2a, org.springframework.security.web.header.HeaderWriterFilter@5db0b4f5, org.springframework.security.web.csrf.CsrfFilter@3bccb97a, org.springframework.security.web.authentication.logout.LogoutFilter@56d9f727, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@33e7d52b, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@e2ef4de, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@5ffb5704, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@6ab366ca, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@327c7075, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@52b88f5d, org.springframework.security.web.session.SessionManagementFilter@6d8a2c88, org.springframework.security.web.access.ExceptionTranslationFilter@320d668c, org.springframework.security.web.access.intercept.AuthorizationFilter@7e864675]
-- 2022-12-30 16:31:37.055  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : Will secure Ant [pattern='/basic'] with [org.springframework.security.web.session.DisableEncodeUrlFilter@690bc59c, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@534e4aea, org.springframework.security.web.context.SecurityContextPersistenceFilter@58ca097, org.springframework.security.web.header.HeaderWriterFilter@6b7c3011, org.springframework.security.web.csrf.CsrfFilter@6b812575, org.springframework.security.web.authentication.logout.LogoutFilter@3f00dc7b, org.springframework.security.web.authentication.www.BasicAuthenticationFilter@5acf5c09, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@2e005fb8, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@24f61ed1, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@73c16b9e, org.springframework.security.web.session.SessionManagementFilter@67c48b97, org.springframework.security.web.access.ExceptionTranslationFilter@e57856]
+- 2022-12-30 16:31:37.013  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : **Will secure Ant [pattern='/h2-console/**']** with [org.springframework.security.web.session.DisableEncodeUrlFilter@48e8b558, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@1f7b645, org.springframework.security.web.context.SecurityContextPersistenceFilter@bdcf938, org.springframework.security.web.header.HeaderWriterFilter@57eab8d0, org.springframework.security.web.csrf.CsrfFilter@4c26ef1a, org.springframework.security.web.authentication.logout.LogoutFilter@28b4fb6c, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@37744595, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@728af88b, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@49299c17, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@4d541e83, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@7e40403a, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@7840ca88, org.springframework.security.web.session.SessionManagementFilter@1e7c54d, org.springframework.security.web.access.ExceptionTranslationFilter@3f547b47, org.springframework.security.web.access.intercept.AuthorizationFilter@8142cac]
+- 2022-12-30 16:31:37.039  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : **Will secure Ant [pattern='/user-api/users']** with [org.springframework.security.web.session.DisableEncodeUrlFilter@2a1e7cbf, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@13021eff, org.springframework.security.web.context.SecurityContextPersistenceFilter@33535f2a, org.springframework.security.web.header.HeaderWriterFilter@5db0b4f5, org.springframework.security.web.csrf.CsrfFilter@3bccb97a, org.springframework.security.web.authentication.logout.LogoutFilter@56d9f727, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@33e7d52b, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@e2ef4de, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@5ffb5704, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@6ab366ca, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@327c7075, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@52b88f5d, org.springframework.security.web.session.SessionManagementFilter@6d8a2c88, org.springframework.security.web.access.ExceptionTranslationFilter@320d668c, org.springframework.security.web.access.intercept.AuthorizationFilter@7e864675]
+- 2022-12-30 16:31:37.055  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : **Will secure Ant [pattern='/basic']** with [org.springframework.security.web.session.DisableEncodeUrlFilter@690bc59c, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@534e4aea, org.springframework.security.web.context.SecurityContextPersistenceFilter@58ca097, org.springframework.security.web.header.HeaderWriterFilter@6b7c3011, org.springframework.security.web.csrf.CsrfFilter@6b812575, org.springframework.security.web.authentication.logout.LogoutFilter@3f00dc7b, org.springframework.security.web.authentication.www.BasicAuthenticationFilter@5acf5c09, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@2e005fb8, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@24f61ed1, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@73c16b9e, org.springframework.security.web.session.SessionManagementFilter@67c48b97, org.springframework.security.web.access.ExceptionTranslationFilter@e57856]
 - 2022-12-30 16:31:37.081  INFO 77449 --- [  restartedMain] o.s.s.web.DefaultSecurityFilterChain     : **Will secure any request** with [org.springframework.security.web.session.DisableEncodeUrlFilter@661bdaf1, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@70fcc268, org.springframework.security.web.context.SecurityContextPersistenceFilter@275a25bb, org.springframework.security.web.header.HeaderWriterFilter@1a759cc, org.springframework.security.web.csrf.CsrfFilter@37c664a5, org.springframework.security.web.authentication.logout.LogoutFilter@48351427, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@52989d3f, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@77b86813, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@23b85c07, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@3e9458f, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@383b1507, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@32ec2f67, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@74a6ddf6, org.springframework.security.web.session.SessionManagementFilter@233d8e35, org.springframework.security.web.access.ExceptionTranslationFilter@700a83bc, org.springframework.security.web.access.intercept.AuthorizationFilter@1c8aaef0]
 
-每一条filter chain都是`DefaultLogoutPageGeneratingFilter`实现，其中第三条有`BasicAuthenticationFilter`，其他几条都是`UsernamePasswordAuthenticationFilter`。
+每一条filter chain都是`DefaultLogoutPageGeneratingFilter`实现，**虽然spring security在上面添加的filter有很多，但是大致可以分成三部分**：
+1. **logout filter前的filter是大家共有的**：org.springframework.security.web.session.DisableEncodeUrlFilter@661bdaf1, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@70fcc268, org.springframework.security.web.context.SecurityContextPersistenceFilter@275a25bb, org.springframework.security.web.header.HeaderWriterFilter@1a759cc, org.springframework.security.web.csrf.CsrfFilter@37c664a5, org.springframework.security.web.authentication.logout.LogoutFilter@48351427
+2. **接下来这一部分filter和认证方式对应，这也是该filter chain独有的认证方式的体现。认证方式不同，用到的filter也不同**：
+    1. **表单登录用的是`UsernamePasswordAuthenticationFilter`**：org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@33e7d52b, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@e2ef4de, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@5ffb5704，**除了认证filter，还有login/logout page generate filter**；
+    2. **basic认证用的是`BasicAuthenticationFilter`**：org.springframework.security.web.authentication.www.BasicAuthenticationFilter@5acf5c09，**就他一个，因为不需要logout**；
+    3. 也可以添加一些其他自定义的认证filter，**比如jwt相关的filter，手动添加到这个位置**：`http.addFilterBefore(<jwtAuthenticationTokenFilter>, UsernamePasswordAuthenticationFilter.class)`。**如果此时不再配置form login，`UsernamePasswordAuthenticationFilter`将会不存在，但不重要，不管有没有它，jwt的filter都会放在合适的位置**；
+3. **最后一部分的filter也相同**：org.springframework.security.web.savedrequest.RequestCacheAwareFilter@3e9458f, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@383b1507, org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter@32ec2f67, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@74a6ddf6, org.springframework.security.web.session.SessionManagementFilter@233d8e35, org.springframework.security.web.access.ExceptionTranslationFilter@700a83bc, org.springframework.security.web.access.intercept.AuthorizationFilter@1c8aaef0
+
+其中第三条有`BasicAuthenticationFilter`，其他几条都是`UsernamePasswordAuthenticationFilter`。最后一条chain因为配置了remember me，所以多了`RememberMeAuthenticationFilter`。
+
+这些filter的默认位置写在了`FilterOrderRegistration`里：
+```java
+	FilterOrderRegistration() {
+		Step order = new Step(INITIAL_ORDER, ORDER_STEP);
+		put(DisableEncodeUrlFilter.class, order.next());
+		put(ForceEagerSessionCreationFilter.class, order.next());
+		put(ChannelProcessingFilter.class, order.next());
+		order.next(); // gh-8105
+		put(WebAsyncManagerIntegrationFilter.class, order.next());
+		put(SecurityContextHolderFilter.class, order.next());
+		put(SecurityContextPersistenceFilter.class, order.next());
+		put(HeaderWriterFilter.class, order.next());
+		put(CorsFilter.class, order.next());
+		put(CsrfFilter.class, order.next());
+		put(LogoutFilter.class, order.next());
+		this.filterToOrder.put(
+				"org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter",
+				order.next());
+		this.filterToOrder.put(
+				"org.springframework.security.saml2.provider.service.web.Saml2WebSsoAuthenticationRequestFilter",
+				order.next());
+		put(X509AuthenticationFilter.class, order.next());
+		put(AbstractPreAuthenticatedProcessingFilter.class, order.next());
+		this.filterToOrder.put("org.springframework.security.cas.web.CasAuthenticationFilter", order.next());
+		this.filterToOrder.put("org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter",
+				order.next());
+		this.filterToOrder.put(
+				"org.springframework.security.saml2.provider.service.web.authentication.Saml2WebSsoAuthenticationFilter",
+				order.next());
+		put(UsernamePasswordAuthenticationFilter.class, order.next());
+		order.next(); // gh-8105
+		put(DefaultLoginPageGeneratingFilter.class, order.next());
+		put(DefaultLogoutPageGeneratingFilter.class, order.next());
+		put(ConcurrentSessionFilter.class, order.next());
+		put(DigestAuthenticationFilter.class, order.next());
+		this.filterToOrder.put(
+				"org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter",
+				order.next());
+		put(BasicAuthenticationFilter.class, order.next());
+		put(RequestCacheAwareFilter.class, order.next());
+		put(SecurityContextHolderAwareRequestFilter.class, order.next());
+		put(JaasApiIntegrationFilter.class, order.next());
+		put(RememberMeAuthenticationFilter.class, order.next());
+		put(AnonymousAuthenticationFilter.class, order.next());
+		this.filterToOrder.put("org.springframework.security.oauth2.client.web.OAuth2AuthorizationCodeGrantFilter",
+				order.next());
+		put(SessionManagementFilter.class, order.next());
+		put(ExceptionTranslationFilter.class, order.next());
+		put(FilterSecurityInterceptor.class, order.next());
+		put(AuthorizationFilter.class, order.next());
+		put(SwitchUserFilter.class, order.next());
+	}
+```
+如果我们使用上述`http.addFilterBefore(<jwtAuthenticationTokenFilter>, UsernamePasswordAuthenticationFilter.class)`新注册了一个filter，该filter也会添加到现有的order里，以便继续使用`http.addFilterBefore(<another>, <jwtAuthenticationTokenFilter>.class)`在其前后添加filter。
+
+> 怎么让client发送的request带上jwt token？client也是自己写的，发送的时候直接手动设置header，带上token就行了……
+>
+> **非jwt为了后续不再需要认证，用的是session，因为session可以放到cookie里，下次自动带过来**。
+> 
+> 但是如果需要做remember me功能，可以把jwt的token扔到cookie里，只要没到过期时间，下次cookie会自动带上该token，拿到token，相当于remember me了。
 
 **配置完filter chain，可以看看这些log的url pattern和自己想的是不是一样，从而快速判断filter chain有没有配错。**
 
+#### filter chain的认证过程
 如果我们此时使用basic auth提供guest用户访问`/basic` url，会因为权限不足而被拒。具体流程可以从debug日志看出来——
 
 首先，因为我们的用户存在了in-memory database里，`DaoAuthenticationProvider`先从db里获取了用户：
