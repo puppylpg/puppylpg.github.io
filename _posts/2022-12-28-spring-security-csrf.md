@@ -11,7 +11,7 @@ spring security的另一个功能是[保护一些常用的恶意攻击](https://
 1. Table of Contents, ordered
 {:toc}
 
-CSRF指的是[这样的场景](https://docs.spring.io/spring-security/reference/features/exploits/csrf.html#csrf-explained)：**别的网站向你的服务器发送请求（带着合法的cookie），而你以为这个请求来自于你的网站**。
+CSRF指的是[这样的场景](https://docs.spring.io/spring-security/reference/features/exploits/csrf.html#csrf-explained)：**别的网站向你的服务器发送请求，浏览器会默认带上同站的cookie。如果你的浏览器是通过cookie认证的，比如cookie里的session id，那该请求也是通过了认证的。如果该请求会修改数据，那就相当于别的网站有了修改你数据的权限。而你分不清这个请求来自于你的网站还是别的网站**。
 
 伪造的关键在于：它虽然不能解析你的cookie，但浏览器发来的请求会默认带上之前的cookie。
 > while the evil website cannot see your cookies, the cookies associated with your bank are still sent along with the request.
@@ -23,7 +23,7 @@ CSRF指的是[这样的场景](https://docs.spring.io/spring-security/reference/
 
 **The reason that a CSRF attack is possible is that the HTTP request from the victim’s website and the request from the attacker’s website are exactly the same.**
 
-而给操纵浏览器你的服务器发送请求这一行为，甚至都不需要用户介入，只要打开了恶意网站它就能使用JavaScript自动完成请求发送：
+而操纵浏览器给你的服务器发送请求这一行为，甚至都不需要用户介入，只要打开了恶意网站它就能使用JavaScript自动完成请求发送：
 > Worse yet, this whole process could have been automated by using JavaScript. This means you did not even need to click on the button. Furthermore, it could just as easily happen when visiting an honest site that is a victim of a XSS attack.
 
 总结一下：
@@ -35,7 +35,7 @@ To protect against CSRF attacks, we need to ensure there is something in the req
 # 为什么不把来自其他网站的请求禁了？
 只要把来自其他网站的请求禁了，是不是就不会csrf了？
 
-referer可以标记请求来自其他网站，如果referer/origin的来源不是本网站，我们就不处理这些请求，何如？这是可行且简单的，[问题在于这两个header是可以伪造的](https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E6%AA%A2%E6%9F%A5Referer%E5%AD%97%E6%AE%B5)，高度依赖浏览器，而浏览器未必安全。
+referer可以标记请求来自其他网站，如果referer/origin的来源不是本网站，我们就不处理这些请求，何如？这是可行且简单的，[但问题在于这两个header是可以伪造的](https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E6%AA%A2%E6%9F%A5Referer%E5%AD%97%E6%AE%B5)，高度依赖浏览器，而浏览器未必安全。
 
 > referer其实是referrer的误写。。。
 
@@ -46,7 +46,7 @@ referer可以标记请求来自其他网站，如果referer/origin的来源不�
 
 > For either protection against CSRF to work, the application must ensure that "safe" HTTP methods are idempotent. This means that requests with the HTTP GET, HEAD, OPTIONS, and TRACE methods should not change the state of the application. **这里感觉文档说错了，只读就行了，[幂等](https://www.rfc-editor.org/rfc/rfc7231#section-4.2.2)是另一回事儿。spring security要求的应该是“safe method必须实现为只读的”。**
 
-**既然出bug的地方在于浏览器会默认给来自外站的请求带上本站的cookie，所以两个策略CSRF的防御都围绕这一点展开，但思路不同**：
+**既然出bug的地方在于浏览器会默认给来自外站的（访问本站的）请求带上本站的cookie，所以两个CSRF的防御策略都围绕这一点展开，但思路不同**：
 1. STP：**在除了cookie的地方加上一点儿验证信息**，外站请求就没法把验证信息带过来了；
 2. `SameSite`：**不允许来自外站的请求带上本站的cookie**；
 
@@ -66,10 +66,12 @@ referer可以标记请求来自其他网站，如果referer/origin的来源不�
 > **We can relax the expectations to require only the actual CSRF token for each HTTP request that updates the state of the application. For that to work, our application must ensure that safe HTTP methods are idempotent.**
 
 ### token放在post表单里
-**服务器返回的响应里包含一个csrf token，所有的表单都包含
+如果请求是有body的，比如使用表单提交一些信息，那就可以在表单里有塞一些只有本站才能提供的东西，这样就能防止表单相关的csrf攻击。
+
+**我们让服务器返回的响应里包含一个csrf token，所有的表单都包含
 `_csrf`的标签，服务渲染网页的时候，会自动把`_csrf`标签替换为csrf token值，放在表单里。提交post请求的时候就带上token了。**
 
-- https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E4%BB%A4%E7%89%8C%E5%90%8C%E6%AD%A5%E6%A8%A1%E5%BC%8F
+- [跨站请求伪造#令牌同步模式](https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E4%BB%A4%E7%89%8C%E5%90%8C%E6%AD%A5%E6%A8%A1%E5%BC%8F)
 
 **可以一个session生成一个token**，恶意网站无法读取跨站响应，所以它得不到这个刚刚生成的token。
 
@@ -79,15 +81,15 @@ referer可以标记请求来自其他网站，如果referer/origin的来源不�
 
 > Please note, **that HTTP session is used in order to store CSRF token. When the request is sent, Spring compares generated token with the token stored in the session**, in order to confirm that the user is not hacked.
 
-**注意：这不是把token放在cookie里。把token放cookie指的是仅仅把token放cookie里。这里token是放的位置是请求参数里，之所以顺带也放到了cookie，是为了方便做token的校验。**
+**注意：这不是把token放在cookie里。把token放cookie指的是仅仅把token放cookie里。这里token放的位置是请求参数里，之所以顺带也放到了cookie，是为了方便做token的校验。**
 
 页面上每一处的表单都会用这个csrf值渲染，比如这个退出的form：
-```
-      <form class="form-signin" method="post" action="/logout">
-        <h2 class="form-signin-heading">Are you sure you want to log out?</h2>
+```xml
+<form class="form-signin" method="post" action="/logout">
+<h2 class="form-signin-heading">Are you sure you want to log out?</h2>
 <input name="_csrf" type="hidden" value="431853ef-77fe-450c-9dd0-ab69ed52b68b" />
-        <button class="btn btn-lg btn-primary btn-block" type="submit">Log Out</button>
-      </form>
+<button class="btn btn-lg btn-primary btn-block" type="submit">Log Out</button>
+</form>
 ```
 
 ### token放在header里
@@ -95,7 +97,9 @@ referer可以标记请求来自其他网站，如果referer/origin的来源不�
 
 如果post的请求体是json，就没办法这么搞了，只能放到header里。
 
-- https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E6%B7%BB%E5%8A%A0%E6%A0%A1%E9%A9%97token
+- [跨站请求伪造#添加校驗token](https://zh.wikipedia.org/wiki/%E8%B7%A8%E7%AB%99%E8%AF%B7%E6%B1%82%E4%BC%AA%E9%80%A0#%E6%B7%BB%E5%8A%A0%E6%A0%A1%E9%A9%97token)
+
+同样，来自外站发起的本站请求，能自动带上的header只有cookie，不会带上我们自定义的这个header。
 
 ## `SameSite`
 **另一个思路是禁止浏览器给来自其他网站的请求带上本站的cookie。**
@@ -119,7 +123,7 @@ Set-Cookie: JSESSIONID=randomid; Domain=bank.example.com; Secure; HttpOnly; Same
 所以这个策略一般都是辅助策略。
 
 # 如果不使用cookie？
-CSRF的关键点就是：浏览器会自动给来自非同站的请求带上同站的cookie。
+CSRF的关键点就是：浏览器会自动给来自非同站发起的（访问本站的）请求带上同站的cookie。
 
 **如果不使用cookie保存信息，使用一个自定义的header保存这些信息，服务器校验这个自定义header而非cookie，是不是就不怕别人盗用cookie了？是不是也能防止csrf？**
 
@@ -141,5 +145,4 @@ CSRF的关键点就是：浏览器会自动给来自非同站的请求带上同�
 > When should you use CSRF protection? Our recommendation is to use CSRF protection for any request that could be processed by a browser by normal users. **If you are creating a service that is used only by non-browser clients, you likely want to disable CSRF protection.**
 
 # 感想
-我就看看，网络攻击这一块儿，你说啥就是啥。
-
+我就随便看看开开眼，网络攻击这一块儿，你说啥就是啥。
