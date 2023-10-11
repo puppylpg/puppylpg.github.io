@@ -364,13 +364,30 @@ http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 
 > This is typically accomplished by sending a cookie to the browser, with the cookie being detected during future sessions and causing automated login to take place. 
 
-## 基于hash的token
-cookie指明了以下两部分信息：
+## 流程
+如果服务支持remember me，开启之后，如果用户设置了remember me（勾选remember me框），http response会让设置两个cookie：
+- remember-me=aGVsbG86MTY0ODY1NTI3MTYxMzoyZjFiYTlkYzZjNzA4NWZiYTRjMjA3NDJkZGFhOTMyNg; Max-Age=2419200; Expires=Wed, 30-Mar-2022 15:47:51 GMT; Path=/; HttpOnly
+- JSESSIONID=EC43C831BC13E3BE5F51C6EE34155AAD; Path=/; HttpOnly
+
+如果关掉浏览器再打开，cookie里有刚刚的remember me：
+- Cookie: remember-me=aGVsbG86MTY0ODY1NTI3MTYxMzoyZjFiYTlkYzZjNzA4NWZiYTRjMjA3NDJkZGFhOTMyNg
+
+此时访问资源，不需要登录，server会返回一个新的session id（不是刚刚的那个），而且不再返回set cookie remember me：
+- Set-Cookie: JSESSIONID=0862C3F35DAC95956855137E71BBB493; Path=/; HttpOnly
+
+remember-me有个过期时间，Expires，值就是设置的4周。4周内每次重新访也就会有这个cookie，所以永远认证成功。所以必须得有logout。
+
+**之后当请求没有在`SecurityContextHolder`里设置`Authentication`，且cookie里有remember me的时候，spring security的`RememberMeAuthenticationFilter`会**：
+1. 从cookie里取出`remember-me`这个key对应的value；
+2. 解密value，取出用户名密码；
+3. 根据用户名和密码，判断是否要给`SecurityContextHolder`设置`Authentication`；
+
+## remember-me value
+cookie里的remember-me对应的值如下：
 1. 明文：给谁用什么算法加密的，过期时间是什么时候；
 2. 密文：加密后的值；
 ```java
-base64(username + ":" + expirationTime + ":" + algorithmName + ":"
-algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
+base64(username + ":" + expirationTime + ":" + algorithmName + ":" + algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
 ```
 
 > key: A private key to prevent modification of the remember-me token
@@ -379,11 +396,8 @@ algorithmHex(username + ":" + expirationTime + ":" password + ":" + key))
 
 > Notably, this has a potential security issue in that a captured remember-me token will be usable from any user agent until such time as the token expires. This is the same issue as with digest authentication.
 
-## 基于数据库的token
-也差不多，不过存到数据库里了，而不是服务器里。
-
-## 实现
-**实现在`RememberMeAuthenticationFilter`里了，会调用`RememberMeServices`，生成一个`RememberMeAuthenticationToken`，等待后续被验证**。`RememberMeServices`有两个实现，对应上面两种方式：
+## `RememberMeAuthenticationFilter`的实现
+`RememberMeAuthenticationFilter`会调用`RememberMeServices`，生成一个`RememberMeAuthenticationToken`，等待后续被验证。`RememberMeServices`有两个实现：
 - `TokenBasedRememberMeServices`
 - `PersistentTokenBasedRememberMeServices`
 
