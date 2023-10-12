@@ -42,7 +42,7 @@ tags: junit jupiter testcontainers maven
 before all/before each/after all/after each
 - https://junit.org/junit5/docs/current/user-guide/#writing-tests-test-instance-lifecycle
 
-## @Nested
+## `@Nested`
 一组测试，更好的组织方式。也能共享一些东西：
 - https://junit.org/junit5/docs/current/user-guide/#writing-tests-nested
 
@@ -55,22 +55,26 @@ before all/before each/after all/after each
 
 然后consume掉它：https://junit.org/junit5/docs/current/user-guide/#writing-tests-parameterized-tests-consuming-arguments
 
-# junit的架构：@ExtendWith
+# junit的架构：`@ExtendWith`
 - https://junit.org/junit5/docs/current/user-guide/#extensions-registration
 
-extendwith所处的层级：
+以基于jupiter的testcontainers测试框架为例：**我们可以直接使用testcontainers框架提供的`@TestContainers`进行container的自动管理**。该注解会寻找标注了`@Container`的field，并在测试前后对它自动开启关闭。
+
+**`@TestContainers`标注了`@ExtendWith(TestcontainersExtension.class)`**，也就是说，`@TestContainers`的整个功能是由`TestcontainersExtension`类提供的支持。
+
+此时jupiter的`Extendwith`所处的层级：
 1. junit框架：junit加载`@ExtentWith`里提供的拓展类；
-2. testcontainers：作为junit框架使用者，写一个自己的`@ExtentWith`，也就是`TestcontainersExtension`类，读取自己关心的注解`@TestContainers`/`@Container`，控制container的启动和关闭；
-3. 程序猿：作为testcontainers使用者，写自己的测试代码，使用`@TestContainers`/`@Container`；
+2. testcontainers：作为junit框架使用者，写一个符合`@ExtentWith`规范的拓展类，也就是`TestcontainersExtension`，读取自己关心的注解`@Container`，控制container的启动和关闭；
+3. 程序猿：作为testcontainers使用者，写自己的测试代码，使用`@TestContainers`指定由testcontainers自动管理的测试类，并在container上标注`@Container`；
 
 testcontainers的`TestcontainersExtension`做哪些事情？测试前启动container，测试后关闭container。所以`TestcontainersExtension`实现了jupiter的以下几个生命周期接口：
-- BeforeEachCallback
 - BeforeAllCallback
+- BeforeEachCallback
 - AfterEachCallback
 - AfterAllCallback
 - ExecutionCondition
 
-## ExtensionContext
+## `ExtensionContext`
 想完成回调，回调参数是非常重要的，它是这个回调函数所能拥有的一切上下文信息。jupiter提供了`ExtensionContext`回调参数，而且根据不同的回调类型，提供了不同的实现：
 - **beforeAll/afterAll的`ExtensionContext`类型为`ClassExtensionContext`，每个test class对应一个该对象**；
 - **beforeEach/afterEach的`ExtensionContext`类型为`MethodExtensionContext`，每个test method对应一个该对象，且对象的parent指向该test class的`ExtensionContext`**；
@@ -79,9 +83,11 @@ testcontainers的`TestcontainersExtension`做哪些事情？测试前启动conta
 - 每个test class的beforeAll/afterAll的`ExtensionContext`都是同一个对象，test class之间是不同的对象；
 - 每个test method的beforeEach/afterEach的`ExtensionContext`都是同一个对象，同一test class不同test method之间是不同的对象；
 
-## BeforeAllCallback
-启动前这个extend都干了哪些事？看它对BeforeAllCallback的实现，非常直白：
-```
+## `BeforeAllCallback`
+在测试前，`TestcontainersExtension`需要找到谁标注了`@Container`注解，启动container。
+
+看它对`BeforeAllCallback`回调接口的实现，非常直白：
+```java
     @Override
     public void beforeAll(ExtensionContext context) {
         Class<?> testClass = context
@@ -108,19 +114,19 @@ testcontainers的`TestcontainersExtension`做哪些事情？测试前启动conta
     }
 ```
 1. 首先获取标注了这个注解`@ExtendWith(TestcontainersExtension.class)`的class；
-2. 在该类里找到所有的shard container，即“标注了`@Container`且为static的field”；
+2. 在该类里找到所有的shard container，即：标注了`@Container`且为static的container（shared container）；
 3. 启动这些container；
 
-通过jupiter提供的`ExtensionContext`回调参数，找到标注注解的类，进而从类信息获取各种field，进而找到要启动的容器。
+**通过jupiter提供的`ExtensionContext`回调参数，找到标注注解的类，进而从类信息获取各种field，进而找到要启动的容器。**
 
 所有启动的shared container最后肯定都要关掉，**但是testcontainers并没有在`afterAll`回调里显式关闭这些container，而是直接交给了jupiter销毁它们**。
 
-jupiter怎么做的？**jupiter在`ExtensionContext`里创建了一个`Store`。所有存储在该context的store里`CloseableResource`类型的对象，都会随context的销毁而关闭**。
+jupiter怎么做的？**jupiter在`ExtensionContext`里创建了一个`Store`。所有存储在该context的store里的`CloseableResource`类型的对象，都会随context的销毁而关闭**。
 
 > Any instances of `ExtensionContext.Store.CloseableResource` stored in the Store of the provided `ExtensionContext` will be closed before methods in this API are invoked. You can use the parent context’s Store to work with such resources.
 
 所以testcontainers在beforeAll里把所有的container对象封装为了`CloseableResource`类型的`StoreAdapter`：
-```
+```java
     /**
      * An adapter for {@link Startable} that implement {@link CloseableResource}
      * thereby letting the JUnit automatically stop containers once the current
@@ -152,28 +158,28 @@ jupiter怎么做的？**jupiter在`ExtensionContext`里创建了一个`Store`。
 到时候jupiter调用`CloseableResource#close`，其实就是调用`container.stop()`。
 
 然后jupiter把找到的所有shared container都放到了store里：
-```
+```java
         sharedContainersStoreAdapters.forEach(adapter -> {
             store.getOrComputeIfAbsent(adapter.getKey(), k -> adapter.start());
         });
 ```
 **这样等这个测试类结束的时候，所有shared container都会自动销毁。**
 
-在`ExtensionContext`里，`Store`是和namespace关联的。所以testcontainers创建了一个自定义跟自己相关的namespace，`Namespace.create(TestcontainersExtension.class)`。**毕竟一个类可能同时声明了很多`@ExtendWith`，比如还添加了spring的jupiter extension。大家用的都是同一个`ExtensionContext`对象。有了namespace，各操作各的，省得冲突**。
+在`ExtensionContext`里，`Store`是和namespace关联的。所以testcontainers创建了一个自定义的namespace，`Namespace.create(TestcontainersExtension.class)`。**毕竟一个类可能同时声明了很多`@ExtendWith`，比如还添加了spring的jupiter extension。大家用的都是同一个`ExtensionContext`对象。有了namespace，各操作各的，省得冲突**。
 
 > 获取这个namespace关联的`Store store = context.getStore(NAMESPACE)`。把它当成是个map就行。
 
 testcontainers本身还支持container启动后的回调，`TestLifecycleAware`，所以还要在shared container里把实现了这些接口的container找出来，然后调用它们的`TestLifecycleAware#beforeTest`。
 
-> testcontainers的extension class是jupiter的回调，同时还要触发使用testcontainers的程序猿写的container在测试前后的回调。
+> testcontainers的extension class是jupiter的回调，同时testcontainers还要触发使用testcontainers的程序猿写的container在测试前后的回调。
 >
 > 别人调我，我调你。别人是我爸爸，我是你爸爸。无论计算机世界还是这个真实的世界不都是这样？底层给我暴露一些接口，这些接口是我所能获取的所有；我给上层暴露一些接口，这些接口也是他们能获取的所有。
 
 显然，在容器销毁后还要调用这批`TestLifecycleAware`容器的`TestLifecycleAware#afterTest`方法。所以testcontainers决定把这些过滤出来的container也放到store里（key=sharedLifecycleAwareContainers），等`afterAll`的时候再取出这些container触发afterTest回调。
 
-## BeforeEachCallback
-在每个test method启动前启动，启动的是非shared container，然后调用它们相关的回调：
-```
+## `BeforeEachCallback`
+在每个test method启动前启动，启动的是**非shared container**，然后调用它们相关的回调：
+```java
     @Override
     public void beforeEach(final ExtensionContext context) {
         Store store = context.getStore(NAMESPACE);
@@ -196,8 +202,8 @@ testcontainers本身还支持container启动后的回调，`TestLifecycleAware`�
 
 最后，回调这些container中的`TestLifecycleAware`类型container的`TestLifecycleAware#beforeTest`。同时把他们放到store里（key=localLifecycleAwareContainers）存起来，准备afterEach的时候调用。
 
-## AfterEachCallback
-```
+## `AfterEachCallback`
+```java
     @Override
     public void afterEach(ExtensionContext context) {
         signalAfterTestToContainersFor(LOCAL_LIFECYCLE_AWARE_CONTAINERS, context);
@@ -218,8 +224,8 @@ testcontainers本身还支持container启动后的回调，`TestLifecycleAware`�
 
 因为已经交给jupiter自动关闭了，所以这里其实没有在测试方法结束后显式close容器的动作。
 
-## AfterAllCallback
-```
+## `AfterAllCallback`
+```java
     public void afterAll(ExtensionContext context) {
         signalAfterTestToContainersFor(SHARED_LIFECYCLE_AWARE_CONTAINERS, context);
     }
@@ -228,7 +234,7 @@ testcontainers本身还支持container启动后的回调，`TestLifecycleAware`�
 
 同样，因为已经交给jupiter自动关闭了，所以这里其实没有在测试类结束后显式close容器的动作。
 
-## ExecutionCondition
+## `ExecutionCondition`
 `TestcontainersExtension`还实现了`ExecutionCondition`，也算生命周期接口吧。它其实就是判断要不要执行test：
 
 > Evaluate this condition for the supplied ExtensionContext.
@@ -237,7 +243,7 @@ An enabled result indicates that the container or test should be executed; where
 对于testcontainers，要不要执行其实就是在没有docker daemon的情况下，测试到底是不跑，还是报错（默认报错）。该行为通过`@Testcontainers(disabledWithoutDocker = true)`控制。
 
 所以testcontainers的`ExecutionCondition`就是在检测`disabledWithoutDocker`的值，并做出相应判断：
-```
+```java
     @Override
     public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
         return findTestcontainers(context)
@@ -271,10 +277,10 @@ An enabled result indicates that the container or test should be executed; where
     }
 ```
 
-[SpringExtension](https://github.com/spring-projects/spring-framework/blob/d0d5730f7f341c84feb068aa255a170aea3202b4/spring-test/src/main/java/org/springframework/test/context/junit/jupiter/SpringExtension.java)已经成junit的范例了……
+也可以看看spring test提供的[`SpringExtension`](https://github.com/spring-projects/spring-framework/blob/d0d5730f7f341c84feb068aa255a170aea3202b4/spring-test/src/main/java/org/springframework/test/context/junit/jupiter/SpringExtension.java)，它已经成junit的范例了。
 
 # 第三方支持
-maven、ide都使用了某些入口启动junit。更直观感受就是可以通过[consule launcher](https://junit.org/junit5/docs/current/user-guide/#running-tests-console-launcher)启动junit。
+maven、ide都使用了某些入口启动junit。更直观感受就是可以通过[console launcher](https://junit.org/junit5/docs/current/user-guide/#running-tests-console-launcher)启动junit。
 
 launcher：
 - https://junit.org/junit5/docs/current/user-guide/#launcher-api
@@ -283,7 +289,7 @@ launcher：
 从2.22.0开始，maven的maven-surefire/failsafe-plugin已经默认支持junit了。
 
 [引入junit jupiter依赖和两个plugin](https://junit.org/junit5/docs/current/user-guide/#running-tests-build-maven-engines-configure)：
-```
+```xml
 <dependencies>
     <dependency>
         <groupId>org.junit.jupiter</groupId>
@@ -314,10 +320,8 @@ launcher：
 - `**/*Tests.java`
 - `**/*TestCase.java`
 
-**默认情况下，surefire会[在test phase执行test goal](https://maven.apache.org/surefire/maven-surefire-plugin/test-mojo.html)**，跑这些测试用例。
-
-所以不需要手动配置`<executables>`，除非修改了涉及到的测试用例的类，否则配置了也会跳过：
-```
+**默认情况下，surefire会[在test phase执行test goal](https://maven.apache.org/surefire/maven-surefire-plugin/test-mojo.html)**，跑这些测试用例。所以不需要手动配置`<executables>`，除非修改了涉及到的测试用例的类，否则配置了也会跳过：
+```xml
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -335,7 +339,7 @@ launcher：
                 </executions>
             </plugin>
 ```
-**surefire默认执行的就是test，所以再写一个execution执行test，跟默认的test一模一样，就跳过了**：
+**surefire默认执行的就是test，所以再写一个id为unit test only的execution执行test，跟默认的test一模一样，就跳过了**：
 ```
 [INFO] --- maven-surefire-plugin:2.22.2:test (default-test) @ xxx-metric ---
 [INFO] 
@@ -355,15 +359,15 @@ launcher：
 ```
 
 如果test类识别规则和默认不一致，也可以自定义规则进行覆盖。比如：
-- 使用[include/exclude](https://maven.apache.org/surefire/maven-surefire-plugin/examples/junit-platform.html#overriding-exclude-rules-of-maven-surefire)，把IT（Integration Test）结尾的class也算进来；
+- 使用[include/exclude](https://maven.apache.org/surefire/maven-surefire-plugin/examples/junit-platform.html#overriding-exclude-rules-of-maven-surefire)，把以`IT`（Integration Test）结尾的class也算进来；
 - 使用[tag filter](https://maven.apache.org/surefire/maven-surefire-plugin/examples/junit-platform.html#filtering-by-tags)，只跑带有某些tag的测试用例；
 
 > 显然，maven的surefire对junit的tag做了支持，所以才能使用[`<excludeGroups>`标签](https://maven.apache.org/surefire/maven-surefire-plugin/test-mojo.html#excludedgroups)进行过滤。
 
 可以参考spring-data-elasticsearch，使用surefire插件对unit test和integration test做了区分，使用junit tag对integration test做了过滤。
 
-把test goal绑定到了两个phase上：test和integration-test，前者excludeGroup，后者使用group进行过滤：
-```
+它把test goal绑定到了两个phase上：test和integration-test，前者excludeGroup，后者使用group进行过滤：
+```xml
 <plugin>
 	<groupId>org.apache.maven.plugins</groupId>
 	<artifactId>maven-surefire-plugin</artifactId>
@@ -416,7 +420,7 @@ failsafe有两个goal：
 - [**在integration-test phase执行的intergation-test goal**](https://maven.apache.org/surefire/maven-failsafe-plugin/integration-test-mojo.html)；
 - [**在verify phase执行的verify goal**](https://maven.apache.org/surefire/maven-failsafe-plugin/verify-mojo.html)；
 
-**使用时应该用它的verify goal，因为verify在verify phase，所以能完整做完它前面的`pre-integration-test`/`integration-test`/`post-integration-test`三个phase**。如果直接用它的integration-test goal，只会执行到integration phase，不会做post-integration-test，可能导致继承测试完没有做资源回收。比如起来的jetty server没有销毁。
+**使用时应该用它的verify goal，因为verify在verify phase，所以能完整做完它前面的`pre-integration-test`/`integration-test`/`post-integration-test`三个phase**。如果直接用它的integration-test goal，只会执行到integration phase，不会做post-integration-test，可能导致集成测试完没有做资源回收。比如jetty server在结束后没有销毁。
 
 比如官方提供的[使用jetty plugin做集成测试](- https://maven.apache.org/surefire/maven-failsafe-plugin/usage.html#using-jetty-and-maven-failsafe-plugin)的例子：为了能做web的集成测试，需要启动一个jetty server，因此使用[jetty-maven-plugin](https://maven.apache.org/plugins/maven-war-plugin/examples/rapid-testing-jetty6-plugin.html)并把它的start goal绑定到pre-integration-test phase，就能在integration-test之前启动jetty server。
 
@@ -428,32 +432,37 @@ failsafe有两个goal：
 同理，也可以使用[include/exclude](https://maven.apache.org/surefire/maven-failsafe-plugin/examples/junit-platform.html#overriding-exclude-rules-of-maven-failsafe)或者[tag filter](https://maven.apache.org/surefire/maven-failsafe-plugin/examples/junit-platform.html#filtering-by-tags)自定义要执行的测试用例。
 
 ### 使用testcontainers跑集成测试
-testcontainers虽然是集成测试，但它本质上不像jetty plugin，在pre-integration-test阶段启动，所以可以像上述spring-data-elasticsearch那样把它放在surefire里。
+testcontainers虽然是集成测试，但它不像jetty有jetty plugin支持，能在pre-integration-test阶段启动，所以可以像spring-data-elasticsearch那样把它放在surefire里。
 
 不过也可以把所有使用testcontainers的测试类放在integration-test阶段，使用failsafe触发它。只不过此时不需要像jetty一样使用“testcontainers的plugin”启动一个container而已。
 
 可以配置surefire跑不带`@Tag("intergation-test")`的测试用例，而failsafe只跑带有`@Tag("intergation-test")`的测试用例：
-```
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <configuration>
-                        <!-- 只做非集成测试 -->
-                        <excludedGroups>${tag.integration-test}</excludedGroups>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-failsafe-plugin</artifactId>
-                    <configuration>
-                        <!-- 只做集成测试 -->
-                        <includes>**/*</includes>
-                        <groups>${tag.integration-test}</groups>
-                    </configuration>
-                </plugin>
+```xml
+<properties>
+    <!-- tag to mark integration test -->
+    <tag.integration-test>integration-test</tag.integration-test>
+</properties>
+
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <configuration>
+        <!-- 只做非集成测试 -->
+        <excludedGroups>${tag.integration-test}</excludedGroups>
+    </configuration>
+</plugin>
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-failsafe-plugin</artifactId>
+    <configuration>
+        <!-- 只做集成测试 -->
+        <includes>**/*</includes>
+        <groups>${tag.integration-test}</groups>
+    </configuration>
+</plugin>
 ```
 
-> 假设`tag.integration-test=intergation-test`，且所有的测试类都符合`**Test.java`。此时failsafe一定要覆盖掉默认的includes，否则includes获取到的测试类为空，**groups过滤只在includes的基础上进行过滤**，还是空。
+> 假设`tag.integration-test=intergation-test`，且所有的测试类都符合`*Test.java`。此时failsafe一定要覆盖掉默认的includes，否则includes获取到的测试类为空（它的默认配置是获取带`IT`的测试类），导致groups过滤在includes的基础上进行过滤后还是空。
 
 此时测试用例分成了两拨，`mvn test`只跑非集成测试的那波，`mvn verify`（涵盖了test phase）先跑非集成测试的测试类，再跑集成测试的测试类。
 
@@ -464,5 +473,4 @@ junit是测试框架，框架就意味着它有生命周期，需要在生命周
 第一次听说junit是大学老师让写单元测试测试自己的代码。但是当时对使用Java写程序尚不甚明了，更不能体会单元测试的意图了。写出来的单元测试也很敷衍，反正ide也支持，一点按钮就跑起来了。后来工作了，用Java写工程已经上道儿了，也体会到了单元测试的好处。但是junit用了那么久，却从来没有好好看过junit大概是个什么样的架构，也没看过它的官方文档，导致写出来的单元测试一直处于很低级的层面。终于今年被没有单元测试集成测试的代码的测试复杂度恶心到了，一定要给springboot工程加上单元测试和集成测试，发现想学习springboot的test，还是要先大致了解junit。从那一刻开始，看了springboot的源码，看了spring的源码，中间又用了docker，上了gitlab-ci，跑testcontainers，用assertj做断言，然后一切又连起来了：testcontainers要用docker，使用gitlab-ci docker runner的dind，有自己的jupiter @ExtendWith拓展，兜兜转转，回到了最初的起点。今天终于把junit jupiter的架构稍微看了看……
 
 下一步，终于又是springboot test了~
-
 
