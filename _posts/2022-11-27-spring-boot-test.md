@@ -620,11 +620,11 @@ class MyOutputCaptureTests {
 
 基于以上springboot test的知识，springboot有四个层次的测试：
 1. mock mvc manually：**手动构建`MockMvc`，没有使用spring构建`MockMvc`。任何其他mvc组件（filter、controller advice）如果想用，都得自己手动组装**。当然也不含任何service；
-2. only `MockMvc`：使用spring配置的`MockMvc`，但是也使用`ApplicationContext`，所以能给controller注入各种filter、controller advice。**但只有mvc相关的bean，没有service bean**；
-3. `@SpringBootTest` full test but `MockMvc`：还是`MockMvc`，但是已经使用了springboot的完整配置初始化了所有的bean。有`ApplicationContext`，给controller注入各种filter、controller advice，**而且有service bean**；
+2. only `MockMvc`（slice test）：使用spring配置的`MockMvc`，但是也使用`ApplicationContext`，所以能给controller注入各种filter、controller advice。**但只有mvc相关的bean，没有service bean**；
+3. `@SpringBootTest` full test but `MockMvc`（`@SpringBootTest`）：还是`MockMvc`，但是已经使用了springboot的完整配置初始化了所有的bean。有`ApplicationContext`，给controller注入各种filter、controller advice，**而且有service bean**；
 4. `@SpringBootTest` full server test(without `MockMvc`)：也是使用完整的springboot配置，但是不再使用`MockMvc`，而是启动真正的server。此时需要用`TestRestTemplate`作为client发送http请求进行测试；
 
-**当然，无论哪一种，都可以使用`@MockMvc` mock service bean。即使启用完整的springboot，有了service bean，也可以用`@MockMvc`使用mock的service bean替换掉真的service bean**。
+**当然，无论哪一种，都可以使用`@MockBean` mock service bean。即使启用完整的springboot，有了真实的service bean，也可以用`@MockBean`使用mock的service bean替换掉真的service bean**。
 
 ## mock mvc manually
 `MockMvc`要自己手动构建、组装。
