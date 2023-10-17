@@ -11,7 +11,7 @@ tags: spring test
 1. Table of Contents, ordered
 {:toc}
 
-[Spring TestContext Framework](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-framework)是spring test的核心。它支持junit4/5/TestNG，以jupiter为例，借助jupiter提供的测试生命周期回调函数，构建了spring的ApplicationContext，用于bean的维护和注入。
+[Spring TestContext Framework](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-framework)是spring test的核心，支持junit4/5/TestNG。以jupiter为例，它借助jupiter提供的测试生命周期回调函数，**构建了spring的`ApplicationContext`，用于bean的维护和注入**。
 
 # Spring TestContext Framework的抽象
 框架的核心是：
@@ -23,7 +23,7 @@ tags: spring test
 ## test instance
 测试之前首先要了解[test instance](https://www.baeldung.com/junit-testinstance-annotation)，它是测试框架提供的概念。
 
-比如jupiter里，**默认情况下，每次执行一个test method都会新建一个test class的实例**。这样测试方法之间就不会互相干扰（所以测试类不必考虑线程安全，比如test method可以修改类变量）。这种行为默认对应`@TestInstance(Lifecycle.PER_METHOD)`。
+比如jupiter里，**默认情况下，每次执行一个test method都会新建一个test class的实例**。这样测试方法之间就不会互相干扰（**所以测试类的不同测试方法之间不必考虑线程安全**，比如test method可以修改类变量）。这种行为默认对应`@TestInstance(Lifecycle.PER_METHOD)`。
 
 但是也可以使用`@TestInstance(Lifecycle.PER_CLASS)`，让所有的test method共用一个test class instance：
 1. 可以让各个test method之间共享类变量；
@@ -32,7 +32,7 @@ tags: spring test
 > 默认行为里，`@BeforeAll`是要标注在static方法上的。
 
 ## `TestContext`
-和一个test instance绑定，用于保存测试所需要的context，提供：
+**和一个test instance绑定**，用于保存测试所需要的context，提供：
 - context management
 - caching support
 
@@ -66,8 +66,17 @@ spring test的核心类，内部维护一个`TestContext`。负责：
 ### 加载`TestContext` - `TestContextBootstrapper`
 `TestContextManager`要负责加载`TestContext`。
 
+千层饼模式开启：
+1. junit框架：**jupiter向基于自己的使用者提供了`@ExtendWith`注解**，加载它提供的拓展类；
+2. spring：作为junit框架使用者，写一个自己的`@ExtentWith`实现，也就是`SpringExtension`类，读取自己关心的注解比如`@ContextConfiguration`，控制spring容器的启动和关闭；
+3. **spring又向基于自己的使用者提供了`@BootstrapWith`**，使用它提供的bootstrap实现构建`TestContext`；
+4. springboot：spring的小弟，**基于此提供了`TestContextBootstrapper`的实现类`SpringBootTestContextBootstrapper`，构建属于springboot的context**。`@SpringBootTest`注解其实就是`@BootstrapWith(SpringBootTestContextBootstrapper.class)` + `@ExtendWith(SpringExtension.class)`；
+5. 程序猿：作为springboot使用者，写自己的测试代码，使用`@SpringBootTest`，也可能会手动添加上`@ContextConfiguration`等；
+
+> 又是一通站在前人的肩膀上┓( ´∀` )┏
+
 加载`TestContext`时，**如果没有通过`@BootstrapWith`指定自定义的加载类，就使用spring test默认的`DefaultTestContextBootstrapper`或`WebTestContextBootstrapper`进行加载；否则使用指定的`TestContextBootstrapper`加载**：
-```
+```java
     static TestContextBootstrapper resolveTestContextBootstrapper(BootstrapContext bootstrapContext) {
 		Class<?> testClass = bootstrapContext.getTestClass();
 
@@ -97,7 +106,7 @@ spring test的核心类，内部维护一个`TestContext`。负责：
 	}
 ```
 **所以这里会处理`@BootstrapWith`注解**：
-```
+```java
 	private static Class<?> resolveExplicitTestContextBootstrapper(Class<?> testClass) {
 		Set<BootstrapWith> annotations = new LinkedHashSet<>();
 		AnnotationDescriptor<BootstrapWith> descriptor =
@@ -125,20 +134,12 @@ spring test的核心类，内部维护一个`TestContext`。负责：
 				testClass.getName(), annotations));
 	}
 ```
-千层饼模式开启：
-1. junit框架：**jupiter向基于自己的使用者提供了`@ExtentWith`注解**，加载它提供的拓展类；
-2. spring：作为junit框架使用者，写一个自己的`@ExtentWith`实现，也就是`SpringExtension`类，读取自己关心的注解比如`@ContextConfiguration`，控制spring容器的启动和关闭；
-3. **spring又向基于自己的使用者提供了`@BootstrapWith`**，使用它提供的bootstrap实现构建`TestContext`；
-4. springboot：spring的小弟，**基于此提供了`TestContextBootstrapper`的实现类`SpringBootTestContextBootstrapper`，构建属于springboot的context**。`@SpringBootTest`注解其实就是`@BootstrapWith(SpringBootTestContextBootstrapper.class)` + `@ExtendWith(SpringExtension.class)`；
-5. 程序猿：作为springboot使用者，写自己的测试代码，使用`@SpringBootTest`，也可能会手动添加上`@ContextConfiguration`等；
-
-> 又是一通站在前人的肩膀上┓( ´∀` )┏
 
 ### 触发`TestExecutionListener`
-**`TestContextManager`的另一个重要功能是在jupiter的各个阶段调用相关listener。调用由实现了jupiter生命周期接口的`SpringExtension`触发。**
+**`TestContextManager`的另一个重要功能是在jupiter的各个阶段调用相关listener**。调用由实现了jupiter生命周期接口的`SpringExtension`触发。
 
 比如在before all阶段触发相关listener：
-```
+```java
 	public void beforeTestClass() throws Exception {
 		Class<?> testClass = getTestContext().getTestClass();
 		if (logger.isTraceEnabled()) {
@@ -158,7 +159,7 @@ spring test的核心类，内部维护一个`TestContext`。负责：
 	}
 ```
 **因为需要在before all阶段触发，所以该方法会被`@ExtendWith`的`SpringExtension`在beforeAll阶段调用**：
-```
+```java
 	/**
 	 * Delegates to {@link TestContextManager#beforeTestClass}.
 	 */
@@ -178,7 +179,7 @@ spring test的核心类，内部维护一个`TestContext`。负责：
 > **为什么一提到listener我脑子里想的就是打个log……似乎listener是可有可无的……可能被各类doc经常举的listener的例子毒害了……**
 
 `TestExecutionListener`通过`@TestExecutionListeners`注册：
-```
+```java
 // Switch to default listeners
 @TestExecutionListeners(
     listeners = {},
@@ -233,7 +234,7 @@ spring test提供的机制没那么多，所以代码量也相对较小，代码
 spring test的`TestContextBootstrapper`默认实现是`DefaultTestContextBootstrapper`。
 
 spring test在使用jupiter框架的时候要给测试类加上`@ExtendWith(SpringExtension.class)`。为了使用方便，spring test定义了组合注解`@SpringJUnitConfig`，**它集成了spring test里使用最广泛的两个注解`@ExtendWith(SpringExtension.class)`和`@ContextConfiguration`**：
-```
+```java
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration
 @Documented
@@ -248,7 +249,7 @@ public @interface SpringJUnitConfig {
 如前所述，spring boot自定义了一个`SpringBootTestContextBootstrapper`，它继承了spring的`DefaultTestContextBootstrapper`，但是使用自己的`SpringBootContextLoader`作为context loader（**除此之外它还会寻找启动类的注解`@SpringBootConfiguration`等等**）。所以spring boot的测试用例要写上`@BootstrapWith(SpringBootTestContextBootstrapper.class)`。又因为它要借助spring extension接入jupiter，所以还要加上`@ExtendWith(SpringExtension.class)`。
 
 springboot新定义了组合注解`@SpringBootTest`，它集成了`@BootstrapWith(SpringBootTestContextBootstrapper.class)`和`@ExtendWith(SpringExtension.class)`：
-```
+```java
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
@@ -267,7 +268,7 @@ public @interface SpringBootTest {
 和springboot同理，mybatis-spring-boot包里也实现了自己的bootstrap类`MybatisTestContextBootstrapper`，不过它比springboot靠上层，继承了springboot的默认启动类`SpringBootTestContextBootstrapper`。所以它需要加上`@ExtendWith(SpringExtension.class)`和`@BootstrapWith(MybatisTestContextBootstrapper.class)`。
 
 为了方便，它模仿springboot的`@*Test`定义了`@MybatisTest`组合注解：
-```
+```java
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
@@ -300,10 +301,10 @@ public @interface MybatisTest {
 
 注意，**如果使用这种方式注册自定义的listener，默认的listener将不会被自动注册**……
 
-> 就离谱……
+> spring：没想到吧，其实我是springboot……
 
 **必须显式配置注册方式为[merge default listener](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-tel-config-merging)**，才能把这两拨listener都注册上：
-```
+```java
 @ContextConfiguration
 @TestExecutionListeners(
     listeners = MyCustomTestExecutionListener.class,
@@ -324,7 +325,7 @@ class MyTest {
 2. 获取Sql注解配置的`executionPhase`和`statement`属性；
 3. 如果phase和当前phase一致（比如都是before class或者before method），那就加载statement路径声明的文件，然后处理它。
 
-> **所以：注解，不过是一种配置罢了。配置属性还是你想支持的那些属性**。所以它能取代xml。
+> **所以：注解，不过是一种配置罢了。配置属性还是要支持的那些属性**。所以它能取代xml。
 
 # 触发测试event
 spring有一套[容器事件发布机制]({% post_url 2021-11-21-spring-context %})：
@@ -382,7 +383,7 @@ spring test 搞了一个`EventPublishingTestExecutionListener`，在每种test e
 但是我们写测试用例的时候，并不需要让类实现`ApplicationContextAware`，**在`DependencyInjectionTestExecutionListener`的帮助下，我们可以直接使用`@Autowired`注入`ApplicationContext`**。
 
 `DependencyInjectionTestExecutionListener`会通过`TestContext#getTestInstance`获取测试用例类，然后给它注入需要的`ApplicationContext`：
-```
+```java
 	protected void injectDependencies(final TestContext testContext) throws Exception {
 		Object bean = testContext.getTestInstance();
 		AutowireCapableBeanFactory beanFactory = testContext.getApplicationContext().getAutowireCapableBeanFactory();
@@ -410,7 +411,7 @@ spring test 搞了一个`EventPublishingTestExecutionListener`，在每种test e
 - 默认的xml位置是类所在的包下，且名字为`类名-context.xml`：`GenericXmlContextLoader` and `GenericXmlWebContextLoader` detect a default location based on the name of the test class. If your class is named `com.example.MyTest`, `GenericXmlContextLoader` loads your application context from "`classpath:com/example/MyTest-context.xml`"
 - **默认的class配置是测试类的任意命名的静态内部类，只要它标注`@Configuration`就行**：`AnnotationConfigContextLoader` and `AnnotationConfigWebContextLoader` detect all **static nested classes of the test class that meet the requirements for configuration class implementations, as specified in the `@Configuration` javadoc**. Note that the name of the configuration class is arbitrary.
 
-```
+```java
 // ApplicationContext will be loaded from the
 // static nested Config class
 @SpringJUnitConfig 
@@ -453,7 +454,7 @@ class OrderServiceTest {
 
 ## 配置是继承的
 最后，**配置默认是可继承的。一个测试用例子类默认继承它的父类所配置的配置文件**：
-```
+```java
 @ExtendWith(SpringExtension.class)
 // ApplicationContext will be loaded from "/base-config.xml"
 // in the root of the classpath
@@ -472,7 +473,7 @@ class ExtendedTest extends BaseTest {
 
 ## 指定profile
 spring支持profile，可以使用`@Profile`定义多套配置：
-```
+```java
 @Configuration
 @Profile("dev")
 public class StandaloneDataConfig {
@@ -520,7 +521,7 @@ public class TransferServiceConfig {
 }
 ```
 **spring test新增了`@ActiveProfiles`注解，用于指定哪些profile的配置**。可以把这些config class全部导进来，然后指定使用哪一个profile：
-```
+```java
 @SpringJUnitConfig({
         TransferServiceConfig.class,
         StandaloneDataConfig.class,
@@ -545,7 +546,7 @@ class TransferServiceTest {
 > 假设真的用了`@ActiveProfiles`，一般不止一个测试用例会用这个profile，这样为了好修改，最好写个composed annotation。
 
 如果只想继承configuration，不想继承profile，设置`inheritProfiles = false`就好了：
-```
+```java
 // "dev" profile overridden with "production"
 @ActiveProfiles(profiles = "production", inheritProfiles = false)
 class ProductionTransferServiceTest extends AbstractIntegrationTest {
@@ -565,7 +566,7 @@ spring可以指定properties文件，test也可以！
 - `key value`
 
 上述三种语法都行：
-```
+```java
 @ContextConfiguration
 @TestPropertySource(properties = {"timezone = GMT", "port: 4242"}) 
 class MyIntegrationTests {
@@ -576,7 +577,7 @@ class MyIntegrationTests {
 当然，**重复多个`@TestPropertySource`注解看起来会更简洁**。
 > As of Spring Framework 5.2, `@TestPropertySource` can be used as repeatable annotation. That means that you can have multiple declarations of `@TestPropertySource` on a single test class
 
-**如果只写了@TestPropertySource不写路径，这玩意儿也是有默认properties文件的，直接就是测试用例包下的`类名.properties`**。有点儿隐晦。
+**如果只写了`@TestPropertySource`不写路径，这玩意儿也是有默认properties文件的，直接就是测试用例包下的`类名.properties`**。有点儿隐晦。
 > if the annotated test class is `com.example.MyTest`, the corresponding default properties file is classpath:com/example/MyTest.properties
 
 最后，和profiles一样，`@TestPropertySource`指定的properties默认也是被子类继承的。除非显式关掉`inheritProperties = true`。
@@ -585,7 +586,7 @@ class MyIntegrationTests {
 [在app启动后动态注册property source](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-ctx-management-dynamic-property-sources)，这个太重要了！
 
 在测试testcontainers这种先启动容器后知道端口的场景下，只能在容器启动后，再获取properties，动态注册到PropertySource里。之后spring data elasticsearch就能从PropertySource里读取port，从而连接容器了：
-```
+```java
     @DynamicPropertySource
     static void elasticProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.elasticsearch.uris", container::getHttpHostAddress);
@@ -610,7 +611,7 @@ spring是根据classpath下有没有servlet相关的类来决定要不要启动`
 它使用file based路径我觉得是很合理的，**因为它需要的是web配置文件，而默认web配置文件`src/main/webapp`并不在classpath上，自然不可能会用基于classpath的文件加载方式**。
 
 spring test对`WebApplicationContext`的支持和`ApplicationContext`一致：比如也可以使用上面说的`@ContextConfiguration`、`@ActiveProfiles`、`@TestExecutionListeners`、`@Sql`、`@Rollback`等：
-```
+```java
 @ExtendWith(SpringExtension.class)
 
 // defaults to "file:src/main/webapp"
@@ -630,7 +631,7 @@ web的很多mock都是它实现的：
 - and, once the test is complete, it cleans up thread-local state.
 
 所以可以给web测试注入很多东西：
-```
+```java
 @SpringJUnitWebConfig
 class WacTests {
 
@@ -696,7 +697,7 @@ spring test的事务管理是由`TransactionalTestExecutionListener`做的。正
 
 # 执行sql script
 可以通过现成的sql script[给数据库注入数据](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-executing-sql)：
-```
+```java
 @SpringJUnitConfig
 @Sql("/test-schema.sql")
 class DatabaseTests {
@@ -747,7 +748,7 @@ class是[Component Classes](https://docs.spring.io/spring-framework/docs/current
 
 ## `@Sql`
 执行测试用例之前先执行sql脚本填充数据：
-```
+```java
 @Sql({"/test-schema.sql", "/test-user-data.sql"}) 
 ```
 
@@ -757,7 +758,7 @@ class是[Component Classes](https://docs.spring.io/spring-framework/docs/current
 spring test提供了`@SpringJUnitConfig`组合注解，它是`@ExtendWith(SpringExtension.class)` + `@ContextConfiguration`。还有`@SpringJUnitWebConfig` = `@ExtendWith(SpringExtension.class)` + `@ContextConfiguration` + `@WebAppConfiguration`。
 
 在`@SpringJUnitConfig`里声明了classes属性，配置它和配置`@ContextConfiguration(classes = xxx)`是一样的：
-```
+```java
 	/**
 	 * Alias for {@link ContextConfiguration#classes}.
 	 */
@@ -772,7 +773,7 @@ spring test提供了`@SpringJUnitConfig`组合注解，它是`@ExtendWith(Spring
 - https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#beans-meta-annotations
 
 比如`@Service`不过是`@Component`的alias罢了……
-```
+```java
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
@@ -788,4 +789,3 @@ spring test自己举的例子也不错：
 
 # 感想
 一直玩不明白spring test和springboot test。第一次正式看并记录spring test是在今年六月初，当时看得我一脸懵逼。再次真正回来梳理明白是十一月底。这期间兜兜转转，又扩充了海量的知识，终于在系统地看了jupiter之后，才终于搞明白了spring/boot test。人的水平不一样，看东西理解能力差别太大了。终于搞清楚了，现在我可太开心了~
-
