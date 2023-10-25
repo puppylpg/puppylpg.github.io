@@ -269,11 +269,26 @@ public void bindTo(MeterRegistry registry) {
 ```
 定义了两个TimeGauge，register到registry上。可以看到他们传进去的就是一个lambda，是gauge的正确用法。
 
-Ref
-- https://spring.io/blog/2018/03/16/micrometer-spring-boot-2-s-new-application-metrics-collector
-- http://micrometer.io/docs 
-- http://micrometer.io/docs/concepts
-- https://www.baeldung.com/micrometer
+再比如[micrometer-jvm-extras](https://github.com/mweirauch/micrometer-jvm-extras)，文档里**展示了直接注册和通过spring bean注册metric到`MeterRegistry`的逻辑**：
+```java
+    /* Plain Java */
+    final MeterRegistry registry = new SimpleMeterRegistry();
+    new ProcessMemoryMetrics().bindTo(registry);
+    new ProcessThreadMetrics().bindTo(registry);
+```
+
+```java
+    /* With Spring */
+    @Bean
+    public MeterBinder processMemoryMetrics() {
+        return new ProcessMemoryMetrics();
+    }
+
+    @Bean
+    public MeterBinder processThreadMetrics() {
+        return new ProcessThreadMetrics();
+    }
+```
 
 # 不同监控系统的差异
 micrometer包含一个core module，它使用SPI机制支持不同的监控系统，每一种支持的监控系统对应一类子module。
@@ -445,6 +460,8 @@ prometheus抓取到数据后，把该prometheus配置为grafana的数据源，�
 
 推荐使用[JVM Quarkus - Micrometer Metrics](https://grafana.com/grafana/dashboards/14370-jvm-quarkus-micrometer-metrics/)模板，支持micrometer + prometheus。
 
+> 模板里jvm process memory部分的数据需要额外引入[micrometer-jvm-extras](https://github.com/mweirauch/micrometer-jvm-extras)，并通过`MeterBinder`注册到`MeterRegistry`上。
+
 该模板默认已经设置以下variables，用于metric过滤展示：
 - application变量，`label_values(application)`：就是通过上述application标签，过滤出只属于这个app的metric；
 - instance变量，`label_values(jvm_memory_used_bytes{application="$application"}, instance)`：有了application，可以进一步细分出instance；
@@ -453,15 +470,15 @@ prometheus抓取到数据后，把该prometheus配置为grafana的数据源，�
 
 这些变量是通过从`jvm_memory_used_bytes`的值里解析出来的。它的示例数据如下：
 ```
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="direct", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="direct", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="direct", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped - 'non-volatile memory'", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped - 'non-volatile memory'", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
-jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped - 'non-volatile memory'", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="direct", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="direct", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="direct", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped - 'non-volatile memory'", instance="10-105-50-121.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped - 'non-volatile memory'", instance="10-105-58-160.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
+jvm_buffer_memory_used_bytes{application="APP-bj", id="mapped - 'non-volatile memory'", instance="10-105-62-112.APP-bj.ad.svc.cluster6.nbj03.x.com:11224", job="APP-bj-before-migration", prometheus="common-prometheus-service/prom-1ad1f4ad"}
 ```
 **可看到它有很多组标签，application是我们通过springboot的配置加上的，id、instance、prometheus标签应该是micrometer自己加的。job标签应该是prometheus server抓取数据的时候加上的。**
 
@@ -560,7 +577,11 @@ jvm_buffer_memory_used_bytes{application="APP-bj-bj", id="mapped - 'non-volatile
   ]
 }
 ```
-**可以通过`/actuator/prometheus` endpoint查看这些metric以什么样的格式暴露给prometheus**：http://localhost:8080/actuator/prometheus，数据过长，只以`jvm_buffer_memory_used_bytes`为例
+**可以通过`/actuator/prometheus` endpoint查看这些metric以什么样的格式暴露给prometheus**：http://localhost:8080/actuator/prometheus
+
+> `/actuator/prometheus`接口返回的是[prometheus的metric格式](https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format)的数据。
+
+数据过长，只以`jvm_buffer_memory_used_bytes`为例
 ```
 # HELP jvm_buffer_memory_used_bytes An estimate of the memory that the Java virtual machine is using for this buffer pool
 # TYPE jvm_buffer_memory_used_bytes gauge
@@ -597,8 +618,78 @@ topk：
 topk(10, avg by (uri, method, status) (http_server_requests_seconds_sum / http_server_requests_seconds_count))
 ```
 
+### prometheus查询
+prometheus有[关于查询的文档](https://prometheus.io/docs/prometheus/latest/querying/basics/)，但**更推荐[PromQL cheatsheet](https://promlabs.com/promql-cheat-sheet/)，每一条示例还带有对应的lab演示**。
+
+**也可以通过上述grafana模板里每个panal对应的表达式来学习prometheus的查询——**
+
+
+使用gauge表示时间：
+```
+          "expr": "process_uptime_seconds{application=\"$application\", instance=\"$instance\"}",
+          "legendFormat": "",
+      "title": "Uptime",
+
+# HELP process_uptime_seconds The uptime of the Java virtual machine
+# TYPE process_uptime_seconds gauge
+process_uptime_seconds{application="my-app",} 149338.551
+```
+
+使用gauge表示内存使用量，然后使用sum函数求和，用除法求占比：
+```
+          "expr": "sum(jvm_memory_used_bytes{application=\"$application\", instance=\"$instance\", area=\"heap\"})*100/sum(jvm_memory_max_bytes{application=\"$application\",instance=\"$instance\", area=\"heap\"})",
+          "legendFormat": "",
+      "title": "Heap used",
+
+# HELP jvm_memory_used_bytes The amount of used memory
+# TYPE jvm_memory_used_bytes gauge
+jvm_memory_used_bytes{application="my-app",area="nonheap",id="Compressed Class Space",} 2.8313048E7
+jvm_memory_used_bytes{application="my-app",area="nonheap",id="CodeHeap 'non-nmethods'",} 2529280.0
+jvm_memory_used_bytes{application="my-app",area="nonheap",id="CodeHeap 'profiled nmethods'",} 3.1949184E7
+jvm_memory_used_bytes{application="my-app",area="nonheap",id="Metaspace",} 2.42186192E8
+jvm_memory_used_bytes{application="my-app",area="heap",id="ZGC Old Generation",} 3.85875968E8
+jvm_memory_used_bytes{application="my-app",area="heap",id="ZGC Young Generation",} 2.91504128E8
+jvm_memory_used_bytes{application="my-app",area="nonheap",id="CodeHeap 'non-profiled nmethods'",} 4.6045696E7
+```
+
+用summary表示http请求，会生成`_count`，`_sum`，`_max`后缀的metric，然后用来求qps。`rate`函数就是qps：Per-second rate of increase, averaged over last 5 minutes:
+```
+rate(demo_api_request_duration_seconds_count[5m])
+```
+
+系统总qps就是所有请求的qps的sum：
+```
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"$application\", instance=\"$instance\"}[2m]))",
+          "legendFormat": "HTTP",
+      "title": "Rate",
+
+
+# HELP http_server_requests_seconds  
+# TYPE http_server_requests_seconds summary
+http_server_requests_seconds_count{application="my-app",error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/v1.0.0/task-assignments",} 11.0
+http_server_requests_seconds_sum{application="my-app",error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/v1.0.0/task-assignments",} 0.209631814
+http_server_requests_seconds_count{application="my-app",error="none",exception="none",method="POST",outcome="SUCCESS",status="200",uri="/v1.0.0/kol-agg/query-relation-account",} 250.0
+http_server_requests_seconds_sum{application="my-app",error="none",exception="none",method="POST",outcome="SUCCESS",status="200",uri="/v1.0.0/kol-agg/query-relation-account",} 2.992996877
+...
+```
+
+请求平均时长就是所有请求先求和再平均：
+```
+          "expr": "sum(rate(http_server_requests_seconds_sum{application=\"$application\", instance=\"$instance\", status!~\"5..\"}[2m]))/sum(rate(http_server_requests_seconds_count{application=\"$application\", instance=\"$instance\", status!~\"5..\"}[2m]))",
+          "legendFormat": "HTTP - AVG",
+          "expr": "max(http_server_requests_seconds_max{application=\"$application\", instance=\"$instance\", status!~\"5..\"})",
+          "legendFormat": "HTTP - MAX",
+      "title": "Duration",
+
+# HELP http_server_requests_seconds_max  
+# TYPE http_server_requests_seconds_max gauge
+http_server_requests_seconds_max{application="my-app",error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/v1.0.0/task-assignments",} 0.0
+http_server_requests_seconds_max{application="my-app",error="none",exception="none",method="POST",outcome="SUCCESS",status="200",uri="/v1.0.0/kol-agg/query-relation-account",} 0.006695165
+```
+等等。
+
 ## ~~graphite~~
-> **不建议，比prometheus麻烦太多，还要主动push。**
+> 不建议，比prometheus麻烦太多，还要主动push。
 
 以jmx和graphite为两个目标监控系统，使用spring boot配置micrometer。
 
@@ -771,7 +862,7 @@ MeterRegistryCustomizer<GraphiteMeterRegistry> graphiteMetricsNamingConvention()
 }
 ```
 
-## 使用MeterRegistryCustomizer个性化MeterRegistry
+## 使用`MeterRegistryCustomize`r个性化`MeterRegistry`
 spring boot提供的properties文件里对`MeterRegistry`的配置项毕竟有限，而且表述复杂的配置也不容易。更多更复杂的配置可以在代码中使用`MeterRegistryCustomizer`来实现。
 
 MeterRegistryCustomizer的个性化配置通过`MeterRegistryPostProcessor#postProcessAfterInitialization`来完成：if bean instanceof MeterRegistry, 则`getConfigurer().configure((MeterRegistry) bean)`，就把customizer的行为配置到registry的bean上了。
