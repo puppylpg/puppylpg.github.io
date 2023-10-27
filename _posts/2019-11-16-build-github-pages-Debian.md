@@ -1,12 +1,14 @@
 ---
 layout: post
-title: "搭建个人GitHub Pages（Debian 9 Stretch）"
+title: "Jekyll GitHub Pages"
 date: 2019-11-16 16:13:19 +0800
 categories: [Jekyll]
 tags: [Jekyll]
 ---
 
-使用Github搭建个人站，比如https://puppylpg.github.io，是一件很炫酷的事情。以后有什么所思所学都可以发布在自己的网站上，很是方便。（同时为了丰富网站的内容，还会经常不自觉地开始学习:D，简直是进步神器~）。最重要的是，这一切还不用自己花钱买服务器 :D
+使用Github搭建[个人网站](https://puppylpg.github.io)，是一件很炫酷的事情。以后有什么所思所学都可以发布在自己的网站上，很是方便。（同时为了丰富网站的内容，还会经常不自觉地开始学习:D，简直是进步神器~）。
+
+> 最重要的是，这一切还不用自己花钱买服务器 :D
 
 1. Table of Contents, ordered                    
 {:toc}
@@ -16,10 +18,10 @@ tags: [Jekyll]
 1. 使用Jekyll搭建本地离线网站；
 2. 推送到github同名仓库。
 
-## Jekyll搭建本地网站
+# Jekyll搭建本地网站
 使用Jekyll搭建本地网站需要安装Ruby，RubyGems，然后使用gem安装Jekyll。
 
-### 安装Ruby
+## 安装Ruby
 Jekyll需要Ruby版本不小于2.4.0，我用的是Debian 9 (stretch)，官方仓库的最新版Ruby只更新到2.3.3：
 ```
 > apt show ruby
@@ -42,7 +44,7 @@ curl -sL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-installer
 会报错`Checking for 'rbenv' in PATH: not found`，问题不大。
 
 那接下来就把rbenv加入`$PATH`，我用的是zsh，所以：
-```
+```bash
 echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.zshrc
 echo 'eval "$(rbenv init -)"' >> ~/.zshrc
 source ~/.zshrc
@@ -75,15 +77,34 @@ ruby 2.6.0p0 (2018-12-25 revision 66547) [x86_64-linux]
 - https://www.ruby-lang.org/en/documentation/installation/
 - https://linuxize.com/post/how-to-install-ruby-on-debian-9/
 
-### 安装Jekyll & bundler
-接下来的安装就简单了。
+### 几个概念
+以Java和Python类比Ruby中的几个概念：
+- ruby: java
+- [`gem`](https://rubygems.org/pages/download)：RubyGems，类似`pip`，安装好ruby后，自带`gem`指令，用来安装Gems
+- [Gems](https://jekyllrb.com/docs/ruby-101/#gems): jar包，可复用的第三方依赖
+    - jekyll: 一个gem，用于快速初始化一个静态网站
+    - bundler: 一个gem，用于管理Gems依赖
+- `Gemfile`：类似`pom.xml`，用来声明所需要的依赖。
+- `bundle`：类似`mvn`。安装完bundler后，可以使用`bundle`命令安装`Gemfile`里声明的依赖，安装位置为`./vendor/bundle`
+- `Gemfile.lock`：**在执行完`bundle install`命令安装依赖之后，会自动生成`Gemfile.lock`**，相当于版本号都确定的第三方依赖集合
 
-根据Jekyll[官方文档](https://jekyllrb.com/docs/installation/other-linux/)，先把Ruby之外的其他必要依赖装上：
+大概因为Gemfile里指定的依赖不像pom里是确定的版本。Gemfile里的gems可以不指定版本，或者指定某一范围的版本，所以需要在第一次的时候生成一个Gemfile.lock，以确保后续都用同一个版本。
+
+> `Gemfile.lock`是一个Gemfile的**锁定版本**，它记录了在当前项目中使用的每个gem的确切版本以及其所有依赖项的确切版本。它的目的是确保在不同机器或团队成员之间的开发和部署过程中，使用的gem版本保持一致，以避免由于不同环境导致的依赖关系冲突和应用程序崩溃。
+
+> [`RubyGems` aka `gem`](https://rubygems.org/pages/download)本身就是依赖管理器。我们使用它安装了bundler，然后使用bundler配合本工程的Gemfile，完成工程依赖的管理。
+
+## 安装Jekyll & bundler
+安装好ruby之后，需要安装本次需要的两个gem：管理依赖的bundler和生成静态网站的jekyll。
+
+根据Jekyll[官方文档](https://jekyllrb.com/docs/installation/other-linux/)，在Debian上把Ruby之外的其他必要依赖装上（刚刚ruby已经手动装过了）：
 ```
-sudo apt install build-essential zlib1g-dev
+sudo apt install build-essential
 ```
 
-Ruby的各种gem最好装在自己目录下，所以修改zshrc指定gem home：
+[jekyll官方建议](https://jekyllrb.com/docs/installation/ubuntu/)，Ruby的各种gem最好不要全局安装。实际上确实如此，毕竟Java的jar包我们也不是全局安装，每个项目都可能有自己的版本。
+
+所以按照官方建议，我们指定`~/gems`为ruby gems的安装目录（`GEM_HOME`）：
 ```
 echo '# Install Ruby Gems to ~/gems' >> ~/.zshrc
 echo 'export GEM_HOME="$HOME/gems"' >> ~/.zshrc
@@ -91,7 +112,7 @@ echo 'export PATH="$HOME/gems/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-安装jekyll和bundler这两个gem：
+最后把jekyll和bundler这两个gem装一下：
 ```
 gem install jekyll bundler
 ```
@@ -100,176 +121,47 @@ gem install jekyll bundler
 - https://jekyllrb.com/docs/installation/
 - https://jekyllrb.com/docs/installation/ubuntu/
 
-### 关于Ruby，Gem，Jekyll，Bundler
-一个gem可以理解为Ruby工程的一个第三方依赖。使用`gem`命令安装一些gem之后，就可以使用该gem的功能。
-
-Jekyll和Bundler都是gem：
-- Jekyll的功能是快速初始化一个离线网站，让我们有了一套渐变构建网站的框架；
-- Bundler的功能是充当一个依赖管理器，让我们使用工程中`Gemfile`指定的版本的gem，保证工程构建的一致性。
-
-> [`RubyGems`](https://rubygems.org/pages/download)本身就是依赖管理器。我们使用它安装了bundler，然后使用bundler配合本工程的Gemfile，完成本工程依赖的管理。（猜测：bundler也许内部调用了RubyGems下载依赖，然后自己对依赖进行管理）
-
-比如我们电脑上都装有Jekyll，但是版本不同。那么对于同一个工程，你用Jekyll启动之后的样子，跟我用Jekyll启动之后长得不一样。版本的不同会让人很难协同。但是有了Bundler，不管我们电脑上装的是哪个版本的Jekyll，使用该工程的时候，就会按照该工程指定版本的Jekyll构建该工程。（如果没有该版本Jekyll，会先下载）那工程启动之后，我们看到的效果是一致的。
-
-`Gemfile`，就是记录工程使用的各个gem及其对应版本。
-
-参阅：
-- https://jekyllrb.com/docs/ruby-101/
-
-### ~~创建离线网站~~ @Deprecated
-> 使用Jekyll创建网站本身是很简单的。但是，这样创建出来的工程大概率和GitHub当前使用的Jekyll等依赖的版本是不同的。本地网站调试出来的效果，上传到GitHub之后很可能截然不同。
->
-> **所以大家千万别按照这个步骤创建工程。浏览一下知道Jekyll创建网站的流程即可。**
-
-使用Jekyll创建离线网站：
+## 离线网站搭建
+首先使用jekyll新创建一个站点：
+```bash
+$ jekyll new --skip-bundle .
+# Creates a Jekyll site in the current directory
 ```
-jekyll new myblog
+会生成一个Gemfile。这里的Gemfile使用的是本地的jekyll版本。
+
+使用Jekyll创建网站本身是很简单的。但是，这样创建出来的工程大概率和GitHub当前使用的Jekyll等依赖的版本是不同的。本地网站调试出来的效果，上传到GitHub之后很可能截然不同。
+
+所以我们参考[github pages的搭建流程](https://docs.github.com/zh/pages/setting-up-a-github-pages-site-with-jekyll/creating-a-github-pages-site-with-jekyll)，**使用和它相同版本的依赖**。
+
+我们要把Gemfile里的gem依赖和jekyll版本改一下：
+1. 打开 Jekyll 创建的 Gemfile 文件。将“#”添加到以 gem "jekyll" 开头的行首，以注释禁止此行。
+2. 编辑以 `# gem "github-pages"` 开头的行，以添加 `github-pages` gem。 将此行更改为：`gem "github-pages", "~> GITHUB-PAGES-VERSION", group: :jekyll_plugins`。其中`GITHUB-PAGES-VERSION`需要替换为[github pages所支持的 `github-pages` gem 的最新版本](https://pages.github.com/versions/)。
+
+> 当前版本是228。
+
+然后使用bundler根据Gemfile构建完整的依赖版本：
+```bash
+$ bundle install
 ```
-启动网站：
+会生成Gemfile.lock，里面的依赖版本和[GitHub Pages Dependency](https://pages.github.com/versions/)版本是一致的。
+
+> 这些依赖都会被安装到`./vendor/bundle`下。
+
+之后就可以使用jekyll构建网站了。当然，这里的jekyll用的是安装在`./vendor/bundle`下的jekyll，而不是我们原本装的jekyll：
 ```
-cd myblog
-bundle exec jekyll serve
+$ bundle exec jekyll serve
 ```
-这里使用bundle的目的是保证使用myblog下Gemfile指定的所有gem versions，保证了构建的一致性。如果不用Gemfile，直接用默认的jekyll运行即可（不推荐）：
-```
-jekyll serve
-```
+
+> 不推荐直接用默认的jekyll运行：`jekyll serve`。
+
 然后就可以打开 http://localhost:4000 浏览已经构建的网站了。
 
-参阅：
-- https://jekyllrb.com/docs/
-- ~~http://www.stephaniehicks.com/githubPages_tutorial/pages/githubpages-jekyll.html~~
+上述流程中，有两个东西我们只用了一次：
+1. `gem`指令：安装完bundler，就不再用它安装gems了；
+2. 我们一开始（通过`gem`指令）本地安装的jekyll：创建完Gemfile，我们就不用它了。后面用到的jekyll，都是使用bundler安装到`./vendor/bundle`下的jekyll；
 
-### 创建和GitHub使用的依赖完全相同版本的离线网站
-首先，使用和GitHub相同版本的Jekyll创建网站。GitHub使用的Jekyll版本可以在[GitHub Pages Dependency](https://pages.github.com/versions/)查询，当前使用的是Jekyll 3.8.5。
-
-我们可以使用gem安装Jekyll 3.8.5到机器上，但是还有一种更好的方法：**将所有需要的gem（包括Jekyll）都使用bundler安装到工程内部。** 这样当不同的工程需要安装不同版本的gem时，他们的安装路径都是隔绝的（隔绝在自己的工程下），所以能更好地避免冲突。
-
-想使用bundler，首先要初始化bundler，生成一个Gemfile：
-```
-mkdir my-jekyll-website
-cd my-jekyll-website
-bundle init
-```
-当前还没有引入任何gem，所以Gemfile没有指定任何gem：
-```
-$ cat Gemfile
-# frozen_string_literal: true
-
-source "https://rubygems.org"
-
-git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
-
-# gem "rails"
-```
-
-接着指定bundler的行为，安装gem到本工程下的vendor/bundle目录：
-```
-bundle install --path vendor/bundle
-```
-此时可以看到该工程下bundler的配置文件：
-```
-$ cat .bundle/config
----
-BUNDLE_PATH: "vendor/bundle" 
-```
-
-接着安装GitHub同款3.8.5 Jekyll（所以本地可以不安装Jekyll，在这一步将特定版本的Jekyll装到工程内部即可）：
-```
-bundle add jekyll -v 3.8.5
-```
-如果观察工程的Gemfile，可以看到现在里面加上了3.8.5版本的Jekyll：
-```
-$ cat Gemfile
-# frozen_string_literal: true
-
-source "https://rubygems.org"
-
-git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
-
-# gem "rails"
-
-gem "jekyll", "= 3.8.5"
-```
-现在使用该版本的Jekyll创建工程：
-```
-bundle exec jekyll new --force --skip-bundle .
-bundle install
-```
-> Tips 1: Jekyll创建工程的语法是`jekyll new <folder>`，这里我们通过bundler使用Gemfile里指定的Jekyll，所以必须加上`bundle exec`。
-> 
-> Tips 2: jekyll默认只能在空文件夹下创建工程。但是我们已经init过bundler了，所以有bundler的一些配置和Gemfile，所以使用`--force`选项。
-
-现在工程已经初始化好了。Jekyll初始化网站的过程中也用到了很多其他的依赖，所以现在的Gemfile丰富了很多：
-```
-$ cat Gemfile
-source "https://rubygems.org"
-
-# Hello! This is where you manage which Jekyll version is used to run.
-# When you want to use a different version, change it below, save the
-# file and run `bundle install`. Run Jekyll with `bundle exec`, like so:
-#
-#     bundle exec jekyll serve
-#
-# This will help ensure the proper Jekyll version is running.
-# Happy Jekylling!
-gem "jekyll", "~> 3.8.5"
-
-# This is the default theme for new Jekyll sites. You may change this to anything you like.
-gem "minima", "~> 2.0"
-
-# If you want to use GitHub Pages, remove the "gem "jekyll"" above and
-# uncomment the line below. To upgrade, run `bundle update github-pages`.
-# gem "github-pages", group: :jekyll_plugins
-
-# If you have any plugins, put them here!
-group :jekyll_plugins do
-  gem "jekyll-feed", "~> 0.6"
-end
-
-# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
-gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-
-# Performance-booster for watching directories on Windows
-gem "wdm", "~> 0.1.0" if Gem.win_platform?
-```
-比如引入了Jekyll网站的默认主题minima 2.0。
-
-但是，这些用到的依赖并不是GitHub使用的依赖。根据Gemfile里的提示，如果我们想把网站传到GitHub上，最好使用和GitHub完全相同的依赖。使用的方式是，注释掉Gemfile中的Jekyll gem，开启`github-pages`这个gem：
-```
-# If you want to use GitHub Pages, remove the "gem "jekyll"" above and
-# uncomment the line below. To upgrade, run `bundle update github-pages`.
-# gem "github-pages", group: :jekyll_plugins
-```
-按照提示修改完之后，我们安装一个`gethub-pages`这个gem：
-```
-bundle install
-```
-这样所有安装的gem就全都和GitHub Pages使用的完全相同了。
-
-可以看到主题minima安装的位置和版本：
-```
-$ ls vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
-assets  _includes  _layouts  LICENSE.txt  README.md  _sass
-```
-安装的是2.5.0，位置就是我们通过bundle指定的`vendor/bundle`。
-
-一切安装完毕。想看效果，使用Gemfile指定的Jekyll启动工程：
-```
-bundle exec jekyll serve
-```
-然后就可以在 127.0.0.1:4000 查看效果了。
-
-参阅：
-- https://jekyllrb.com/tutorials/using-jekyll-with-bundler/
-- https://bundler.io/man/bundle-add.1.html
-- https://help.github.com/en/github/working-with-github-pages/creating-a-github-pages-site-with-jekyll
-- https://github.com/github/pages-gem
-- https://bundler.io/v2.0/bundle_install.html
-
-## 上传到github
-这里可以参考[GitHub Pages](https://help.github.com/en/github/working-with-github-pages/creating-a-github-pages-site-with-jekyll)。
-
+# 上传到github
+这里依然参考[GitHub Pages](https://help.github.com/en/github/working-with-github-pages/creating-a-github-pages-site-with-jekyll)。
 
 1. 在自己的github账户下创建同名repo，比如puppylpg.github.io；
 2. 将刚刚的myblog文件夹初始化为git仓库：`git init`；
@@ -280,6 +172,4 @@ bundle exec jekyll serve
 
 GitHub默认用master分支，repo的根目录，上述repo就是这种结构，所以就不需要进行额外设置了。
 
-参阅：
-- https://help.github.com/en/github/working-with-github-pages/setting-up-a-github-pages-site-with-jekyll
 
