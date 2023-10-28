@@ -74,17 +74,17 @@ categories: motocycle
 
 看完了，小丙说基本碰到的人都能一小时学会磨膝，连妹子都会。所以我再次跃跃欲试，今天一练发现，同倾还是老样子，做不太好。感觉车把稍微有点儿问题，会有一点点拐而不是全直的。后来想起来昨天看的油门控制的重要性，才注意到自己油门控制的也不是很好，就刻意稳定油门。又考虑到车的极限其实很高，就大着胆往下压，但依然达不到预期。
 
-![right](/assets/screenshots/motocycle/myself/20230306/right.png)
+![right](/pics/motocycle/myself/20230306/right.png)
 
 后来看了一下录的视频，发现身体和车并不是真同倾，而是有点儿外倾了，身体的角度并没有达到车子的角度，估计还是心里害怕。身体都下不去，车肯定不可能再往下压了。所以再接着练的时候刻意注意了一下身体。想到车的极限挺高的，我又怕什么，刻意让自己不要因为害怕而产生无意识的抗拒，结果奇迹就在注意完油门和姿势之后发生了！在做右侧同倾的时候，时隔一年我又再次听到了磨排气管的声音！上一次是纯运气，这一次磨排气来自于对自己bug的纠正，真就带着实力的意味了。
 
-![exhust_pipe_grind](/assets/screenshots/motocycle/myself/20230306/exhust_pipe_grind.jpg)
+![exhust_pipe_grind](/pics/motocycle/myself/20230306/exhust_pipe_grind.jpg)
 
 这一下我立刻来了兴致，接着来，又磨到了！果然，知道哪儿有问题才好纠正，一个个bug纠正完了，预想的结果就来了！再往后，基本可以小半圈一直磨了，但是还没有达到随心所欲想磨就磨的水平。不过我感觉不远了，就在下次了。
 
-![back_right_lean](/assets/screenshots/motocycle/myself/20230306/back_right_lean.jpg)
+![back_right_lean](/pics/motocycle/myself/20230306/back_right_lean.jpg)
 
-![back](/assets/screenshots/motocycle/myself/20230306/back.png)
+![back](/pics/motocycle/myself/20230306/back.png)
 
 理论上来讲，左侧压弯我做的一直比右侧要好，但是这次左侧压弯始终没有给我带来反馈。左边没有排气管，只能尝试磨探针，但无路如何都磨不到。后来一看，我左侧根本就没探针……估计是在某次钻车缝的时候离花坛太近给碰掉了……
 
@@ -92,15 +92,15 @@ categories: motocycle
 
 后来整个人就转太多圈，开始头晕了……看看轮胎，右侧基本吃满了，还差只有一点点白色。左侧要稍微差点儿，估计是今天左侧做的没右侧多。毕竟左侧没反馈，自然就没右侧快乐，快乐让人多做了好多圈。
 
-![back_tire_right](/assets/screenshots/motocycle/myself/20230306/back_tire_right.jpg)
+![back_tire_right](/pics/motocycle/myself/20230306/back_tire_right.jpg)
 
 回来量了一下，磨排气的时候压得都有46°了！！！惊呆我了！这个角度肯定是可以磨膝了。只不过把屁股挂出去又是另一个要练习的东西了，下次再说吧，今天我已经震撼我自己100年了。看来小丙说的一小时练会是真的，前提是能找到自己的bug并成功debug。
 
-![angle](/assets/screenshots/motocycle/myself/20230306/angle.png)
+![angle](/pics/motocycle/myself/20230306/angle.png)
 
 练车真难啊！理论对了是一大难，知道理论之后的实际表现又是一大难！不过练车这么快乐，所以也都不算难！
 
-![300ac](/assets/screenshots/motocycle/myself/20230306/300ac.jpg)
+![300ac](/pics/motocycle/myself/20230306/300ac.jpg)
 
-![vertical](/assets/screenshots/motocycle/myself/20230306/vertical.png)
+![vertical](/pics/motocycle/myself/20230306/vertical.png)
 

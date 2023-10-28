@@ -26,15 +26,15 @@ jekyll的默认主题是minima，一个看起来十分干净整洁的主题。�
 
 虽然渲染英文短文看起来很整洁，但是在中文博客上的呈现很多方面看起来都不是很舒服。
 
-![](/assets/screenshots/jekyll/minima_toc.png )
-![](/assets/screenshots/jekyll/minima_content.png )
-![](/assets/screenshots/jekyll/minima_code.png )
+![](/pics/jekyll/minima_toc.png )
+![](/pics/jekyll/minima_content.png )
+![](/pics/jekyll/minima_code.png )
 
 docsy-jekyll则更像一个成熟的网站：
 
-![](/assets/screenshots/jekyll/docsy_toc.png )
-![](/assets/screenshots/jekyll/docsy_content.png )
-![](/assets/screenshots/jekyll/docsy_code.png )
+![](/pics/jekyll/docsy_toc.png )
+![](/pics/jekyll/docsy_content.png )
+![](/pics/jekyll/docsy_code.png )
 
 页面渲染的很好看，sidebar能看试试导航目录，支持站内检索，这些优势带来的便利令人很难拒绝。
 

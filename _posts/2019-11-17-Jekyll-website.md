@@ -262,7 +262,7 @@ blabla...
 {% endraw %}
 ```
 最终的效果如图所示：
-![Jekyll welcome blog](/assets/screenshots/Jekyll_welcome_blog.png )
+![Jekyll welcome blog](/pics/Jekyll_welcome_blog.png )
 
 和上面介绍的post layout的页面结构一致。
 

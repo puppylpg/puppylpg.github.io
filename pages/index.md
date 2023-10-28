@@ -8,7 +8,7 @@ permalink: /
 
 This is [puppylpg](http://github.com/{{ site.github_user }})'s official website, pika~
 
-![hello]({{ site.url }}/assets/screenshots/pikachu-hello.png)
+![hello]({{ site.url }}/pics/pikachu-hello.png)
 
 This website is where I share all my interests with you. Hope you enjoy it.
 

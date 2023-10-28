@@ -22,7 +22,7 @@ linux网络协议栈，无论被描述为是OSI五层模型，还是TCP/IP七层
 
 但网络协议栈的设计也并不是完全没有给用户态程序任何操作空间，还是**允许root用户配置一些回调函数（hook）对协议栈里的数据进行干预**的。
 
-![Netfilter_hook](/assets/screenshots/docker/network/Netfilter_hook.png)
+![Netfilter_hook](/pics/docker/network/Netfilter_hook.png)
 
 PREROUTING/POSTROUTING、FORWARD、INPUT/OUTPUT就是这样五种callback，每种callback都可以设置多个callback函数，形成了链，因此也被称为chain。**这套过滤器框架名为Netfilter**，有一些上层应用能够更方便地设置Netfilter hook，比如Xtables家族，最出名的是iptables。
 
@@ -57,7 +57,7 @@ bridge既然是个虚拟交换机，那么它的工作原理和[数据链路层]
 
 这样，**linux bridge本身还充当了一点点路由器的功能**。如果没有这个功能，只能做到接入到同一个bridge的虚拟设备之间相互通信。有了这个功能，当数据包被通过bridge扔到了主机的网络协议栈，只需要提前预支一些iptables NAT规则，就可以把原ip和mac替换为实际网卡eth0的ip和mac，从而实现外部通信。同理，数据包返回的时候还要把ip和mac换回来。
 
-![linux_bridge_container](/assets/screenshots/docker/network/linux_bridge_container.png)
+![linux_bridge_container](/pics/docker/network/linux_bridge_container.png)
 
 **因此可以认为linux bridge是一个虚拟交换机，linux内核本身就是一个虚拟路由器，因为只有路由器才能做NAT转换。**
 
