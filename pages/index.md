@@ -13,8 +13,8 @@ This is [puppylpg](http://github.com/{{ site.github_user }})'s official website,
 This website is where I share all my interests with you. Hope you enjoy it.
 
 - [Tech]({{ site.url }}/tech): is where I put technology blogs when I think I have a understand about some tech;
-- [Docs]({{ site.url }}/docs): life is limited and half boring only with technology. I do need more books or thoughts to enrich myself;
-- [Snippet]({{ site.url }}/snippets): is a collection of small pieces whenever I wanna say something, though most of them will be about tech I think;
+- [Book]({{ site.url }}/books): life is limited and half boring only with technology. I do need more books or thoughts to enrich myself;
+- [Life]({{ site.url }}/life): is a collection of small pieces whenever I wanna say something, though most of them will be about tech I think;
 - [Tags]({{ site.url }}/tags): to group my articles by tags, for the purpose of convenience;
 - [Recently]({{ site.url }}/recently): recent tech blogs you can see;
 

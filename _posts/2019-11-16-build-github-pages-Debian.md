@@ -105,7 +105,7 @@ sudo apt install build-essential
 [jekyll官方建议](https://jekyllrb.com/docs/installation/ubuntu/)，Ruby的各种gem最好不要全局安装。实际上确实如此，毕竟Java的jar包我们也不是全局安装，每个项目都可能有自己的版本。
 
 所以按照官方建议，我们指定`~/gems`为ruby gems的安装目录（`GEM_HOME`）：
-```
+```bash
 echo '# Install Ruby Gems to ~/gems' >> ~/.zshrc
 echo 'export GEM_HOME="$HOME/gems"' >> ~/.zshrc
 echo 'export PATH="$HOME/gems/bin:$PATH"' >> ~/.zshrc
@@ -117,11 +117,19 @@ source ~/.zshrc
 gem install jekyll bundler
 ```
 
-参阅：
-- https://jekyllrb.com/docs/installation/
-- https://jekyllrb.com/docs/installation/ubuntu/
+### gem国内源
+gem的官方源太慢，替换成国内源：
+```bash
+$ gem sources --remove https://rubygems.org/
+$ gem sources -a https://gems.ruby-china.com/
+$ gem sources -l
+```
+
+> 下面的bundler也需要做源替换。
 
 ## 离线网站搭建
+
+### 初始化
 首先使用jekyll新创建一个站点：
 ```bash
 $ jekyll new --skip-bundle .
@@ -139,6 +147,7 @@ $ jekyll new --skip-bundle .
 
 > 当前版本是228。
 
+### 安装依赖
 然后使用bundler根据Gemfile构建完整的依赖版本：
 ```bash
 $ bundle install
@@ -147,6 +156,9 @@ $ bundle install
 
 > 这些依赖都会被安装到`./vendor/bundle`下。
 
+**bundle默认是用的源写在Gemfile第一行**，是`source "https://rubygems.org"`，同样需要改成国内源`source "https://gems.ruby-china.com/"`。
+
+### 构建网站
 之后就可以使用jekyll构建网站了。当然，这里的jekyll用的是安装在`./vendor/bundle`下的jekyll，而不是我们原本装的jekyll：
 ```
 $ bundle exec jekyll serve
