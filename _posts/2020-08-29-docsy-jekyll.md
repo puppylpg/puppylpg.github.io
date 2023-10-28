@@ -4,12 +4,13 @@ title: "docsy-jekyll"
 date: 2020-08-29 00:48:00 +0800
 categories: Jekyll
 tags: Jekyll
+render_with_liquid: false
 ---
 
 之前利用github pages提供的便利，使用jekyll创建了个人静态网站：
-- [搭建个人GitHub Pages（Debian 9 Stretch）]({% post_url 2019-11-16-build-github-pages-Debian %})
-- [探索Jekyll静态网站结构]({% post_url 2019-11-17-Jekyll-website %})
-- [minima主题拓展]({% post_url 2019-11-23-minima-customize %})
+- [Jekyll：GitHub Pages]({% post_url 2019-11-16-build-github-pages-Debian %})
+- [Jekyll：网站结构]({% post_url 2019-11-17-Jekyll-website %})
+- [Jekyll：minima主题自定义]({% post_url 2019-11-23-minima-customize %})
 
 jekyll的默认主题是minima，一个看起来十分干净整洁的主题。从学习的角度来讲，由于没有花里胡哨的组件，minima挺适合学习前端或者jekyll。
 
@@ -30,7 +31,7 @@ jekyll的默认主题是minima，一个看起来十分干净整洁的主题。�
 ![](/pics/jekyll/minima_content.png )
 ![](/pics/jekyll/minima_code.png )
 
-docsy-jekyll则更像一个成熟的网站：
+[docsy-jekyll](https://github.com/vsoch/docsy-jekyll)则更像一个成熟的网站：
 
 ![](/pics/jekyll/docsy_toc.png )
 ![](/pics/jekyll/docsy_content.png )
@@ -41,31 +42,42 @@ docsy-jekyll则更像一个成熟的网站：
 # 结构
 关于jekyll工程的structure，可以参考：https://jekyllrb.com/docs/structure/
 
-- assets：一个普通的放资源的目录；
-- `_data`：分类放置变量；
-- `_docs`：自定义的collection；
-- `_include`：网页的组件，用于被引用，类似程序的函数；
-- `_layouts`：网页模板；
-- `pages`：自定义的放置page的目录；
-- `_posts`：放置post，jekyll官方定义的collection；
-- `_site`：放置编译后的整个静态网站的内容；
-- `vendor`：自定义的安装gem的文件夹；
+**因为docsy-jekyll不是一个ruby gem，所以我们无法安装它，只能把它的框架文件和我们自己的数据放在一起。所以显得比较乱。**
+
+> 从使用效果看，当我们的文件夹下有docsy框架文件后，minima就不生效了。可能因为都是同名文件，所以jekyll选择了距离更近的docsy的文件。
+
+- **框架本身的文件**：
+    - `assets`：一个普通的放资源的目录；
+    - `_include`：网页的组件，用于被引用，类似程序的函数；
+    - `_layouts`：网页模板；
+- **用户数据文件**：
+    - `_posts`：**默认的collection**。放置post，jekyll官方定义的collection；
+    - `_data`：分类放置变量；
+    - `pages`：**默认的collection**。放置html/markdown的目录。**取任何名字都行，因为工程里的任何html页面都是page**；
+    - **自定义文件**：
+        - `_docs`：**自定义**的collection；
+- 其他：
+    - `vendor`：自定义的安装gem的文件夹；
+    - `_site`：放置编译后的整个静态网站的内容；
+
+## 框架文件
+`_layouts`和`_include`。`_layouts`是页面模板，会引用`_include`里的内容，比如header/footer/sidebar等。
 
 ## `_data` - Jekyll Data Files
-`_data`是用来指定变量的，这样就不用把所有的变量都放在`_config.yml`里。
+**`_data`是用来指定变量的，这样就不用把所有的变量都放在`_config.yml`里。**
 
 - https://jekyllrb.com/docs/datafiles/
 
-## `_layouts` `_include`
-`_layouts`是页面模板，会引用`_include`里的内容，比如header/footer/sidebar等。
+## Jekyll Collection
+- https://jekyllrb.com/docs/collections/
 
-## `_docs` - Jekyll Collection
-`docs`是根据jekyll collection自定义的类型，`_docs`是其对应的目录。
+### `_docs`
+**`docs`是根据jekyll collection自定义的类型，`_docs`是其对应的目录。**
 
 > Create a corresponding folder (e.g. `<source>/_staff_members`) and add documents.
 
 in `_config.yml`:
-```
+```yaml
 # Collections
 collections:
   docs:
@@ -79,18 +91,18 @@ collections:
 除非定义collection的时候，设置了`output: true`的属性：
 > Regardless of whether front matter exists or not, Jekyll will write to the destination directory (e.g. `_site`) only if output: true has been set in the collection’s metadata.
 
-post由于是Jekyll内定的collection，不受上述之约，有没有设置output都会被处理：
+**`_post`由于是Jekyll内定的collection，不受上述约束，有没有设置output都会被处理**：
 > Do note that in spite of being considered as a collection internally, the above doesn’t apply to posts. Posts with a valid filename format will be marked for processing even if they do not contain front matter.
 
-- https://jekyllrb.com/docs/collections/
+### `pages`/`posts`/`drafts`
+**他们是三个Jekyll默认的Collection。**
 
-## `pages`/`posts`/`drafts` - 三个Jekyll默认的Collection
 `pages`是最基础的内容，**工程里的任何html页面、markdown文件**（会被转成html）都会成为一个独立的页面，**url就是它的路径名。如果是markdown文件，可以在Front Matter里通过permalink指定其url**。（其实就是编译成html后放在url指定的位置）
 
-> `pages`不需要像`posts`、`drafts`一样有预定义好的`_posts`和`_drafts`文件夹，因为工程下所有的html/markdown都属于`pages`。
+> **`pages`不需要像`posts`、`drafts`一样有预定义好的`_posts`和`_drafts`文件夹**，因为工程下所有的html/markdown都属于`pages`。
 
-这里docsy-jekyll使用了一个独立的pages文件夹来统一放置page。当然这个文件夹取任何名字都行（因为**工程里的任何html页面**都是page）。
-```
+这里docsy-jekyll使用了一个独立的`pages`文件夹来统一放置page。**这个文件夹取任何名字都行**（因为**工程里的任何html页面**都是page）。
+```bash
 pichu@Archer ~/Codes/jekyll/puppylpg.github.io (master*) $ cat pages/about.md 
 ---
 title: About
@@ -102,7 +114,7 @@ permalink: /about/
 This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy jekyll theme, based
 ...
 ```
-这里使用permalink指定了url为about，否则就是它的路径pages/about。
+这里使用permalink指定了url为about，**否则就是它的路径pages/about**。
 
 - https://jekyllrb.com/docs/pages/
 
@@ -114,14 +126,8 @@ This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy
 
 - https://jekyllrb.com/docs/posts/
 
-## `_site`
-`_site`是编译后的目录
-
-## `vendor`
-`vendor`是bundler自定义的安装gem的地方。
-
 ## config defaults
-```
+```yaml
 # Defaults
 defaults:
   - scope:
@@ -152,40 +158,6 @@ defaults:
 - https://jekyllrb.com/docs/configuration/
 - https://jekyllrb.com/docs/configuration/options/
 - https://jekyllrb.com/docs/configuration/front-matter-defaults/
-
-## Gemfile
-其实有用的就一行：
-```
-source "https://rubygems.org"
-ruby RUBY_VERSION
-
-# Hello! This is where you manage which Jekyll version is used to run.
-# When you want to use a different version, change it below, save the
-# file and run `bundle install`. Run Jekyll with `bundle exec`, like so:
-#
-#     bundle exec jekyll serve
-#
-# This will help ensure the proper Jekyll version is running.
-# Happy Jekylling!
-# gem "jekyll", "3.2.1"
-
-# This is the default theme for new Jekyll sites. You may change this to anything you like.
-# gem "minima"
-
-# If you want to use GitHub Pages, remove the "gem "jekyll"" above and
-# uncomment the line below. To upgrade, run `bundle update github-pages`.
-gem "github-pages", group: :jekyll_plugins
-
-# If you have any plugins, put them here!
-# group :jekyll_plugins do
-#   gem "jekyll-github-metadata", "~> 1.0"
-# end
-```
-引入github-pages这一个gem就好了，它已经组装好各种所需要的依赖了，而且当github pages更新依赖之后，本地`bundle update`一下同步一下最新版的gem就行了，非常方便。
-
-**所以使用jekyll搭建一个网站特别简单：安装好ruby和bundler，创建一个这样的Gemfile就行了……**
-
-> 之前搭建jekyll网站的时候折腾了一大圈，折腾的是个啥……
 
 # 部署
 ## 获取docsy-jekyll

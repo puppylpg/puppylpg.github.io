@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Jekyll GitHub Pages"
+title: "Jekyll：GitHub Pages"
 date: 2019-11-16 16:13:19 +0800
 categories: [Jekyll]
 tags: [Jekyll]
