@@ -1,10 +1,12 @@
 - title: Pokédex
   url: /
   links:
-    - title: "Docs"
-      url: "docs"
     - title: "Tech"
       url: "tech"
+    - title: "Life"
+      url: "life"
+    - title: "Book"
+      url: "books"
     - title: "Tags"
       url: "tags"
     - title: "Recently"

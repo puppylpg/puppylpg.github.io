@@ -12,7 +12,12 @@ render_with_liquid: false
 - [Jekyll：网站结构]({% post_url 2019-11-17-Jekyll-website %})
 - [Jekyll：minima主题自定义]({% post_url 2019-11-23-minima-customize %})
 
-jekyll的默认主题是minima，一个看起来十分干净整洁的主题。从学习的角度来讲，由于没有花里胡哨的组件，minima挺适合学习前端或者jekyll。
+使用了jekyll的默认主题minima。
+
+1. Table of Contents, ordered                    
+{:toc}
+
+minima是一个看起来十分干净整洁的主题。从学习的角度来讲，由于没有花里胡哨的组件，minima挺适合学习前端或者jekyll。
 
 但是minima使用的时候，也有一些不是很方便的地方，比如：
 - 页面元素过少，缺乏tag页等；
@@ -53,9 +58,9 @@ jekyll的默认主题是minima，一个看起来十分干净整洁的主题。�
 - **用户数据文件**：
     - `_posts`：**默认的collection**。放置post，jekyll官方定义的collection；
     - `_data`：分类放置变量；
-    - `pages`：**默认的collection**。放置html/markdown的目录。**取任何名字都行，因为工程里的任何html页面都是page**；
+    - `pages`：一个普通文件夹，用来存放page类型的文件。**`pages`和`posts`一样，都是默认的collection**。放置html/markdown的目录。**取任何名字都行，因为工程里的任何html页面都是page**；
     - **自定义文件**：
-        - `_docs`：**自定义**的collection；
+        - `_books`：**自定义**的collection；
 - 其他：
     - `vendor`：自定义的安装gem的文件夹；
     - `_site`：放置编译后的整个静态网站的内容；
@@ -71,8 +76,8 @@ jekyll的默认主题是minima，一个看起来十分干净整洁的主题。�
 ## Jekyll Collection
 - https://jekyllrb.com/docs/collections/
 
-### `_docs`
-**`docs`是根据jekyll collection自定义的类型，`_docs`是其对应的目录。**
+### `_books`
+**`books`是根据jekyll collection自定义的类型，`_books`是其对应的目录。**
 
 > Create a corresponding folder (e.g. `<source>/_staff_members`) and add documents.
 
@@ -80,12 +85,13 @@ in `_config.yml`:
 ```yaml
 # Collections
 collections:
-  docs:
+  # 自定义的collection类型
+  books:
     output: true
     permalink: /:collection/:path
 ```
 
-`_docs`下没有Front Matter的文件会被当成static file，内容不会被处理：
+`_books`下没有Front Matter的文件会被当成static file，内容不会被处理：
 > Front matter is processed if the front matter exists, and everything after the front matter is pushed into the document’s content attribute. If no front matter is provided, Jekyll will consider it to be a static file and the contents will not undergo further processing. If front matter is provided, Jekyll will process the file contents into the expected output.
 
 除非定义collection的时候，设置了`output: true`的属性：
@@ -127,33 +133,44 @@ This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy
 - https://jekyllrb.com/docs/posts/
 
 ## config defaults
+可以设置collection的默认选项。
+
+下面的设置配置了三个内容。**我们设置默认所有的`books`类型（1）的文件都放在`_books`文件夹（2）下，都使用page layout（3）：**
 ```yaml
 # Defaults
 defaults:
   - scope:
-      path: "_docs"
-      type: "docs"
+      path: "_books"
+      type: books
     values:
       layout: page
   -
     scope:
-      path: ""
-      type: "pages"
+      path: "_life"
+      type: life
     values:
-      layout: "page"
-  -
-    scope:
-      path: "_posts"
-      type: "posts"
-    values:
-      layout: "post"
+      layout: page
 ```
 - scope：对谁设定defaults；
     + path：限定文件的目录，空字符串代表整个工程。必填；
-    + type：限定文件的类型，`pages`/`posts`/`drafts`或者其他collection。可选；
+    + type：限定文件的类型，`pages`/`posts`/`drafts`，**或者其他自定义的collection**。可选；
 - values：给符合的文件添加哪些Front Matter属性；
 
-> layout page和collection pages之间并没有什么关系，我们只是配置对所有的pages都应用page layout，仅此而已。
+**默认情况下，`pages`类型对整个目录下的html/markdown生效，默认使用page layout；`posts`类型则只对`_posts`文件夹下的文件生效，默认使用post layout**：
+```yaml
+  -
+    scope:
+      path: ""
+      type: pages
+    values:
+      layout: page
+  -
+    scope:
+      path: "_posts"
+      type: posts
+    values:
+      layout: post
+```
 
 - https://jekyllrb.com/docs/configuration/
 - https://jekyllrb.com/docs/configuration/options/
