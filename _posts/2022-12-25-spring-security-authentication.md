@@ -25,7 +25,7 @@ spring security主要解决三个问题：
     + `Credentials`：就是一个密码。只不过是object对象，而非简单的string；
     + `Authorities`：权限。string代表的权限，不过是一个多值的集合；
 
-![securitycontextholder](/assets/screenshots/spring/security/securitycontextholder.png)
+![securitycontextholder](/pics/spring/security/securitycontextholder.png)
 
 ## `SecurityContextHolder`
 
@@ -110,7 +110,7 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 # 权限认证filter
 介绍spring security架构时说过，spring security提供了[很多filter](https://docs.spring.io/spring-security/reference/servlet/architecture.html#servlet-security-filters)放在自己的security filter chain上以完成各个功能。**`UsernamePasswordAuthenticationFilter`就是其中使用`AuthenticationManager`来做用户名密码校验以生成`Authentication`的filter**。
 
-![abstractauthenticationprocessingfilter](/assets/screenshots/spring/security/abstractauthenticationprocessingfilter.png)
+![abstractauthenticationprocessingfilter](/pics/spring/security/abstractauthenticationprocessingfilter.png)
 
 > `AbstractAuthenticationProcessingFilter`是`UsernamePasswordAuthenticationFilter`的抽象父类。
 
@@ -144,7 +144,7 @@ authority一般分为两拨：role vs. authority。但是role和authority其实�
 
 这个时序图完美展示了表单登录的流程：
 
-![loginurlauthenticationentrypoint](/assets/screenshots/spring/security/loginurlauthenticationentrypoint.png)
+![loginurlauthenticationentrypoint](/pics/spring/security/loginurlauthenticationentrypoint.png)
 
 `FilterSecurityInterceptor`，和`ExceptionTranslationFilter`也都是spring security提供的filter chain上的filter。
 
@@ -195,7 +195,7 @@ spring boot应该能帮忙简化这些行为。
 
 这个时序图完美展示了basic认证的流程：
 
-![basicauthenticationentrypoint](/assets/screenshots/spring/security/basicauthenticationentrypoint.png)
+![basicauthenticationentrypoint](/pics/spring/security/basicauthenticationentrypoint.png)
 
 此时处于filter chain上的filter不再是`UsernamePasswordAuthenticationToken`，而是`BasicAuthenticationFilter`，它创建的还是`UsernamePasswordAuthenticationToken`。后面的认证流程不变。
 

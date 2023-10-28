@@ -26,7 +26,7 @@ spring security[通过servlet容器标准的`Filter`接口把功能集成到serv
 ## servlet filter chain
 spring security依赖servlet Filter拦截、认证请求。
 
-![filterchain](/assets/screenshots/spring/security/filterchain.png)
+![filterchain](/pics/spring/security/filterchain.png)
 
 filter的实现可以从两方面发挥作用：
 1. 通过是否调用filter chain，决定请求是否继续走下去（走到最后一个，处理逻辑是servlet）：Prevent downstream Filter instances or the Servlet from being invoked. **In this case, the Filter typically writes the `HttpServletResponse`**；
@@ -96,7 +96,7 @@ Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，
 
 spring security已经提供了这样的一个filter bean实现，`FilterChainProxy`。`DelegatingFilterProxy`将filter逻辑委托给它，它再寻找`SecurityFilterChain`，和原有filter chain一起过滤request、response。
 
-![filterchainproxy](/assets/screenshots/spring/security/filterchainproxy.png)
+![filterchainproxy](/pics/spring/security/filterchainproxy.png)
 
 因此这里一共涉及两个代理proxy：
 1. 注册到servlet上的delegating Filter，它是一个代理，实际实现filter功能的是spring wac里的filter bean（`FilterChainProxy`）。所以它是`FilterChainProxy`的proxy，名字叫delegating filter proxy；
@@ -109,7 +109,7 @@ spring security已经提供了这样的一个filter bean实现，`FilterChainPro
 ## 盗版filter chain - `SecurityFilterChain`
 显然spring的filter chain是在盗版servlet的filter chain。通过`DelegatingFilterProxy`把请求从正统filter chain上引流到自己的盗版filter chain上。
 
-![multi-securityfilterchain](/assets/screenshots/spring/security/multi-securityfilterchain.png)
+![multi-securityfilterchain](/pics/spring/security/multi-securityfilterchain.png)
 
 一个`SecurityFilterChain`本身就是一堆filter bean的集合，`FilterChainProxy`将逻辑委托给了一堆`SecurityFilterChain`（`List<FilterChainProxy>`），而不是一个`FilterChainProxy`。
 
@@ -124,7 +124,7 @@ spring security已经提供了这样的一个filter bean实现，`FilterChainPro
 ## 如何验证
 `ExceptionTranslationFilter`是security filter chain上的一个filter，它是spring security的核心filter。
 
-![exceptiontranslationfilter](/assets/screenshots/spring/security/exceptiontranslationfilter.png)
+![exceptiontranslationfilter](/pics/spring/security/exceptiontranslationfilter.png)
 
 它的伪代码如下：
 ```java

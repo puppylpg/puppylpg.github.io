@@ -572,37 +572,37 @@ Tidying up ...    @ 2023 Sep 26 20:31:11 CST (1695731471000)
 因此，平均时长意义不大，可以看更详细的响应时间分布数据。
 
 #### 响应时间分布
-![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeDistribution.png)
+![vthread](/pics/jmeter/vthread/vthread-flotResponseTimeDistribution.png)
 
-![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeDistribution.png)
+![thread](/pics/jmeter/vthread/thread-flotResponseTimeDistribution.png)
 
 可以看到虚线程对大部分请求的响应都很快（除了最后timeout的那些请求），os线程响应明显比较慢。
 
 #### 响应时间分位数
-![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimesPercentiles.png)
+![vthread](/pics/jmeter/vthread/vthread-flotResponseTimesPercentiles.png)
 
-![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimesPercentiles.png)
+![thread](/pics/jmeter/vthread/thread-flotResponseTimesPercentiles.png)
 
 虚线程由于对大部分请求的响应都很快，所以中位数比较低，只有1771ms。os线程对大部分请求的响应都偏慢，所以中位数比较高，达到了19881ms，差了一个量级。
 
 #### 响应时间区间统计
-![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeOverview.png)
+![vthread](/pics/jmeter/vthread/vthread-flotResponseTimeOverview.png)
 
-![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeOverview.png)
+![thread](/pics/jmeter/vthread/thread-flotResponseTimeOverview.png)
 
 os线程的响应时长几乎全在1500ms以上，虚线程有很多响应都在1500ms以下。结合整个程序的负载（`Thread.sleep(Duration.ofMillis(1000))`）来看，显然虚线程要合理得多。
 
 #### 不同压力下的响应时间
-![vthread](/assets/screenshots/jmeter/vthread/vthread-flotResponseTimeVsRequest.png)
+![vthread](/pics/jmeter/vthread/vthread-flotResponseTimeVsRequest.png)
 
-![thread](/assets/screenshots/jmeter/vthread/thread-flotResponseTimeVsRequest.png)
+![thread](/pics/jmeter/vthread/thread-flotResponseTimeVsRequest.png)
 
 几乎所有的qps下，虚线程都表现的要比os线程好很多。
 
 ### visualvm
-![vthread](/assets/screenshots/jmeter/vthread/vthread.png)
+![vthread](/pics/jmeter/vthread/vthread.png)
 
-![thread](/assets/screenshots/jmeter/vthread/thread.png)
+![thread](/pics/jmeter/vthread/thread.png)
 
 测试的时候还可以使用visualvm查看两种服务的系统metric，很明显os thread时创建了非常多的线程，对cpu和内存都造成了不小的压力。虚线程时整个jvm里创建的os线程很少，cpu和内存gc频率都要好不少。
 

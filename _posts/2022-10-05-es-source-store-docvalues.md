@@ -78,9 +78,9 @@ elasticsearch的`_search` API有三种查询参数，对应了不同的查询方
 
 **elasticsearch的`store`使用的就是Lucene `stored`的概念，`_source`是elasticsearch文档的第0个`store=true`的field**。`store`的field是row manner：每一个field在elasticsearch的document里顺次排列。
 
-![store](/assets/screenshots/Elasticsearch/storage/storedfields.png)
+![store](/pics/Elasticsearch/storage/storedfields.png)
 
-![_source field](/assets/screenshots/Elasticsearch/storage/sourcefield.png)
+![_source field](/pics/Elasticsearch/storage/sourcefield.png)
 
 elasticsearch返回store字段比返回_source里的某个字段速度快的原因也一目了然：field的寻找时间变快了，只需要返回每个命中的doc从起始位置偏移x个字节后的field就行了，无需加载`_source`并解析里面的field。
 
@@ -102,7 +102,7 @@ Lucene的`doc_values`是把倒排索引（key to value）倒过来（value to ke
 
 **Lucene用一个数组实现了这个value to key的map，数组的下标本身代表了doc的id（Lucene id，不是elasticsearch id）**：
 
-![正排索引](/assets/screenshots/Elasticsearch/storage/uninvert-the-inverted-index.png)
+![正排索引](/pics/Elasticsearch/storage/uninvert-the-inverted-index.png)
 
 `doc_values`的结构是 **列式存储，不同文档的相同field（逻辑上的一个列）的值存储为一行（对应为上述一个数组）**，所以适合给这个列的值做排序和聚合。当只需要返回这个列的值时，可以从这里直接读取所有列的值（实际上是在读行）。
 
@@ -356,7 +356,7 @@ GET /_search
 一个实验：
 - https://sease.io/2021/02/field-retrieval-performance-in-elasticsearch.html
 
-![elastic-benachmarks](/assets/screenshots/Elasticsearch/storage/elastic-benachmarks.png)
+![elastic-benachmarks](/pics/Elasticsearch/storage/elastic-benachmarks.png)
 
 可以看出，**需要取出的fields比较多的时候，使用`_source`更快，需要取出的fields较少时，从`doc_values`取更快**。
 

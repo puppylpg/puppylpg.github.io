@@ -142,7 +142,7 @@ SecurityFilterChain web(HttpSecurity http) throws AuthenticationException {
 
 它决定filter chain要不要执行下去的方式非常简单：就看`AuthorizationManager`返回的`AuthorizationDecision`是否通过，通过则继续：
 
-![authorizationfilter](/assets/screenshots/spring/security/authorizationfilter.png)
+![authorizationfilter](/pics/spring/security/authorizationfilter.png)
 
 用到的`AuthorizationManager`是`RequestMatcherDelegatingAuthorizationManager`。
 
