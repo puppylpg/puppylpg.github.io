@@ -422,7 +422,7 @@ failsafe有两个goal：
 
 **使用时应该用它的verify goal，因为verify在verify phase，所以能完整做完它前面的`pre-integration-test`/`integration-test`/`post-integration-test`三个phase**。如果直接用它的integration-test goal，只会执行到integration phase，不会做post-integration-test，可能导致集成测试完没有做资源回收。比如jetty server在结束后没有销毁。
 
-比如官方提供的[使用jetty plugin做集成测试](- https://maven.apache.org/surefire/maven-failsafe-plugin/usage.html#using-jetty-and-maven-failsafe-plugin)的例子：为了能做web的集成测试，需要启动一个jetty server，因此使用[jetty-maven-plugin](https://maven.apache.org/plugins/maven-war-plugin/examples/rapid-testing-jetty6-plugin.html)并把它的start goal绑定到pre-integration-test phase，就能在integration-test之前启动jetty server。
+比如官方提供的[使用jetty plugin做集成测试](https://maven.apache.org/surefire/maven-failsafe-plugin/usage.html#using-jetty-and-maven-failsafe-plugin)的例子：为了能做web的集成测试，需要启动一个jetty server，因此使用[jetty-maven-plugin](https://maven.apache.org/plugins/maven-war-plugin/examples/rapid-testing-jetty6-plugin.html)并把它的start goal绑定到pre-integration-test phase，就能在integration-test之前启动jetty server。
 
 [failsafe默认按照这些类名过滤测试用例](https://maven.apache.org/surefire/maven-failsafe-plugin/examples/junit-platform.html#filtering-by-test-class-names-for-maven-failsafe)，在verify阶段跑这些用例：
 - `**/IT*.java`
@@ -473,4 +473,5 @@ junit是测试框架，框架就意味着它有生命周期，需要在生命周
 第一次听说junit是大学老师让写单元测试测试自己的代码。但是当时对使用Java写程序尚不甚明了，更不能体会单元测试的意图了。写出来的单元测试也很敷衍，反正ide也支持，一点按钮就跑起来了。后来工作了，用Java写工程已经上道儿了，也体会到了单元测试的好处。但是junit用了那么久，却从来没有好好看过junit大概是个什么样的架构，也没看过它的官方文档，导致写出来的单元测试一直处于很低级的层面。终于今年被没有单元测试集成测试的代码的测试复杂度恶心到了，一定要给springboot工程加上单元测试和集成测试，发现想学习springboot的test，还是要先大致了解junit。从那一刻开始，看了springboot的源码，看了spring的源码，中间又用了docker，上了gitlab-ci，跑testcontainers，用assertj做断言，然后一切又连起来了：testcontainers要用docker，使用gitlab-ci docker runner的dind，有自己的jupiter @ExtendWith拓展，兜兜转转，回到了最初的起点。今天终于把junit jupiter的架构稍微看了看……
 
 下一步，终于又是springboot test了~
+
 

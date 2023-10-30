@@ -4,7 +4,6 @@ title: "Jekyll：minima主题自定义"
 date: 2019-11-23 22:46:25 +0800
 categories: Jekyll minima SEO
 tags: Jekyll minima SEO
-# render_with_liquid: false
 ---
 
 minima是Jekyll默认的主题，也是最简单的主题，很符合Keep It Stupid and Simple的原则。默认的可能是符合大众的，但一定不是完全适合自己口味的，所以理解一些原理，增加一些自己想要的东西也是很必要的。

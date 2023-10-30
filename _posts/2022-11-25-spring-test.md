@@ -316,7 +316,7 @@ class MyTest {
 ```
 
 ## 自动注册listner
-如果一个listener在所有的test class里都要用，每次都使用`@TestExecutionListeners`显得有些麻烦了。spring还提供了另一种[自动注册]((https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-tel-config-automatic-discovery))方式：在`META-INF/spring.factories`里设置`org.springframework.test.context.TestExecutionListener`列表即可，这些listener都会被spring test加载进来。
+如果一个listener在所有的test class里都要用，每次都使用`@TestExecutionListeners`显得有些麻烦了。spring还提供了另一种[自动注册](https://docs.spring.io/spring-framework/reference/testing/testcontext-framework/tel-config.html#testcontext-tel-config-automatic-discovery)方式：在`META-INF/spring.factories`里设置`org.springframework.test.context.TestExecutionListener`列表即可，这些listener都会被spring test加载进来。
 
 > **这种在`META-INF/spring.factories`下设置要注册的class列表的方式是由spring提供的`SpringFactoriesLoader`做的**。springboot加载autoconfig的类也是通过这种方式来加载的：[spring boot starter 自动配置原理]({% post_url 2020-02-18-spring-boot-starter-auto-config %})
 
