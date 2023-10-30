@@ -120,7 +120,7 @@ val ds = df.as[Person]
 ```
 这就要定义一个case class，为每一列对应一个具体类型的属性。然后使用as方法（`org.apache.spark.sql.Encoder`里的）转换。
 
-> as[U](implicit arg0: Encoder[U]): Dataset[U]
+> `as[U](implicit arg0: Encoder[U]): Dataset[U]`
 >
 > Returns a new Dataset where each record has been mapped on to the specified type. The method used to map columns depend on the type of U:
 >

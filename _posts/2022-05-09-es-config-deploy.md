@@ -153,7 +153,7 @@ GET _cluster/settings
 
 但是仅存在于一台机器上的集群并不具备容灾功能，不符合production部署规范，所以还是需要自己配置集群节点之间的相互发现。
 
-## [节点](node：https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html)
+## [节点](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html)
 节点之间有以下相互发现的方法：
 - 单播：**按图索骥**——只寻找配置文件里写了的小伙伴。大家认识的小伙伴的并集就是整个集群；
 - ~~多播：**河东狮吼**——有木有name=xxx的集群，有的话带我一个。很方便，但是生产环境一般不用~~；
@@ -364,4 +364,5 @@ PUT /_cluster/settings
 
 ## 更新DNS
 迁移完记得修改一下DNS，删掉旧节点ip，加入新节点ip。
+
 
