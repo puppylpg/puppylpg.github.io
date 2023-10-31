@@ -219,6 +219,11 @@ $ bundle exec htmlproofer _site \
 ## categories
 categories之前做的不太好，设置的跟tags一样，导致用处不大。看起来categories作为树状目录使用比较好。后面再看看比较好的规范。
 
+## toc
+[目录从二级标题开始显示](https://github.com/cotes2020/jekyll-theme-chirpy/issues/761#issuecomment-1324501647)，且无法对post以外的collection开启toc。
+
+不过这个问题不是很严重。
+
 ## 个人主页
 个人主页没了，考虑要不要再加上。
 
