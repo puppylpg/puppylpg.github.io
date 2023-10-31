@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Jekyll：网站结构"
+title: "Jekyll：minima结构"
 date: 2019-11-17 01:44:39 +0800
 categories: Jekyll
 tags: Jekyll
@@ -12,31 +12,6 @@ tags: Jekyll
 
 1. Table of Contents, ordered                    
 {:toc}
-
-# Liquid
-Jekyll使用[Liquid](https://shopify.github.io/liquid/)模板语言引擎来处理模板。
-
-Liquid有三个主要部分：
-- Object：`{% raw %}{{page.title}}{% endraw %}`，双括号，用于引用变量，使用该变量值；
-- Tag：`{% raw %}{% if page.show_sidebar %}{% endraw %}`，大括号加百分号，用于逻辑控制，html里嵌入代码，相当于JSP；
-- Filter：`{% raw %}{{ "hi" | capitalize }}{% endraw %}`，竖线，对内容进行处理，其实就是map函数；
-
-## Front Matter
-页头，Liquid只处理有页头的页面。页头是两行三横线，里面可以使用[YAML](https://yaml.org/)定义一些变量：
-```html
-{% raw %}
----
-name: puppylpg
----
-
-<h1>{{ page.name | downcase }}</h1>
-{% endraw %}
-```
-所有定义在页头里的变量，在Liquid中都可以使用`page`变量访问，比如上面定义的name的访问方式就是`{% raw %}{{ page.name }}{% endraw %}`。
-
-参阅：
-- https://jekyllrb.com/docs/liquid/
-- https://jekyllrb.com/docs/step-by-step/03-front-matter/
 
 # minima
 分析minima之前，可以先想象一下一个普通网页应该有的样子：
