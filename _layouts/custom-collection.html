@@ -1,6 +1,6 @@
 ---
 layout: page
-# The Archives of posts.
+# The Archives of collect_docs.
 ---
 
 {% include lang.html %}
@@ -14,8 +14,8 @@ layout: page
     {% assign basename = page.name | split: '.' | first %}
     {% if basename == collection.label %}
       {% assign sorted = collection.docs | sort: 'date' | reverse %}
-      {% for post in sorted %}
-        {% assign cur_year = post.date | date: '%Y' %}
+      {% for collect_doc in sorted %}
+        {% assign cur_year = collect_doc.date | date: '%Y' %}
 
         {% if cur_year != last_year %}
           {% unless forloop.first %}</ul>{% endunless %}
@@ -27,12 +27,12 @@ layout: page
         {% endif %}
 
         <li>
-          {% assign ts = post.date | date: '%s' %}
-          <span class="date day" data-ts="{{ ts }}" data-df="DD">{{ post.date | date: '%d' }}</span>
+          {% assign ts = collect_doc.date | date: '%s' %}
+          <span class="date day" data-ts="{{ ts }}" data-df="DD">{{ collect_doc.date | date: '%d' }}</span>
           <span class="date month small text-muted ms-1" data-ts="{{ ts }}" data-df="{{ df_dayjs_m }}">
-            {{ post.date | date: df_strftime_m }}
+            {{ collect_doc.date | date: df_strftime_m }}
           </span>
-          <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+          <a href="{{ collect_doc.url | relative_url }}">{{ collect_doc.title }}</a>
         </li>
 
         {% if forloop.last %}</ul>{% endif %}
