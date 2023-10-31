@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Jekyll：minima主题自定义"
+title: "Jekyll：minima自定义"
 date: 2019-11-23 22:46:25 +0800
 categories: Jekyll minima SEO
 tags: Jekyll minima SEO
