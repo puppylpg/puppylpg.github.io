@@ -83,7 +83,7 @@ archives模板就是`_layout/archives.html`。它里面遍历的是`site.posts`�
 ```
 这样就是对的了。
 
-> 但是重新构建后，网页依旧不变，后来发现是有缓存，只能`Ctrl + F5`强制刷新才行。
+> 但是重新构建后，网页依旧不变，后来发现是[有缓存](https://github.com/cotes2020/jekyll-theme-chirpy/wiki/FAQ)，只能`Ctrl + F5`强制刷新才行，或者使用浏览器的无痕模式。
 
 ## icon
 archives用的icon是`fas fa-archive`。在[icons reference](https://www.w3schools.com/icons/icons_reference.asp)找到了一堆Font Awesome类型的icon，可以给life、books、tutorial安排上了。
@@ -218,6 +218,28 @@ $ bundle exec htmlproofer _site \
 # 一些问题
 ## categories
 categories之前做的不太好，设置的跟tags一样，导致用处不大。看起来categories作为树状目录使用比较好。后面再看看比较好的规范。
+
+## 不区分大小写
+tag和category在使用[`jekyll-archives`](https://jekyll.github.io/jekyll-archives/)渲染的时候没有区分大小写，导致Http标签和http标签都生成了同一个标签页`/tags/http/`，后者覆盖了前者：
+```
+Conflict: The following destination is shared by multiple files.
+        The written file may end up with unexpected contents.
+        /home/pichu/Codes/jekyll/puppylpg.github.io/_site/tags/http/index.html
+         - tags/http/index.html
+         - tags/http/index.html
+```
+无论点击哪个标签，都会到达`/tags/http/`页面。
+
+而且，`_laytout/tags.html`和`_layout/categories.html`渲染的时候也都使用[`slugify`](https://jekyllrb.com/docs/liquid/filters/)（`<a class="tag" href="{{ t | slugify | url_encode | prepend: '/tags/' | append: '/' | relative_url }}">`）将大小写标签处理为小写，都指向`/tags/http/`：
+```html
+<a class="tag" href="/tags/http/">
+        Http<span class="text-muted">14</span>
+      </a>
+
+<a class="tag" href="/tags/http/">
+        http<span class="text-muted">1</span>
+      </a>
+```
 
 ## toc
 [目录从二级标题开始显示](https://github.com/cotes2020/jekyll-theme-chirpy/issues/761#issuecomment-1324501647)，且无法对post以外的collection开启toc。
