@@ -26,7 +26,7 @@ Elasticsearch Low Level Rest Client（LLRC）：
 > 它的github地址就是elasticsearch的地址……所以它比较耦合，包含了elasticsearch所有的东西……
 
 **它的包名是`org.elasticsearch.client:elasticsearch-rest-client`，无论已废弃的`org.elasticsearch.client:elasticsearch-rest-high-level-client`还是后面新出的`co.elastic.clients:elasticsearch-java`，底层都依赖它**：
-```
+```xml
 <!-- https://mvnrepository.com/artifact/org.elasticsearch.client/elasticsearch-rest-client -->
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
@@ -77,7 +77,7 @@ Elaticsearch High Level Rest Client（HLRC）:
 
 **[7.16是第一个正式版本](https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/7.16/introduction.html#_main_changes_since_version_7_15)。**
 
-```
+```xml
     <dependency>
       <groupId>co.elastic.clients</groupId>
       <artifactId>elasticsearch-java</artifactId>
@@ -92,7 +92,7 @@ elasticsearch-java使用jsonp规范解析数据，同时把jackson作为底层�
 - 和它的实现类`JacksonJsonpMapper implements JsonpMapper`
 
 jsonp默认已经声明在elasticsearch-java里了，所以如果系统里没有jackson，需要手动引入：
-```
+```xml
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
@@ -111,7 +111,7 @@ jsonp默认已经声明在elasticsearch-java里了，所以如果系统里没有
 所以如果出现：`ClassNotFoundException: jakarta.json.spi.JsonProvider`，可能是1.x版本的该依赖覆盖掉了`elasticsearch-java`里声明的2.x版本。此时需要手动引入2.x版本。
 
 `jakarta.json:jakarta.json-api` 2.x版本是elasticsearch-java的默认jsonp版本，但它可能被springboot等默认的1.x版本的jsonp给覆盖掉：
-```
+```xml
 <!-- https://mvnrepository.com/artifact/jakarta.json/jakarta.json-api -->
 <dependency>
     <groupId>jakarta.json</groupId>
@@ -310,9 +310,11 @@ SearchResponse<SomeApplicationData> results = client
 经验：用lambda参数构建builder时，IDE竟然不能自动补全！！！非常崩溃！后来发现，**先写后面的class参数，再写前面的lambda expression就能自动补全了……**
 
 比如search请求，先写后面的XXX.class，再写前面的lambda就能有提示自动补全了……
-```
+```xml
 elasticsearchClient.search(s -> s.index("ddd").query(q -> q.term(t -> t.field("s").value(v -> v.stringValue("s")))), XXX.class);
 ```
+
+或者直接单独写查询，还是可以自动补全的。
 
 ### Endpoint
 所有的api其实就干两件事：
@@ -333,7 +335,7 @@ elasticsearchClient.search(s -> s.index("ddd").query(q -> q.term(t -> t.field("s
 3. request body：可有可无
 
 比如：
-```
+```json
 PUT /my-index-000001?timeout=1m
 {
   "settings": {
@@ -348,7 +350,7 @@ PUT /my-index-000001?timeout=1m
     1. json，三个字段：acknowledged、shards_acknowledged、index
 
 比如：
-```
+```json
 {
   "acknowledged": true,
   "shards_acknowledged": true,
@@ -734,7 +736,7 @@ elasticsearchClient.indices().create(c -> c.index("xxx"));
 已废弃的RestHighLevelClient在两个地方很蹩脚：
 
 第一个就是请求的构造，因为没有上述lambda builder setter支持，嵌套对象每一个都要知道要构建什么builder，也免不了import进来。写出来的请求和DSL差很远：
-```
+```java
         SearchResponse response = restHighLevelClient.search(
                 new SearchRequest(WITAKE_MEDIA)
                         .source(
@@ -745,27 +747,27 @@ elasticsearchClient.indices().create(c -> c.index("xxx"));
         );
 ```
 另一个比较大的问题就是response不支持泛型，只能取出SearchHit，我们还要自己把search hit一个属性一个属性取出来（id、source等），手动转为实体类：
-```
+```java
         SearchHit hit = Arrays.stream(response.getHits().getHits()).findFirst().get();
 ```
 
 而ElasticsearchClient就很好地解决了上面两个问题：
 
 非常DSL，终于有了统一的视觉：
-```
+```java
         SearchResponse<WitakeMediaEs> response = elasticsearchClient.search(s -> s
                 .index(WITAKE_MEDIA)
                 .query(q -> q
                         .term(t -> t
                                 .field("id")
-                                .value(v -> v.stringValue("0"))
+                                .value("0")
                         )
                 ),
                 WitakeMediaEs.class
         );
 ```
-直接可以从search hit取出实体类对象，已经有jsonp为我们转换过了：
-```
+**直接可以从search hit取出实体类对象，已经有jsonp为我们转换过了**：
+```java
         Hit<WitakeMediaEs> hit = response.hits().hits().stream().findFirst().get();
         WitakeMediaEs witakeMediaEs = hit.source();
 ```
@@ -789,8 +791,13 @@ HLRC则要手动一个个实现endpoint，增加了维护成本：
 > TypeScript，有意思，有空看看。Java学JavaScript引入了val，JavaScript学Java的强类型衍生了TypeScript:D
 
 ## elasticsearch java vs. spring data elasticsearch：各有千秋
-spring data elasticsearch的ElasticsearchRestTemplate也支持泛型，所以和elasticsearch-java一样，也不需要手动转换类：
-```
+
+> `ElasticsearchRestTemplate`在spring data elasticsearch 5.x中已经被删除了，使用`ElasticsearchTemplate`。`ElasticsearchRestTemplate`可以使用hlrc构建的request builder发起请求，但是`ElasticsearchTemplate`只能使用新的elasticsearch-java构建的新请求发起请求。
+>
+> 历史包袱丢得很干脆，反而是的5.x的代码干净了许多。但是对于使用了spring data elasticsearch 4.x，又要升级到5.x的人来说，就很绝望……
+
+spring data elasticsearch的`ElasticsearchRestTemplate`也支持泛型，所以和elasticsearch-java一样，也不需要手动转换类：
+```java
         SearchHit<WitakeMediaEs> searchHit = hits.getSearchHits().stream().findFirst().get();
         WitakeMediaEs witakeMediaEs = searchHit.getContent();
 ```
@@ -798,7 +805,7 @@ spring data elasticsearch的ElasticsearchRestTemplate也支持泛型，所以和
 > 这个search hit是`org.springframework.data.elasticsearch.core.SearchHit<T>`不是`org.elasticsearch.search.SearchHit`。
 
 但是在构造请求上，还不如elasticsearch-java方便，很像rest high level client，没有使用太多回调函数式风格构建query builder：
-```
+```java
         SearchHits<WitakeMediaEs> hits = elasticsearchRestTemplate.search(
                 new NativeSearchQueryBuilder()
                         .withQuery(
@@ -823,7 +830,7 @@ spring data elasticsearch的ElasticsearchRestTemplate也支持泛型，所以和
 因此，**实体类上可能要标注两套注解**，给不同的框架使用，不要混淆。
 
 比如下面的示例：
-```
+```java
     @Id
     @ReadOnlyProperty
     @JsonIgnore
@@ -838,7 +845,7 @@ readId对应`_id`，因为标注了`@Id`，mediaId对应elasticsearch里自定�
 `@JsonIgnore`用于elaticsearch-java，因为elasticsarch里不存在这个field，所以转的时候要忽略。`@JsonProperty`是为了让mediaId转换成`id` field，实际上不存在mediaId。
 
 但是还有一个问题：`Instant`，**jackson默认转不了java8的对象，除了要新增包，还要给`ObjectMapper`注册上这个module，之后`ObjectMapper`才有了转换`Instant`对象的能力**。还好，elasticsearch-java的`JacksonJsonpMapper`支持传入自定义的`ObjectMapper`：
-```
+```java
     @Bean
     public ElasticsearchClient elasticsearchClient(RestHighLevelClient restHighLevelClient) {
         // jackson to process java8 date/time
@@ -847,7 +854,7 @@ readId对应`_id`，因为标注了`@Id`，mediaId对应elasticsearch里自定�
     }
 ```
 支持java8时间的包：
-```
+```xml
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
