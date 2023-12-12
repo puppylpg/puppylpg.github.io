@@ -56,7 +56,7 @@ pikachu就是一个pokemon，所以是该接口实现者之一。它就是一个
 starter里一般有autoconfig包，里面写的有用@Configuration标记的xxxAutoConfiguration配置类。
 
 在类里，使用@Bean去new一些bean，比如这里new一只pikachu。当然这些new不是无条件的，最基本的条件之一就是“必须在没有皮卡丘的情况下才能自动new出一只pikachu”。所以我们用条件注解写为：
-```
+```java
 @Configuration
 @ConditionalOnClass(Pikachu.class)
 @EnableConfigurationProperties(PikachuProperties.class)
@@ -92,7 +92,7 @@ new pikachu可以，因为pikachu的类在这儿。new出来的pikachu的属性�
 - `pokemon.pikachu.height`设定height属性。
 
 这个类应该写成：
-```
+```java
 @Data
 @ConfigurationProperties(prefix = PikachuProperties.PIKACHU_PREFIX)
 public class PikachuProperties {
@@ -113,21 +113,36 @@ springboot程序是使用一个主类，标记上`@SpringBootApplication`来启�
 
 但是我们写的starter作为第三方依赖被开发者引入程序，肯定不在上述自动扫描的包下，那pikachu的auto config的类是怎么被实例化的？
 
-## spring.factories
+## ~~spring.factories~~
+
+> springboot 3.x起已废弃。
+
 那就再做个约定呗。spring boot会读某个提前约定好的文件，这个文件下指定的类spring boot都加载就完事儿了。
 
 这个文件就是META-INF/spring.factories。
 
-spring boot会加载META-INF/spring.factories指定的那些类，而各个autoconfig的starter（除了spring boot自己写的一堆的，还有第三发的starter），就在这里指定所有自己的AutoConfiguration类，来让自己被加载。
+spring boot会加载META-INF/spring.factories指定的那些类，而各个autoconfig的starter（除了spring boot自己写的一堆的，还有第三方的starter），就在这里指定所有自己的AutoConfiguration类，来让自己被加载。
 
 所以我们的pikachu-spring-boot-starter在resources新建META-INF/spring.factories：
-```
+```properties
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
   io.puppylpg.pokemon.pikachu.PikachuAutoConfig
 ```
+多个类之间使用逗号分隔。
+
 META-INF/spring.factories必须要打包到jar的root下，不放在resources下当然也行，但是必须用maven的指定resources的方法把它指定为resources。
 
 这样一个starter就搞好了。
+
+### 3.x
+从spring3.x开始，[自动注册不再支持写到`spring.factories`里](https://github.com/spring-projects/spring-boot/issues/33413)，需要挪到[`spring/org.springframework.boot.autoconfigure.EnableAutoConfiguration.imports`](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.7-Release-Notes#auto-configuration-registration)文件里，直接写自动配置的类名即可。**相当于把这一项配置单独提出来了**。
+
+```properties
+io.puppylpg.pokemon.pikachu.PikachuAutoConfig
+```
+每个类独占一行。
+
+该变动是[springboot 2.7引入的](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.7-Release-Notes#auto-configuration-registration)，当时对二者均支持。3.x之后就只支持新版配置了。
 
 # 制作starter需要引入的包
 要引入两个包：

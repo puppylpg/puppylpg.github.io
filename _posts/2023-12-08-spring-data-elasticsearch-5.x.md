@@ -204,7 +204,7 @@ for (Terms.Bucket bucket : groupByUserIdBuckets) {
 ## hlrc client search
 HLRC请求需要把builder构造成`SearchRequest`：
 ```java
-        SearchRequest searchRequest = new SearchRequest()
+        SearchRequest searchRequest = new SearchRequest(elasticsearchTemplate.getIndexCoordinatesFor(WitakeMediaEs.class).getIndexName())
                 .source(
                         new SearchSourceBuilder()
                                 .query(queryBuilder)
@@ -574,4 +574,5 @@ elasticsearch-java的架构设计真的是惊为天人！在写[Elasticsearch：
 而spring data elasticsearch在果断放弃历史包袱之后也变得简洁了许多。但是删除了转接老hlrc request到泛型结果的`ElasticsearchRestTemplate`之后，对于想要升级5.x的曾经的4.x的老用户来说真的是生不如死……
 
 > 但是其实，我一开始只是想升级springboot3.2，使用一下springboot的虚线程支持来着……因为和spring data elasticsearch 4.x不兼容，所以才入了这些升级的坑……本来我是打算4.x的代码用到天荒地老的……
+
 

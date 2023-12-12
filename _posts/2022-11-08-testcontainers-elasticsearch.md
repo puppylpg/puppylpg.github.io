@@ -179,10 +179,15 @@ public @interface Testcontainers {
 # testcontainer debug
 除了传统断点调试，还可以debug卡住docker，直接给Elasticsearch container发测试http请求，查看mapping之类的。
 
-直接获取本地映射的端口后，往docker发送一些请求，以诊断错误：
+具体映射到的本地端口可以通过`docker container ls`查看。获取本地映射的端口后，往docker发送一些请求，以诊断错误：
+```bash
+GET -C elastic:pikachu http://localhost:3024/<index>/_search
 ```
-GET http://localhost:3024/<index>/_search
-```
+
+> 才发现这个命令不是curl。GET是Simple command line user agent工具中的一个：
+>
+> This program can be used to send requests to WWW servers and your local file system. The request content for POST and PUT methods is read from stdin.  The content of the response is printed on stdout.  Error messages are printed on stderr.  The program returns a status value indicating the number of URLs that failed.
+
 使用postman发就可以，记得加上Authorization basic auth `elastic:pikachu`
 
 还可以看看mapping/settings/ananlyzer等。
