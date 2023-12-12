@@ -55,40 +55,75 @@ elasticsearch为非关系型数据库，依然能纳入spring data的体系中�
 
 ## mapping
 orm映射：一个对象，属性有时间、有列表对象，最重要的是，它有`id` field且和`_id`不同，而且它的`_routing`也和`_id`不同。
-```
-package io.puppylpg.data.entity;
+```java
+package com.youdao.ead.common.entity.elasticsearch.entity;
 
-import lombok.*;
-import org.elasticsearch.core.Nullable;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.youdao.ead.common.constant.Platform;
+import com.youdao.ead.common.entity.elasticsearch.converter.TimestampInstantConverter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.ReadOnlyProperty;
-import org.springframework.data.elasticsearch.annotations.*;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.InnerField;
+import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.Routing;
+import org.springframework.data.elasticsearch.annotations.ValueConverter;
+import org.springframework.data.elasticsearch.annotations.WriteTypeHint;
 
+import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * witake_media库。
  * <p>
  * Note：routing和_id不一致。
+ * <p>
+ * Note：spring data elasticsearch使用{@link Field#value()}将java属性转换为elasticsearch字段名；
+ * jackson相关的注解用于{@link co.elastic.clients.elasticsearch.ElasticsearchClient}做属性转换（内部使用jackson）。
+ * 两套东西，不要混淆。
  *
  * @author liuhaibo on 2022/07/29
  */
 @Data
-@Document(indexName = "#{@environment.getProperty('app.es-indexes.witake-media')}", writeTypeHint = WriteTypeHint.FALSE, createIndex = false)
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Document(
+        indexName = "#{@environment.getProperty('elastic-search.index.witakeMedia.name')}",
+        createIndex = false,
+        storeIdInSource = false,
+        writeTypeHint = WriteTypeHint.FALSE
+)
 @Routing("userId")
-public class WitakeMedia {
+public class WitakeMediaEs {
 
     @Id
-    @ReadOnlyProperty
+    @JsonIgnore
     private String realId;
 
     @Field(value = "id", type = FieldType.Keyword)
+    @JsonProperty(value = "id")
     private String mediaId;
 
+    /**
+     * 视频作者 kol Id
+     */
     @Field(type = FieldType.Long)
-    private long userId;
+    private Long userId;
 
     @MultiField(
             mainField = @Field(type = FieldType.Keyword),
@@ -102,19 +137,142 @@ public class WitakeMedia {
     @Field(type = FieldType.Keyword)
     private List<String> urls;
 
+    /**
+     * 视频解析结果
+     */
     @Nullable
     @Field(type = FieldType.Object)
     private Set<RawUrl> rawUrls;
 
+    @Field(type = FieldType.Keyword)
+    private String platform;
+
+    /**
+     * 视频创建时间
+     */
     @Field(type = FieldType.Date, format = DateFormat.epoch_millis)
+    @ValueConverter(TimestampInstantConverter.class)
     private Instant timestamp;
 
     @Field(type = FieldType.Keyword)
     private String urlStatus;
 
     @Field(type = FieldType.Date, format = DateFormat.epoch_millis)
+    @ValueConverter(TimestampInstantConverter.class)
     private Instant updateTime;
 
+    @Field(type = FieldType.Keyword)
+    private String url;
+
+    /**
+     * 预览图
+     */
+    @Field(type = FieldType.Keyword)
+    private String displayUrl;
+
+    /**
+     * 视频时长，单位毫秒
+     */
+    @Field(type = FieldType.Long)
+    private Long durationMs;
+
+    @Field(type = FieldType.Keyword)
+    private String title;
+
+    /**
+     * 点赞数
+     */
+    @Field(type = FieldType.Long)
+    private Long likes;
+
+    /**
+     * 评论数
+     */
+    @Field(type = FieldType.Long)
+    private Long comment;
+
+    /**
+     * 观看数
+     */
+    @Field(type = FieldType.Long)
+    private Long view;
+
+    /**
+     * 转发数
+     */
+    @Field(type = FieldType.Long)
+    private Long reposted;
+
+    /**
+     * 收藏数
+     */
+    @Field(type = FieldType.Long)
+    private Long collect;
+
+    /**
+     * 媒体一级分类
+     */
+    @Field(type = FieldType.Keyword)
+    private String type;
+
+    /**
+     * 媒体二级分类
+     */
+    @Field(type = FieldType.Keyword)
+    private String subtype;
+
+    /**
+     * 视频类别
+     */
+    @Field(type = FieldType.Keyword)
+    private String category;
+
+    /**
+     * 视频标签
+     */
+    @Field(type = FieldType.Keyword)
+    private String tags;
+
+    /**
+     * 视频是否审核可展示
+     */
+    @Field(type = FieldType.Boolean)
+    private Boolean isVisible;
+
+    /**
+     * 视频是否下载了封面图
+     */
+    @Field(type = FieldType.Boolean)
+    private Boolean hasDownloadThumb;
+
+    /**
+     * 视频本身是否下载到本地
+     */
+    @Field(type = FieldType.Boolean)
+    private Boolean hasDownloadVideo;
+
+    /**
+     * 爬虫收录或更新时间
+     */
+    @Field(type = FieldType.Date, format = DateFormat.epoch_millis)
+    @ValueConverter(TimestampInstantConverter.class)
+    private Instant crawlTime;
+
+    /**
+     * 视频@账号信息
+     */
+    @Field(type = FieldType.Object)
+    private Set<AtAccount> atAccounts;
+
+    /**
+     * 视频是否为推广视频
+     */
+    @Field(type = FieldType.Keyword)
+    private String promotionType;
+
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
     @Getter
     @Setter
     @ToString
@@ -141,6 +299,9 @@ public class WitakeMedia {
         private BrandingAnalyses brandingAnalyses;
 
         @Data
+        @Builder
+        @AllArgsConstructor
+        @NoArgsConstructor
         public static final class BrandingAnalyses {
 
             @Field(type = FieldType.Keyword)
@@ -153,8 +314,75 @@ public class WitakeMedia {
             private List<String> names;
         }
     }
-}
 
+    public static final class UrlStatus {
+        /**
+         * 终止状态（pipeline自动设置）：没有任何url可解析。
+         */
+        public static final String NONE = "none";
+        /**
+         * 中间态（pipeline自动设置）：只有部分url解析出了原始url。
+         */
+        public static final String MATCHING = "matching";
+        /**
+         * 中间态（pipeline自动设置）：url全都解析出了原始url，之后会被pipeline修改为{@link #BRANDING}状态。
+         */
+        public static final String MATCHED = "matched";
+        /**
+         * 终止状态（pipeline自动设置）：url全都解析出了原始url，且执行了品牌信息匹配步骤。
+         */
+        public static final String BRANDING = "branding";
+        /**
+         * 中间态（程序手动写回）：media的raw url是通过服务解析之后写回的。
+         * 针对这种情况，pipeline做了相关设置，不再尝试enrich raw url。详见pipeline的设置。
+         */
+        public static final String WRITING = "writing";
+
+        /**
+         * 终止状态（程序手动写回）：代表media的raw url解析出了未知异常。
+         * 该media之后不会再被正常解析流程尝试解析，会通过修复流程在查清错误原因后陆续修复。
+         * 针对这种情况，pipeline做了相关设置，不再尝试enrich raw url。详见pipeline的设置。
+         */
+        public static final String EXCEPTION = "exception";
+    }
+
+    /**
+     * 按照{@link #mediaId}的hashCode，把media分配给不同的xxl实例。
+     * 注意绝对值的使用：hashCode可能为负值，所以结果要处理为非负数。
+     *
+     * @param shardTotal xxl实例总数
+     * @return 分配到的实例序号
+     */
+    public int getXxlShardNumber(int shardTotal) {
+        return Math.abs(this.mediaId.hashCode() % shardTotal);
+    }
+
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Getter
+    @Setter
+    @ToString
+    @EqualsAndHashCode(onlyExplicitlyIncluded = true)
+    public static final class AtAccount {
+        @EqualsAndHashCode.Include
+        @Field(type = FieldType.Keyword)
+        private String extId;
+    }
+
+    /**
+     * 获取视频对应的简介
+     *
+     * @return TT为description，其它平台为title
+     */
+    public String getIntroduction() {
+        if (Objects.equals(this.platform, Platform.TIKTOK.getValue())) {
+            return this.description;
+        } else {
+            return this.title;
+        }
+    }
+}
 ```
 
 ### index name
@@ -162,7 +390,7 @@ P.J.Meisch自己写的不同环境获取不同的index name的方法：
 - https://www.sothawo.com/2020/07/how-to-provide-a-dynamic-index-name-in-spring-data-elasticsearch-using-spel/
 
 使用SpEL获取当前环境指定的index name：
-```
+```java
 @Document(indexName = "#{@environment.getProperty('app.es-indexes.witake-media')}", writeTypeHint = WriteTypeHint.FALSE, createIndex = false)
 ```
 
@@ -260,16 +488,18 @@ mapping最主要的就是设置`_id`。但因为 **spring data elasticsearch会�
 **为了不让spring data elasticsearch自动往`_source`里写入一个`id` field，可以给`@Id`标注的属性加上`@ReadOnlyProperty`注解**。spring data会在转换mapping的时候，认为标注该注解的字段`isWriteable() = false`：
 - https://stackoverflow.com/questions/62765711/spring-data-elasticsearch-4-x-using-id-forces-id-field-in-source
 
-> 而`@Transient`在spring data里是被忽略的，所以加了也没用。
+加完这个注解之后，**序列化的时候**就不会写入`_source`了。
 
-但是从spring data elasticsearch 4.4.3起，这又会带来一个新问题：[反序列化数据的时候，标注`@ReadOnlyProperty`的这个字段值会为null](https://github.com/spring-projects/spring-data-elasticsearch/issues/2230)！为null的原因也很简单：`@ReadOnlyProperty`本来就不该被反序列化出来值的。之前能反序列化出来值仅仅是因为spring data elasticsearch在这一点上处理错了，没有和spring data保持一致：
+> ~~而`@Transient`在spring data里是被忽略的，所以加了也没用~~。（**在5.x里这一行为变了**）
+
+#### 4.4.3+
+但是从spring data elasticsearch 4.4.3起，这又会带来一个新问题：不仅序列化的时候不会写入`_source`，[**反序列化数据的时候**，标注`@ReadOnlyProperty`的这个字段也不会被写回值，导致值会为null](https://github.com/spring-projects/spring-data-elasticsearch/issues/2230)！（**在5.x里这一行为变了**）为null的原因也很简单：`@ReadOnlyProperty`本来就不该被反序列化出来值的。之前能反序列化出来值仅仅是因为spring data elasticsearch在这一点上处理错了，没有和spring data保持一致：
 >  the wrong implementation in Spring Data Elasticsearch which wrote a value back into a property although this is marked as being read only
 
 所以`@ReadOnlyProperty`实际上就不应该在反序列化的时候有值。从4.4.3开始，反序列化后就为null了。
 
-#### 4.4.3+
-4.4.3起，为了让`@ReadOnlyProperty`反序列化后有值，可以寻求一个workaround：自定义一个`AfterConvertCallback`，在反序列化之后，通过回调手动给`@ReadOnlyProperty`标注的field设置上值：
-```
+**那我们只能手动干预反序列化了**！4.4.3起，为了让`@ReadOnlyProperty`反序列化后有值，可以寻求一个workaround：自定义一个`AfterConvertCallback`，在反序列化之后，通过回调手动给`@ReadOnlyProperty`标注的field设置上值：
+```java
 /**
  * https://github.com/spring-projects/spring-data-elasticsearch/issues/2230#issuecomment-1319230419
  * <p>
@@ -299,11 +529,26 @@ public class WitakeMediaRealIdAfterConvertCallback implements AfterConvertCallba
 所以spring data elasticsearch考虑在下个版本做这件事了，应该是5.x版本了，4.4.x不会有了：
 - https://github.com/spring-projects/spring-data-elasticsearch/issues/2364
 
+最终，在5.1里支持了该功能，通过在`@Document`里设置`storeIdInSource=false`：
+```java
+@Document(
+        indexName = "#{@environment.getProperty('elastic-search.index.witakeMedia.name')}",
+        createIndex = false,
+        storeIdInSource = false,
+        writeTypeHint = WriteTypeHint.FALSE
+)
+```
+
+在5.x里，[上述这些注解的行为也变了](https://docs.spring.io/spring-data/elasticsearch/reference/elasticsearch/object-mapping.html#elasticsearch.mapping.meta-model.annotations.read-write)：
+- `@Transient`：该注解会起作用。行为就是：这个字段啥也不干，不读不写，也不会写入mapping；
+- `@ReadOnlyProperty`：**该注解在读数据的时候会被反序列化回来，所以不再需要上述`AfterConvertCallback`了**！常用于反序列化runtime fields；
+- `@WriteOnlyProperty`：会写到es但是不会被读出来。比如有一些合成字段会被写入es，但是不需要在其他地方用到；
+
 ### 从代码看id的识别
 **spring data elasticsearch认为的`_id`**，看起来很抽象，看代码就会觉得具体很多——
 
 id的判定条件：
-```
+```java
 		this.isId = super.isIdProperty()
 				|| (SUPPORTED_ID_PROPERTY_NAMES.contains(getFieldName()) && !hasExplicitFieldName());
 ```
@@ -331,7 +576,7 @@ id的判定条件：
 其次，为了不让已存在的`id` field满足上述第二条情况（否则也会被spring data elasticsearch判定为`id`），同时也为了不产生误解，**不要再定义一个名为`id`的字段（这可以认为是spring data elasticsearch的保留字）**。要定义一个其他的名字，然后使用注解给它改名`@Field(value = "id")`：
 - `_id`和`id`同时存在的情况：https://stackoverflow.com/questions/62029613/set-different-id-and-id-fields-with-spring-data-elasticsearch
 
-```
+```java
     @Id
     @ReadOnlyProperty
     private String realId;
@@ -348,7 +593,7 @@ id的判定条件：
 `SimpleElasticsearchPersistentProperty`获取es的field名称的方式是：
 1. `@Field`/`@MultiField`注解里指定了名字，那就是它；
 2. 如果没指定，使用naming strategy解析java类的属性名称；
-```
+```java
 	@Override
 	public String getFieldName() {
 
@@ -368,7 +613,7 @@ id的判定条件：
 	}
 ```
 **注解里的名字则是从`@Field`或者`@MultiField`里取的**：
-```
+```java
 	@Nullable
 	private String getAnnotatedFieldName() {
 
@@ -410,12 +655,12 @@ id的判定条件：
 
 
 `MappingElasticsearchConverter#readValue`里有一步，如果给property指定了converter，就用这个converter转这个field，复杂字段应该挺有用的：
-```
-			if (property.hasPropertyValueConverter()) {
-				// noinspection unchecked
-				return (R) propertyConverterRead(property, value);
-			} else if (TemporalAccessor.class.isAssignableFrom(property.getType())
-					&& !conversions.hasCustomReadTarget(value.getClass(), rawType)) {
+```java
+	if (property.hasPropertyValueConverter()) {
+		// noinspection unchecked
+		return (R) propertyConverterRead(property, value);
+	} else if (TemporalAccessor.class.isAssignableFrom(property.getType())
+			&& !conversions.hasCustomReadTarget(value.getClass(), rawType)) {
 ```
 自定义converter一般用不到：https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#elasticsearch.mapping.meta-model.conversions
 
@@ -459,28 +704,28 @@ date的格式由`@Field`的`format`属性指定：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#elasticsearch.mapping.meta-model.date-formats
 
 比如elasticsearch类型：
-```
+```json
         "timestamp" : {
           "type" : "date",
           "format" : "epoch_millis"
         },
 ```
 对应的spring data elasticsearch注解属性是：
-```
+```java
     @Field(type = FieldType.Date, format = DateFormat.epoch_millis)
     private Instant timestamp;
 ```
 代码里是 **使用Instant表示时间。**
 
 类型：
-```
+```json
         "timestamp" : {
           "type" : "date",
           "format" : "basic_date_time"
         },
 ```
 对应的是：
-```
+```java
     @Field(type = FieldType.Date, format = DateFormat.basic_date_time)
     private Instant timestamp;
 ```
@@ -504,7 +749,7 @@ spring data elasticsearch甚至还能在创建index的时候加入analyzer：
 不过可能考虑到这个analyzer并不需要在编程层面体现，所以spring data elasticsearch内部也没有相应的类表示，直接简单粗暴读取某个json文件里的analyzer定义就行了。
 
 当property里声明了analyzer的时候，必须用上面的方式提供analyzer的定义，否则spring data elasticsearch报错：
-```
+```java
 @Data
 @Document(indexName = "#{@environment.getProperty('elastic-search.index.storedKol.name')}", createIndex = false, writeTypeHint = WriteTypeHint.FALSE)
 @Setting(settingPath = "/stored_kol_analyzer.json")
@@ -526,7 +771,7 @@ public class StoredKolEs {
 
 ## repository
 直接用接口继承ElasticsearchRepository，就能获取大量已定义好的方法，并能够按照实现细节定义方法名称，spring data都会按照约定自动实现这些方法：
-```
+```java
 package io.puppylpg.data.repository;
 
 import io.puppylpg.data.entity.WitakeMedia;
@@ -591,7 +836,7 @@ public interface WitakeMediaRepository extends ElasticsearchRepository<WitakeMed
 如果需要自定义实现一个方法，可以拓展接口：
 - https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/#repositories.custom-implementations
 
-```
+```java
 package io.puppylpg.data.repository;
 
 import io.puppylpg.data.entity.WitakeMedia;
@@ -616,7 +861,7 @@ public interface CustomRepository<T> {
 }
 ```
 新接口的实现类必须以Impl结尾：
-```
+```java
 package io.puppylpg.data.repository;
 
 import io.puppylpg.config.AppProperties;
@@ -792,7 +1037,7 @@ save会使用index对文档进行覆盖更新，所以正常的更新操作得�
 > spring data没有update吗？
 
 纯手撸update query相对麻烦：
-```
+```java
     public void update(WitakeMedia witakeMedia, Instant updateTime) {
         Document document = Document.create();
         document.put("updateTime", updateTime.toEpochMilli());
@@ -807,7 +1052,7 @@ save会使用index对文档进行覆盖更新，所以正常的更新操作得�
 这样就可以免去了手动构造Document的痛苦，但是这种写法实在是不够通用！orm对象就不能直接转成Document吗？为什么还要我一个个把属性放到map（Document）里呢？
 
 所以我研究了一下save是怎么做的。发现它能通过`ElasticsearchConverter#mapObject`把object自动转为Document对象。而ElasticsearchConverter是可以直接从ElasticsearchRestTemplate里获取的，所以我们也可以直接用ElasticsearchConverter做转换：
-```
+```java
     public void update(WitakeMedia witakeMedia) {
         // 模仿save方法的obj转IndexRequest.source的方式
         UpdateQuery updateQuery = UpdateQuery.builder(witakeMedia.getRealId())
@@ -829,7 +1074,7 @@ save会使用index对文档进行覆盖更新，所以正常的更新操作得�
 所以理论上，调用这两个方法就足够了：id、routing、source齐全，update query这不就直接生成了嘛！
 
 但是不知为何，`ElasticsearchRestTemplate#getEntityId`是个private方法……所以现在如果想用它，得把它的整个方法体都拎出来，搞一个workaround：
-```
+```java
     private final ElasticsearchRestTemplate elasticsearchRestTemplate;
 
     private final ElasticsearchConverter elasticsearchConverter;
@@ -890,7 +1135,7 @@ Here it is:
 - https://github.com/spring-projects/spring-data-elasticsearch/pull/2310
 
 另外一点需要注意的，用来构建elasticsearch的UpdateRequest的UpdateQuery其实把`_update`和`_udpate_by_query`的属性混到一起了，但是实际转成UpdateRequest的时候，只会用其中一类的属性，另一类设置了也用不到。所以不要以为UpdateQuery里所有的属性只要设置了就有用了，要分清哪个是属于`_update`的，哪个是属于`_udpate_by_query`的。比如想使用update操作触发pipeline：
-```
+```java
         Document doc = Document.create();
         doc.put("rawUrls", rawUrls);
 
