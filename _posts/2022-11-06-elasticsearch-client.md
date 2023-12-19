@@ -1133,6 +1133,13 @@ public class ElasticsearchClientAutoConfiguration {
 
 [Jackson3会自动集成java8 time支持](https://github.com/FasterXML/jackson-modules-java8)，但是不知道什么时候会发布。
 
+# 更多参考
+关于新client的文档还不多，可以从[这里](https://github.com/elastic/elasticsearch-java/blob/main/docs/external-resources.md)找到一些参考：
+- [ElasticCC Platform - Part 2 - Using The New Elasticsearch Java Client](https://spinscale.de/posts/2022-03-03-running-the-elasticcc-platform-part-2.html)
+- [Slides](https://docs.google.com/presentation/d/1R9pLrRdIPQplNr23TTqST-892Un9g_3AmrLjG5lNM74/present)
+- [Video](https://www.youtube.com/watch?v=61MQoSFt2j0&list=PL_mJOmq4zsHbigQnsjEcWed6N7Do5kss_&index=12)
+- [Elasticsearch REST client samples using Testcontainers](https://github.com/spinscale/elasticsearch-rest-client-samples)
+
 # 感想
 流行的开源代码写的还是很好的，多看看确实不一定在哪儿就悟了，编程水平又提升了。
 

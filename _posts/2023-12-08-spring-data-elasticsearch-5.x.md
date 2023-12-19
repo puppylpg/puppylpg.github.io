@@ -384,7 +384,15 @@ Aggregation agg = Aggregation.of(a -> a
 
 > *getKolRecentDaysMediaStatistic*
 
-> TODO：新的bucket怎么遍历？
+新的bucket怎么遍历？参考[ElasticCC Platform - Part 2 - Using The New Elasticsearch Java Client](https://spinscale.de/posts/2022-03-03-running-the-elasticcc-platform-part-2.html)，或者[slides](https://docs.google.com/presentation/d/1R9pLrRdIPQplNr23TTqST-892Un9g_3AmrLjG5lNM74/present?slide=id.g110ee7befd7_0_184)：
+```java
+return response.aggregations().get("by_session")
+    .sterms().buckets().array().stream()
+    .collect(Collectors.toMap(
+        StringTermsBucket::key,
+        b -> b.aggregations().get("avg").avg().value())
+    );
+```
 
 pipeline aggregation对于hlrc来说更是逆天：
 ```java
@@ -574,5 +582,4 @@ elasticsearch-java的架构设计真的是惊为天人！在写[Elasticsearch：
 而spring data elasticsearch在果断放弃历史包袱之后也变得简洁了许多。但是删除了转接老hlrc request到泛型结果的`ElasticsearchRestTemplate`之后，对于想要升级5.x的曾经的4.x的老用户来说真的是生不如死……
 
 > 但是其实，我一开始只是想升级springboot3.2，使用一下springboot的虚线程支持来着……因为和spring data elasticsearch 4.x不兼容，所以才入了这些升级的坑……本来我是打算4.x的代码用到天荒地老的……
-
 
