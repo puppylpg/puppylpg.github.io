@@ -6,7 +6,9 @@ categories: elasticsearch spring-data spring-data-elasticsearch
 tags: elasticsearch spring-data spring-data-elasticsearch
 ---
 
-[spring data](https://spring.io/projects/spring-data)是一个对开发者非常友好的工程，旨在帮开发者解脱数据访问相关的繁杂工作。至少从我的使用经验来说，简单的增删改查简直就是利器！太复杂的话可能没那么好使了（或者我太菜了，不会使。但我会慢慢学的，等会了我再来把这句话删掉）。
+[spring data](https://spring.io/projects/spring-data)是一个对开发者非常友好的工程，旨在帮开发者解脱数据访问相关的繁杂工作。至少从我的使用经验来说，简单的增删改查简直就是利器！~~太复杂的话可能没那么好使了（或者我太菜了，不会使用。但我会慢慢学的，等会了我再来把这句话删掉）。~~
+
+> 2023.12.18：学完了，确实是我之前太菜了:D [Spring Data]({% post_url 2023-12-20-spring-data %})
 
 1. Table of Contents, ordered
 {:toc}
@@ -1178,4 +1180,3 @@ spring data elasticsearch打debug日志：
 使用spring data elasticsearch，只是把人从使用RestHighLevel写简单的查询的重复性工作里解放出来了，但是它也带了很多学习上的开销（save without reindex等）。但是相对来说，这些开销还是比较值得的，尤其是当查询elasticsearch的需求比较多的时候，这些开销就被分摊开来了。而且从另一方面来说，spring data elasticsearch的这些奇奇怪怪的点如果都注意到了，说明对elasticsearch的掌握已经比较深入了。
 
 > 也可能对spring data本身的理解太浅显了，不然也不会有这么多学习上的开销 :D
-
