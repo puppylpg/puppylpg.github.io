@@ -116,19 +116,19 @@ endpoint可以查看app状态，基本把app里大家比较关心的各种状态
 
 ### enable
 除了shutdown，所有的endpoints默认都开启了。shutdown需要手动enable：
-```
+```properties
 management.endpoint.shutdown.enabled=true
 ```
 也可以反着来，禁掉所有，然后显式开启其中某一个：
-```
+```properties
 management.endpoints.enabled-by-default=false
 ```
 只开启`info` endpoint：
-```
+```properties
 management.endpoint.info.enabled=true
 ```
 
-> 对所有的endpoints的设置用的是复数endpoints，对某一个的设置用的是单数endpoint。
+> **对所有的endpoints的设置用的是复数endpoints，对某一个的设置用的是单数endpoint。老眼昏花，很容易看错！**
 
 这个控制的是“有没有”这个endpoint，而非“暴露不暴露”。
 
@@ -141,7 +141,7 @@ management.endpoint.info.enabled=true
 - https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html#actuator.endpoints.exposing
 
 分别使用jmx/web的include/exclude控制暴露行为。默认行为：
-```
+```properties
 management.endpoints.jmx.exposure.exclude=
 management.endpoints.jmx.exposure.include=*
 management.endpoints.web.exposure.exclude=
@@ -149,6 +149,14 @@ management.endpoints.web.exposure.include=health
 ```
 
 > `*` can be used to select all endpoints. `*` has a special meaning in YAML, so be sure to add quotation marks if you want to include (or exclude) all endpoints.
+
+#### health
+heal info还可以[进一步细化配置](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator.endpoints.health)，通过[`management.health.<key>.enabled`](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator.endpoints.health.auto-configured-health-indicators)控制是否启动某些组件的健康检查。
+
+比如springboot对redis的健康检查默认会使用`info server`命令，查看返回值里是否有`redis_version`的信息。但是曾经碰到过有些redis云服务平台搞了些骚操作，用代理偷偷替换了`info server`的返回，删除了`redis_version`，此时redis健康监测就会失败。可以把它禁掉：
+```properties
+management.health.re.enabled=false
+```
 
 ### security
 **如果有spring security，springboot默认会对除`health`的endpoint进行保护**。health可能会被用作服务健康监控，默认不设置权限还挺合理的。
