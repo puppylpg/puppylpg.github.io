@@ -46,6 +46,9 @@ jobs:
             #ruby-version: 3
           bundler-cache: true
 
+      - name: puppylpg's scripts
+        run: bin/lower_tag.sh
+
       - name: Build site
         run: bundle exec jekyll b -d "_site${{ steps.pages.outputs.base_path }}"
         env:
