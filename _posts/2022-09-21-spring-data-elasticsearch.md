@@ -17,7 +17,7 @@ tags: elasticsearch spring-data spring-data-elasticsearch
 spring data的核心文档：
 - https://docs.spring.io/spring-data/commons/docs/current/reference/html/
 
-> 我还没好好看，后面我会好好看一遍，然后再来把这句话删了。
+> ~~我还没好好看，后面我会好好看一遍，然后再来把这句话删了。~~
 
 尤其是关于spring data repository的使用方法：
 - https://docs.spring.io/spring-data/commons/docs/current/reference/html/#repositories
