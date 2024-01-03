@@ -47,7 +47,7 @@ jobs:
           bundler-cache: true
 
       - name: puppylpg's scripts
-        run: bin/lower_tag.sh
+        run: bin/lower_tag.sh && bin/clean_toc.sh
 
       - name: Build site
         run: bundle exec jekyll b -d "_site${{ steps.pages.outputs.base_path }}"
