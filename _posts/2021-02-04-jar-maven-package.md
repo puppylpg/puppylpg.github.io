@@ -2,8 +2,8 @@
 layout: post
 title: "jar与maven打包"
 date: 2021-02-04 00:12:38 +0800
-categories: Java jar maven spring-boot
-tags: Java jar maven spring-boot
+categories: Java jar maven springboot
+tags: Java jar maven springboot
 ---
 
 jar是Java ARchive的缩写，将Java文件归档，其实和zip的原理类似，只不过加了一些java执行独有的功能。
