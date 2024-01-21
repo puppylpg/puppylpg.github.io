@@ -111,3 +111,24 @@ spel expression的`getValue`方法是获取值，然后使用`ConversionService`
 
 光写下这一段话，梳理这个mr的实现历程，就花了我半天时间。梳理完后不得不感叹确实复杂。而在一开始，我对该功能的设想是：在转换`ElasticsearchStringQuery`之前，“直接对`@Query`里的语句做SpEL evaluation即可”。至于其中的曲折复杂，无论如何是想不到的。比如`ConversionService`，都是碰到之后再系统性边查边看的。还好，一路走来，终究是搞定了，爽！充实的一个周末~
 
+后来根据维护者的review意见，又对代码增加了reactive支持，又断断续续花了两天时间。本来以为虚线程出了之后就不太用管reactive programming了，现在看来还是得管的:D
+
+> 在`ElasticsearchStringQueryUnitTests`里，对解析后的`@Query`所做的判断不错，值得一看。
+{: .prompt-tip }
+
+
+## [#2834](https://github.com/spring-projects/spring-data-elasticsearch/pull/2834)
+主要是为了统一`@Query`里旧有的placeholder和新加的SpEL对查询值的判断，顺带修正了placeholder对值替换时的一个bug。在[#2833](https://github.com/spring-projects/spring-data-elasticsearch/pull/2833)里有详细的阐述。
+
+这次代码虽然改动的远没上次多，但是我可以给满分！上次支持SpEL的时候，就打算使用新加的conversion service统一两处值转换的逻辑，但是在单元测试时失败了。失败的原因就是用户注册的custom converter注册到了default conversion service上，没有注册到新加的conversion service上，导致后者没有能力做一些自定义值转换。**怎么让新的conversion service拥有default conversion service的能力，同时又不让后者使用前者？**
+
+这次设计了一个`ConversionService`的实现类`ElasticsearchQueryValueConversionService`，里面放了两个conversion service：一个valueConversionService，注册上上次实现的两个converter，专门用来转换elasticsearch query value；另一个是default conversion service，作为delegate。优先使用valueConversionService做值转换，如果转换不了，再使用delegate尝试。问题迎刃而解！尤其是下面一行代码，改动的那一瞬间惊为天人：
+```java
+// register elasticsearch custom type converters for conversion service
+valueConversionService.addConverter(new ElasticsearchCollectionValueToStringConverter(this));
+```
+在注册elasticsearch值转换相关的converter的时候，因为collection类型的转换是递归的，所以需要传入一个conversion service，用于递归转换collection里的值。一开始放的是valueConversionService，单元测试没过的那一刻突然意识到它不包含默认的converter，这里的converter应该用this，也就是新创建的内含两重conversion service的conversion service。果然代码是逻辑上的体现，逻辑设计的好，代码写得就漂亮。
+
+> 在`CustomMethodRepositoryELCIntegrationTests`里新加了`ElasticsearchCustomConversions`的注册逻辑，是spring data elasticsearch注册自定义converter的方式，值得一看。
+{: .prompt-tip }
+
