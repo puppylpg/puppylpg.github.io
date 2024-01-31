@@ -32,6 +32,13 @@ order: 1
 
 第一次注意到spring-data里可以直接用`@NonNullApi`直接给整个package默认标注nonnull，允许为null的地方需要手动设置`@Nullable`。这对开发流程有非常大的帮助，所有nullable的地方如果忘记了判断，编码时IDE直接就提示了。
 
+关注一下注解是如何作用于代码的：
+1. `@Highlight`注解的作用域是方法；
+1. 处理方法，生成`ElasticsearchQueryMethod`的时候，**需要从方法上获取到`@Highlight`注解的内容，可以使用spring core里的`AnnotatedElementUtils#findMergedAnnotation`，非常简单**：
+  > `this.highlightAnnotation = AnnotatedElementUtils.findMergedAnnotation(method, Highlight.class);`
+1. 然后把`@Highlight`注解转化为`Highlight`实体类。这里的逻辑都封装在了`HighlightConverter#convert(org.springframework.data.elasticsearch.annotations.Highlight)`里；
+1. 最后就可以把highlight实体类转换成elasticsearch-java里的highlight查询了；
+
 > 测试用例不错，展示了如何以spring-data repository的方式使用spring-data-elasticsearch。
 {: .prompt-tip }
 
@@ -122,10 +129,16 @@ spel expression的`getValue`方法是获取值，然后使用`ConversionService`
 
 这次代码虽然改动的远没上次多，但是我可以给满分！上次支持SpEL的时候，就打算使用新加的conversion service统一两处值转换的逻辑，但是在单元测试时失败了。失败的原因就是用户注册的custom converter注册到了default conversion service上，没有注册到新加的conversion service上，导致后者没有能力做一些自定义值转换。**怎么让新的conversion service拥有default conversion service的能力，同时又不让后者使用前者？**
 
-这次设计了一个`ConversionService`的实现类`ElasticsearchQueryValueConversionService`，里面放了两个conversion service：一个valueConversionService，注册上上次实现的两个converter，专门用来转换elasticsearch query value；另一个是default conversion service，作为delegate。优先使用valueConversionService做值转换，如果转换不了，再使用delegate尝试。问题迎刃而解！尤其是下面一行代码，改动的那一瞬间惊为天人：
+这次设计了一个`ConversionService`的实现类`ElasticsearchQueryValueConversionService`，里面放了两个conversion service：一个valueConversionService，注册上上次实现的两个converter，专门用来转换elasticsearch query value；另一个是default conversion service，作为delegate。优先使用valueConversionService做值转换，如果转换不了，再使用delegate尝试。问题迎刃而解！尤其是下面把`this`注册到`ElasticsearchCollectionValueToStringConverter`的这一行代码，改动的那一瞬间惊为天人：
 ```java
-// register elasticsearch custom type converters for conversion service
-valueConversionService.addConverter(new ElasticsearchCollectionValueToStringConverter(this));
+private ElasticsearchQueryValueConversionService(ConversionService delegate) {
+    Assert.notNull(delegate, "delegated ConversionService must not be null");
+    this.delegate = delegate;
+
+    // register elasticsearch custom type converters for conversion service
+    valueConversionService.addConverter(new ElasticsearchCollectionValueToStringConverter(this));
+    valueConversionService.addConverter(new ElasticsearchStringValueToStringConverter());
+}
 ```
 在注册elasticsearch值转换相关的converter的时候，因为collection类型的转换是递归的，所以需要传入一个conversion service，用于递归转换collection里的值。一开始放的是valueConversionService，单元测试没过的那一刻突然意识到它不包含默认的converter，这里的converter应该用this，也就是新创建的内含两重conversion service的conversion service。果然代码是逻辑上的体现，逻辑设计的好，代码写得就漂亮。
 
