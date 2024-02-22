@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：default index template"
@@ -96,7 +98,7 @@ GET .monitoring-es-7-2022.04.22/_mapping
 
 果然field有`node_stats.thread_pool.write`，且没有定义threads field，**而且mapping的dynamic属性设置的是strict**。确实无法写入在mappings里未定义的threads field。
 
-```
+```json
 {
   ".monitoring-es-7-2022.04.22" : {
     "mappings" : {
@@ -132,7 +134,7 @@ GET .monitoring-es-7-2022.04.21/_mapping
 - https://www.elastic.co/guide/en/x-pack/current/xpack-introduction.html
 
 后来，不经意看到了之前晓立设置的es索引的default template：
-```
+```json
 PUT _template/default_template
 {
    "index_patterns" : [
@@ -160,7 +162,7 @@ PUT _template/default_template
 GET _template
 ```
 监控已经创建了个默认的`.monitoring-es`模板，匹配".monitoring-es-7-"开头的index：
-```
+```json
     "index_patterns" : [
       ".monitoring-es-7-*"
     ],
@@ -183,12 +185,12 @@ GET _template
 
 行为不可预测。
 
-## ~~新加一个优先级更高的默认dynamic=false的模板~~
-所以可以给内部（dot开头）index设置个优先级更高的template，dynamic默认为false：
-```
-PUT _template/internal_default_template
+## 给全局默认模板设置更低的优先级
+全局模板可以设置的比任何已有模板（比如ELK分别对应的`.monitoring-logstash`等模板）的优先级更低，所以设为-1，低于其他模板默认的0：
+```json
+PUT _template/default_template
 {
-    "order" : 1,
+    "order" : -1,
     "index_patterns" : [
       ".*"
     ],
@@ -197,52 +199,20 @@ PUT _template/internal_default_template
     }
 }
 ```
-这样es先解析order=0的template，再拿order=1的覆盖它，最后新建的monitor相关的index的dynamic就是false。
+这样es先解析order=-1的template，再拿order=0的覆盖它，最后新建的monitor相关的index的dynamic就是false。
 
 Ref：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html
 - https://www.cnblogs.com/Neeo/articles/10869231.html
 
-## 修改原有defalt template
-后来感觉上述方法不太合适。
-
-最好的办法还是修改一开始的default template，**使之只影响业务自己创建的index，不要影响插件创建的内部index**（这些index基本都以dot开头）。
-
-template使用`index_patterns`指定匹配的index，可以使用一些通配符：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html#put-index-template-v1-api-request-body
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-index-patterns.html
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html#api-multi-index
-
-> 但是`index_patterns`的文档解释的不够细致，实际使用起来令人费解。
-
-一开始设置了：
-```
-  "index_patterns":[
-    "*",
-    "-.*"
-  ],
-```
-打算实现“匹配任意索引，除了以dot开头的索引”的效果，但是实际效果并没有用。
-
-后来改成：
-```
-  "index_patterns":[
-    "-.*"
-  ],
-```
-“不匹配以dot开头的索引”，就可以了。此时default template不适用于dot开头的索引，不会干涉监控index会使用它自己的template。
-
-elaticsearch里multi-target syntax的规范：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html#api-multi-index
-
 最终的detaulf_template修改：
-```
+```json
 PUT _template/default_template
 {
   "index_patterns":[
-    "-.*"
+    "*"
   ],
-  "order":0,
+  "order":-1,
   "settings":{
     "index":{
       "mapping":{
@@ -321,6 +291,20 @@ PUT _template/default_template
 
 关于translog的写入方式参考“Translog 有多安全?”：
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/translog.html
+
+
+## 排除系统索引？
+最好的办法还是修改default template，**使之只影响业务自己创建的index，不要影响插件创建的内部index**（这些index基本都以dot开头）。
+
+但是很遗憾，**`index_patterns`在匹配索引名称的时候，只支持`*`，[不支持别的匹配符，所以不能用于做排除](https://github.com/elastic/elasticsearch/issues/62681)**。
+
+虽然搜到了es里一些其他部分的索引匹配规则，但事实证明，这些规则并不通用：
+- ~~https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html#put-index-template-v1-api-request-body~~
+- ~~https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-index-patterns.html~~
+- ~~https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html#api-multi-index~~
+
+从[代码实现](https://github.com/elastic/elasticsearch/blob/b1fcedd7ae30ff232f419ccee234208eab1456cd/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataIndexTemplateService.java#L1892)也可以看出，`index_patterns`唯一支持的符号就是`*`。
+
 
 # 其他：为什么上午八点才报错？
 早上八点，首先想到UTC +8。查了一下index创建的时间：
