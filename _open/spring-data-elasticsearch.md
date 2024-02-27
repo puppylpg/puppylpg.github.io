@@ -125,7 +125,7 @@ spel expression的`getValue`方法是获取值，然后使用`ConversionService`
 
 
 ## [#2834](https://github.com/spring-projects/spring-data-elasticsearch/pull/2834)
-主要是为了统一`@Query`里旧有的placeholder和新加的SpEL对查询值的判断，顺带修正了placeholder对值替换时的一个bug。在[#2833](https://github.com/spring-projects/spring-data-elasticsearch/pull/2833)里有详细的阐述。
+主要是为了统一`@Query`里旧有的placeholder replacement和新加的SpEL对查询值的处理逻辑，都使用`ConversionService`里新添加的`ElasticsearchCollectionValueToStringConverter`和`ElasticsearchStringValueToStringConverter`处理值。顺带修正了placeholder对值替换时的一个bug。在[#2833](https://github.com/spring-projects/spring-data-elasticsearch/pull/2833)里有详细的阐述。
 
 这次代码虽然改动的远没上次多，但是我可以给满分！上次支持SpEL的时候，就打算使用新加的conversion service统一两处值转换的逻辑，但是在单元测试时失败了。失败的原因就是用户注册的custom converter注册到了default conversion service上，没有注册到新加的conversion service上，导致后者没有能力做一些自定义值转换。**怎么让新的conversion service拥有default conversion service的能力，同时又不让后者使用前者？**
 
@@ -144,4 +144,8 @@ private ElasticsearchQueryValueConversionService(ConversionService delegate) {
 
 > 在`CustomMethodRepositoryELCIntegrationTests`里新加了`ElasticsearchCustomConversions`的注册逻辑，是spring data elasticsearch注册自定义converter的方式，值得一看。
 {: .prompt-tip }
+
+## [#2853](https://github.com/spring-projects/spring-data-elasticsearch/pull/2853)
+给工程里原来使用placeholder replacement的地方都添加SpEL支持，比如`@Query` in `@Highlight`、`@SourceFilters`。为此需要把二者的处理逻辑封装在一起，放入`QueryStringProcessor`。比较麻烦的是所有这些地方都要传入`QueryMethodEvaluationContextProvider`以提供对SpEL表达式eval的能力。
+
 
