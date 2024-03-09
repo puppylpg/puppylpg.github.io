@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Docker - 虚拟化网络设备"
@@ -49,7 +51,11 @@ PREROUTING/POSTROUTING、FORWARD、INPUT/OUTPUT就是这样五种callback，每�
 现实中，设备一旦多了起来，再使用网线进行两两直连就爆炸了，所以出现了交换机。因此虚拟网络设备既然有虚拟网卡，也会有虚拟交换机。
 
 ## bridge
-linux上虚拟交换机的名字不是switch（交换机），而是bridge（网桥），但实际上就是虚拟交换机。linux bridge从kernel 2.2开始引入，无论是真实的物理网卡（eth0）还是虚拟网卡（tap、veth）都能喝linux bridge配合工作。
+注：本章节接下来的千言万语汇成一句话——**linux主机相当于路由器（也是交换机），bridge网络相当于其下的一个子网。bridge内部通信的时候直接交换数据，同时bridge上的容器也可以和外部通信，此时linux主机相当于路由器，进行了NAT。进一步地，docker所谓publish port就是DNAT，提前在路由器上写好端口映射！**
+
+> 知道上面这些，下面的内容也可以不看。
+
+linux上虚拟交换机的名字不是switch（交换机），而是bridge（网桥），但实际上就是虚拟交换机。linux bridge从kernel 2.2开始引入，无论是真实的物理网卡（eth0）还是虚拟网卡（tap、veth）都能和linux bridge配合工作。
 
 bridge既然是个虚拟交换机，那么它的工作原理和[数据链路层]({% post_url 2021-12-19-network-data-link-layer %})里介绍的交换机一模一样。只有一点点区别：**普通交换机只会单纯地做二层转发，忽略ip地址，Linux Bridge 却还支持把发给它自身的数据包接入到主机的三层的协议栈中**。
 
@@ -66,7 +72,7 @@ bridge既然是个虚拟交换机，那么它的工作原理和[数据链路层]
 1. docker安装之后就会创建这样一个默认的linux bridge：docker0；
 2. 所有的容器如果没有显式指定network，都会接入docker0，相互之间可以通信；
 3. 如果创建了新的network，比如使用docker compose启动多个服务，相当于新建了一个linux bridge，组了一个独立的局域网；
-4. 如果某个容器把端口publish到主机上，此时iptables里的`Chain DOCKER`就会多一条允许相关流量通过的`ACCEPT`规则；
+4. 如果某个容器把端口publish到主机上，此时iptables里的`FORWARD` chain里的`DOCKER` chain就会多一条允许相关流量通过的`ACCEPT`规则；
 
 而`--network=host`则是完全不创建虚拟网络设备，直接使用宿主机的网卡、网络栈，也不会拥有自己的ip，和在宿主机上直接起一个这样的进程没什么太大区别。优点是容器和外界通信不需要再做NAT，性能好，缺点就是没有隔离就不能避免网络资源冲突，比如端口冲突。
 
