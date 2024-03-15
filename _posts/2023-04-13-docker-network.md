@@ -84,13 +84,37 @@ hostname则是容器id，同样可以使用`--hostname`修改。
 - `macvlan`：**给容器分配一个mac地址，使得容器就像是网络上的一个物理设备**。为了**让host的一个网卡有一对多的效果**，此时host的网卡必须设置为**混杂模式**，让host能接收所有的mac地址包，然后**docker daemon把mac地址在macvlan里的包转发给挂在macvlan上的相应容器**；
 
 ## bridge
-**bridge相当于是host下的一个局域网**。
+
+### bridge的本义
+**bridge就是网桥，往后就发展成交换机了**。
+
+bridge network在[Wikipedia](https://en.wikipedia.org/wiki/Network_bridge)的解释是：网桥是一种计算机**网络设备**，可**从多个通信网络或网段创建单个聚合网络**。
+> A network bridge is a computer networking device that **creates a single, aggregate network from multiple communication networks or network segments**. This function is called network bridging.
+
+所以bridge就是把多个设备，或者多个网段连起来，变成一个网络。**这是一个很形象的词，就好像桥一样连接多块陆地，把他们变成一块陆地**。或者从bridge的原始形态来理解，它就相当于把所有的设备都用网线连在一起了，变成一个局域网。
+
+bridge和路由是不同的，因为它把多块网络或多个设备连起来之后，这些设备就可以畅通无阻通信了，**没有隔离功能**。路由器允许不同子网交流的同时，还能保证子网的网段也是隔离的：
+> Bridging is distinct from routing. Routing allows multiple networks to communicate independently and yet remain separate, whereas bridging connects two separate networks as if they were a single network.
+
+所以**bridge是工作在二层数据链路层的，路由器是工作在三层ip层（网络层）的**。
+
+### linux的bridge
+linux内核可以用`ip`命令创建虚拟的bridge，就像真实网络设备一样：
+```bash
+$ sudo ip link add puppy type bridge
+
+$ sudo ip link delete puppy
+```
+之后可以继续使用`ip`命令把网卡接到bridge上。
+
+**docker创建bridge其实就是调用的linux内核接口。**
+
+### bridge的特性
+**host相当于一个路由器，bridge相当于是host下的一个局域网，用于单机部署多个docker容器**。docker默认会创建一个bridge网络——`docker0`。
 
 > **WSL也相当于host下的一个局域网**！WSL的ip就是host分配的WSL网段中的一个。
 
-bridge用于单机部署多个docker容器。docker默认会创建一个bridge网络——`docker0`。
-
-所有的container如果没有指定network，都会默认连接到docker0上，**因此他们之间默认是联通的，可以相互通信**。如果是生产环境，[建议使用自己创建的bridge网络](https://docs.docker.com/network/bridge/#differences-between-user-defined-bridges-and-the-default-bridge):
+所有的container如果没有指定network，都会默认连接到docke-r0上，**因此他们之间默认是联通的，可以相互通信**。如果是生产环境，[建议使用自己创建的bridge网络](https://docs.docker.com/network/bridge/#differences-between-user-defined-bridges-and-the-default-bridge):
 - 更好的隔离性。因为只有连上该网络才能通信，而docker0默认都连上，都可以相互通信；
 - **自己创建的bridge网络支持自动DNS，可以直接用容器名通信**，而docker0只能用ip通信；
 - 自己创建的bridge网络支持容器**热插拔**，不需要关闭容器，而docker0必须停掉容器，再重新创建一个不连接到docker0（`--network`）的容器……
@@ -563,4 +587,5 @@ pkts bytes target     prot opt in     out     source               destination
 要是大学的时候会docker，当初[使用StrongSwan配置IPSec](https://blog.csdn.net/puppylpg/article/details/64918562)也不用吭哧吭哧部署四个ubuntu虚拟机了……小破笔记本带不动四个虚拟机，要不是搞到了服务器root密码，毕设铁挂了。
 
 > 菜逼害死人啊……说的就是你——docker！当初为什么你没有现在这么火！:D
+
 
