@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Java反射与动态代理"
@@ -6,7 +8,7 @@ categories: java proxy reflection
 tags: java proxy reflection
 ---
 
-Java在运行时，能够实时获取对象的类型信息：RTTI（RealTime Type Identification，实时类型识别）。比如多态，父类引用引用子类对象，在调用方法时也能准确地调用子类的override方法。本文从RTTI谈到反射，再聊一聊反射相关的一大应用——动态代理。
+Java在运行时，能够实时获取对象的类型信息：RTTI（RealTime Type Identification，实时类型识别）。比如多态，父类引用指向子类对象，在调用方法时能准确地调用子类的override方法。本文从RTTI谈到反射，再聊一聊反射相关的一大应用——动态代理。
 
 1. Table of Contents, ordered
 {:toc}
@@ -22,7 +24,7 @@ Java想知道对象的类型信息，肯定得将类型信息存储在某个地�
 
 ## `getClass()`
 每个对象都有一个指向该类的Class对象的指针，反映在代码层面，就是在Object对象里，有获取该Class对象的方法：
-```
+```java
 public final native Class<?> getClass();
 ```
 
@@ -30,7 +32,7 @@ public final native Class<?> getClass();
 
 ## `Class.forName(String)`
 在Java中获取Class对象的另一种方法就是使用Class类提供的静态方法：
-```
+```java
 public static Class<?> forName(String className) throws ClassNotFoundException
 ```
 只要给出完整的类名（带包名的类名），就可以获取该类的Class对象。
@@ -53,7 +55,7 @@ Field、Method、Annotation、Constructor等类，就是以上数据结构的实
 
 ## 静态代理
 假设有一个接口Coder：
-```
+```java
 public interface Coder {
 
     /**
@@ -75,8 +77,8 @@ public interface Coder {
     String comment();
 }
 ```
-这个接口是程序猿要做的事情。现在有一个Java程序猿：
-```
+这个接口代表一名程序猿要做的事情。现在有一个Java程序猿：
+```java
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.RandomUtils;
 
@@ -114,7 +116,7 @@ public class JavaCoder implements Coder {
 它实现了程序猿接口所规定的任务。
 
 静态代理：
-```
+```java
 /**
  * @author liuhaibo on 2018/04/18
  */
@@ -149,13 +151,13 @@ public class StaticProxy implements Coder {
 }
 ```
 这个静态代理和程序猿有相同的接口，外部给需求的时候，由它来搞定，但实际上，它只是调用Java程序猿来做事情，这是个假程序员，只是一个代理。当然这个代理也做了一些额外的事情，比如外部需求是“illegal”时，由代理直接拒绝该需求，可以避免程序猿的一些琐事：
-```
-        Coder coder = new JavaCoder("Tom");
-        Coder staticProxy = new StaticProxy(coder);
+```java
+    Coder coder = new JavaCoder("Tom");
+    Coder staticProxy = new StaticProxy(coder);
 
-        staticProxy.estimateTime("Hello, world");
-        staticProxy.implementDemands("Send an ad");
-        staticProxy.implementDemands("illegal");
+    staticProxy.estimateTime("Hello, world");
+    staticProxy.implementDemands("Send an ad");
+    staticProxy.implementDemands("illegal");
 ```
 输出：
 ```
@@ -175,10 +177,10 @@ No! ILLEGAL demand!
 
 如果要在函数前后做相同的逻辑呢？比如在每一个方法执行前后，都输出一下当前时间。那就需要函数的函数g(x)：输入f(x)，输出g(f(x))。
 
-**动态代理就是g(x)，我们要做的就是写出g(x)的逻辑。而g(x)的入参是一个函数。**
+**动态代理就是g(x)，我们要做的就是写出g(x)的逻辑。g(x)的入参是一个函数f(x)。**
 
-Java规定，每一个gx都要实现`InvocationHandler`接口：
-```
+Java规定，每一个g(x)都要实现`InvocationHandler`接口：
+```java
 public interface InvocationHandler {
 
     public Object invoke(Object proxy, Method method, Object[] args)
@@ -187,8 +189,8 @@ public interface InvocationHandler {
 ```
 而这个接口的入参正是一个函数：
 - **`Method`就是那个函数f(x)**；
-- **`Object[]`是它的入参的值，也就是f(x)的x的值。为了调用这个函数，得知道它的入参是啥**；
-- object proxy是生成的动态代理类。把它作为入参纯粹为了多给出一些信息，其实一般情况下用不到它。
+- **`Object[]`是它的入参的值，也就是f(x)的x的值。为了调用这个函数，得知道它的入参是什么**；
+- object proxy是生成的动态代理对象。把它作为入参是为了多给出一些信息，其实一般情况下用不到它。
 
 **但是java调用一个method需要有对象才行，所以动态代理少传入了一个原始object，也就是被代理的object**。
 因此一般实现InvocationHandler（或者说g(x)）的时候，都传入一个被代理的object作为构造函数的参数。
@@ -197,10 +199,10 @@ public interface InvocationHandler {
 
 Java创建动态代理的流程：
 1. 开发者写一个g(x)，它必须是InvocationHandler的实现类；
-2. 开发者指定一个接口，这个接口的所有方法都会被应用g(x)；
+2. 开发者指定一个接口，**这个接口的所有方法f(x)都会被应用g(x)，从而变成g(f(x))**；
 2. jvm根据指定的接口，自己动态生成一个类，实现该接口；
-2. 接口里每一个方法都是这么实现的：每一个方法都调用g(x)；
-3. g(x)的返回值，将作为该动态代理对象的相应方法的返回值。
+2. 接口里每一个方法都是这么实现的：g(f(x))。即每一个f(x)方法都调用g(x)；
+3. g(x)的返回值，将作为该动态代理对象的相应方法g(f(x))的返回值。
 
 所以理解Java动态代理，还要区分好Java会做什么，开发者要做什么。开发者做好自己的事情就好了，其他的都会由Java按照契约搞定。
 
@@ -218,7 +220,7 @@ InvocationHandler就是java和开发者之间最核心的契约：
 2. **且该handler的返回值，将作为动态代理方法的返回值**。
 
 比如下面的InvocationHandler实现，在方法调用前后都会输出当前时间：
-```
+```java
 import lombok.AllArgsConstructor;
 
 import java.lang.reflect.InvocationHandler;
@@ -268,26 +270,30 @@ public class BibiAroundInvocationHandler implements InvocationHandler {
 3. 设置invoke函数的返回值。首先要知道BibiAroundInvocationHandler#invoke的返回值会被Java用作动态代理类的方法调用后的返回值。这里我们只想在方法调用前后bibi一下，无意改变被代理对象方法的返回值，所以对于被代理对象，我们应该将它的返回值作为BibiAroundInvocationHandler#invoke的返回值。不过最后返回前我还是给返回值加上了一个“(Proxy) ”前缀，作为一个demo，我们就能更明显地看到，动态代理对象的返回值被我们刻意改变了，比被代理对象的返回值多加了个前缀。
 
 ### Proxy
-解决了InvocationHandler实现的核心问题，另一个简单的问题还没解决：为哪个接口生成动态代理类。
+解决了InvocationHandler实现的核心问题，再看第一个简单的问题：为哪个接口生成动态代理类。
 
 Java的Proxy类提供了创建动态代理类的方法，有两个方法比较重要：
 
-- `public static Class<?> getProxyClass(ClassLoader loader, Class<?>... interfaces)`：用于生成给定接口的动态代理类。需要传入接口和该接口的ClassLoader，ClassLoader一般直接传入接口的ClassLoader即可；
-- `public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h) throws IllegalArgumentException`：用于生成给定借口的动态代理对象。其实这个方法包含了上一个方法，毕竟想生成对象，首先得生成代理类，然后再new一个对象。所以该方法大致有三步：
+- **获取代理类**：`public static Class<?> getProxyClass(ClassLoader loader, Class<?>... interfaces)`：用于生成给定接口的动态代理类。需要传入接口和该接口的ClassLoader，ClassLoader一般直接传入接口的ClassLoader即可；
+- **获取代理对象**：`public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h) throws IllegalArgumentException`：用于生成给定接口的动态代理对象。其实这个方法包含了上一个方法，毕竟想生成对象，首先得生成代理类，然后再new一个对象。所以该方法大致有三步：
     + 生成动态代理类：`Class<?> cl = getProxyClass0(loader, intfs)`；
     + 获取动态代理类的构造函数：`private static final Class<?>[] constructorParams = { InvocationHandler.class }; final Constructor<?> cons = cl.getConstructor(constructorParams)`；
     + 生成动态代理对象：`cons.newInstance(new Object[]{h})`；
 
-值得关注的是生成对象的那一步。首先使用反射获取生成的动态代理类的构造函数，该构造函数的参数是InvocationHandler。然后给构造函数传入开发者定义好的InvocationHandler实例，生成动态代理对象。所以我们可以推测，**Java在生成动态代理类的时候，除了要实现接口中给定的方法，一定也添加了一个参数是InvocationHandler的构造方法**。
-
 > 由动态代理的方法只能传入interface参数可知，Java的动态代理**只能为接口生成代理，不能为具体类生成代理**。
 
+**所以`newProxyInstance`是个很重要的方法，java中使用它生成代理对象。**
+
 生成动态代理类并执行方法的代码：
-```
+```java
     InvocationHandler handler = new BibiAroundInvocationHandler(coder);
     
     // 直接生成一个代理对象实例（实际上也是两步：先在jvm中生成一个代理类Class的对象，再使用该Class对象生成代理对象）
-    Coder proxy = (Coder) Proxy.newProxyInstance(coder.getClass().getClassLoader(), coder.getClass().getInterfaces(), handler);
+    Coder proxy = (Coder) Proxy.newProxyInstance(
+        coder.getClass().getClassLoader(),
+        coder.getClass().getInterfaces(),
+        handler
+    );
     
     proxy.estimateTime("Hello, world");
     proxy.implementDemands("Send an ad");
@@ -312,7 +318,7 @@ Tom: I use Java to finish Send an ad
 上面分析了Java动态代理架构设计上，Java和开发者之间的契约。现在来看看，Java生成的代理类究竟长什么样。
 
 首先，使用java提供的ProxyGenerator类，生成一个Coder接口的动态代理类，名为DynamicCoder。然后把这个类的字节码写到一个文件里：
-```
+```java
 /**
  * @author liuhaibo on 2018/04/19
  */
@@ -329,7 +335,7 @@ public class ProxyUtil {
 }
 ```
 然后使用IDE反编译字节码，大致看看生成的动态代理类的代码长啥样：
-```
+```java
 import example.proxy.Coder;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -431,11 +437,13 @@ public final class DynamicCoder extends Proxy implements Coder {
 
 由此，我们亲眼看到了Java的确是按照契约，在jvm运行时，为我们生成了一个动态代理类。
 
+> Java在生成动态代理类的时候，除了要实现接口中给定的方法，还额外添加了一个参数是`InvocationHandler`的**构造方法**。在上面获取代理对象的`newProxyInstance`方法里可以看到，实现的时候首先使用反射获取了这个参数为`InvocationHandler`的动态代理类的构造函数，然后给构造函数传入开发者定义好的`InvocationHandler`实例，生成动态代理对象。
+
 ## 正向梳理
 **现在，让我们正向理一理动态代理调用的全过程**：
 1. 当使用动态代理类，调用`proxy.estimateTime("Hello, world")`时；
 2. 动态代理类调用它的方法：
-    ```
+    ```java
         public final void estimateTime(String var1) {
             try {
                 super.h.invoke(this, m5, new Object[]{var1});
@@ -449,7 +457,7 @@ public final class DynamicCoder extends Proxy implements Coder {
 3. 此时`var1`是hello world字符串，然后执行`super.h.invoke(this, m5, new Object[]{var1})`；
 4. `h`是我们的handler：`BibiAroundInvocationHandler`；
 5. 所以调用`h.invoke`，就是在调用：
-    ```
+    ```java
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 
         System.out.println(">>> Before: " + LocalDateTime.now());
@@ -477,7 +485,7 @@ cglib和jdk的动态代理都是在运行时生成代理类，原理上是一致
 
 本质上，我们用cglib写的g(x)和用jdk proxy写g(x)的写法一样，也是在调用被代理类的方法。**但是，cglib是给代理类生成了子类，所以在写g(x)的时候， cglib不需要我们自己传入被代理类（jdk的动态代理需要自己传入被代理对象，调用它的方法），直接调用`super.<method>`就行了**！它接口方法签名里的MethodProxy，拥有invokeSuper方法，可以直接调用“生成的代理类的super class”的方法， 也就是“被代理类”的方法。这也说明了，cglib生成的代理类，都是被代理类的子类。
 
-```
+```java
 /**
  * @author puppylpg on 2022/07/03
  */
@@ -495,7 +503,7 @@ public class CglibBibiAroundInterceptor implements MethodInterceptor {
 ```
 
 生成代理对象也非常直白：
-```
+```java
         Enhancer enhancer =  new Enhancer();
         // cglib 不需要传入被代理的类，只需要给出要代理的类的class文件，它自己会创建
         enhancer.setSuperclass(JavaCoder.class);
