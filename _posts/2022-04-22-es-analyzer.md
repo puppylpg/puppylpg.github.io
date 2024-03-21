@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：analyzer"
@@ -102,7 +104,7 @@ POST _analyze
 
 > **另外可以看出分出来的token除了token本身，还有位置信息、类型信息等，`match_phrase`搜索会使用position**。
 
-- `max_token_length`：默认255。标准分词器对token的长度是有限制的，超过255就在255出分词了。
+- `max_token_length`：默认255。标准分词器对token的长度是有限制的，超过255就在255处分词了。
 
 > 注意：**平时说的icu和ik，其实是分词器tokenizer**。他们都提供了使用了该分词器的analyzer。比如ik_smart。
 > 
@@ -262,7 +264,7 @@ PUT my-index-000001
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-custom-analyzer.html
 
 ## analyzer的最小元素集合
-一个analyzer虽然由三部分组成，但是char_filter和filter可以没有，也可以有多个（zero or more），**但是tokenizer必须有且只有一个（exactly one）**。
+一个analyzer虽然由三部分组成，但是char_filter和filter可以有任意个（zero or more），**tokenizer必须有且只有一个（exactly one）**。
 
 最典型的例子就是[whitespace analyzer](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-whitespace-analyzer.html)，它只有一个tokenizer，whitespace tokenizer，按照空格分词。
 
@@ -327,24 +329,346 @@ GET <index>/_analyze
 ```
 
 # search as you type
-有一些比较猛的filter，因为太强，所以单独拎出来说了。常用来做search as you type。
+有一些比较猛的tokenizer/filter，因为太强，所以单独拎出来说了。常用来做search as you type。
 
-## n-gram filter - 字符滑动窗口
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenfilter.html
+## n-gram tokenizer/filter - 字符滑动窗口
+token filter可以改变token，**也可以增删token**。stop word filter是删除token的例子，n-gram则是增加token的例子。
 
-## edge n-gram filter - 左窗口固定为edge的滑动窗口
-edge ngram和ngram相比，**左窗口固定为edge的滑动窗口，所以它产生的都是前缀**：
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenfilter.html
+[n-gram tokenizer](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenizer.html)和[n-gram filter](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenfilter.html)放在一起介绍：
+- n-gram tokenizer分词产生n-gram；
+- n-gram filter在已有分词器分好词的情况下，对每一个token产生n-gram；
 
-token filter可以改变token，**也可以增删token**。stop word filter是删除token的例子，edge n-gram则是增加token的例子。
+tokenizer：
+```json
+POST _analyze
+{
+  "tokenizer": "ngram",
+  "text": "Quick Fox"
+}
+```
+产生：
+```
+[ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
+```
+`token_chars`属性配置了保留哪些词作为token。默认为空数组，即保留整个文本作为一个token，**相当于把整个字符串当成一个keyword**。`min_gram`/`max_gram`默认为1/2。
 
-edge n-gram可以把一个token转成很多个token，每个token都是原本token的前缀：
+自定义tokenizer：
+```json
+GET _analyze
+{
+  "tokenizer": {
+    "type": "ngram",
+    "min_gram": 2,
+    "max_gram": 3
+  },
+  "text": "hello world"
+}
+```
+会产生一大堆token：
+```json
+{
+  "tokens" : [
+    {
+      "token" : "hel",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "hell",
+      "start_offset" : 0,
+      "end_offset" : 4,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "ell",
+      "start_offset" : 1,
+      "end_offset" : 4,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "ello",
+      "start_offset" : 1,
+      "end_offset" : 5,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "llo",
+      "start_offset" : 2,
+      "end_offset" : 5,
+      "type" : "word",
+      "position" : 4
+    },
+    {
+      "token" : "llo ",
+      "start_offset" : 2,
+      "end_offset" : 6,
+      "type" : "word",
+      "position" : 5
+    },
+    {
+      "token" : "lo ",
+      "start_offset" : 3,
+      "end_offset" : 6,
+      "type" : "word",
+      "position" : 6
+    },
+    {
+      "token" : "lo w",
+      "start_offset" : 3,
+      "end_offset" : 7,
+      "type" : "word",
+      "position" : 7
+    },
+    {
+      "token" : "o w",
+      "start_offset" : 4,
+      "end_offset" : 7,
+      "type" : "word",
+      "position" : 8
+    },
+    {
+      "token" : "o wo",
+      "start_offset" : 4,
+      "end_offset" : 8,
+      "type" : "word",
+      "position" : 9
+    },
+    {
+      "token" : " wo",
+      "start_offset" : 5,
+      "end_offset" : 8,
+      "type" : "word",
+      "position" : 10
+    },
+    {
+      "token" : " wor",
+      "start_offset" : 5,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 11
+    },
+    {
+      "token" : "wor",
+      "start_offset" : 6,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 12
+    },
+    {
+      "token" : "worl",
+      "start_offset" : 6,
+      "end_offset" : 10,
+      "type" : "word",
+      "position" : 13
+    },
+    {
+      "token" : "orl",
+      "start_offset" : 7,
+      "end_offset" : 10,
+      "type" : "word",
+      "position" : 14
+    },
+    {
+      "token" : "orld",
+      "start_offset" : 7,
+      "end_offset" : 11,
+      "type" : "word",
+      "position" : 15
+    },
+    {
+      "token" : "rld",
+      "start_offset" : 8,
+      "end_offset" : 11,
+      "type" : "word",
+      "position" : 16
+    }
+  ]
+}
+
+```
+由于n-gram产生的token实在是太炸裂了，所以要求min和max的差值不能超过1，否则会报错：
+```json
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "illegal_argument_exception",
+        "reason" : "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: [1] but was [5]. This limit can be set by changing the [index.max_ngram_diff] index level setting."
+      }
+    ],
+    "type" : "illegal_argument_exception",
+    "reason" : "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: [1] but was [5]. This limit can be set by changing the [index.max_ngram_diff] index level setting."
+  },
+  "status" : 400
+}
+```
+但即便如此，仍然会产生过多的token。**而且n-gram产生的token的起点比较无意义，所以一般不用n-gram。**
+
+n-gram filter同理，不过因为它只是filter，所以要搭配一个tokenizer使用：
 ```json
 GET _analyze
 {
   "tokenizer": "standard",
   "filter": [
-    { "type": "edge_ngram",
+    {
+      "type": "ngram",
+      "min_gram": 3,
+      "max_gram": 4
+    }
+  ],
+  "text": "hello world"
+}
+```
+
+产生的结果token比n-gram tokenizer好一些，因为standard tokenizer把字符串分成了俩token，每个token能产生的n-gram就变少了：
+```json
+{
+  "tokens" : [
+    {
+      "token" : "hel",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "hell",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "ell",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "ello",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "llo",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "wor",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "worl",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "orl",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "orld",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "rld",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    }
+  ]
+}
+
+```
+
+## edge n-gram tokenizer/filter - 左窗口固定为edge的滑动窗口
+[edge n-gram tokenizer](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenizer.html)和[edge n-gram filter](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenfilter.html)和n-gram tokenizer/filter相比，**左窗口（起点）固定为edge，所以它产生的都是前缀，比较有意义**。
+
+同样，edge n-gram tokenizer把整个字符串当成一个keyword，然后从边缘开始，分成无数个token：
+```json
+GET _analyze
+{
+  "tokenizer": {
+    "type": "edge_ngram",
+    "max_gram": 5
+  },
+  "text": "hello world"
+}
+```
+由于不像n-gram一样从每一个位置都做滑动窗口，所以产生的token要少很多，因此也就没有min和max的差距不能超过1的限制：
+```json
+{
+  "tokens" : [
+    {
+      "token" : "h",
+      "start_offset" : 0,
+      "end_offset" : 1,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "he",
+      "start_offset" : 0,
+      "end_offset" : 2,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "hel",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "hell",
+      "start_offset" : 0,
+      "end_offset" : 4,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "hello",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "word",
+      "position" : 4
+    }
+  ]
+}
+```
+
+edge n-gram filter则同样要搭配一个tokenizer使用：
+```json
+GET _analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "edge_ngram",
       "min_gram": 2,
       "max_gram": 4
     }
@@ -412,6 +736,161 @@ standard tokenizer把字符串分成hello和world两个token，edge n-gram filte
 
 > 当输入“he wor”的时候，既匹配上了he，又匹配上了wor，该文档就会被作为候选项筛选出来。
 
+### 单词前缀
+**edge n-gram tokenizer/filter默认把整个字符串当做keyword，所以只能做句子的前缀**。
+
+> 可以理解为edge n-gram tokenizer = keyword tokenizer + edge n-gram filter
+
+如果想做每一个单词的前缀，可以使用standard tokenizer先分词，再使用edge n-gram filter过滤：
+```json
+GET _analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "edge_ngram",
+      "min_gram": 2,
+      "max_gram": 4
+    }
+  ],
+  "text": "hello world"
+}
+```
+结果：
+```json
+{
+  "tokens" : [
+    {
+      "token" : "he",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "hel",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "hell",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "wo",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "wor",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "worl",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    }
+  ]
+}
+```
+
+也可以直接配置edge n-gram tokenized把单词作为分词的token并产生ngram，同时不要filter：
+```json
+GET _analyze
+{
+  "tokenizer": {
+    "type": "edge_ngram",
+    "max_gram": 5,
+    "token_chars": ["letter"]
+  },
+  "text": "hello world"
+}
+```
+结果：
+```json
+{
+  "tokens" : [
+    {
+      "token" : "he",
+      "start_offset" : 0,
+      "end_offset" : 2,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "hel",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "hell",
+      "start_offset" : 0,
+      "end_offset" : 4,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "wo",
+      "start_offset" : 6,
+      "end_offset" : 8,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "wor",
+      "start_offset" : 6,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 4
+    },
+    {
+      "token" : "worl",
+      "start_offset" : 6,
+      "end_offset" : 10,
+      "type" : "word",
+      "position" : 5
+    }
+  ]
+}
+```
+**二者产生的token都是一样的，不过offset信息不太一样，毕竟一个是tokenizer，一个是filter。**
+
+### 如果把tokenizer和filter一起用呢？
+n-gram filter和edge n-gram filter需要搭配tokenizer才能使用（tokenizer必须有且只能有一个），那么tokenizer可不可以是n-gram tokenizer和edge n-gram tokenizer呢？当然是可以的：
+```json
+GET _analyze
+{
+  "tokenizer": {
+    "type": "ngram",
+    "min_gram": 3,
+    "max_gram": 4
+  },
+  "filter": [
+    {
+      "type": "edge_ngram",
+      "min_gram": 2,
+      "max_gram": 4
+    }
+  ],
+  "text": "hello world"
+}
+```
+不过这么搞的意义就没那么大了。
+
 ### truncate token filter - 输入词过长
 上述自定义的filter只生成了2-4长度的前缀作为token，如果用户输入了hello或者world，反而匹配不到这些前缀了，在用户看来这岂不是很离谱？
 
@@ -419,6 +898,7 @@ standard tokenizer把字符串分成hello和world两个token，edge n-gram filte
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenfilter.html#analysis-edgengram-tokenfilter-max-gram-limits
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-truncate-tokenfilter.html
 
+**所以做search as you type的时候，用户输入应该搞成keyword+截断，存储的数据应该搞成edge n-gram**：
 ```json
   "analysis":{
     "filter":{
@@ -456,35 +936,6 @@ standard tokenizer把字符串分成hello和world两个token，edge n-gram filte
     }
   }
 ```
-
-## edge n-gram tokenizer = keyword tokenizer + edge n-gram filter
-一开始我还以为是我眼花了……后来发现真的有一个edge n-gram tokenizer，又有一个edge n-gram filter……
-
-仔细想想也有道理：edge n-gram filter是别的tokenizer分好词后，把每个分词拆成前缀token。但是如果不想给句子分词，想直接构建一个句子的前缀，edge n-gram filter就做不到了。此时edge n-gram tokenizer就起到作用了！
-
-**edge n-gram tokenizer默认把整个文本作为一个token**：
-> With the default settings, **the edge_ngram tokenizer treats the initial text as a single token** and produces N-grams with minimum length 1 and maximum length 2
-
-```json
-POST _analyze
-{
-  "tokenizer": "edge_ngram",
-  "text": "hello world"
-}
-```
-输出：
-```json
-[ h, he ]
-```
-
-edge n-gram tokenizer除了可以配置`min_gram`、`min_gram`，**还可以配置`token_chars`数组，默认为空数组，即把所有文本当作一整个token，不拆分**：
-- `token_chars`：可配置为`letter`/`digit`/`whitespace`等等。
-
-**如果配置为whitespace，那这个edge n-gram tokenizer就和standard tokenizer + edge n-gram filter效果类似了**。
-
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenizer.html
-
-最好也配合truncate token filter使用。
 
 ## completion suggester - search as you type
 **如果按照乱序前缀匹配文档，用edge n-gram，如果用widely known order，用completion suggester**：
@@ -524,7 +975,7 @@ edge n-gram tokenizer除了可以配置`min_gram`、`min_gram`，**还可以配�
             "search_analyzer":"autocomplete_sentence_search"
           }
         }
-      },
+      }
 ```
 `name.autocomplete`这个field使用自定义的`autocomplete_sentence` analyzer作为index analyzer，使用自定义的`autocomplete_sentence_search`作为search analyzer。
 
@@ -569,11 +1020,11 @@ GET /_analyze
   "filter": [
     {
       "type": "shingle",
-      "min_shingle_size": 2,
-      "max_shingle_size": 3
+      "min_shingle_size": 3,
+      "max_shingle_size": 4
     }
   ],
-  "text": "i love you bibi"
+  "text": "To beyond and halo infinite"
 }
 ```
 能生成4个单独的word，和5个shingle：
@@ -581,76 +1032,86 @@ GET /_analyze
 {
   "tokens" : [
     {
-      "token" : "i",
+      "token" : "To",
       "start_offset" : 0,
-      "end_offset" : 1,
+      "end_offset" : 2,
       "type" : "word",
       "position" : 0
     },
     {
-      "token" : "i love",
+      "token" : "To beyond and",
       "start_offset" : 0,
-      "end_offset" : 6,
-      "type" : "shingle",
-      "position" : 0,
-      "positionLength" : 2
-    },
-    {
-      "token" : "i love you",
-      "start_offset" : 0,
-      "end_offset" : 10,
+      "end_offset" : 13,
       "type" : "shingle",
       "position" : 0,
       "positionLength" : 3
     },
     {
-      "token" : "love",
-      "start_offset" : 2,
-      "end_offset" : 6,
+      "token" : "To beyond and halo",
+      "start_offset" : 0,
+      "end_offset" : 18,
+      "type" : "shingle",
+      "position" : 0,
+      "positionLength" : 4
+    },
+    {
+      "token" : "beyond",
+      "start_offset" : 3,
+      "end_offset" : 9,
       "type" : "word",
       "position" : 1
     },
     {
-      "token" : "love you",
-      "start_offset" : 2,
-      "end_offset" : 10,
-      "type" : "shingle",
-      "position" : 1,
-      "positionLength" : 2
-    },
-    {
-      "token" : "love you bibi",
-      "start_offset" : 2,
-      "end_offset" : 15,
+      "token" : "beyond and halo",
+      "start_offset" : 3,
+      "end_offset" : 18,
       "type" : "shingle",
       "position" : 1,
       "positionLength" : 3
     },
     {
-      "token" : "you",
-      "start_offset" : 7,
-      "end_offset" : 10,
+      "token" : "beyond and halo infinite",
+      "start_offset" : 3,
+      "end_offset" : 27,
+      "type" : "shingle",
+      "position" : 1,
+      "positionLength" : 4
+    },
+    {
+      "token" : "and",
+      "start_offset" : 10,
+      "end_offset" : 13,
       "type" : "word",
       "position" : 2
     },
     {
-      "token" : "you bibi",
-      "start_offset" : 7,
-      "end_offset" : 15,
+      "token" : "and halo infinite",
+      "start_offset" : 10,
+      "end_offset" : 27,
       "type" : "shingle",
       "position" : 2,
-      "positionLength" : 2
+      "positionLength" : 3
     },
     {
-      "token" : "bibi",
-      "start_offset" : 11,
-      "end_offset" : 15,
+      "token" : "halo",
+      "start_offset" : 14,
+      "end_offset" : 18,
       "type" : "word",
       "position" : 3
+    },
+    {
+      "token" : "infinite",
+      "start_offset" : 19,
+      "end_offset" : 27,
+      "type" : "word",
+      "position" : 4
     }
   ]
 }
+
 ```
+
+> min=3，但是单个单词也出现了，因为还有一个`output_unigrams`的属性，默认为true，会输出原始单个单词。
 
 **使用shingle做索引的field，搜索的时候使用同样的analyzer就行了，不像edge n-gram必须设置不同的search analyzer，因为shingle本来就是按照单词匹配的，符合对搜索的认知**。
 
@@ -661,78 +1122,125 @@ GET /_analyze
 # analyzer
 PUT /puzzle
 {
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "analysis": {
-      "char_filter": {
-        "&_to_and": {
-          "type":       "mapping",
-          "mappings": [ "&=> and "]
+  "settings":{
+    "number_of_shards":1,
+    "number_of_replicas":1,
+    "analysis":{
+      "char_filter":{
+        "&_to_and":{
+          "type":"mapping",
+          "mappings":[
+            "&=> and "
+          ]
         }
       },
-      "filter": {
-        "english_stop": {
-          "type":       "stop",
-          "ignore_case": true,
-          "stopwords":  ["a", "an", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into", "is", "it", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then", "there", "these", "they", "this", "to", "was", "will", "with"]
+      "filter":{
+        "english_stop":{
+          "type":"stop",
+          "ignore_case":true,
+          "stopwords":[
+            "a",
+            "an",
+            "are",
+            "as",
+            "at",
+            "be",
+            "but",
+            "by",
+            "for",
+            "if",
+            "in",
+            "into",
+            "is",
+            "it",
+            "no",
+            "not",
+            "of",
+            "on",
+            "or",
+            "such",
+            "that",
+            "the",
+            "their",
+            "then",
+            "there",
+            "these",
+            "they",
+            "this",
+            "to",
+            "was",
+            "will",
+            "with"
+          ]
         },
-        "english_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   ["example"]
+        "english_keywords":{
+          "type":"keyword_marker",
+          "keywords":[
+            "example"
+          ]
         },
-        "english_stemmer": {
-          "type":       "stemmer",
-          "language":   "english"
+        "english_stemmer":{
+          "type":"stemmer",
+          "language":"english"
         },
-        "english_possessive_stemmer": {
-          "type":       "stemmer",
-          "language":   "possessive_english"
+        "english_possessive_stemmer":{
+          "type":"stemmer",
+          "language":"possessive_english"
         },
-        "my_shingle_filter": {
-                    "type":             "shingle",
-                    "min_shingle_size": 2,
-                    "max_shingle_size": 2,
-                    "output_unigrams":  false  
-                }
+        "my_shingle_filter":{
+          "type":"shingle",
+          "min_shingle_size":2,
+          "max_shingle_size":2,
+          "output_unigrams":false
+        }
       },
-      "analyzer": {
-        "reb_standard": {
-          "type":         "custom",
-          "char_filter":  [ "&_to_and" ],
-          "tokenizer":    "standard"
+      "analyzer":{
+        "reb_standard":{
+          "type":"custom",
+          "char_filter":[
+            "&_to_and"
+          ],
+          "tokenizer":"standard"
         },
-        "reb_english": {
-          "type":         "custom",
-          "char_filter":  [ "&_to_and" ],
-          "tokenizer":    "standard",
-          "filter":       [ "english_possessive_stemmer",
+        "reb_english":{
+          "type":"custom",
+          "char_filter":[
+            "&_to_and"
+          ],
+          "tokenizer":"standard",
+          "filter":[
+            "english_possessive_stemmer",
             "lowercase",
             "english_stop",
             "english_keywords",
-            "english_stemmer" ]
+            "english_stemmer"
+          ]
         },
-        "my_shingle_analyzer": {
-                    "type":             "custom",
-                    "char_filter":  [ "&_to_and" ],
-                    "tokenizer":        "standard",
-                    "filter": [
-                        "lowercase",
-                        "my_shingle_filter"
-                    ]
+        "my_shingle_analyzer":{
+          "type":"custom",
+          "char_filter":[
+            "&_to_and"
+          ],
+          "tokenizer":"standard",
+          "filter":[
+            "lowercase",
+            "my_shingle_filter"
+          ]
         },
-        "eng_shingle_analyzer": {
-                    "type":             "custom",
-                    "char_filter":  [ "&_to_and" ],
-                    "tokenizer":        "standard",
-                    "filter": [
-                      "english_possessive_stemmer",
-                      "lowercase",
-                      "english_stop",
-                      "english_keywords",
-                      "english_stemmer",
-                      "my_shingle_filter"
-                    ]
+        "eng_shingle_analyzer":{
+          "type":"custom",
+          "char_filter":[
+            "&_to_and"
+          ],
+          "tokenizer":"standard",
+          "filter":[
+            "english_possessive_stemmer",
+            "lowercase",
+            "english_stop",
+            "english_keywords",
+            "english_stemmer",
+            "my_shingle_filter"
+          ]
         }
       }
     }
@@ -741,7 +1249,6 @@ PUT /puzzle
 ```
 设置mapping：
 ```json
-# property
 PUT /puzzle/_mapping
 {
   "properties": {
