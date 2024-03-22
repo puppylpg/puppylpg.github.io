@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：performance"
@@ -17,7 +19,7 @@ tags: elasticsearch
 es的可调之处有很多：
 1. 段合并相关：https://www.elastic.co/guide/cn/elasticsearch/guide/current/indexing-performance.html#segments-and-merging
 2. 分片数量设置：https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html
-3. translog大小/是否异步、refresh_interval：[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})；
+3. translog大小/是否异步、refresh_interval：[Elasticsearch：分片读写]({% post_url 2022-05-05-es-read-write %})；
 4. 全局序数要不要预加载：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
 4. 存储限流：merge如果太猛，会拖慢index和query的速度。`indices.store.throttle.max_bytes_per_se`；
 5. 缓存大小：主要是filter查询的缓存，`indices.cache.filter.size`；
@@ -212,7 +214,7 @@ scroll api会在查询的“那一刻”，生成一个scroll id，这个scroll 
 这也就意味着，在scroll结束之前，这些context是会一直保留下来的：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html#scroll-search-context
 
-elasticsearch后台每次refresh会生成一个segment，还会有后台任务进行段合并的工作（[Elasticsearch：deep dive]({% post_url 2022-05-05-es-deep-dive %})），“保留context”就意味着：
+elasticsearch后台每次refresh会生成一个segment，还会有后台任务进行段合并的工作（[Elasticsearch：分片读写]({% post_url 2022-05-05-es-read-write %})），“保留context”就意味着：
 1. **占用磁盘、文件描述符**：这些合并后的segment不能被删掉，还要继续被保留下去，直到scroll id被删掉；
 2. **占用内存（heap space）**：每个段里的doc并不都是有效的，那些被delete或者update的doc会被记录在`.del`文件里，保留这些会占用额外的内存：https://www.elastic.co/guide/cn/elasticsearch/guide/current/dynamic-indices.html#deletes-and-updates
 

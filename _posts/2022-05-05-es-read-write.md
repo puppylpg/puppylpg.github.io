@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：分片读写"
@@ -93,6 +95,8 @@ es的查询是按照得分给结果排序的。如果返回top10，有两个mast
 - shard：一个Lucene索引，多个segment和一个commit point组成；
 - segment：一个倒排索引；
 
+> commit point记录了当前被flush到磁盘上的segment，这些segment已经被持久化了。translog记录了还没有被持久化到磁盘上的数据。所以“shard还包含commit point”的意思是不是说：持久化的segment + translog里没持久化的数据（包括memory里的数据和未持久化的segment） = 整个index？不论如何，这么理解肯定是可以的。
+
 Ref：
 - https://stackoverflow.com/a/15429578/7676237
 
@@ -120,13 +124,14 @@ es是基于Lucene，Lucene就是按段搜索的。一个Lucene索引包含：
 
 ### 创建段 - 增加数据
 段是写在磁盘上的，但一开始为了速度，是写在内存里的：
-1. 一个新的segment（一个新的倒排索引）先写入内存里的buffer（in memory buffer）；
-2. 段提交commit：
-    1. segment写入磁盘；
-    2. commit point写入磁盘；
-    3. fsync后，才算真正地物理写入完毕；
-3. **新的段被打开，变成可搜索状态（实际上fsync之前，已经算写入了，已经是可搜索了）**；
+1. 数据先写入内存里的buffer（in memory buffer）；
+2. 段提交refresh：
+    1. segment（一个新的倒排索引）写入磁盘（指page cache。注意：fsync后，才算真正地物理写入完毕）；
+3. **新的段被打开，变成可搜索状态（searchable but uncommitted）**；
 4. in memory buffer清空；
+
+[searchable but uncommitted](https://discuss.elastic.co/t/question-about-segment-described-in-elasticsearch-the-definitive-guide/35980/6?u=puppylpg)：如果系统崩了，这个段会丢失，但可以通过translog做redo操作。
+> On a re-refresh the IndexReader used to read the segments is updated to include the new uncommitted segment (this is why the segment is referred to in the documentation as searchable but uncommitted). If the node was to fail and restart that segment would be lost since it is uncommitted, but the data from that segment would be replayed from the translog as part of the startup sequence so the data was not lost from Elasticsearch entirely.
 
 ### 逐段搜索 per-segment search
 搜索请求实际是逐段搜索的：
@@ -139,10 +144,8 @@ es是基于Lucene，Lucene就是按段搜索的。一个Lucene索引包含：
 
 ### 删改数据
 段不可变，那删改数据怎么办？
-- 删：**使用的是标记删除，每个commit point都包含一个`.del`文件，记录着哪个段里的哪个文档被删了**；
+- 删：**使用的是标记删除，[`.del`文件和segment一样不断生成](https://discuss.elastic.co/t/question-about-segment-described-in-elasticsearch-the-definitive-guide/35980/9?u=puppylpg)，记录着哪个段里的哪个文档被删了**；
 - 改：先删后加。在旧segment标记删除 + 在新segment添加；
-
-> commit point相当于记录着所有已打开的segment的metadata文件，所以也会记录哪个segment的哪个文档被删了。
 
 ## `refresh`：不写回磁盘
 创建segment的时候，理论上完全写入磁盘（fsync）才算写入完毕。**但是使用fsync完全写回磁盘太慢了。同时为了让segment能更快被打开、被搜索，Lucene调用sync把segment写入了page cache，此时segment就可以被打开被搜索。相当于把page cache当做innodb的buffer pool使用了。**
@@ -168,7 +171,7 @@ es是基于Lucene，Lucene就是按段搜索的。一个Lucene索引包含：
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/near-real-time.html
 - https://www.elastic.co/guide/en/elasticsearch/guide/current/near-real-time.html
 
-**默认情况下，refresh的频率是1s一次，所以1s后新的倒排索引才是可见的。因此es被称为近实时搜索（near real-time search）**。
+**默认情况下，refresh的频率是1s一次，所以1s后新的倒排索引才是可见的。因此es被称为[近实时搜索（near real-time search）](https://www.elastic.co/guide/cn/elasticsearch/guide/current/near-real-time.html)**。
 
 因此，刚索引进es的数据无法被立刻搜索到。但如果每索引一条数据就手动调一次refresh api，在索引量比较大的时候，对性能影响非常大。
 
@@ -177,7 +180,9 @@ es是基于Lucene，Lucene就是按段搜索的。一个Lucene索引包含：
 可以修改全局[`refresh_interval`](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules.html#index-refresh-interval-setting)设置，也可以修改单个索引的`refresh_interval`：
 ```json
 PUT /<index>/_settings
-{ "refresh_interval": "1s" }
+{
+  "refresh_interval": "1s"
+}
 ```
 
 ## `flush`：translog - es的redo log
@@ -223,10 +228,10 @@ translog的时机和redo log也一样，在每次写请求完成之后执行(e.g
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/translog.html
 
 ### refresh vs. flush
-refresh和flush是两个概念：
-- **数据写入buffer pool，就写入translog了，证明它不会丢了，只是此时还不可见**；
-- **refresh操作的是buffer pool**: buffer pool -> page cache。**数据可见了**，会清空in memory buffer，但和translog无关;
-- **flush操作的是translog**: fsync to disk，此时会清空translog；
+所以refresh和flush是两个概念：
+- **数据写入elasticsearch的内存（叫buffer pool也行，只不过不是MySQL的那个buffer pool，这个buffer pool里的数据不可见，因为elasticsearch是文件型db，直接从文件（实际是page cache）查询；MySQL是加载到memory里的buffer pool再查的），同时也要写入translog，之后client返回200，数据就不会丢了，只是此时还不可见**；
+- **refresh操作的是buffer pool**: `sync` to page cache。**数据可见了**，会清空in memory buffer，但和translog无关;
+- **flush操作的是translog**: `fsync` to disk，此时会清空translog；
 
 所以es refresh之后，文档就可见了，可搜索。es flush之后，数据持久化了，translog可以删掉了。
 
@@ -254,7 +259,7 @@ refresh和flush是两个概念：
 分清楚三个interval：
 1. refresh interval：1s，是segment可用的时间。**开的越大，数据可见速度越慢**；
 2. translog sync interval：5s，是胆子大的情况下，允许写操作不fsync到translog的时间。**开的越大，es崩了之后丢的数据越多**；
-3. flush interval：30min，是数据从translog持久化到磁盘的时间。**开的越大，es崩了之后恢复数据的时间越长**；
+3. flush interval：30min，是数据从translog持久化到磁盘的时间。**开的越大，es崩了之后恢复数据的时间越长**，当然前提是translog足够大，不然快满的时候也会提前触发flush；
 
 Ref：
 - translog设置：https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html#_translog_settings
@@ -280,5 +285,6 @@ api：
 - 现在好像用force merge api：https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html
 
 但是正常情况下，es自己做段合并就够了。
+
 
 
