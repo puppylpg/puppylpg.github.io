@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：关系型文档"
@@ -152,7 +154,7 @@ GET my-index-000001/_search
 
 ### 存储于同一segment
 
-> 什么是segment：[Elasticsearch：分片读写]({% post_url 2022-05-05-es-deep-dive %})
+> 什么是segment：[Elasticsearch：分片读写]({% post_url 2022-05-05-es-read-write %})
 
 **nested文档在逻辑上，依然是一条嵌套了子文档的大文档。但是实际存储的时候，nested文档在物理上产生了n个子文档和1个父文档，并把他们存放在同一个segment上**：
 - 同一个segment：https://discuss.elastic.co/t/index-nested-documents-separately/11748/3
@@ -160,6 +162,11 @@ GET my-index-000001/_search
 - https://www.elastic.co/guide/en/elasticsearch/guide/current/nested-objects.html
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/nested-objects.html
 - 挨着的排序方式：https://stackoverflow.com/a/54023434/7676237
+- https://www.elastic.co/guide/en/elasticsearch/reference/6.8/nested.html#_limits_on_nested_mappings_and_objects
+
+> 正因为如此，**索引的document count并不是真实的count，而是文档+嵌套文档的总数。通过`_count` API查到的才是索引里的父文档总数**。
+>
+> 参考[How come my elasticsearch doc count is greater than number of items?](https://github.com/Smile-SA/elasticsuite/issues/1729#issuecomment-592522434)
 
 **为什么要放在同一个segment上？快！查询的时候，一和多都在一起，就可以快速把他们检索出来，并做join操作了**。
 
@@ -432,7 +439,7 @@ GET user-blogs-nested/_search
 ### 缺点
 因为segment是只读的，需要更新文档时只能在新的segment里创建文档。又因为nested文档必须把父文档和子文档都存放在同一个segment，**所以更新任何一个子文档或者父文档，就意味着重新索引整个文档到新的segment。所以nested文档不适合子文档频繁更新的情况**。
 
-> 部分更新nested数据需要用到脚本，参考[这篇文章](https://iridakos.com/programming/2019/05/02/add-update-delete-elasticsearch-nested-objects)。
+> 部分更新nested数据需要用到脚本，参考这篇文章
 
 ## parent child - 存放于同一shard
 **nested文档使用隐式的独立文档存储子文档，parent child则使用一个显式的单独的field指明父子关系，用来关联父子文档**。
@@ -1187,3 +1194,4 @@ denormalizing的缺点在于数据会有多份，不好维护。所以更适合�
 1. 因地制宜：不同的系统因为不同的设计用途，带来了不同的特性。而在支持理念上比较相似的功能的时候，不同的特性往往导致大家的实现千差万别，但其中很重要的就是：按照自己的特性，因地制宜设计和实现功能。在分布式数据库里，join如果引入网络开销必然是十分耗时的，而es作为一个快速搜索数据库又不能允许这种非常慢的搜索，那怎么办？**那就不要让有关系的数据跨节点**！所以es提出的nested（同一segment）和parent join（同一shard），都是基于这个前提的。
 
 做软件要牢记自己的初衷，也要能想清楚自己的特性，才能提出适合自己的做法，做出有个性的东西。
+

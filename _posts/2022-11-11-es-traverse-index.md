@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：遍历索引"
@@ -13,7 +15,7 @@ tags: elasticsearch
 
 # 翻页遍历
 使用spring data elasticsearch给数据做翻页遍历。因为不需要考虑先后，只是需要遍历一下，所以page就没指定搜索条件，也没有指定排序条件：
-```
+```java
         Pageable pageReq = PageRequest.of(0, 1000);
         Page<Entity> page = null;
 
@@ -47,7 +49,7 @@ tags: elasticsearch
 > **Elasticsearch uses Lucene’s internal doc IDs as tie-breakers. These internal doc IDs can be completely different across replicas of the same data**. When paging search hits, you might occasionally see that documents with the same sort values are not ordered consistently.
 
 比如search_all，所有文档的得分都是1，且它默认从shard 0取所有的数据（可以通过explain看到），所以同样的查询到了不同的node，读了不同的shard 0，返回的结果是不定的：
-```
+```json
 GET stored_kol/_search
 {
   "_source": "nickname",
@@ -64,8 +66,8 @@ GET stored_kol/_search
 
 ## 手动指定sort
 在原有page上加了个sort在unique字段上，以保证数据有序，每一条数据都能遍历到：
-```
-PageRequest.of(0, 1000, Sort.by("user_id").descending())
+```java
+    PageRequest.of(0, 1000, Sort.by("user_id").descending())
 ```
 
 ## search_after
@@ -74,7 +76,7 @@ PageRequest.of(0, 1000, Sort.by("user_id").descending())
 但是无论是普通sort还是search_after的sort，一定要使用一个天生unique的field，或者多指定几个备选sort以得到一个唯一序，否则还是可能重或漏。
 
 首次查询：
-```
+```json
 GET twitter/_search
 {
     "query": {
@@ -89,7 +91,7 @@ GET twitter/_search
 }
 ```
 获取最后一个sort，进行下一个查询：
-```
+```json
 GET twitter/_search
 {
     "query": {
@@ -120,11 +122,11 @@ GET twitter/_search
 为了避免这种干扰，可以[使用PIT，给当前数据来个快照]({% post_url 2022-05-08-es-performance %})。
 
 先获取pit id：
-```
+```json
 POST stored_kol/_pit?keep_alive=10m
 ```
 pit id：
-```
+```json
 {
   "id": "48myAw8Nc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBRZYcXo0ZEdVMlNHQ24zeGlkb1A2dWJnAAAAAAAAbcXqFnM3TlZzeXpRVG15b21MRWVxdzFYTGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQQWR2lDLXIwTG1UeWkxaGIxbmZWY3ZtdwAAAAAAAFfUZRZEdDBHaUUzYlRkeW0xR3hHSlkxQUt3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEHFkdpQy1yMExtVHlpMWhiMW5mVmN2bXcAAAAAAABX1GcWRHQwR2lFM2JUZHltMUd4R0pZMUFLdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBhZHaUMtcjBMbVR5aTFoYjFuZlZjdm13AAAAAAAAV9RmFkR0MEdpRTNiVGR5bTFHeEdKWTFBS3cADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQkWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi-xZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEIFjZXaUo4V0VFUzYtaTNEQkNONmdBRWcAAAAAAABZq00WN0h6VkhHV3pTRTYyYnBnQmNUMUdsZwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BCxZvYzR5OUE1SlFjZWxyVktMdmVMbXhnAAAAAAAASYETFlVTNlQwRGRrUzhlNHRoeWVjanpodXcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQoWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi_BZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUENFm9jNHk5QTVKUWNlbHJWS0x2ZUxteGcAAAAAAABJgRQWVVM2VDBEZGtTOGU0dGh5ZWNqemh1dwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BDBZlMDhPZEhQcVE0T1JlTkZLNHFTNE5RAAAAAAAAX0hzFkVKTmZaZXloUnlDX0puRlhCNThxbHcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQ4Wb2M0eTlBNUpRY2VsclZLTHZlTG14ZwAAAAAAAEmBFRZVUzZUMERka1M4ZTR0aHllY2p6aHV3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEBFmUwOE9kSFBxUTRPUmVORks0cVM0TlEAAAAAAABfSHIWRUpOZlpleWhSeUNfSm5GWEI1OHFsdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BABY2V2lKOFdFRVM2LWkzREJDTjZnQUVnAAAAAAAAWatLFjdIelZIR1d6U0U2MmJwZ0JjVDFHbGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQMWNldpSjhXRUVTNi1pM0RCQ042Z0FFZwAAAAAAAFmrTBY3SHpWSEdXelNFNjJicGdCY1QxR2xnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUECFlhxejRkR1UyU0dDbjN4aWRvUDZ1YmcAAAAAAABtxekWczdOVnN5elFUbXlvbUxFZXF3MVhMZwABFjdqTW40SGxKVEF5NTVrT1VIdVYzLUEAAA=="
 }
@@ -135,7 +137,7 @@ pit id：
 > [**A search request with the pit parameter must not specify index, routing, and preference as these parameters are copied from the point in time.**](https://www.elastic.co/guide/en/elasticsearch/reference/8.3/point-in-time-api.html)
 
 第一次查询，**给原本的search_after查询加上pit id，其他不变**：
-```
+```json
 GET /_search
 {
   "pit": {
@@ -164,8 +166,16 @@ GET /_search
 **用了pit之后，即使sort的field不是唯一的也没关系，pit默认会加上一个tie breaker：`_shard_doc`，也可以在sort里手动显式指定它：**
 > **All PIT search requests add an implicit sort tiebreaker field called `_shard_doc`, which can also be provided explicitly.**
 
+**`_shard_doc`就是shard id + doc lucene id**：
+> The _shard_doc value is the combination of the shard index within the PIT and the Lucene’s internal doc ID, it is unique per document and constant within a PIT.
+
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html
+- https://discuss.elastic.co/t/elastic-no-mapping-found-for-shard-doc-in-order-to-sort-on/268188/2?u=puppylpg
+
+**7.12之后才有的`_shard_doc`**。在此之前的版本显式指定`_shard_doc`会报错：No mapping found for [_shard_doc] in order to sort on
+
 对于上面的请求，**返回结果会默认按照fan_num升序排，同时在fan_num相同时，使用`_shard_doc`作为tie breaker**：
-```
+```json
 {
   "pit_id" : "48myAw8Nc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBRZYcXo0ZEdVMlNHQ24zeGlkb1A2dWJnAAAAAAAAbcXqFnM3TlZzeXpRVG15b21MRWVxdzFYTGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQQWR2lDLXIwTG1UeWkxaGIxbmZWY3ZtdwAAAAAAAFfUZRZEdDBHaUUzYlRkeW0xR3hHSlkxQUt3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEHFkdpQy1yMExtVHlpMWhiMW5mVmN2bXcAAAAAAABX1GcWRHQwR2lFM2JUZHltMUd4R0pZMUFLdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBhZHaUMtcjBMbVR5aTFoYjFuZlZjdm13AAAAAAAAV9RmFkR0MEdpRTNiVGR5bTFHeEdKWTFBS3cADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQkWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi-xZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEIFjZXaUo4V0VFUzYtaTNEQkNONmdBRWcAAAAAAABZq00WN0h6VkhHV3pTRTYyYnBnQmNUMUdsZwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BCxZvYzR5OUE1SlFjZWxyVktMdmVMbXhnAAAAAAAASYETFlVTNlQwRGRrUzhlNHRoeWVjanpodXcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQoWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi_BZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUENFm9jNHk5QTVKUWNlbHJWS0x2ZUxteGcAAAAAAABJgRQWVVM2VDBEZGtTOGU0dGh5ZWNqemh1dwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BDBZlMDhPZEhQcVE0T1JlTkZLNHFTNE5RAAAAAAAAX0hzFkVKTmZaZXloUnlDX0puRlhCNThxbHcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQ4Wb2M0eTlBNUpRY2VsclZLTHZlTG14ZwAAAAAAAEmBFRZVUzZUMERka1M4ZTR0aHllY2p6aHV3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEBFmUwOE9kSFBxUTRPUmVORks0cVM0TlEAAAAAAABfSHIWRUpOZlpleWhSeUNfSm5GWEI1OHFsdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BABY2V2lKOFdFRVM2LWkzREJDTjZnQUVnAAAAAAAAWatLFjdIelZIR1d6U0U2MmJwZ0JjVDFHbGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQMWNldpSjhXRUVTNi1pM0RCQ042Z0FFZwAAAAAAAFmrTBY3SHpWSEdXelNFNjJicGdCY1QxR2xnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUECFlhxejRkR1UyU0dDbjN4aWRvUDZ1YmcAAAAAAABtxekWczdOVnN5elFUbXlvbUxFZXF3MVhMZwABFjdqTW40SGxKVEF5NTVrT1VIdVYzLUEAAA==",
   "took" : 17,
@@ -251,7 +261,7 @@ GET /_search
 > 所以现在sort里多了一个`_shard_doc`值，变成了两个值。
 
 下一次查的时候，要把最后一个文档的sort的值（fan_num、`_shard_doc`）指定到下一次请求`search_after`，**同时别忘了把上次返回的pit id更新到这次的请求里**：
-```
+```json
 GET /_search
 {
   "pit": {
@@ -277,7 +287,7 @@ GET /_search
 
 ### 最快的遍历
 既然用了search_after，不用from size，说明是纯遍历。**如果纯遍历，且完全没有任何遍历顺序上的要求，建议直接指定sort为`_shard_doc`，这样的遍历是最快的**：
-```
+```json
 GET /_search
 {
   "pit": {
@@ -299,7 +309,7 @@ GET /_search
 > 如果用自定义的字段比如fan_num，elasticsearch还要先给fan_num排排座次。
 
 因为只指定了`_shard_doc`，所以返回的sort也只有`_shard_doc`一个值（一个数字），把它放到接下来的请求的`search_after`里就行了：
-```
+```json
 GET /_search
 {
   "pit": {
@@ -319,15 +329,6 @@ GET /_search
 }
 ```
 
-# `_shard_doc`
-**`_shard_doc`就是shard id + doc lucene id**：
-> The _shard_doc value is the combination of the shard index within the PIT and the Lucene’s internal doc ID, it is unique per document and constant within a PIT.
-
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html
-- https://discuss.elastic.co/t/elastic-no-mapping-found-for-shard-doc-in-order-to-sort-on/268188/2?u=puppylpg
-
-**7.12之后才有的`_shard_doc`**。在此之前的版本显式指定`_shard_doc`会报错：No mapping found for [_shard_doc] in order to sort on
-
 # PIT
 [PIT的api doc](https://www.elastic.co/guide/en/elasticsearch/reference/8.3/point-in-time-api.html#point-in-time-keep-alive)解释了pit的代价：
 > Normally, the background merge process optimizes the index by merging together smaller segments to create new, bigger segments. Once the smaller segments are no longer needed they are deleted. However, open point-in-times prevent the old segments from being deleted since they are still in use.
@@ -340,7 +341,7 @@ GET /_search
 
 **pit还支持[slicing](https://www.elastic.co/guide/en/elasticsearch/reference/current/point-in-time-api.html#search-slicing)，很像kafka consumer的概念，大家一起分担任务。**
 
-> 不知道为啥pit的api示例里不带search_after，但世界上没有sort和search_after，根本没法翻页……
+> 不知道为啥pit的api示例里不带search_after，但实际上没有sort和search_after，根本没法翻页……
 
 # spring data elasticsearch对pit的支持
 今年八月刚完成对search_after和pit的支持：
@@ -376,7 +377,7 @@ filter查询不计算score，**所有doc的分值都为0**，所以也就没必�
 > 以下查询用的elasticsearch性能较差，所以查询时间相对都比较久。
 
 如果使用默认查询：
-```
+```json
 GET witake_media/_search
 {
   "query": {
@@ -393,7 +394,7 @@ GET witake_media/_search
 }
 ```
 返回10条文档花了7s，`total`的值显示一共有超过10000条符合条件的文档：
-```
+```json
 {
   "took" : 7093,
   "timed_out" : false,
@@ -413,7 +414,7 @@ GET witake_media/_search
 **也就是说这个query至少查到了10000条返回条件的文档，最终才返回10条**。慢是应该的。
 
 如果设置`"track_total_hits": 100`，4.6s就返回了：
-```
+```json
 {
   "took" : 4640,
   "timed_out" : false,
@@ -435,7 +436,7 @@ GET witake_media/_search
 > 为了防止filter cache，这次搜索换了个关键词。虽然关键词不一样对结果也有影响，但选的都是简单基本常用词，所以影响没那么大。上次用的是hello，这次是good，下面用的是world。
 
 最后一次设置了`"track_total_hits": false`，2.5s就返回了：
-```
+```json
   "took" : 2509,
   "timed_out" : false,
   "_shards" : {
