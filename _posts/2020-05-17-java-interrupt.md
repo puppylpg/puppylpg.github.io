@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Java中断 - 处理InterruptedException"
@@ -30,8 +32,9 @@ new Thread(
 
 线程B **检查自己的interrupt状态为true，并自愿地退出线程**，是Java中唯一的一个线程让另一个线程终止的方法！
 > 为什么要设计成这样？
-> 因为服务或线程不能被立即停止，立即停止会使共享的数据结构不一致，相反，应该在停止前做一些清理工作，然后再结束。所以说，不能你让我停我就停，我自己执行的任务，我比你更能清楚在停止前如何进行清理工作。因此，最终的设计就变成了：线程A给B发interrupt信号，B收到信号后，自己决定先做些什么，然后再退出。
-> 这是一种**协作机制**，需要B配合。
+> 因为服务或线程不能被立即停止，立即停止会使共享的数据结构不一致，相反，应该在停止前做一些清理工作，然后再结束。所以说，不能a让b停b就停，b自己执行的任务，比a更能清楚在停止前如何进行清理工作。因此，最终的设计就变成了：线程A给B发interrupt信号，B收到信号后，自己决定先做些什么，然后再退出。
+>
+> 这是一种**协作机制**，需要B主动配合。
 
 
 即：
@@ -70,10 +73,10 @@ new Thread(
 做个错误示范：
 ```java
 try {
-	Thread.sleep(100);
+    Thread.sleep(100);
 } catch (InterruptedException e) {
-	e.printStackTrace();
-	throw new RuntimeException(e);
+    e.printStackTrace();
+    throw new RuntimeException(e);
 }
 ```
 这一通操作之后，线程还活着，并且只给上层调用者一个`RuntimeException`，这是不对的。我们必须告诉上层调用者有人想中断这个线程，至于上层怎么做，就不归我们管了。如果一个caller调用的方法可能会抛出InterruptedException异常，那么这个caller需要考虑怎么处理这个异常。
@@ -84,17 +87,19 @@ try {
 比如：
 ```java
 try {
-	Thread.sleep(100);
+    Thread.sleep(100);
 } catch (InterruptedException e) {
-	e.printStackTrace();
-	Thread.currentThread().interrupt();
+    e.printStackTrace();
+    Thread.currentThread().interrupt();
 }
 ```
 
 # 示例
 看三个示例——
 
-## 传递InterruptedException，不捕获异常，直接抛给调用者
+> 每个示例中，均用sleep来模拟一个耗时task，sleep本身是支持`InterruptedException`的，我们自己的task方法作为sleep的wrapper，通过抛出/处理/吞掉`InterruptedException`来演示各种不同的异常处理方式。**所以task方法的实现逻辑就是我们要演示的`InterruptedException`处理逻辑**。
+
+## task方法：传递`InterruptedException`，不捕获异常，直接抛给调用者
 ```java
 /**
  * 当主线程发出interrupt信号的时候，子线程的sleep()被中断，抛出InterruptedException。
@@ -162,7 +167,7 @@ java.lang.InterruptedException: sleep interrupted
 	at example.thread.interrupt.InterruptRethrow.run(InterruptRethrow.java:17)
 ```
 
-## 恢复中断状态
+## task方法：恢复中断状态
 ```java
 /**
  * 当主线程发出interrupt信号的时候，子线程的sleep()被中断，抛出InterruptedException。
@@ -238,7 +243,7 @@ public class InterruptReInterrupt extends Thread {
 
 **当然，如果子线程在耗时操作`caller()`里始终不检查是否被中断了，也永远不会退出。所以我们在做一个很耗时的操作时，应该有觉悟检查中断状态，以便收到中断信号时退出。**
 
-## 错误的处理方式
+## task方法：错误的处理方式
 错误的处理方式 - 直接吞掉了该异常，也不上报给caller，也不继续重置interrupt flag为true：
 ```java
 /**
@@ -330,7 +335,7 @@ public class InterruptFailure extends Thread {
 2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:31 - thread is interrupted. exit loop    
 ```
 
-对于最后一种情况，如果不是当i>10时，线程自己给自己置flag为true，然后进行了自我了断，那么i将一直增长到Integer.MAX_VALUE，才会结束for循环，线程才会退出。这也就是说，另一个线程（main thread）想要打断该线程的操作被该线程忽略了。
+对于最后一种情况，如果不是当i>10时，线程自己给自己置flag为true，然后进行了自我了断，那么i将一直增长到Integer.MAX_VALUE，才会结束for循环，线程才会退出。也就是说，**另一个线程（main thread）想要打断该线程，但是打断操作被该线程忽略了**。
 
 # 参阅
 1. https://www.yegor256.com/2015/10/20/interrupted-exception.html
