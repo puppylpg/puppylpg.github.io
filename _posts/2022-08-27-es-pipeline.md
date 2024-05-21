@@ -1,3 +1,5 @@
+[toc]
+
 ---
 layout: post
 title: "Elasticsearch：pipeline"
@@ -166,6 +168,86 @@ POST /_ingest/pipeline/_simulate?verbose
 }
 ```
 对于pikachu，remove执行成功，set则跳过了，因为不满足if前置条件；对于raichu，remove执行成功，set也执行成功。其中，每一个processor执行过后的数据状态也一一进行了展示。
+
+再看一个**remove object field**的例子——
+
+要删除hello下的similarity，所以hello应该是一个object：
+```json
+PUT _ingest/pipeline/remove_similarity
+{
+  "description": "remove hello.similarity",
+  "processors": [
+     {
+      "remove": {
+        "field": "hello.similarity",
+        "ignore_missing": true
+      }
+    }
+  ]
+}
+```
+我们预期pika和pikachu都会被删掉：
+```json
+POST /_ingest/pipeline/_simulate?verbose
+{
+  "pipeline": {
+    "processors": [
+      {
+        "pipeline": {
+          "name": "remove_similarity"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "hello.similarity": "pika",
+        "hello": {
+          "similarity": "pikachu"
+        },
+        "age": 12,
+        "height": 171
+      }
+    }
+  ]
+}
+```
+结果只有pikachu被删掉了：
+```json
+{
+  "docs": [
+    {
+      "processor_results": [
+        {
+          "processor_type": "pipeline",
+          "status": "success"
+        },
+        {
+          "processor_type": "remove",
+          "status": "success",
+          "doc": {
+            "_index": "_index",
+            "_version": "-3",
+            "_id": "_id",
+            "_source": {
+              "hello.similarity": "pika",
+              "hello": {},
+              "age": 12,
+              "height": 171
+            },
+            "_ingest": {
+              "pipeline": "remove_similarity",
+              "timestamp": "2024-05-21T03:45:36.742463115Z"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+可能对于simulate api来说，没有把`hello.similarity`这个field转成object，直接把给出的doc当做最终的doc来处理了。
 
 # processor
 processor才是pipeline的灵魂！
@@ -416,3 +498,4 @@ PUT _ingest/pipeline/branding
 # 性能分析
 还能统计pipeline的使用频率和时间消耗，强啊：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html#get-pipeline-usage-stats
+
