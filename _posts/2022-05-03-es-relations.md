@@ -32,8 +32,13 @@ es对关系型数据的处理方式：
 ## object - flatten
 [object](https://www.elastic.co/guide/en/elasticsearch/reference/current/object.html)是层级数据最简单的组织方式：flatten，而非我们平常理解的嵌套。
 
+### dot in names
+首先，所有的[带点的名字](https://www.elastic.co/guide/en/elasticsearch/reference/2.4/dots-in-names.html)都会被转换成object field（除了最后一个），参考[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})。
+
+或者看[这个回答](https://stackoverflow.com/a/72095595/7676237)。
+
 ### flatten
-包含一个object就是在定义mapping的时候出现了properties的嵌套。**但是这个嵌套的属性并非我们理解的那种嵌套，在es里object实际是被flatten为每个属性的全路径名，并使用点分隔，存储为独立字段**。比如：
+包含一个object就是在定义mapping的时候出现了properties的嵌套。**object的属性并非我们理解的那种嵌套，在es里object实际是被flatten为每个属性的全路径名，并使用点分隔，存储为独立字段**。比如：
 ```json
 PUT my-index-000001/_doc/1
 { 
