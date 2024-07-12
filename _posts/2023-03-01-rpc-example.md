@@ -194,6 +194,8 @@ public interface SchoolService {
 
 **所以关键是要让server知道协议里用的哪个类，server只要能明白就行。client和server用同一个类作为协议只是其中最简单的一种实现罢了。**
 
+> 毕竟在json-rpc里，直接用json格式告诉server用的是哪个方法也是可以的（甚至连参数类型都不用提，说明不支持override，也没有类的概念，真简单）。
+
 
 # Thrift
 来看看Facebook的[Thrift](https://thrift.apache.org/)。
@@ -446,6 +448,12 @@ public class Test {
     ```
 
 > 想具有主动通知的功能，比如zookeeper，则zk的client里也必须有一个监听线程。
+
+其实这就是个生产者消费者模型：
+1. rpc client作为消费者，向rpc server请求资源（本次rpc调用的结果），并wait在callback上；
+1. rpc client里的接收rpc server结果的通知线程作为生产者，根据request id找到消费者线程，并唤醒；
+
+和普通生产者比起来，这里的生产者稍显抽象，它是要接收rpc server的结果之后才能产生新的资源。
 
 ## 发布服务
 无需多言，zookeeper等服务注册中心。
