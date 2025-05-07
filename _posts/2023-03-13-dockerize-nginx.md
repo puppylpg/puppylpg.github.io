@@ -184,6 +184,42 @@ curl -k -H "Host: netdata.puppylpg.top" https://localhost/netdata.conf
 >
 >              The server connection is verified by making sure the server's certificate contains the right name and verifies successfully using the cert store.
 
+## 自定义配置
+默认情况下，nginx支持的最大request是1M，通过[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)控制。如果部署了一些需要上传图片的服务，很可能就会因为request太大导致nginx返回`413 (Request Entity Too Large)`。可以按照需求给这个参数设置为一个大小，甚至直接设置为0，禁用request size校验。
+
+### 直接修改容器内的配置
+> 容器被删后就没了。
+
+在nginx-proxy里可以直接进入容器修改配置文件：
+```
+docker exec -it nginx-proxy bash
+```
+（使用apt安装nano或vim）编辑`/etc/nginx/nginx.conf`文件，在 http 块中添加或修改 `client_max_body_size` 指令。
+
+在容器内执行以下命令来重新加载配置：
+```
+nginx -s reload
+```
+这样就可以生效了。
+
+### Custom Nginx Configuration
+参考[官方文档](https://github.com/nginx-proxy/nginx-proxy/tree/main/docs#custom-nginx-configuration)。
+
+host上新建一个文件`nginx.default.properties`，加入`client_max_body_size 0;`，然后把它挂载到容器的`/etc/nginx/conf.d/`下并以`.conf`结尾：
+```bash
+docker run --detach \
+--name nginx-proxy \
+--publish 80:80 \
+--publish 443:443 \
+--volume certs:/etc/nginx/certs \
+--volume vhost:/etc/nginx/vhost.d \
+--volume html:/usr/share/nginx/html \
+--volume /var/run/docker.sock:/tmp/docker.sock:ro \
+--volume /home/pichu/nginx.default.properties:/etc/nginx/conf.d/my_proxy.conf:ro \
+--restart=always \
+nginxproxy/nginx-proxy:latest
+```
+
 # 单容器部署
 ## portainer
 ```bash
@@ -375,6 +411,20 @@ location ^~ /.well-known/acme-challenge/ {
 可以看到，除了location用的是`/v2ray`，协议用的是http，其他和portainer的配置并没有什么区别。新加的那两个websocket的header哪去了？**`Upgrade`相关信息并没有单独配置在`server`里，而是配置在了`http`里、`server`外**。相当于websocket相关的header是`http`下所有`server`的全局配置。
 
 > 因此该nginx代理其他server时，**如果收到websocket，也会发给后端服务**。只不过其他后端服务可能不支持websocket，把它当做普通的http处理了。
+
+## memos
+> memo是不是memory？
+
+```bash
+docker run --detach --name memos \
+--restart=always \
+-v memos_data:/var/opt/memos \
+--env VIRTUAL_HOST=memos.puppylpg.top \
+--env VIRTUAL_PORT=5230 \
+--env LETSENCRYPT_HOST=memos.puppylpg.top \
+neosmemo/memos:stable
+```
+为了上传大照片，记得修改nginx的`client_max_body_size`属性。
 
 ## DailyTxT
 可以使用docker命令：
