@@ -1,9 +1,7 @@
 ---
 layout: post
-title: "CompletableFuture"
+title: "【已废弃】CompletableFuture"
 date: 2020-06-05 01:11:55 +0800
-categories: Java Future ListenableFuture CompletableFuture async
-tags: Java Future ListenableFuture CompletableFuture async
 ---
 
 没想到在了解并大致看了Guava提供的[ListenableFuture]({% post_url 2020-06-03-ListenableFuture %})的源码实现后，再看JDK的CompletableFuture，竟然如此简单与清晰。实际上二者做的事情、实现思路差不太多。果然还是那个道理：越强的人学东西越快，速度大的人往往加速度还大，越有钱的人越容易赚钱……气不气……
