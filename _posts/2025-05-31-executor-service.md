@@ -1,7 +1,7 @@
 ---
 
 layout: post  
-title: "线程执行服务：`ExecutorService`"  
+title: "线程执行服务：ExecutorService"  
 date: 2025-05-31 14:50:41 +0800  
 categories: Java Executor  
 tags: Java Executor
@@ -12,7 +12,7 @@ tags: Java Executor
 **因为executor作为任务执行者最简单的抽象，实在是太简单了，以至于功能有限，无法控制任务的执行，感知任务的状态**。它只提供了`execute`方法，返回值是void，对任务的执行没有暴露任何控制接口。、
 
 1. Table of Contents, ordered
-   {:toc}
+{:toc}
 
 # 任务
 先看一下任务的表示方式：
@@ -35,7 +35,7 @@ Future是一个约定：一个放置任务结果的地方。在任务结束后�
 
 1. 创建一个stub，也就是Future这个符号引用所指向的东西；
 2. 无论成功或失败，都把结果/exception放到这个stub里；
-3. （实现listenable future回调的关键：）然后唤醒其他等待这个这个结果信号的线程，这个以后再说；
+3. 然后唤醒等待这个结果的线程（**也就是因为调用`Future#get`而被挂起的线程**）；
 
 有了Future，就可以**引入对任务生命周期的控制**：通过`Future`可以判断任务是否完成`isDone`/`isCancelled`、获取任务结果`get`，或者取消任务`cancel`。
 
@@ -45,7 +45,7 @@ Future是一个约定：一个放置任务结果的地方。在任务结束后�
 - `V get() throws InterruptedException, ExecutionException`
 - `V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException`
 
-所以一般不直接`new Thread(Runnable).start()`，多是通过线程池提交`Callable`/`Runnble`，然后获取`Future`，再和`Future`打交道。
+所以一般不直接`new Thread(Runnable).start()`，多是通过线程池提交`Callable`/`Runnable`，然后获取`Future`，再和`Future`打交道。
 
 ### `RunnableFuture` - future的实现
 future必然是和一个任务关联的。所以在`Future`的实现类`FutureTask`中，必然有一个`Callable`/`Runnable`的变量。jdk创建了一个新接口`RunnableFuture`， = `Runnable` + `Future`。既有任务执行方法，又有任务结果表示，用来实现future。
@@ -54,6 +54,13 @@ future必然是和一个任务关联的。所以在`Future`的实现类`FutureTa
 1. **内置一个变量outcome**，一个int值state表示当前任务的状态；
 2. 线程执行任务的时候，会改变state，如果有结果，会放入outcome；
 3. 其他线程要获取结果，就检查state，**如果是已完成，就获取outcome。否则就挂起（以该`FutureTask`对象作为锁，挂起到它的等待队列）**。
+
+### `get`
+`FutureTask#get`的实现，就是判断任务状态，然后返回结果/exception。如果任务还没结束，就挂起线程，等待任务结束。
+
+**这里挂起的是当前尝试取任务结果的线程，挂起到的地方是future对象自身的等待队列。**
+
+有wait就有notify，**`FutureTask`在任务结束的时候，会调用`finishCompletion`方法，唤醒等待队列里的线程。**
 
 # `ExecutorService` - 任务的高级执行者
 `ExecutorService`相比`Executor`，核心是增加了`submit`方法：提交一个`Callable`/`Runnable`，返回任务的`Future`。
