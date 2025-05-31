@@ -6,7 +6,7 @@ categories: IO NIO AIO
 tags: IO NIO AIO
 ---
 
-汇总一下总结过得IO/NIO/AIO相关。
+汇总一下总结过的IO/NIO/AIO相关。
 
 1. Table of Contents, ordered
 {:toc}
