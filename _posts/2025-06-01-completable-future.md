@@ -15,7 +15,7 @@ jdk的CompletableFuture和guava的ListenableFuture，在功能上基本是一致
 相比起来，回调风格的实现更容易理解，函数式风格相对难理解一些，但是写出来的代码更简洁，用起来也更方便。所以可以先类比ListenableFuture去理解CompletableFuture，而后再关注后者的内部实现。
 
 1. Table of Contents, ordered
-   {:toc}
+{:toc}
 
 # 先从逻辑上理解`CompletableFuture`
 直接看一个例子：

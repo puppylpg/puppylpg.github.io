@@ -11,7 +11,7 @@ tags: Java Executor
 ListenableFuture是Guava里拓展了Future的接口，增加了回调行为，所以要比Future更强大。Guava建议在任何使用Future的场合都使用ListenableFuture取代Future，也是比较有道理的。
 
 1. Table of Contents, ordered
-   {:toc}
+{:toc}
 
 # 任务执行后的回调
 `ExecutorService#submit`执行任务，执行任务的是`Executor#execute`，负责按照任务执行状态维护`Future`状态的是`ExecutorService#submit`，更确切的说是`FutureTask#run`。
