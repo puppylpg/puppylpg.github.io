@@ -13,4 +13,4 @@ tags: Java Executor
 3. 介绍`Future`和`ExecutorService`（主要是submit），因为它执行任务用的还是`Executor#execute`：[线程执行服务：`ExecutorService`]({% post_url 2025-05-31-executor-service %})
 4. 介绍`ListenableFuture`，因为它依托于`FutureTask`在执行完任务后的回调机制，回调其他listener：[guava ListenableFuture]({% post_url 2025-05-31-listenable-future %})
 5. 介绍`CompletableFuture`，因为它就是封装后带listener的任务，只不过任务不再显式提交：[CompletableFuture]({% post_url 2025-06-01-completable-future %})
-6. 介绍`ForkJoinPool`
+6. 介绍`ForkJoinPool`：[ForkJoinPool]({% post_url 2025-06-02-fork-join-pool %})
