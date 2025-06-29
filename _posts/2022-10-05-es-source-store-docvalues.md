@@ -56,6 +56,43 @@ elasticsearch的`_search` API有三种查询参数，对应了不同的查询方
 - [`store`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/mapping-store.html)属性
 - [`doc_values`](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/doc-values.html)属性
 
+## 倒排和正排
+一个索引包含多种存储结构，主要可以归结为倒排和正排两类：倒排用于检索，field to doc；正排用于获取内容，doc to fields。
+
+倒排可以简单理解为一个hashmap，hashmap的value理论上是doc，实际上可以仅仅只有doc id。
+正排有着不同的实现方式，可以是简单的行式存储，也可以是列式存储。
+
+**所谓行式列式：在存储在磁盘/内存的时候其实都是行式，但是如果这一行存储的是所有的文档的这一列（把列按行存），在逻辑上相当于一次能读写一列。所以把列按行存（行实际上存的是列的数据），就是列式存储。**
+
+假设有以下三个文档：
+```
+Doc1: { "name": "Alice", "age": 25, "city": "NY" }
+Doc2: { "name": "Bob", "age": 30, "city": "LA" }
+Doc3: { "name": "Charlie", "age": 35, "city": "SF" }
+```
+可以把他们看做行式存储，每一行一个doc。
+
+列式存储会分别为每个字段存储其值和 `doc_id` 的关联：
+- `name`: `{ 1: "Alice", 2: "Bob", 3: "Charlie" }`
+- `age`: `{ 1: 25, 2: 30, 3: 35 }`
+- `city`: `{ 1: "NY", 2: "LA", 3: "SF" }`
+
+第一行存的是每一个doc的name字段，第二/三行存的是每一个doc的age/city。
+
+**如果用数组下标表示doc id**，那么可以更简化一些：
+- `name`: `{ "Alice", "Bob", "Charlie" }`
+- `age`: `{ 25, 30, 35 }`
+- `city`: `{ "NY", "LA", "SF" }`
+
+不过这种方式不太适合稀疏数据。
+
+**所以列式存储的时候，不同文档的相同field（逻辑上的一个列）的值存储为一行（对应为上述一个数组）**，列式存储更适合按照列值做排序和聚合。当只需要返回这个列的值时，可以从这里直接读取所有列的值（实际上是在读行）。
+
+> The value of the same fields for different documents are stored all together consecutively in memory and it is possible to access a certain field for a certain document “almost” directly.
+
+**如果使用列式存储，如何通过正排索引方便地获取doc所有的field？**
+毕竟列式存储更适合获取所有doc的某个field，不适合获取一个doc的所有fields。所以elasticsearch做了一些其他的工作：内部保留一个`_source`字段，需要取完整doc时，直接从这里取。
+
 ## `_source` field
 **elasticsearch默认会把原始文档存成一个名为[`_source`](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html)的field，作为elasticsearch创建的文档结构的一部分**，如果查询的时候没有什么特殊参数，**返回的是符合条件的文档的`_source`字段（而不是这个文档的全部）**。
 
@@ -104,23 +141,24 @@ Lucene的`doc_values`是把倒排索引（key to value）倒过来（value to ke
 
 ![正排索引](/pics/Elasticsearch/storage/uninvert-the-inverted-index.png)
 
-`doc_values`的结构是 **列式存储，不同文档的相同field（逻辑上的一个列）的值存储为一行（对应为上述一个数组）**，所以适合给这个列的值做排序和聚合。当只需要返回这个列的值时，可以从这里直接读取所有列的值（实际上是在读行）。
-
-> The value of the same fields for different documents are stored all together consecutively in memory and it is possible to access a certain field for a certain document “almost” directly.
->
-> **所谓行式列式：在读取的时候其实都是行式，但是如果这一行存储的是所有的文档的这一列（把列按行存），在逻辑上相当于一读一列。所以把列按行存（行实际上存的是列的数据），就是列式存储。**
-
+`doc_values`的结构是列式存储。
 正排索引一开始使用的是`fielddata`，放在内存里，后来才发展成了`doc_values`，放磁盘里：
 - elasticsearch从`fielddata`到`doc_values`的发展：https://www.elastic.co/cn/blog/elasticsearch-as-a-column-store
 - Lucene的`doc_values`：https://blog.trifork.com/2011/10/27/introducing-lucene-index-doc-values/
 
-### `index`
+### 关闭`index`
 关闭index并非就不能查找了，如果开启`doc_values`也是可以的（**[doc-value-only field](https://www.elastic.co/guide/en/elasticsearch/reference/current/doc-values.html#doc-value-only-fields)），可查，但查的比index要慢，而且可聚合，尤其适用于那些不怎么用于查找、过滤的统计field。**
 
 > Query performance on doc values is much slower than on index structures, but offers an interesting tradeoff between disk usage and query performance for fields that are only rarely queried and where query performance is not as important. This makes doc-value-only fields a good fit **for fields that are not expected to be normally used for filtering, for example gauges or counters on metric data.**
 
 如果只想把数据存到`_source`里，直接`index=false` + `doc_value=false`，应该更省空间：
 - https://www.elastic.co/guide/en/elasticsearch/reference/8.4/mapping-index.html
+
+### range查询
+数值范围查询用的是正排，不过字段使用了Lucene 的 `PointValues` 实现。它的底层原理是BKD树（Block KD-Tree），可以很粗糙的理解为多维的B+树，如果数据是一维的（比如age），就简单理解为B+树，可以做范围查询。BKD树的优势是可以拓展到多维，以支持地理位置等数据。
+
+### 排序和聚合查询
+排序和聚合也用到了正排，因为doc values的正排是列式存储，所以很适合直接取所有列的值，然后应用排序或聚合算法。
 
 # 查询
 查询之所以有不同的方法，其实就是因为field存储的位置不同，**我们实际上是在使用不同的查询参数告诉elasticsearch去不同的地方查询**：
