@@ -248,8 +248,11 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
       CompletableFuture.runAsync(() -> System.out.println("任务2"))
   );
   
-  allFutures.join(); // 等待所有任务完成
+  allFutures.get(); // 等待所有任务完成
   ```
+**注意`allOf`的返回：它返回的是一个新的`CompletableFuture`，这个cf的结果比较特殊：如果有子任务挂了，它的结果就是一个`CompletionException`，cause是具体的任务异常。如果子任务都没挂，不能从这个任务获取结果（get方法会返回null值），需要从原始的子任务获取结果（比如对原始cf增加`whenComplete`/`thenApply`链式调用以收集结果）。**
+
+另外还有一点要注意：**`allOf`只返回一个新的cf，但并不阻塞等待任务完成，所以如果需要阻塞等待任务完成，对新的cf使用`get()/join()`方法**。
 
 ### **任意一个 Future 完成即返回**
 - **`anyOf(CompletableFuture<?>... cfs)`**  
@@ -292,6 +295,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
 
 
 ## **总结：创建方法对比表**
+
 | 方法                          | 返回值类型         | 异步执行 | 适用场景                          |
 |-------------------------------|--------------------|----------|-----------------------------------|
 | `completedFuture(value)`      | `CompletableFuture<T>` | 否       | 直接返回预计算的值                |
@@ -418,6 +422,49 @@ CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
 });
 ```
 和`handle`的区别在于，`whenComplete`的action是一个`BiConsumer`，而`handle`的action是一个`BiFunction`。所以`whenComplete`仅用于副作用（如日志记录），不影响最终结果；而`handle`则可以为cf return一个新的结果。
+
+# 混搭？
+`CompletableFuture`本质上也是一个`Future`，所以也可以用传统的future的方式来处理它，但是会显得比较奇怪。
+
+比如收集结果的方式:
+```java
+List<String> result = ...;
+
+CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> "Hello")
+    // 设置超时
+    .orTimeout(4000, TimeUnit.MILLISECONDS)
+    // 收集结果
+    .thenAccept(s -> result.add(s))
+    // 处理异常
+    .exceptionally(e -> ...)
+
+    // 或者直接使用whenComplete以取代thenAccept和exceptionally
+```
+
+```java
+// 传统方式获取结果
+try {
+    result.add(future.get(4000, TimeUnit.MILLISECONDS));
+} catch (xxx) {
+    // 其实在cf的链式调用里，已经可以处理exception了，这里再处理就重复了
+}
+```
+**如果把上述两种方式混在一起编程，看起来就很奇怪，而且混乱。最难受的是exception要处理两遍，但其实没必要**。混搭着写说明没有完全理解cf的用法。所以建议只使用cf的链式调用。
+
+同样，阻塞等待任务完成也有类似的情况：
+```java
+CompletableFuture.allOf(task1, task2, ...).get();
+```
+
+```java
+// 传统方式获取结果
+try {
+    result.add(future.get(4000, TimeUnit.MILLISECONDS));
+} catch (xxx) {
+    // 其实在cf的链式调用里，已经可以处理exception了，这里再处理就重复了
+}
+```
+同样建议使用第一种。
 
 # 感想
 越学越明白……
