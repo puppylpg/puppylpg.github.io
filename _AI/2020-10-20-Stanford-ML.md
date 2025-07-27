@@ -27,9 +27,7 @@ Unsupervised Learning: no right answer. 算法自己给所有数据分分类，�
 ## 损失函数
 损失函数：平方差的和，除以个数。
 
-```math
-J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2
-```
+$$ J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2 $$
 
 > 小trick，实际是除以2n，多除个2，应该是损失函数求导后有个2，就可以正好消掉这个2。
 
