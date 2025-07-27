@@ -132,6 +132,9 @@ collections:
     output: true
     sort_by: order
   # custom collection type
+  AI:
+    output: true
+    permalink: /:collection/:year/:month/:day/:title/
   open:
     output: true
     permalink: /:collection/:title/
@@ -156,6 +159,8 @@ defaults:
       # DO NOT modify the following parameter unless you are confident enough
       # to update the code of all other post links in this project.
       permalink: /:collection/:year/:month/:day/:title/
+      math: true
+      mermaid: true
   - scope:
       path: _drafts
     values:
@@ -175,8 +180,19 @@ defaults:
     values:
       swcache: true
   - scope:
+      path: _AI
+      type: AI
+    values:
+      layout: page
+      comments: true
+      toc: true
+      math: true
+      mermaid: true
+  - scope:
       path: _open
       type: open
+      math: true
+      mermaid: true
     values:
       layout: page
       comments: true
@@ -198,9 +214,11 @@ defaults:
   - scope:
       path: _tutorials
       type: tutorials
+      math: true
+      mermaid: true
     values:
       layout: page
-      comments: false
+      comments: true
       toc: true
 
 sass:
