@@ -45,9 +45,9 @@ $$ J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2 $$
 但是，损失函数可能很复杂，导数也可能很复杂，怎么求导数为0？
 
 梯度下降：对于关于k的损失函数J(k)，不断让
-```math
-k = k - \alpha \frac{\partial}{\partial k}J(k)
-```
+
+$$ k = k - \alpha \frac{\partial}{\partial k}J(k) $$
+
 即可。当k不再变动，就到了极值。
 
 > 对theta 0求偏导，很正常。对theta 1（变量x1的系数）求偏导，别忘了同时对cost function（平方）的内部函数求导，所以最后还要乘个x1。
@@ -66,25 +66,25 @@ For the specific choice of cost function J(k, b) used in linear regression, ther
 
 # 矩阵 向量
 n*m的矩阵有时候也这样表示：
-```math
-I\kern-2.5pt R^{n*m}
-```
+
+$$ I\kern-2.5pt R^{n*m} $$
+
 下标访问：
-```math
-A_{ij}
-```
+
+$$ A_{ij} $$
+
 从一开始数。因为这是数学家定的，不是程序员……
 
 向量：n*1矩阵（**所以是竖着的**）。所以向量也可以用矩阵表示，比如：
-```math
-I\kern-2.5pt R^{4}
-```
+
+$$ I\kern-2.5pt R^{4} $$
+
 列恒为1列，所以省略。
 
 下标访问：
-```math
-y_{1}
-```
+
+$$ y_{1} $$
+
 不过vector的下标访问有两种传统，一种是0开始，一种是1开始（默认）。
 
 > 一般矩阵用大写字母表示，向量用小写字母。
@@ -97,9 +97,9 @@ scalar标量乘法的identity是1，矩阵乘法的标量是对角线为1，其�
 
 使用I代替。而且这种矩阵不只有一个，对于3*3矩阵，identity也是3*3的，其他矩阵同理。
 
-```math
-A_{m \times n} \times I_{n \times n} = I_{m \times m} \times A_{m \times n} = A_{m \times n}
-```
+
+$$ A_{m \times n} \times I_{n \times n} = I_{m \times m} \times A_{m \times n} = A_{m \times n} $$
+
 
 ## inverse
 常量有倒数，除了0。
@@ -108,9 +108,9 @@ A_{m \times n} \times I_{n \times n} = I_{m \times m} \times A_{m \times n} = A_
 
 倒数相乘为标量的identity，1；矩阵倒数相乘为矩阵的identity。
 
-```math
-A_{m \times m} \times A_{m \times m}^{-1} = A_{m \times m}^{-1} \times A_{m \times m} = I_{m \times m}
-```
+
+$$ A_{m \times m} \times A_{m \times m}^{-1} = A_{m \times m}^{-1} \times A_{m \times m} = I_{m \times m} $$
+
 
 怎么求inverse？先不管了，交给软件去求就行了。
 
@@ -118,13 +118,13 @@ A_{m \times m} \times A_{m \times m}^{-1} = A_{m \times m}^{-1} \times A_{m \tim
 转置。沿对角线翻转一下。
 
 如果B是A的转置：
-```math
-B_{n \times m} = A_{m \times n}^{T}
-```
+
+$$ B_{n \times m} = A_{m \times n}^{T} $$
+
 那么：
-```math
-B_{ij} = A_{ji}
-```
+
+$$ B_{ij} = A_{ji} $$
+
 
 **加减乘、inverse、transpose。就需要这么多liner algebra线性代数基础。**
 
@@ -132,8 +132,8 @@ B_{ij} = A_{ji}
 
 multivariate linear regression:
 
-```math
-\theta = 
+
+$$ \theta = 
 \begin{bmatrix}
 \theta_{0} \\
 \theta_{1} \\
@@ -149,22 +149,22 @@ x_{1} \\
 x_{n} \\
 \end{bmatrix}
 
-h_{0}(x) = \theta^Tx
-```
+h_{0}(x) = \theta^Tx $$
+
 x0是常量1，为了让变量向量x和参数向量theta同为n+1维的向量。
 
 cost function:
-```math
-J(\theta_0,\theta_1,...,\theta_n) = \frac{1}{2m}\sum_{i=1}^m (h_\theta(x^{(i)} - y^{(i)}))^2
-```
+
+$$ J(\theta_0,\theta_1,...,\theta_n) = \frac{1}{2m}\sum_{i=1}^m (h_\theta(x^{(i)} - y^{(i)}))^2 $$
+
 
 ## feature scaling + mean normalization
 尽量让各个feature的取值范围等比例，比如x1范围是千，x2是个，整个损失函数的等高线是一个椭圆。比例相差越大越椭。梯度下降时不好找方向，建议x1/1000，让两个变量比例相同。
 
 feature scaling + mean normalization：
-```math
-x_i := \frac{x_i - \mu_i}{s_i}
-```
+
+$$ x_i := \frac{x_i - \mu_i}{s_i} $$
+
 u为该特征数据的均值，s为特征数据max-min，**mean normalization让值接近0，feature scaling让范围在1以内**。
 
 > trick：会让梯度下降训练的更快。
@@ -187,15 +187,15 @@ u为该特征数据的均值，s为特征数据max-min，**mean normalization让
 如果参数有多个，cost function就是一个关于多个theta的二次方程，那就对每个theta求偏导，等于0，得出所有的theta值。但是很麻烦。
 
 每一个样本的各个特征，构成一个向量：
-```math
-x^{(i)} = 
+
+$$ x^{(i)} = 
 \begin{bmatrix}
 x_{0}^{(i)} \\
 x_{1}^{(i)} \\
 ... \\
 x_{n}^{(i)} \\
-\end{bmatrix}
-```
+\end{bmatrix} $$
+
 向量转置，构造一个矩阵X。比如：
 
 age (x1) | height in cm (x2) | weight in kg (y)
@@ -204,36 +204,36 @@ age (x1) | height in cm (x2) | weight in kg (y)
 9 | 124 | 28
 5 | 103 | 20
 
-```math
-x^{(2)} = 
+
+$$ x^{(2)} = 
 \begin{bmatrix}
 9 \\
 124 \\
 28
-\end{bmatrix}
-```
+\end{bmatrix} $$
 
-```math
-X = 
+
+
+$$ X = 
 \begin{bmatrix}
 4 & 89 & 16 \\
 9 & 124 & 28 \\
 5 & 103 & 20
-\end{bmatrix}
-```
+\end{bmatrix} $$
 
-```math
-Y = 
+
+
+$$ Y = 
 \begin{bmatrix}
 16 \\
 28 \\
 20
-\end{bmatrix}
-```
+\end{bmatrix} $$
+
 正规方程能直接求出theta向量（所有的theta值）：
-```math
-\theta = (X^TX)^{-1}X^Ty
-```
+
+$$ \theta = (X^TX)^{-1}X^Ty $$
+
 而且不太用考虑feature scaling。
 
 ## normal equation和gradient descent的区别
@@ -259,9 +259,9 @@ Y =
 
 ## sigmoid function
 S型函数：
-```math
-g(z) = \frac{1}{1+e^{-z}}
-```
+
+$$ g(z) = \frac{1}{1+e^{-z}} $$
+
 范围为(0,1)，所以把**线性回归**的结果放在**sigmoid函数**里转换一次，输出只能在0和1之间了。二者的组合就变成了**逻辑回归**的假设函数（模型）。
 
 sigmoid函数又叫逻辑函数，这就是“逻辑回归”的由来。
@@ -286,13 +286,15 @@ sigmoid函数又叫逻辑函数，这就是“逻辑回归”的由来。
 逻辑回归的函数是非线性的，如果还套用到平方差损失函数里，损失函数不再是convex，会有无数个极小值。所以要想出一个新的损失函数。
 
 所以找了两个cost function：
-```math
+
+$$
 J(\theta) = \frac{1}{m} \sum_{i=1}^{m}Cost(h_{\theta}(x^{i}), y^{i})
 
 Cost(h_{\theta}(x), y) = -log(h_{\theta}(x)), if, y = 1
 
-Cost(h_{\theta}(x), y) = -log(1-h_{\theta}(x)), if, y = 0
-```
+Cost(h_{\theta}(x), y) = -log(1-h_{\theta}(x)), if, y = 0 
+$$
+
 -log(x)在(0,1)上是递减的，-log(1-x)在(0,1)上是递增的。
 
 所以y=1时，用递减的函数，如果h(x)预测的越接近1，误差越小；同样y=0时，用递增的函数，如果h(x)预测的越接近于0，误差越小。
@@ -302,15 +304,15 @@ Cost(h_{\theta}(x), y) = -log(1-h_{\theta}(x)), if, y = 0
 这样，逻辑回归的损失函数就是一个凸函数了。
 
 但是两段毕竟太麻烦了，可以把他们合成一个式子：
-```math
-Cost(h_{\theta}(x), y) = -ylog(h_{\theta}(x))-(1-y)log(1-h_{\theta}(x))
-```
+
+$$ Cost(h_{\theta}(x), y) = -ylog(h_{\theta}(x))-(1-y)log(1-h_{\theta}(x)) $$
+
 其实这个式子并不复杂，y只能取0或1，当取0的时候，只有后半段，反之只有前半段。所以还是刚刚的两个分段函数，只是合成一个了。
 
 所以，对于整个数据集，cost function就是：
-```math
-J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))]
-```
+
+$$ J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))] $$
+
 
 有了cost function，剩下的就和线性回归梯度下降求theta的思想一致了。
 
@@ -340,22 +342,22 @@ J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_
 
 # Regularization
 假设二次函数
-```math
-h_1(x)=\theta_0 + \theta_1x + \theta_2x^2
-```
+
+$$ h_1(x)=\theta_0 + \theta_1x + \theta_2x^2 $$
+
 能模拟一个数据集。我们却错误的使用了
-```math
-h_2(x)=\theta_0 + \theta_1x + \theta_2x^2 + \theta_3x^3 + \theta_4x^4
-```
+
+$$ h_2(x)=\theta_0 + \theta_1x + \theta_2x^2 + \theta_3x^3 + \theta_4x^4 $$
+
 这个函数可能弯弯曲曲，让训练数据过拟合了。
 
 ## Regularization Cost Function
 如何消除三次项和四次项带来的影响？
 
 此时如果改一下cost function，把theta3和theta4也加进去，再加个大系数：
-```math
-J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2 + 1000\theta_3^2 + 1000\theta_4^2
-```
+
+$$ J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2 + 1000\theta_3^2 + 1000\theta_4^2 $$
+
 按照这个cost function训练出来的h2(x)，theta3和theta4一定都很小，从而最后两项都可以忽略不计，整个hx(x)又是一种趋近二次函数h1(x)的样子（当然，并不是标准的二次函数。不过话说回来，我们也并不需要一个标准的二次函数，大概是这个形状就行了）
 
 这就是Regularization的思想。
@@ -363,13 +365,13 @@ J(\theta) = \frac{1}{2n} \sum_{i=1}^{n}(h_\theta(x_i) - y_i)^2 + 1000\theta_3^2 
 但问题在于，怎么知道哪个项是不需要的，从而把它的系数加入cost function？实际上，把所有的系数都加进来就行了。
 
 假设有m个数据，n+1个feature，线性回归的cost function：
-```math
-J(\theta) = \frac{1}{2m} \sum_{i=1}^{m}(h_\theta(x_i) - y_i)^2 + \lambda \sum_{j=1}^n \theta_{j}^{2}
-```
+
+$$ J(\theta) = \frac{1}{2m} \sum_{i=1}^{m}(h_\theta(x_i) - y_i)^2 + \lambda \sum_{j=1}^n \theta_{j}^{2} $$
+
 逻辑回归的cost function：
-```math
-J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))] + \frac{\lambda}{2m} \sum_{j=1}^{n}\theta_{j}^{2}
-```
+
+$$ J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))] + \frac{\lambda}{2m} \sum_{j=1}^{n}\theta_{j}^{2} $$
+
 
 这里只把theta1到theta n纳入进来了，没有纳入theta 0，不过它是个常数项，加不加无所谓。
 
@@ -398,9 +400,9 @@ J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_
 神经网络就是模仿神经元这个构造的模型。
 
 第一层（输入层）有三个输入x1/x2/x3，第二次（hidden layer）有三个神经元，第三层（输出层）有一个神经元，计算出一个输出函数h(x)，即模型。那么每一个神经元是这么计算出来的：
-```math
-a_1^{(2)} = g(\Theta_{10}^{(1)}x_0 + \Theta_{11}^{(1)}x_1 + \Theta_{12}^{(1)}x_2 + \Theta_{13}^{(1)}x_3) \newline a_2^{(2)} = g(\Theta_{20}^{(1)}x_0 + \Theta_{21}^{(1)}x_1 + \Theta_{22}^{(1)}x_2 + \Theta_{23}^{(1)}x_3) \newline a_3^{(2)} = g(\Theta_{30}^{(1)}x_0 + \Theta_{31}^{(1)}x_1 + \Theta_{32}^{(1)}x_2 + \Theta_{33}^{(1)}x_3) \newline h_\Theta(x) = a_1^{(3)} = g(\Theta_{10}^{(2)}a_0^{(2)} + \Theta_{11}^{(2)}a_1^{(2)} + \Theta_{12}^{(2)}a_2^{(2)} + \Theta_{13}^{(2)}a_3^{(2)}) \newline
-```
+
+$$ a_1^{(2)} = g(\Theta_{10}^{(1)}x_0 + \Theta_{11}^{(1)}x_1 + \Theta_{12}^{(1)}x_2 + \Theta_{13}^{(1)}x_3) \newline a_2^{(2)} = g(\Theta_{20}^{(1)}x_0 + \Theta_{21}^{(1)}x_1 + \Theta_{22}^{(1)}x_2 + \Theta_{23}^{(1)}x_3) \newline a_3^{(2)} = g(\Theta_{30}^{(1)}x_0 + \Theta_{31}^{(1)}x_1 + \Theta_{32}^{(1)}x_2 + \Theta_{33}^{(1)}x_3) \newline h_\Theta(x) = a_1^{(3)} = g(\Theta_{10}^{(2)}a_0^{(2)} + \Theta_{11}^{(2)}a_1^{(2)} + \Theta_{12}^{(2)}a_2^{(2)} + \Theta_{13}^{(2)}a_3^{(2)}) \newline $$
+
 **把这里的Theta当成theta（矩阵Theta的第i行第j列的元素，可不就是theta嘛！）**。计算下一层的时候都给这一层加个bias unit，通常为1。
 
 所以计算第二层的a1需要四个参数分别乘以x0-x3，a2和a3同理。那么从第一层计算出第二层，需要一个3x4的矩阵。将x1-x4计算出三个值。
@@ -421,13 +423,13 @@ eg：A xnor B = (A and B) or ((not A) and (not B))，A和B想得到xnor，可以
 
 ## cost function
 逻辑回归的损失函数：
-```math
-J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))] + \frac{\lambda}{2m} \sum_{j=1}^{n}\theta_{j}^{2}
-```
+
+$$ J(\theta) = -\frac{1}{m} \sum_{i=1}^m[y_i log(h_{\theta}(x_i)) + (1-y_i)log(1-h_{\theta}(x_i))] + \frac{\lambda}{2m} \sum_{j=1}^{n}\theta_{j}^{2} $$
+
 **神经网络其实就是每一层的每一个unit，都是上一层的逻辑回归得来的**。所以它的损失函数是：
-```math
-J(\Theta) = - \frac{1}{m} \sum_{i=1}^m \sum_{k=1}^K \left[y^{(i)}_k \log ((h_\Theta (x^{(i)}))_k) + (1 - y^{(i)}_k)\log (1 - (h_\Theta(x^{(i)}))_k)\right] + \frac{\lambda}{2m}\sum_{l=1}^{L-1} \sum_{i=1}^{s_l} \sum_{j=1}^{s_{l+1}} ( \Theta_{j,i}^{(l)})^2
-```
+
+$$ J(\Theta) = - \frac{1}{m} \sum_{i=1}^m \sum_{k=1}^K \left[y^{(i)}_k \log ((h_\Theta (x^{(i)}))_k) + (1 - y^{(i)}_k)\log (1 - (h_\Theta(x^{(i)}))_k)\right] + \frac{\lambda}{2m}\sum_{l=1}^{L-1} \sum_{i=1}^{s_l} \sum_{j=1}^{s_{l+1}} ( \Theta_{j,i}^{(l)})^2 $$
+
 看起来很复杂，其实很好理解。
 1. 前半部分，结果偏差。因为一次输出k个unit（用k维向量表示），所以每一个都可能偏差，要把输出的所有k个值的偏差累加起来作为本次输出的总偏差；
 2. 后半部分，防止过拟合的参数部分。L层（假设L=t），所以需要t-1个矩阵，每个矩阵的维度是“后一层unit个数r”×“前一层unit个数s + 1”。但是就像逻辑回归一样，不用把theta 0考虑进来，所以每个矩阵只需要考虑`r*s`个参数。t个矩阵一共有`r*s*t`个参数。当然，用乘法是不严谨的，更严谨的是公式里那样三个累加，这样就把神经网络里所有的参数都扔进来了。
@@ -463,13 +465,13 @@ cost function是对theta的复合函数，因为它对某一层theta求偏导，
 所以按照导数定义仅仅验证一次就行，真正的偏导计算还是用BP。
 
 导数（偏导）定义（一元函数）：
-```math
-\frac{\partial}{\partial \Theta}J(\Theta) = \frac{J(\Theta + \epsilon) - J(\Theta - \epsilon)}{2\epsilon}
-```
+
+$$ \frac{\partial}{\partial \Theta}J(\Theta) = \frac{J(\Theta + \epsilon) - J(\Theta - \epsilon)}{2\epsilon} $$
+
 偏导定义（多元函数）：
-```math
-\frac{\partial}{\partial \Theta_j}J(\Theta) = \frac{J(\Theta_1, ..., \Theta_j + \epsilon, ..., \Theta_n) - J(\Theta_1, ..., \Theta_j - \epsilon, ..., \Theta_n)}{2\epsilon}
-```
+
+$$ \frac{\partial}{\partial \Theta_j}J(\Theta) = \frac{J(\Theta_1, ..., \Theta_j + \epsilon, ..., \Theta_n) - J(\Theta_1, ..., \Theta_j - \epsilon, ..., \Theta_n)}{2\epsilon} $$
+
 
 > **导数（偏导）的本质是slope。**
 
