@@ -13,7 +13,7 @@ spring bean的生命周期相当复杂，流程图看上去就晕。但其实一
 
 # 使用反射构造java bean
 spring中，初始化一个bean，假设什么额外操作都不做，仅 **根据配置** 使用反射new出一个对象，就两步：
-```
+```mermaid
 graph TD
 
 A[实例化] --> B[属性注入]
@@ -28,7 +28,7 @@ A[实例化] --> B[属性注入]
 如果只有上面的步骤，那和直接new一个对象没什么区别，无非是用了反射而已，并没有增加其他的东西。
 
 spring首先在bean构造时期增加的两个重要操作：
-```
+```mermaid
 graph TD
 
 A[实例化] --> B[属性注入]
@@ -58,7 +58,7 @@ style D fill:#f9f
 ## Aware
 但bean级操作还不止这些。在初始化之前，bean还可以给自己增加一些aware操作：
 
-```
+```mermaid
 graph TD
 
 A[实例化] --> B[属性注入]
@@ -129,7 +129,7 @@ bean级操作是针对于某一个bean的。如果一个bean想要做一些奇�
 当然，即使某些特殊的bean不想被容器级接口的实现类处理，也可以在实现的时候把他们手动排除掉。**所以容器级接口几乎是完全可以取代bean级接口的**。
 
 比如在bean初始化前后，可以对bean做一些操作:
-```
+```mermaid
 graph TD
 
 A[实例化] --> B[属性注入]
@@ -193,7 +193,7 @@ Object postProcessAfterInitialization(Object bean, String beanName) throws Beans
 ## `InstantiationAwareBeanPostProcessor`，涵盖`BeanPostProcessor`
 既然初始化操作前后可以加上前处理和后处理，那实例化操作前后不也可以加上前处理和后处理？是的：
 
-```
+```mermaid
 graph TD
 
 A[实例化前操作] --> B[实例化]
@@ -249,7 +249,7 @@ PropertyValues postProcessPropertyValues(PropertyValues pvs, PropertyDescriptor[
 
 由于ApplicationContext是BeanFactory的更高级实现，基于BeanFactory。所以如果spring容器用的是ApplicationContext，还可以在容器启动之后，进行上面那一通操作之前，做一些配置信息加工处理的工作。
 
-```
+```mermaid
 graph TD
 
 T[bean工厂后处理操作] --> A[实例化前操作]
