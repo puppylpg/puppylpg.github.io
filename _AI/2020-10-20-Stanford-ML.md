@@ -288,11 +288,11 @@ sigmoid函数又叫逻辑函数，这就是“逻辑回归”的由来。
 所以找了两个cost function：
 
 $$
-J(\theta) = \frac{1}{m} \sum_{i=1}^{m}Cost(h_{\theta}(x^{i}), y^{i})
+J(\theta) = \frac{1}{m} \sum_{i=1}^{m}Cost(h_{\theta}(x^{i}), y^{i}) \\
 
-Cost(h_{\theta}(x), y) = -log(h_{\theta}(x)), if, y = 1
+Cost(h_{\theta}(x), y) = -log(h_{\theta}(x)), if, y = 1 \\
 
-Cost(h_{\theta}(x), y) = -log(1-h_{\theta}(x)), if, y = 0 
+Cost(h_{\theta}(x), y) = -log(1-h_{\theta}(x)), if, y = 0
 $$
 
 -log(x)在(0,1)上是递减的，-log(1-x)在(0,1)上是递增的。
