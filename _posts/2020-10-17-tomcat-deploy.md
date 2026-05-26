@@ -2,8 +2,8 @@
 layout: post
 title: "（十）How Tomcat Works - Tomcat部署"
 date: 2020-10-17 17:42:19 +0800
-categories: Tomcat Http web classloader
-tags: Tomcat Http web classloader
+categories: tomcat http web classloader
+tags: tomcat http web classloader
 ---
 
 回顾之前所说的“关联”，比如Server关联Service，Service关联Connector和Container，Container关联子Container等等，都是通过setXXX方法将后者放入前者，使前者持有后者的引用，以此达成“关联”的效果。

@@ -2,8 +2,8 @@
 layout: post
 title: "RESTful - HttpMessageConverter"
 date: 2020-05-26 02:07:59 +0800
-categories: REST HttpMessageConverter RestTemplate
-tags: REST HttpMessageConverter RestTemplate
+categories: rest httpmessageconverter resttemplate
+tags: rest httpmessageconverter resttemplate
 ---
 
 在[RESTful - RestTemplate]({% post_url 2020-05-08-RESTful-RestTemplate %})中，说了自动转换都是由Http消息转换器做的。

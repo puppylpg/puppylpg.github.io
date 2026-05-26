@@ -2,8 +2,8 @@
 layout: post
 title: "docsy-jekyll"
 date: 2020-08-29 00:48:00 +0800
-categories: Jekyll
-tags: Jekyll
+categories: jekyll
+tags: jekyll
 ---
 
 之前利用github pages提供的便利，使用jekyll创建了个人静态网站：

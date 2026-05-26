@@ -2,8 +2,8 @@
 layout: post
 title: "（五）How Tomcat Works - Tomcat Lifecycle"
 date: 2020-10-08 14:09:52 +0800
-categories: Tomcat Http web
-tags: Tomcat Http web
+categories: tomcat http web
+tags: tomcat http web
 ---
 
 servlet是有生命周期的，需要在不同的阶段调用init/destory等。同时Tomcat包含有很多组件，他们的启动必然是有先后顺序的，也是有联系的，不能漏掉任何一个。为了统一启动关闭这些组件，最好的办法就是给组件都加上生命周期。

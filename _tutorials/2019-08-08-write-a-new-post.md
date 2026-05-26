@@ -2,7 +2,7 @@
 title: Writing a New Post
 author: cotes
 date: 2019-08-08 14:10:00 +0800
-categories: [Blogging, Tutorial]
+categories: [blogging, tutorial]
 tags: [writing]
 render_with_liquid: false
 ---
@@ -21,8 +21,8 @@ Basically, you need to fill the [Front Matter](https://jekyllrb.com/docs/front-m
 ---
 title: TITLE
 date: YYYY-MM-DD HH:MM:SS +/-TTTT
-categories: [TOP_CATEGORIE, SUB_CATEGORIE]
-tags: [TAG]     # TAG names should always be lowercase
+categories: [top_categorie, sub_categorie]
+tags: [tag]     # tag names should always be lowercase
 ---
 ```
 
@@ -39,7 +39,7 @@ The `categories` of each post are designed to contain up to two elements, and th
 
 ```yaml
 ---
-categories: [Animal, Insect]
+categories: [animal, insect]
 tags: [bee]
 ---
 ```

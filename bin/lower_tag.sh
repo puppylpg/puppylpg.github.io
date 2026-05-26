@@ -1,10 +1,14 @@
 #!/bin/bash
 
-POST_DIR=$(dirname "$(dirname "$(realpath "$0")")")/_posts
-echo $POST_DIR
+ROOT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
+DIRECTORIES=("_posts" "_tutorials")
 
-# 检测一个文件夹下所有的md格式的文件
-for file in $POST_DIR/*.md; do
-  # 把所有以`categories:`和`tags:`开头的行后面的单词，都转为小写
-  sed -i -E '/^(categories|tags):/ { s/([[:alpha:]]+)/\L\1/g }' "$file"
+for dir in "${DIRECTORIES[@]}"; do
+  TARGET_DIR="$ROOT_DIR/$dir"
+  echo "$TARGET_DIR"
+
+  for file in "$TARGET_DIR"/*.md; do
+    [ -f "$file" ] || continue
+    sed -i -E '/^(categories|tags):/ { s/([[:alpha:]]+)/\L\1/g }' "$file"
+  done
 done

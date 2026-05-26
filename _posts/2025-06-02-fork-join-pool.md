@@ -1,11 +1,9 @@
 ---
-
-layout: post  
+layout: post
 title: "ForkJoinPool"
-date: 2025-06-02 00:55:55 +0800  
-categories: Java Executor  
-tags: Java Executor
-
+date: 2025-06-02 00:55:55 +0800
+categories: java executor
+tags: java executor
 ---
 
 `ForkJoinPool`和`ThreadPoolExecutor`不仅都是`ExecutorService`接口的实现，还都是`AbstractExecutorService`的子类。

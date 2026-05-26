@@ -2,8 +2,8 @@
 layout: post
 title: "Linux - 进程"
 date: 2021-11-11 15:32:41 +0800
-categories: Linux
-tags: Linux
+categories: linux
+tags: linux
 ---
 
 通过ps仔细观察一下linux的进程。

@@ -2,8 +2,8 @@
 layout: post
 title: "Jekyll：minima结构"
 date: 2019-11-17 01:44:39 +0800
-categories: Jekyll
-tags: Jekyll
+categories: jekyll
+tags: jekyll
 ---
 
 使用Jekyll搭建静态网站是一件容易上手，非常优雅且令人愉悦的事情，甚至让我这个服务端程序猿产生了能搞一搞前端的错觉:D

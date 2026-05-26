@@ -2,8 +2,8 @@
 layout: post
 title: "Jekyll：GitHub Pages"
 date: 2019-11-16 16:13:19 +0800
-categories: [Jekyll]
-tags: [Jekyll]
+categories: [jekyll]
+tags: [jekyll]
 ---
 
 使用Github搭建[个人网站](https://puppylpg.github.io)，是一件很炫酷的事情。以后有什么所思所学都可以发布在自己的网站上，很是方便。（同时为了丰富网站的内容，还会经常不自觉地开始学习:D，简直是进步神器~）。

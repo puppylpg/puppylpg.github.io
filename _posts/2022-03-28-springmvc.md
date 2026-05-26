@@ -2,8 +2,8 @@
 layout: post
 title: "SpringMVC：HTTP请求处理全流程"
 date: 2022-03-28 00:31:25 +0800
-categories: Tomcat Http web servlet spring mvc
-tags: Tomcat Http web servlet spring mvc
+categories: tomcat http web servlet spring mvc
+tags: tomcat http web servlet spring mvc
 ---
 
 最近受到这四篇系列文章的激励：

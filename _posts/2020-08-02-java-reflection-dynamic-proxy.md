@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "Java反射与动态代理"

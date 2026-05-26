@@ -2,8 +2,8 @@
 layout: post
 title: "Java Object"
 date: 2023-08-24 22:01:04 +0800
-categories: Java
-tags: Java
+categories: java
+tags: java
 ---
 
 就像http协议有header一样，java对象也是有header的（而且对Java使用者不可见）。我们在对象里设置的东西，实际上是java对象的body。**之所以要有header，是为了保存一些内部使用的信息**。

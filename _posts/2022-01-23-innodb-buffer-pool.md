@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "Innodb - Buffer Pool"

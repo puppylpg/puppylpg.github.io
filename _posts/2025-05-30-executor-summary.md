@@ -1,11 +1,9 @@
 ---
-
-layout: post  
-title: "汇总：线程执行器"  
-date: 2025-05-30 01:00:05 +0800  
-categories: Java Executor  
-tags: Java Executor
-
+layout: post
+title: "汇总：线程执行器"
+date: 2025-05-30 01:00:05 +0800
+categories: java executor
+tags: java executor
 ---
 
 关于异步执行的所有：

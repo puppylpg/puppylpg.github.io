@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "Elasticsearch：关系型文档"

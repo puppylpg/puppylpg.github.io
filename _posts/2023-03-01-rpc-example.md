@@ -1,11 +1,9 @@
-[toc]
-
 ---
 layout: post
 title: "各种各样的RPC"
 date: 2023-03-01 23:45:16 +0800
-categories: RPC proxy
-tags: RPC proxy
+categories: rpc proxy
+tags: rpc proxy
 ---
 
 既然当今[RPC]({% post_url 2023-02-26-rpc %})已经不追求大而全的统一方案，而是各有各的特点，那就来稍微细看一下这些数得出名号的rpc。

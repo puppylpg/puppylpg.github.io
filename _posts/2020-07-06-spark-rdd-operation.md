@@ -2,8 +2,8 @@
 layout: post
 title: "Spark RDD"
 date: 2020-07-06 16:11:30 +0800
-categories: spark RDD
-tags: spark RDD
+categories: spark rdd
+tags: spark rdd
 ---
 
 RDD操作大体上和Dataset是一致的，比如以下存储创建RDD、transformation、action等。但是还是有区别的，比如groupByKey在RDD中是应用于Tuple2类型，在Dataset中则可以按照任意指定column group by。另外二者的序列化方式貌似也是不同的，RDD使用Java或Kryo，Dataset使用具体的Encoder，支持在不反序列化的情况下进行filter等操作。

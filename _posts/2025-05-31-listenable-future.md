@@ -1,11 +1,9 @@
 ---
-
-layout: post  
+layout: post
 title: "guava ListenableFuture"
-date: 2025-05-31 16:07:39 +0800  
-categories: Java Executor  
-tags: Java Executor
-
+date: 2025-05-31 16:07:39 +0800
+categories: java executor
+tags: java executor
 ---
 
 ListenableFuture是Guava里拓展了Future的接口，增加了回调行为，所以要比Future更强大。Guava建议在任何使用Future的场合都使用ListenableFuture取代Future，也是比较有道理的。

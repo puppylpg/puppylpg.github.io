@@ -2,8 +2,8 @@
 layout: post
 title: "Spring - 用AspectJ定义切面"
 date: 2022-07-31 03:50:10 +0800
-categories: spring AOP AspectJ
-tags: spring AOP AspectJ
+categories: spring aop aspectj
+tags: spring aop aspectj
 ---
 
 [Spring - AOP]({% post_url 2021-11-22-spring-aop %})使用动态代理（jdk或者cglib）实现aop，非常强大，对于程序猿来讲，大部分aop的工作其实就是定义切面，极大简化了开发难度。但是相比于AspectJ，spring aop在定义切面上还是比较麻烦的。所以spring aop想进一步降低程序猿的开发难度。
