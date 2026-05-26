@@ -2,8 +2,8 @@
 layout: post
 title: "redis与linux fork"
 date: 2021-11-10 20:44:57 +0800
-categories: Redis fork Linux
-tags: Redis fork Linux
+categories: redis fork linux
+tags: redis fork linux
 ---
 
 Redis进程的fork并不会导致redis内存占用量翻倍，需要深入了解一下fork。

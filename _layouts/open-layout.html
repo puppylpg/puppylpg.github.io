@@ -51,8 +51,10 @@ Open Source is about self-expression and cooperation :D
 
                     <div class="card-text content mt-0 mb-3">
                       <p>
-                        {% include no-linenos.html content=post.content %}
-                        {{ content | markdownify | strip_html | truncate: 200 | escape }}
+                        {% capture excerpt %}
+                          {% include no-linenos.html content=post.content %}
+                        {% endcapture %}
+                        {{ excerpt | strip_html | truncate: 200 | escape }}
                       </p>
                     </div>
 

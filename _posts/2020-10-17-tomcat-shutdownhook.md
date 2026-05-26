@@ -2,8 +2,8 @@
 layout: post
 title: "（十一）How Tomcat Works - Tomcat ShutdownHook"
 date: 2020-10-17 22:26:10 +0800
-categories: Tomcat Http web shutdownhook
-tags: Tomcat Http web shutdownhook
+categories: tomcat http web shutdownhook
+tags: tomcat http web shutdownhook
 ---
 
 Tomcat启动后应该使用`shutdown.sh`脚本，给Server发送"SHUTDOWN"进行关闭，完成Tomcat lifecycle的stop阶段。但是如果用户直接强制退出了，还能执行清理阶段吗？

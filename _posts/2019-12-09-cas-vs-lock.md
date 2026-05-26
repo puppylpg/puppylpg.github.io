@@ -2,8 +2,8 @@
 layout: post
 title: "CAS：也可以不用锁"
 date: 2019-12-09 01:02:19 +0800
-categories: Java CAS concurrency
-tags: Java CAS concurrency
+categories: java cas concurrency
+tags: java cas concurrency
 ---
 
 想访问共享变量，锁住就行了，通过锁，可以获取对变量的独占访问。那么CAS又是干嘛的？

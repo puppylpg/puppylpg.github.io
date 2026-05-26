@@ -2,8 +2,8 @@
 layout: post
 title: "生产者 - 消费者"
 date: 2020-05-17 00:39:16 +0800
-categories: Java producer-consumer concurrency Condition lock BlockingQueue
-tags: Java producer-consumer concurrency Condition lock BlockingQueue
+categories: java producer-consumer concurrency condition lock blockingqueue
+tags: java producer-consumer concurrency condition lock blockingqueue
 ---
 
 生产者消费者模式是并发编程的一个经典入门场景。假设多个生产者生产一定数量的东西到队列，多个消费者从队列中取走这些东西。如果队列为空，消费者阻塞；如果队列已满，生产者阻塞。如何不出现访问错误，同时尽可能优化性能？

@@ -2,8 +2,8 @@
 layout: post
 title: "Linux - dig & DNS"
 date: 2021-12-03 00:42:06 +0800
-categories: Linux DNS
-tags: Linux DNS
+categories: linux dns
+tags: linux dns
 ---
 
 最近在`namesilo`用0.99刀淘了一个域名`puppylpg.xyz`，又配置了一下，感觉对域名的理解更深刻了。DNS是一般是解析域名对应的ip，但远不止这些。而dig则是查询DNS的工具，通过dig，可以更深刻理解DNS。而后再看Nigin的反向代理，会有一种融会贯通的感觉。

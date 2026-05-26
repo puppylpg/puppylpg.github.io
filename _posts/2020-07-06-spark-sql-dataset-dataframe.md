@@ -2,8 +2,8 @@
 layout: post
 title: "Spark SQL(Dataset DataFrame)"
 date: 2020-07-06 16:27:30 +0800
-categories: spark Dataset DataFrame
-tags: spark Dataset DataFrame
+categories: spark dataset dataframe
+tags: spark dataset dataframe
 ---
 
 Spark SQL is a Spark module for structured data processing. Unlike the basic Spark RDD API, the interfaces provided by Spark SQL provide Spark with more information about the structure of both the data and the computation being performed. Internally, Spark SQL uses this extra information to perform extra optimizations. 

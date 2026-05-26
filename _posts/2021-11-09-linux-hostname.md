@@ -2,8 +2,8 @@
 layout: post
 title: "Linux - hostname"
 date: 2021-11-09 15:36:41 +0800
-categories: Linux DNS network
-tags: Linux DNS network
+categories: linux dns network
+tags: linux dns network
 ---
 
 hostname究竟有什么用？之前在linux pc上一直没有注意到它的用途，直到最近需要在服务器集群上绑定一些服务到特定ip，才发现它在局域网中真的挺有用。

@@ -2,8 +2,8 @@
 layout: post
 title: "jekyll-theme-chirpy"
 date: 2023-10-29 23:36:57 +0800
-categories: Jekyll
-tags: Jekyll
+categories: jekyll
+tags: jekyll
 ---
 
 [docsy-jekyll]({% post_url 2020-08-29-docsy-jekyll %})使用三年有余，又厌倦了 :D

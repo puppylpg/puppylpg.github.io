@@ -2,8 +2,8 @@
 layout: post
 title: "折腾小服务器 - netdata与nginx"
 date: 2021-12-08 01:46:47 +0800
-categories: Linux nginx socket curl network
-tags: Linux nginx socket curl network
+categories: linux nginx socket curl network
+tags: linux nginx socket curl network
 ---
 
 给服务器装个监控。

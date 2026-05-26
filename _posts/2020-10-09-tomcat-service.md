@@ -2,8 +2,8 @@
 layout: post
 title: "（九）How Tomcat Works - Tomcat Service"
 date: 2020-10-09 01:51:47 +0800
-categories: Tomcat Http web session
-tags: Tomcat Http web session
+categories: tomcat http web session
+tags: tomcat http web session
 ---
 
 之前定义完Connector和Container，直接手动分别启动二者，并使用read来阻止主线程退出，过于简陋，不能算是一个生产环境的Tomcat。至少存在三个不太好的地方：

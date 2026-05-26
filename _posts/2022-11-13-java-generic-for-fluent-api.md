@@ -2,8 +2,8 @@
 layout: post
 title: "用泛型实现父子类的fluent api"
 date: 2022-11-13 21:29:29 +0800
-categories: Java
-tags: Java
+categories: java
+tags: java
 ---
 
 今天在看assertj的实现时，看到了一个很好玩的东西：用泛型实现父子类的fluent api。它引用的一篇文章，回答了我之前很多次看到这种泛型写法时的满头问号。

@@ -2,8 +2,8 @@
 layout: post
 title: "Unicode和UTF"
 date: 2019-12-15 16:48:21 +0800
-categories: Unicode UTF Java
-tags: Unicode UTF Java
+categories: unicode utf java
+tags: unicode utf java
 ---
 
 Unicode就是一个超大号字符集合，旨在将世界上所有现存的、曾有的符号（文字、数学、音乐等所有符号）囊括其中。**它像一个接口，只是规定了所有字符的编号，具体这些字符在使用、存储的时候用字节怎么表示，取决于各个字符集的实现**。

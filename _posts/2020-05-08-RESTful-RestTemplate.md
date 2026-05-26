@@ -2,8 +2,8 @@
 layout: post
 title: "RESTful - RestTemplate"
 date: 2020-05-08 00:21:43 +0800
-categories: REST RestTemplate POST
-tags: REST RestTemplate POST
+categories: rest resttemplate post
+tags: rest resttemplate post
 ---
 
 REST, Representational State Transfer，表述性、状态、转移。

@@ -2,8 +2,8 @@
 layout: post
 title: "汇总：IO"
 date: 2021-03-31 00:38:53 +0800
-categories: IO NIO AIO
-tags: IO NIO AIO
+categories: io nio aio
+tags: io nio aio
 ---
 
 汇总一下总结过的IO/NIO/AIO相关。

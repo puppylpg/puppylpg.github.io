@@ -2,8 +2,8 @@
 layout: post
 title: "Dockerfile"
 date: 2022-09-16 02:50:28 +0800
-categories: docker Linux Debian
-tags: docker Linux Debian
+categories: docker linux debian
+tags: docker linux debian
 ---
 
 打一个docker镜像。

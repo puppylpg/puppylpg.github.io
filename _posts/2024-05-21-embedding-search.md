@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "向量搜索"

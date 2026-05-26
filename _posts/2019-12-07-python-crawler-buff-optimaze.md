@@ -2,8 +2,8 @@
 layout: post
 title: "爬取网易buff CSGO饰品数据 - 优化篇"
 date: 2019-12-07 12:37:20 +0800
-categories: Python csgo
-tags: Python csgo
+categories: python csgo
+tags: python csgo
 ---
 
 继上周末搞了csgo饰品的爬虫之后，最近一周一直在根据社区小伙伴的意见建议进行优化。不得不说，玩家才是最好的产品经理，很多提出来的建议都让人为之一振，这也直接优化了最终的程序效率、实现方式等，同时也增加了一些新的功能。在这里就以优化篇记录一下本周进行的优化流程吧。

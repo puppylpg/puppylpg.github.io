@@ -191,12 +191,12 @@ defaults:
   - scope:
       path: _open
       type: open
-      math: true
-      mermaid: true
     values:
       layout: page
       comments: true
       toc: true
+      math: true
+      mermaid: true
   - scope:
       path: _books
       type: books
@@ -214,12 +214,12 @@ defaults:
   - scope:
       path: _tutorials
       type: tutorials
-      math: true
-      mermaid: true
     values:
       layout: page
       comments: true
       toc: true
+      math: true
+      mermaid: true
 
 sass:
   style: compressed

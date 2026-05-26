@@ -3,7 +3,7 @@ layout: post
 title: "序列化 - protobuf"
 date: 2020-5-15 03:09:06 +0800
 categories: protobuf serialization
-tags: protobuf Serialization
+tags: protobuf serialization
 ---
 
 https://developers.google.com/protocol-buffers/docs/overview

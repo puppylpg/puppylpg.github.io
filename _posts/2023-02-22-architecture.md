@@ -1,5 +1,3 @@
-[toc]
-
 ---
 layout: post
 title: "演进中的架构"

@@ -2,8 +2,8 @@
 layout: post
 title: "（七）How Tomcat Works - Tomcat Session"
 date: 2020-10-08 17:17:44 +0800
-categories: Tomcat Http web session cookie JWT SSO
-tags: Tomcat Http web session cookie JWT SSO
+categories: tomcat http web session cookie jwt sso
+tags: tomcat http web session cookie jwt sso
 ---
 
 http是无状态的，但是很多应用都要记住不同的请求来自同一个用户，比如需要登录的网站。servlet规范定义了`javax.servlet.http.HttpSession`来做这件事：Provides a way to **identify a user** across more than one page request or visit to a Web site and to **store information about that user**。Tomcat作为servlet容器，需要完成HttpSession的构建。

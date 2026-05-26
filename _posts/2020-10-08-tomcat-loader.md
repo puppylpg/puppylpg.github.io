@@ -2,8 +2,8 @@
 layout: post
 title: "（六）How Tomcat Works - Tomcat Loader"
 date: 2020-10-08 15:12:34 +0800
-categories: Tomcat Http web classloader
-tags: Tomcat Http web classloader
+categories: tomcat http web classloader
+tags: tomcat http web classloader
 ---
 
 Tomcat是一个servlet容器，要载入程序猿开发的servlet才能使用servlet的功能。servlet类的载入本质上使用的是jdk提供的ClassLoader，但是Tomcat很有必要制定一套自己的Loader，在load servlet class时制定一些规则。

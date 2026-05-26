@@ -1,56 +1,146 @@
-# Chirpy Starter
+# puppylpg.github.io
 
-[![Gem Version](https://img.shields.io/gem/v/jekyll-theme-chirpy)][gem]&nbsp;
-[![GitHub license](https://img.shields.io/github/license/cotes2020/chirpy-starter.svg?color=blue)][mit]
+个人技术博客与知识库，基于 [Jekyll](https://jekyllrb.com/) 与 [Chirpy](https://github.com/cotes2020/jekyll-theme-chirpy) 主题构建，通过 GitHub Actions 部署至 [GitHub Pages](https://puppylpg.github.io)。
 
-When installing the [**Chirpy**][chirpy] theme through [RubyGems.org][gem], Jekyll can only read files in the folders
-`_data`, `_layouts`, `_includes`, `_sass` and `assets`, as well as a small part of options of the `_config.yml` file
-from the theme's gem. If you have ever installed this theme gem, you can use the command
-`bundle info --path jekyll-theme-chirpy` to locate these files.
+本仓库由 [Chirpy Starter](https://github.com/cotes2020/chirpy-starter) 演进而来：在主题 gem 之外，保留了站点级配置、导航 Tab、插件与部署流程，并扩展了多个自定义内容集合。
 
-The Jekyll team claims that this is to leave the ball in the user’s court, but this also results in users not being
-able to enjoy the out-of-the-box experience when using feature-rich themes.
+## 技术栈
 
-To fully use all the features of **Chirpy**, you need to copy the other critical files from the theme's gem to your
-Jekyll site. The following is a list of targets:
+| 项目 | 说明 |
+|------|------|
+| 静态站点 | Jekyll |
+| 主题 | `jekyll-theme-chirpy` ~6.2 |
+| 语言 / 时区 | `zh-CN` / `Asia/Shanghai` |
+| 评论 | [Utterances](https://utteranc.es/)（GitHub Issues） |
+| 部署 | GitHub Actions → GitHub Pages |
+| 链接检查 | `html-proofer`（CI 构建阶段；`_tutorials` 因 Chirpy 模板残留断链而豁免） |
 
-```shell
+主题的大部分布局、样式与脚本来自 Ruby gem；仓库内主要存放**站点配置**、**文章内容**与**少量定制**。
+
+## 目录结构
+
+```
 .
-├── _config.yml
-├── _plugins
-├── _tabs
-└── index.html
+├── _config.yml          # 站点总配置
+├── index.html           # 首页（layout: home）
+├── Gemfile              # Ruby 依赖
+│
+├── _posts/              # 主博客文章
+├── _AI/                 # AI 专题
+├── _open/               # 开源相关
+├── _books/              # 读书 / 学者系列
+├── _life/               # 生活随笔
+├── _tutorials/          # 教程
+│
+├── _tabs/               # 侧边栏导航页
+├── _layouts/            # 自定义布局
+├── _plugins/            # Jekyll 插件
+├── _data/               # 站点数据（contact、share 等）
+│
+├── assets/              # 静态资源（含 chirpy-static-assets 子模块）
+├── pics/                # 头像等图片
+├── bin/                 # 构建前脚本
+└── .github/workflows/   # CI / CD
 ```
 
-To save you time, and also in case you lose some files while copying, we extract those files/configurations of the
-latest version of the **Chirpy** theme and the [CD][CD] workflow to here, so that you can start writing in minutes.
+## 内容组织
 
-## Prerequisites
+### 主文章（`_posts/`）
 
-Follow the instructions in the [Jekyll Docs](https://jekyllrb.com/docs/installation/) to complete the installation of
-the basic environment. [Git](https://git-scm.com/) also needs to be installed.
+标准 Jekyll 博文，文件名格式为 `YYYY-MM-DD-title.md`。Front matter 示例：
 
-## Installation
+```yaml
+---
+layout: post
+title: "文章标题"
+date: 2020-01-01 12:00:00 +0800
+categories: 分类名
+tags: 标签名
+---
+```
 
-Sign in to GitHub and [**use this template**][use-template] to generate a brand new repository and name it
-`USERNAME.github.io`, where `USERNAME` represents your GitHub username.
+`_config.yml` 中为 `posts` 配置了默认选项：评论、目录（TOC）、数学公式（MathJax）、Mermaid 图表等。
 
-Then clone it to your local machine and run:
+### 自定义集合（Collections）
+
+除主博客外，站点通过 Jekyll Collections 划分专题栏目。集合定义见 `_config.yml` 的 `collections` 段，内容与 `_tabs/` 中的导航页一一对应：
+
+| 集合 | 目录 | 侧边栏 Tab | 列表布局 |
+|------|------|------------|----------|
+| `AI` | `_AI/` | `_tabs/AI.md` | `custom-collection`（按日期归档） |
+| `open` | `_open/` | `_tabs/open.md` | `open-layout`（按 `order` 排序的卡片列表） |
+| `books` | `_books/` | `_tabs/books.md` | `custom-collection` |
+| `life` | `_life/` | `_tabs/life.md` | `custom-collection` |
+| `tutorials` | `_tutorials/` | `_tabs/tutorials.md` | `custom-collection` |
+
+此外还有 Chirpy 内置 Tab：`about`、`archives`、`categories`、`tags` 等。
+
+新增一篇集合文章时，在对应 `_<collection>/` 目录下创建 Markdown 文件，并在 front matter 中设置 `title`、`date` 等字段；`open` 集合还可使用 `order` 控制展示顺序。
+
+### 分类与标签
+
+启用 `jekyll-archives` 生成分类、标签归档页。CI 构建前会执行 `bin/lower_tag.sh`，将 `_posts` 与 `_tutorials` 中 `categories:` / `tags:` 行的英文统一为小写，避免归档重复。源文件已统一小写，脚本在 CI 中作为安全网保留。
+
+## 本地开发
+
+### 环境要求
+
+- [Ruby](https://www.ruby-lang.org/)（建议与 CI 一致，当前为 3.2.x）
+- [Bundler](https://bundler.io/)
+- [Git](https://git-scm.com/)
+
+安装步骤可参考 [Jekyll 官方文档](https://jekyllrb.com/docs/installation/)。Windows 用户需注意 `tzinfo-data`、`wdm` 等 gem（已在 `Gemfile` 中按平台声明）。仓库已提交 `Gemfile.lock`，`bundle install` 将安装与 CI 一致的 gem 版本。
+
+### 克隆与子模块
 
 ```console
-$ bundle
+git clone https://github.com/puppylpg/puppylpg.github.io.git
+cd puppylpg.github.io
+bundle install
 ```
 
-## Usage
+若启用 `_config.yml` 中的 `assets.self_host.enabled`，还需初始化静态资源子模块：
 
-Please see the [theme's docs](https://github.com/cotes2020/jekyll-theme-chirpy#documentation).
+```console
+git submodule update --init --recursive
+```
 
-## License
+### 启动预览
 
-This work is published under [MIT][mit] License.
+```console
+bundle exec jekyll serve
+```
 
-[gem]: https://rubygems.org/gems/jekyll-theme-chirpy
-[chirpy]: https://github.com/cotes2020/jekyll-theme-chirpy/
-[use-template]: https://github.com/cotes2020/chirpy-starter/generate
-[CD]: https://en.wikipedia.org/wiki/Continuous_deployment
-[mit]: https://github.com/cotes2020/chirpy-starter/blob/master/LICENSE
+浏览器访问 `http://127.0.0.1:4000`。修改内容后 Jekyll 会自动重建（`--livereload` 可选）。本地开发与 CI 行为一致，无需手动运行 `bin/clean_toc.sh`。
+
+## 构建与部署
+
+推送到 `main` 或 `master` 分支时，`.github/workflows/pages-deploy.yml` 会自动：
+
+1. 安装 Ruby 依赖（`bundle`）
+2. 执行 `bin/lower_tag.sh`、`bin/clean_toc.sh`
+3. `bundle exec jekyll build` 生成静态站点
+4. `html-proofer` 校验站内链接
+5. 部署至 GitHub Pages
+
+本地模拟生产构建：
+
+```console
+JEKYLL_ENV=production bundle exec jekyll build
+```
+
+## 定制说明
+
+| 路径 | 作用 |
+|------|------|
+| `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
+| `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
+| `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
+| `bin/lower_tag.sh` | 构建前统一 `_posts`、`_tutorials` 的 tags / categories 大小写 |
+| `bin/clean_toc.sh` | 移除 `_posts`、`_tutorials` 首行 `[toc]` 占位（CI 安全网） |
+
+站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。
+
+## 许可
+
+本项目基于 [MIT](LICENSE) 许可发布。Chirpy 主题遵循其上游许可，详见 [jekyll-theme-chirpy](https://github.com/cotes2020/jekyll-theme-chirpy)。

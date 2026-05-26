@@ -1,11 +1,9 @@
 ---
-
-layout: post  
+layout: post
 title: "CompletableFuture"
-date: 2025-06-01 00:56:03 +0800  
-categories: Java Executor  
-tags: Java Executor
-
+date: 2025-06-01 00:56:03 +0800
+categories: java executor
+tags: java executor
 ---
 
 jdk的CompletableFuture和guava的ListenableFuture，在功能上基本是一致的。都允许对一个任务添加回调。但是二者的风格不同：
