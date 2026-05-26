@@ -3,6 +3,8 @@ title: Stanford ML
 date: 2020-10-20 20:44:00 +0800
 ---
 
+1. Table of Contents, ordered
+{:toc}
 
 # link
 https://www.coursera.org/learn/machine-learning?isNewUser=true

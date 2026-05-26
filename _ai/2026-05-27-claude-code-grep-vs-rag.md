@@ -3,6 +3,9 @@ title: 为什么 Claude Code 不用 RAG 检索代码，而是用 grep？
 date: 2026-05-27 00:51:00 +0800
 ---
 
+1. Table of Contents, ordered
+{:toc}
+
 > 原文：[字节面试官："为什么Claude Code不用RAG检索代码，而是用grep？"我："因为...省钱?" 他沉默了三秒](https://mp.weixin.qq.com/s/Q2RUOGymelU9F5LsLdR4UA)
 
 # 核心问题

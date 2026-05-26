@@ -132,7 +132,7 @@ collections:
     output: true
     sort_by: order
   # custom collection type
-  AI:
+  ai:
     output: true
     permalink: /:collection/:year/:month/:day/:title/
   open:
@@ -180,10 +180,10 @@ defaults:
     values:
       swcache: true
   - scope:
-      path: _AI
-      type: AI
+      path: _ai
+      type: ai
     values:
-      layout: page
+      layout: post
       comments: true
       toc: true
       math: true

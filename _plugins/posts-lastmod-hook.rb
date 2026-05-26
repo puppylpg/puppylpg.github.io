@@ -4,7 +4,7 @@
 
 CONTENT_PREFIXES = %w[
   _posts/
-  _AI/
+  _ai/
   _open/
   _books/
   _life/

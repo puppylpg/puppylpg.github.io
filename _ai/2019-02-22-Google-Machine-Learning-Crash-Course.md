@@ -3,6 +3,8 @@ title: Google Machine Learning Crash Course
 date: 2019-02-22 17:55:00 +0800
 ---
 
+1. Table of Contents, ordered
+{:toc}
 
 # 简介
 视角：从数学科学转移到自然科学。观察、做实验、使用数据，而不是使用逻辑去解决问题。像科学家一样思考。

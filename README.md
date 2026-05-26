@@ -26,7 +26,7 @@
 ├── Gemfile              # Ruby 依赖
 │
 ├── _posts/              # 主博客文章
-├── _AI/                 # AI 专题
+├── _ai/                 # AI 专题
 ├── _open/               # 开源相关
 ├── _books/              # 读书 / 学者系列
 ├── _life/               # 生活随笔
@@ -67,7 +67,7 @@ tags: 标签名
 
 | 集合 | 目录 | 侧边栏 Tab | 列表布局 |
 |------|------|------------|----------|
-| `AI` | `_AI/` | `_tabs/AI.md` | `custom-collection`（按日期归档） |
+| `ai` | `_ai/` | `_tabs/ai.md` | 列表 `custom-collection`；文章 `layout: post`（与主博客一致） |
 | `open` | `_open/` | `_tabs/open.md` | `open-layout`（按 `order` 排序的卡片列表） |
 | `books` | `_books/` | `_tabs/books.md` | `custom-collection` |
 | `life` | `_life/` | `_tabs/life.md` | `custom-collection` |
@@ -105,13 +105,51 @@ bundle install
 git submodule update --init --recursive
 ```
 
-### 启动预览
+### 本地快速启动（推荐）
+
+本机未装 Ruby 时，通过 **WSL** 在临时目录构建并启动预览（与 CI 使用同一套 `Gemfile.lock`）。
+
+**Windows（PowerShell，在项目根目录）：**
 
 ```console
+.\bin\jekyll-dev.ps1 start      # 同步代码 + 启动
+.\bin\jekyll-dev.ps1 restart    # 改完文章后重启（会重新同步）
+.\bin\jekyll-dev.ps1 stop       # 停止
+.\bin\jekyll-dev.ps1 status     # 是否在跑
+.\bin\jekyll-dev.ps1 sync       # 只同步 + bundle install，不启动
+```
+
+**WSL / Git Bash：**
+
+```console
+bin/jekyll-dev.sh start
+bin/jekyll-dev.sh restart
+bin/jekyll-dev.sh stop
+bin/jekyll-dev.sh status
+```
+
+浏览器访问 **http://127.0.0.1:4000**（默认端口 `4000`）。日志：`/tmp/puppylpg-build4/.jekyll-dev.log`（WSL 内 `tail -f` 查看）。
+
+| 命令 | 作用 |
+|------|------|
+| `start` | 将仓库同步到 `/tmp/puppylpg-build4`，按需 `bundle install`，后台启动 `jekyll serve` |
+| `restart` | 先 `stop`，再 `start`（改内容后用这个；已安装的 gem 会缓存在 `/tmp/puppylpg-vendor-bundle`） |
+| `stop` | 结束本机 4000 端口的 Jekyll |
+| `status` | 打印运行状态、PID、日志路径 |
+| `sync` | 仅同步与安装依赖（等同旧版 `bin/serve-prep.sh`） |
+
+可选环境变量：`JEKYLL_PORT`（端口）、`JEKYLL_DEV_DIR`（构建目录，默认 `/tmp/puppylpg-build4`）、`JEKYLL_VENDOR_CACHE`（gem 缓存目录，默认 `/tmp/puppylpg-vendor-bundle`）。
+
+首次 `bundle install` 时 `sass-embedded` 会从 GitHub 下载 dart-sass；若超时，请检查 WSL 网络/VPN 后重试。成功后 gem 会写入缓存，后续 `restart` 一般不再重装。
+
+### 已安装 Ruby 时
+
+```console
+bundle install
 bundle exec jekyll serve
 ```
 
-浏览器访问 `http://127.0.0.1:4000`。修改内容后 Jekyll 会自动重建（`--livereload` 可选）。本地开发与 CI 行为一致，无需手动运行 `bin/clean_toc.sh`。
+本地开发与 CI 行为一致；`bin/clean_toc.sh` / `bin/lower_tag.sh` 仅在 CI 中作为安全网执行，日常不必手动跑。
 
 ## 构建与部署
 
@@ -136,8 +174,10 @@ JEKYLL_ENV=production bundle exec jekyll build
 | `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
 | `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
 | `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
+| `bin/jekyll-dev.sh` / `bin/jekyll-dev.ps1` | 本地 `start` / `stop` / `restart` / `status` / `sync` |
 | `bin/lower_tag.sh` | 构建前统一 `_posts`、`_tutorials` 的 tags / categories 大小写 |
 | `bin/clean_toc.sh` | 移除 `_posts`、`_tutorials` 首行 `[toc]` 占位（CI 安全网） |
+| `bin/serve-prep.sh` | 已弃用，转调 `jekyll-dev.sh sync` |
 
 站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。
 
