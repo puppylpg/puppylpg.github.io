@@ -152,10 +152,20 @@ CONTENT_B64=$(base64 -i <PATH>)
 gh api -X PUT "repos/puppylpg/puppylpg.github.io/contents/<PATH>" \
   -f message="Add: <COMMIT_DESC>" \
   -f content="$CONTENT_B64" \
-  -f branch=master
+  -f branch=master \
+  -f sha=$(git hash-object <PATH>)  # 仅当远端已有同路径文件时需要,新建文件可省略
 ```
 
-注意:`gh api` 创建的远端 commit 会和本地 commit hash 不一样,所以本地 commit 之后**本地分支会和 origin/master 分叉**。下次工作前用 `git fetch && git reset --hard origin/master` 同步即可,或者干脆跳过本地 commit 那步,只走 `gh api`。如果倾向后者,告诉用户"已用 `gh api` 直接提交到远端,本地工作树不留 commit"。
+注意:`gh api` 创建的远端 commit 会和本地 commit hash 不一样,本地分支会和 `origin/master` 出现"假分叉"(内容相同、SHA 不同)。下次操作前先 `git fetch`,然后:
+
+- 如果本地只有这一笔(和远端内容一致):`git reset --hard origin/master` 对齐。
+- 如果本地有其他未发布改动,或者 `gh api` 之前远端被别人推过、产生真冲突:
+  1. `git stash`(保护未发布的本地改动)
+  2. `git pull --rebase`(拉远端,解任何冲突)
+  3. `git stash pop`,解冲突,再 `git commit`
+  4. 再走一次 `gh api PUT contents` 把这次的改动同步到远端
+
+**绝不要用 `git push` 兜底**,包括 `git push -f`。
 
 第三步,看 CI 状态:
 
