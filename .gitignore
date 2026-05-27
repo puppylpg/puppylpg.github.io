@@ -17,5 +17,16 @@ package-lock.json
 .idea
 .vscode
 
+# Claude Code (本机授权,因人/机器而异;skills 仍然进库)
+.claude/settings.local.json
+.claude/.DS_Store
+.claude/skills/.DS_Store
+
+# macOS
+.DS_Store
+
+# Playwright MCP 运行时产物
+.playwright-mcp/
+
 # Misc
 assets/js/dist

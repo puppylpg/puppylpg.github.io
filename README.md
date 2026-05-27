@@ -105,42 +105,24 @@ bundle install
 git submodule update --init --recursive
 ```
 
-### 本地快速启动（推荐）
+### 本地快速启动（macOS，推荐）
 
-本机未装 Ruby 时，通过 **WSL** 在临时目录构建并启动预览（与 CI 使用同一套 `Gemfile.lock`）。
-
-**Windows（PowerShell，在项目根目录）：**
+仓库根目录直接：
 
 ```console
-.\bin\jekyll-dev.ps1 start      # 同步代码 + 启动
-.\bin\jekyll-dev.ps1 restart    # 改完文章后重启（会重新同步）
-.\bin\jekyll-dev.ps1 stop       # 停止
-.\bin\jekyll-dev.ps1 status     # 是否在跑
-.\bin\jekyll-dev.ps1 sync       # 只同步 + bundle install，不启动
-```
-
-**WSL / Git Bash：**
-
-```console
-bin/jekyll-dev.sh start
+bin/jekyll-dev.sh start      # 后台起 jekyll serve，按需 bundle install
 bin/jekyll-dev.sh restart
 bin/jekyll-dev.sh stop
 bin/jekyll-dev.sh status
 ```
 
-浏览器访问 **http://127.0.0.1:4000**（默认端口 `4000`）。日志：`/tmp/puppylpg-build4/.jekyll-dev.log`（WSL 内 `tail -f` 查看）。
+浏览器访问 **http://127.0.0.1:4000**（默认端口 `4000`）。日志：`/tmp/puppylpg-jekyll.log`。
 
-| 命令 | 作用 |
-|------|------|
-| `start` | 将仓库同步到 `/tmp/puppylpg-build4`，按需 `bundle install`，后台启动 `jekyll serve` |
-| `restart` | 先 `stop`，再 `start`（改内容后用这个；已安装的 gem 会缓存在 `/tmp/puppylpg-vendor-bundle`） |
-| `stop` | 结束本机 4000 端口的 Jekyll |
-| `status` | 打印运行状态、PID、日志路径 |
-| `sync` | 仅同步与安装依赖（等同旧版 `bin/serve-prep.sh`） |
+脚本会优先使用 Homebrew 的 Ruby（`/opt/homebrew/opt/ruby/bin` 或 `/usr/local/opt/ruby/bin`），因为 macOS 系统 Ruby 2.6 自带的 bundler 1.17 与 `Gemfile.lock` 锁定的 2.x 不兼容。如果还没装：`brew install ruby`。
 
-可选环境变量：`JEKYLL_PORT`（端口）、`JEKYLL_DEV_DIR`（构建目录，默认 `/tmp/puppylpg-build4`）、`JEKYLL_VENDOR_CACHE`（gem 缓存目录，默认 `/tmp/puppylpg-vendor-bundle`）。
+可选环境变量：`JEKYLL_PORT`（端口，默认 4000）。
 
-首次 `bundle install` 时 `sass-embedded` 会从 GitHub 下载 dart-sass；若超时，请检查 WSL 网络/VPN 后重试。成功后 gem 会写入缓存，后续 `restart` 一般不再重装。
+首次 `bundle install` 时 `sass-embedded` 会从 GitHub 下载 dart-sass；超时请检查网络/代理后重试。
 
 ### 已安装 Ruby 时
 
@@ -167,6 +149,18 @@ bundle exec jekyll serve
 JEKYLL_ENV=production bundle exec jekyll build
 ```
 
+### 本地 vs 远端：`git` 与 `gh` 分工
+
+为了让自动化(包括 Claude Code)行为可预期,本仓库约定:
+
+- **本地操作走 `git`**:`git status` / `diff` / `add` / `commit` / `log` / `branch` / `pull` 等只读或只改本地的命令照常用。
+- **远端发布走 `gh`,禁止 `git push`**:
+  - 直接把改动落到远端 master:`gh api -X PUT repos/puppylpg/puppylpg.github.io/contents/<path> -f message=... -f content=<base64> -f branch=master`
+  - 走 PR 流程:`gh pr create`(`gh` 内部代理 push)
+  - 触发 / 查看部署:`gh workflow run pages-deploy.yml`、`gh run list --workflow=pages-deploy.yml`
+
+判断口诀:**只读自己机器 → `git`;改远端的状态 → `gh`**。`git pull` / `git fetch` 虽然访问远端但只改本地,所以归 `git`。
+
 ## 定制说明
 
 | 路径 | 作用 |
@@ -174,10 +168,9 @@ JEKYLL_ENV=production bundle exec jekyll build
 | `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
 | `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
 | `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
-| `bin/jekyll-dev.sh` / `bin/jekyll-dev.ps1` | 本地 `start` / `stop` / `restart` / `status` / `sync` |
+| `bin/jekyll-dev.sh` | macOS 本地 `start` / `stop` / `restart` / `status` |
 | `bin/lower_tag.sh` | 构建前统一 `_posts`、`_tutorials` 的 tags / categories 大小写 |
 | `bin/clean_toc.sh` | 移除 `_posts`、`_tutorials` 首行 `[toc]` 占位（CI 安全网） |
-| `bin/serve-prep.sh` | 已弃用，转调 `jekyll-dev.sh sync` |
 
 站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。
 
