@@ -1,8 +1,6 @@
 ---
 title: "扒开 Claude Code 51 万行源码：Harness Engineering 全景"
 date: 2026-05-27 13:21:39 +0800
-categories: [ai, agent]
-tags: [claude-code, agent, harness-engineering, prompt, context-management]
 description: "从泄漏的 51 万行 Claude Code 源码出发,拆解四层架构、Tool-Use Loop、System Prompt、记忆系统与上下文压缩等核心 Harness Engineering 实践。"
 ---
 
