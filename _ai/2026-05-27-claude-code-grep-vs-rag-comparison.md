@@ -1,5 +1,5 @@
 ---
-title: Claude Code 的代码检索之争：grep vs RAG，谁更胜一筹？
+title: "grep vs RAG：Claude Code 检索之争"
 date: 2026-05-27 02:23:00 +0800
 ---
 

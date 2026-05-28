@@ -1,5 +1,5 @@
 ---
-title: Claude Code /powerup 完全指南 - 官方交互式教程详解
+title: "Claude Code /powerup 教程速览"
 date: 2026-05-27 11:20:00 +0800
 ---
 

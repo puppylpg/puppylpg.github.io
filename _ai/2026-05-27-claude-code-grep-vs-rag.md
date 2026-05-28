@@ -1,5 +1,5 @@
 ---
-title: 为什么 Claude Code 不用 RAG 检索代码，而是用 grep？
+title: "Claude Code 为什么用 grep 而不是 RAG"
 date: 2026-05-27 00:51:00 +0800
 ---
 
