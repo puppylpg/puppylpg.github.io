@@ -38,11 +38,37 @@ module Jekyll
         docs.concat(collection.docs)
       end
 
+      merge_into_site_index(site, docs)
       build_archive(site, docs, 'categories', 'category')
       build_archive(site, docs, 'tags', 'tag')
     end
 
     private
+
+    # 把自定义 collection 的 docs merge 到 site.categories / site.tags,
+    # 否则 chirpy 的 /categories/ /tags/ 索引 Tab 里看不到这些文章。
+    def merge_into_site_index(site, docs)
+      docs.each do |doc|
+        next if doc.respond_to?(:collection) && doc.collection.label == 'posts'
+        Array(doc.data['categories']).each do |cat|
+          next if cat.nil? || cat.to_s.strip.empty?
+          site.categories[cat] ||= []
+          site.categories[cat] << doc unless site.categories[cat].include?(doc)
+        end
+        Array(doc.data['tags']).each do |tag|
+          next if tag.nil? || tag.to_s.strip.empty?
+          site.tags[tag] ||= []
+          site.tags[tag] << doc unless site.tags[tag].include?(doc)
+        end
+      end
+
+      [site.categories, site.tags].each do |index|
+        index.each_value do |arr|
+          arr.sort_by! { |d| d.date || Time.at(0) }
+          arr.reverse!
+        end
+      end
+    end
 
     def build_archive(site, docs, field, layout)
       groups = {}
