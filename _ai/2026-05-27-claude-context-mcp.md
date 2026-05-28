@@ -1,6 +1,8 @@
 ---
 title: "Claude Context：给 Claude Code 加向量检索"
 date: 2026-05-27 01:31:00 +0800
+categories: [ai, agent]
+tags: [claude-code, mcp, rag, embedding, ast]
 ---
 
 1. Table of Contents, ordered

@@ -1,6 +1,8 @@
 ---
 title: "grep vs RAG：Claude Code 检索之争"
 date: 2026-05-27 02:23:00 +0800
+categories: [ai, agent]
+tags: [claude-code, grep, rag, search]
 ---
 
 > 本文综合对比两篇观点：

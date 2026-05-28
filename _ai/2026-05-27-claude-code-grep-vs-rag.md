@@ -1,6 +1,8 @@
 ---
 title: "Claude Code 为什么用 grep 而不是 RAG"
 date: 2026-05-27 00:51:00 +0800
+categories: [ai, agent]
+tags: [claude-code, grep, rag, search]
 ---
 
 1. Table of Contents, ordered

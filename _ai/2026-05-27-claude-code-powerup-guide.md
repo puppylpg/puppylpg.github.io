@@ -1,6 +1,8 @@
 ---
 title: "Claude Code /powerup 教程速览"
 date: 2026-05-27 11:20:00 +0800
+categories: [ai, agent]
+tags: [claude-code, tutorial]
 ---
 
 > 本文整理自「小林coding」微信公众号文章《面试官："你 Claude Code 用得这么 6？" 我暗喜："我早把 /powerup 命令的流程都做了"，他：你牛逼》
