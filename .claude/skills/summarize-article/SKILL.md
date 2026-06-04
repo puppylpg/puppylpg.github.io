@@ -24,6 +24,8 @@ description: "把用户给的文章总结成一篇博客 post,默认发布到 _a
 
 ### 1. 派子 agent 抓取 + 总结 + 写文件
 
+派 agent 前先执行 `date '+%Y-%m-%d %H:%M:%S'` 拿到实际日期和时间，再填入 prompt。**不得硬写时间**。
+
 `Agent` 工具，`subagent_type: "general-purpose"`，**`model: "haiku"`**，prompt：
 
 ```
@@ -44,8 +46,9 @@ description: "把用户给的文章总结成一篇博客 post,默认发布到 _a
 - 结构化：`#` / `##` 分节，按原文逻辑或「问题→分析→结论」组织。
 - 正文开头：`> 原文：[原文标题](URL)`
 - 中文写，不写「本文将介绍」「综上所述」等空话。
+- 正文末尾加一节 `# 核心思想`，用自己的语言阐释原文的重中之重：不是复述，而是提炼出最值得记住的洞察，可以有自己的判断和延伸。
 
-正文骨架：
+正文骨架（TOC 必须严格是下面这两行，不能改成 `##` 标题）：
 ```
 1. Table of Contents, ordered
 {:toc}
@@ -54,6 +57,9 @@ description: "把用户给的文章总结成一篇博客 post,默认发布到 _a
 
 # 第一节标题
 ...
+
+# 核心思想
+（对原文最重要观点的阐释，突出重中之重，可有自己的判断）
 ```
 
 —— 第三步：frontmatter ——
@@ -67,6 +73,7 @@ description: "一句话摘要"
 ---
 ```
 - title 根据正文内容自己总结，不照搬原文标题（原文标题常是标题党/过长）
+- 若原文来自主流 AI 大厂官方域名（anthropic.com、openai.com、deepmind.google、blog.google、moonshot.cn/kimi 等），在 title 前加品牌前缀，格式为 `【Anthropic】`、`【OpenAI】`、`【Google】`、`【Kimi】` 等，首字母大写，使用中文全角中括号
 - 不写 `layout:`、不写 `last_modified_at`
 - categories / tags 全部小写
 
