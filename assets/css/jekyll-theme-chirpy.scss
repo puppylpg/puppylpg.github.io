@@ -1,0 +1,27 @@
+---
+---
+
+@import 'main';
+
+/* append your custom style below */
+
+.post-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1em 0.5em;
+  border-radius: 0.75em;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+}
+
+.post-badge--ai {
+  color: var(--link-color);
+  border: 1px solid var(--link-color);
+}
+
+.post-badge--tech {
+  color: var(--text-muted-color);
+  border: 1px solid var(--text-muted-color);
+}

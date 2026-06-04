@@ -1,6 +1,6 @@
 ---
 layout: custom-collection
-title: ai
-icon: fas fa-charging-station
+title: AI
+icon: fas fa-robot
 order: 3.04
 ---
