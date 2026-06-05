@@ -25,3 +25,19 @@
   color: var(--text-muted-color);
   border: 1px solid var(--text-muted-color);
 }
+
+/* TOC level styles: distinguish h1 / h2 / h3 */
+#toc-wrapper #toc {
+  > ul > li > a {
+    font-weight: 600;
+  }
+
+  > ul > li > ul > li > a {
+    font-weight: 400;
+  }
+
+  > ul > li > ul > li > ul > li > a {
+    font-weight: 400;
+    font-size: 0.95em;
+  }
+}

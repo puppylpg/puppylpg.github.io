@@ -46,7 +46,7 @@
   %}
 {% endif %}
 
-{% if page.content contains '<h2' or page.content contains '<h3' and site.toc and page.toc %}
+{% if page.content contains '<h1' or page.content contains '<h2' or page.content contains '<h3' and site.toc and page.toc %}
   {% assign urls = urls | append: ',' | append: site.data.origin[type].toc.js %}
 {% endif %}
 
@@ -67,6 +67,8 @@
 
 {% capture script %}/assets/js/dist/{{ js }}.min.js{% endcapture %}
 <script defer src="{{ script | relative_url }}"></script>
+
+<script defer src="{{ '/assets/js/custom-toc.js' | relative_url }}"></script>
 
 {% if page.math %}
   <!-- MathJax -->
