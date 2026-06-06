@@ -8,26 +8,17 @@
 
 Ruby 环境、本地开发完整流程以 `README.md` 为准。这里只记录仓库特有规则和容易踩坑的点。
 
-## 常用命令
+## 构建与质量卡点
+
+仓库没有独立测试套件。CI 的卡点是 `bundle exec jekyll build` 和 `htmlproofer`：
 
 ```bash
-# 本机已有 Ruby 时
-bundle install
-bundle exec jekyll serve
-
-# 本地辅助脚本（macOS,Homebrew Ruby）
-bin/jekyll-dev.sh start
-bin/jekyll-dev.sh restart
-bin/jekyll-dev.sh stop|status
-
-# 生产构建，意图上对齐 CI
+# 生产构建，对齐 CI
 JEKYLL_ENV=production bundle exec jekyll build
 
-# 本地链接检查。CI 还会额外忽略 tutorials 和本地 URL，详见 pages-deploy.yml。
+# 本地链接检查（CI 还会额外忽略 tutorials 和本地 URL，详见 pages-deploy.yml）
 bundle exec htmlproofer _site --disable-external --no-enforce-https
 ```
-
-仓库没有独立测试套件。CI 的卡点是 `bundle exec jekyll b` 和 `htmlproofer`。
 
 ## 内容规则
 
@@ -60,41 +51,27 @@ description: "一句话摘要，用于 SEO 和 feed"
 
 只有需要覆盖默认行为时才显式写开关，例如 `toc: false`、`comments: false`、`math: false`、`mermaid: false`。
 
-## Collections
+## Collections 关键约束
 
-`_config.yml` 定义了 5 个自定义集合：`ai`、`open`、`books`、`life`、`tutorials`。
+`_config.yml` 定义了 5 个自定义集合：`ai`、`open`、`books`、`life`、`tutorials`。集合概述和列表布局见 `README.md`，这里只记硬约束：
 
-每个集合由这些部分配合：
-
-- 源目录，例如 `_ai/`。
-- 侧边栏 Tab，例如 `_tabs/ai.md`。
-- `_config.yml` 里的 defaults scope。
-- permalink 规则。
-
-关键约束：
-
-- `_tabs/<name>.md` 的 basename 必须和 collection label 一致。自定义列表 layout 会拿 tab 文件名和 `collection.label` 比较；只改一边会导致页面静默变空。
+- **`_tabs/<name>.md` 的 basename 必须和 collection label 一致。** 自定义列表 layout 会拿 tab 文件名和 `collection.label` 比较；只改一边会导致页面静默变空。
 - 除 `open` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
 - `open` 使用 `/:collection/:title/`，列表按 front matter 的 `order` 排序。
-- 其他自定义集合列表按 `date` 倒序。
-- `ai` 使用 `layout: post`，行为接近普通博文；其他自定义集合使用 `layout: page`。
 
 ## 构建坑点
 
-- `jekyll-archives` 同时生成 category 和 tag 页面；`Java` / `java` 这种大小写混用会生成重复归档页。确保 `categories` / `tags` 始终小写。
+- `categories` / `tags` 必须小写。`jekyll-archives` 只管 `_posts` 的归档页；自定义集合由 `_plugins/collection-archives.rb` 处理，两者都依赖 slugify，大小写混用会生成重复归档页。
 - `_tutorials/` 里有 Chirpy starter 模板残留的坏链接。CI 故意给 `htmlproofer` 传 `--ignore-files "/tutorials/"`；清理前不要去掉。
 - `last_modified_at` 依赖 git 历史。CI 已经设置 `fetch-depth: 0`；浅克隆可能让 hook 失效。
 - `assets/lib` submodule 只有在 `_config.yml` 启用 `assets.self_host.enabled` 时才需要，日常开发不必 `git submodule update --init`。
 
-## 交付和远端操作
+## gh CLI 速查
 
-- ✅ **本地 git 操作**:`status`、`diff`、`add`、`commit`、`log`、`branch`、`checkout`、`stash`、`pull`、`fetch`、本地 `reset`/`restore` 等。
-- ✅ **推送到远端**:`git push`（直接推送到 master）。
-- ✅ **gh CLI 辅助操作**:
-  - 看部署状态:`gh run list --workflow=pages-deploy.yml`;失败日志:`gh run view <id> --log-failed`。
-  - PR / Issue:`gh pr ...`、`gh issue ...`。
-  - 手动触发部署:`gh workflow run pages-deploy.yml`。
-  - 仓库元信息 / Release:`gh repo view`、`gh release ...`。
+- 看部署状态：`gh run list --workflow=pages-deploy.yml`；失败日志：`gh run view <id> --log-failed`
+- 手动触发部署：`gh workflow run pages-deploy.yml`
+- PR / Issue：`gh pr ...`、`gh issue ...`
+- 仓库元信息 / Release：`gh repo view`、`gh release ...`
 
 ## Commit 签名
 

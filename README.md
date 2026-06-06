@@ -22,22 +22,23 @@
 ```
 .
 ├── _config.yml          # 站点总配置
-├── index.html           # 首页（layout: home）
+├── index.html           # 首页（自定义 home 布局，合并 _posts 与 _ai）
 ├── Gemfile              # Ruby 依赖
+├── Gemfile.lock         # 依赖版本锁定（与 CI 一致）
 │
-├── _posts/              # 主博客文章
+├── _posts/              # 主博客文章，Tech
 ├── _ai/                 # AI 专题
 ├── _open/               # 开源相关
 ├── _books/              # 读书 / 学者系列
 ├── _life/               # 生活随笔
 ├── _tutorials/          # 教程
 │
-├── _tabs/               # 侧边栏导航页
+├── _tabs/               # 侧边栏导航页（含内置 Tab 和自定义集合 Tab）
 ├── _layouts/            # 自定义布局
 ├── _plugins/            # Jekyll 插件
-├── _data/               # 站点数据（contact、share 等）
+├── _data/               # 站点数据（contact、share、locales 等）
 │
-├── assets/              # 静态资源（含 chirpy-static-assets 子模块）
+├── assets/              # 静态资源（css/img/js + chirpy-static-assets 子模块）
 ├── pics/                # 头像等图片
 ├── bin/                 # 辅助脚本
 └── .github/workflows/   # CI / CD
@@ -73,7 +74,7 @@ tags: 标签名
 | `life` | `_life/` | `_tabs/life.md` | `custom-collection` |
 | `tutorials` | `_tutorials/` | `_tabs/tutorials.md` | `custom-collection` |
 
-此外还有 Chirpy 内置 Tab：`about`、`archives`、`categories`、`tags` 等。
+此外还有 Chirpy 内置 Tab：`about`、`archives`、`categories`、`tags` 等，以及 `_posts` 对应的 `tech` Tab。
 
 新增一篇集合文章时，在对应 `_<collection>/` 目录下创建 Markdown 文件，并在 front matter 中设置 `title`、`date` 等字段；`open` 集合还可使用 `order` 控制展示顺序。
 
@@ -85,11 +86,11 @@ tags: 标签名
 
 ### 环境要求
 
-- [Ruby](https://www.ruby-lang.org/)（建议与 CI 一致，当前为 3.2.x）
+- [Ruby](https://www.ruby-lang.org/)（建议与 CI 一致，当前为 4.0）
 - [Bundler](https://bundler.io/)
 - [Git](https://git-scm.com/)
 
-安装步骤可参考 [Jekyll 官方文档](https://jekyllrb.com/docs/installation/)。Windows 用户需注意 `tzinfo-data`、`wdm` 等 gem（已在 `Gemfile` 中按平台声明）。仓库已提交 `Gemfile.lock`，`bundle install` 将安装与 CI 一致的 gem 版本。
+安装步骤可参考 [Jekyll 官方文档](https://jekyllrb.com/docs/installation/)。仓库已提交 `Gemfile.lock`，`bundle install` 将安装与 CI 一致的 gem 版本。
 
 ### 克隆与子模块
 
@@ -148,23 +149,13 @@ bundle exec jekyll serve
 JEKYLL_ENV=production bundle exec jekyll build
 ```
 
-### 本地 vs 远端：`git` 与 `gh` 分工
-
-为了让自动化(包括 Claude Code)行为可预期,本仓库约定:
-
-- **本地操作走 `git`**:`git status` / `diff` / `add` / `commit` / `log` / `branch` / `pull` 等只读或只改本地的命令照常用。
-- **远端发布走 `gh`,禁止 `git push`**:
-  - 直接把改动落到远端 master:`gh api -X PUT repos/puppylpg/puppylpg.github.io/contents/<path> -f message=... -f content=<base64> -f branch=master`
-  - 走 PR 流程:`gh pr create`(`gh` 内部代理 push)
-  - 触发 / 查看部署:`gh workflow run pages-deploy.yml`、`gh run list --workflow=pages-deploy.yml`
-
-判断口诀:**只读自己机器 → `git`;改远端的状态 → `gh`**。`git pull` / `git fetch` 虽然访问远端但只改本地,所以归 `git`。
-
 ## 定制说明
 
 | 路径 | 作用 |
 |------|------|
 | `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
+| `_plugins/collection-archives.rb` | 让自定义集合的 categories/tags 也参与归档页生成 |
+| `_layouts/home.html` | 首页，合并 `_posts` 与 `_ai` 并按日期倒序分页展示 |
 | `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
 | `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
 | `bin/jekyll-dev.sh` | macOS 本地 `start` / `stop` / `restart` / `status` |

@@ -7,7 +7,7 @@ tags: jekyll
 ---
 
 之前利用github pages提供的便利，使用jekyll创建了个人静态网站：
-- [Jekyll：GitHub Pages]({% post_url 2019-11-16-build-github-pages-Debian %})：如何使用jekyll搭建网站；
+- [Jekyll 博客的 Ruby 环境]({% post_url 2019-11-16-ruby-bundler-jekyll %})：Bundler 套娃、gem 管理与 GitHub Pages 部署；
 - [Jekyll：mimima结构]({% post_url 2019-11-17-Jekyll-website %})：minima网站架构；
 - [Jekyll：minima主题自定义]({% post_url 2019-11-23-minima-customize %})：各种自定义元素，以minima为例；
 

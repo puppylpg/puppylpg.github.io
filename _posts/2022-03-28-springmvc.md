@@ -19,6 +19,59 @@ tags: tomcat http web servlet spring mvc
 
 基本把tcp -> http -> tomcat -> spring mvc的链条打通了。
 
+```mermaid
+flowchart TB
+    Request("🌐 HTTP 请求") --> Socket
+
+    subgraph TCP["  🔌 TCP Server  "]
+        Socket["ServerSocket / NIO Channel<br/>接收连接、读写字节流"]
+    end
+
+    Socket -->|"解析 HTTP"| Connector
+
+    subgraph Tomcat["  🐱 Tomcat  "]
+        Connector["Connector<br/>协议适配：HTTP / AJP / NIO"]
+        Container["Container<br/>Engine → Host → Context → Wrapper<br/>按 URI 定位 Servlet"]
+        Connector --> Container
+    end
+
+    Container -->|"调用 Servlet"| DS
+
+    subgraph SpringMVC["  🍃 Spring MVC  "]
+        direction TB
+        DS(("DispatcherServlet"))
+        DS --> HM["🔍 HandlerMapping<br/>URI → Handler + Interceptor"]
+        HM --> Pre["preHandle"]
+        Pre --> Ctrl["@Controller"]
+        Ctrl --> Post["postHandle"]
+        Post --> Result{"返回类型"}
+        Result -->|"@ResponseBody"| Json["HttpMessageConverter<br/>Java ↔ JSON"]
+        Result -->|ModelAndView| View["ViewResolver → HTML"]
+        Result -->|异常| ExH["@ExceptionHandler"]
+        Json --> After["afterCompletion → 事件发布"]
+        View --> After
+        ExH --> After
+        After --> Out["写入 Response"]
+    end
+
+    Out --> Response("🌐 HTTP 响应")
+
+    classDef tcp fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#b71c1c
+    classDef tomcat fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
+    classDef entry fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
+    classDef chain fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c
+    classDef result fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#bf360c
+    classDef decision fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#e65100
+
+    class Socket tcp
+    class Connector,Container tomcat
+    class DS entry
+    class HM,Ctrl chain
+    class Pre,Post,After chain
+    class Json,View,ExH,Out result
+    class Result decision
+```
+
 1. Table of Contents, ordered
 {:toc}
 

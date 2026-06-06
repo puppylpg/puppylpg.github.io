@@ -54,8 +54,12 @@ jobs:
 
       # 核心构建步骤，用 Gemfile.lock 里的 Jekyll（目前 4.4.1）生成静态文件
       # JEKYLL_ENV=production 开启 analytics、comments 等生产环境功能
+      # bundle exec jekyll build       — 生成静态站点
+      # -d                             — 指定输出目录
+      #   base_path 为空（用户站）时输出到 _site
+      #   base_path 为 /repo-name（项目站）时输出到 _site/repo-name，确保子路径正确
       - name: Build site
-        run: bundle exec jekyll b -d "_site${{ steps.pages.outputs.base_path }}"
+        run: bundle exec jekyll build --destination "_site${{ steps.pages.outputs.base_path }}"
         env:
           JEKYLL_ENV: "production"
 

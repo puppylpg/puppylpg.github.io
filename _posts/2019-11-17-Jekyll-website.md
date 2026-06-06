@@ -23,7 +23,7 @@ tags: jekyll
 
 遵循上面的思路，简单探索一下minima-2.5.1的结构。
 
-首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[Jekyll：GitHub Pages]({% post_url 2019-11-16-build-github-pages-Debian %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
+首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[Jekyll 博客的 Ruby 环境]({% post_url 2019-11-16-ruby-bundler-jekyll %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
 ```bash
 » bundle show minima
 /home/win-pichu/Codes/Java/puppylpg.github.io/vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
@@ -253,7 +253,7 @@ blabla...
 感觉最重要的就是`_layouts`和`_includes`两个文件夹，其他还有`assets`，`_sass`等，用来控制样式，放置一些静态资源如图片，有兴趣可以了解一下。
 
 # 目录结构
-在[Jekyll：GitHub Pages]({% post_url 2019-11-16-build-github-pages-Debian %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
+在[Ruby 环境与 Bundler 套娃]({% post_url 2019-11-16-ruby-bundler-jekyll %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
 ```bash
 .
 ├── 404.html
