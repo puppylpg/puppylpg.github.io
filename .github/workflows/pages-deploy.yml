@@ -69,8 +69,8 @@ jobs:
       - name: Test site
         run: |
           bundle exec htmlproofer _site \
-            \-\-disable-external=true \
-            \-\-enforce_https=false \
+            \-\-disable-external \
+            \-\-no-enforce-https \
             \-\-ignore-files "/tutorials/" \
             \-\-ignore-urls "/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/"
 

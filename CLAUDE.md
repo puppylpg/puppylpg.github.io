@@ -24,7 +24,7 @@ bin/jekyll-dev.sh stop|status
 JEKYLL_ENV=production bundle exec jekyll build
 
 # 本地链接检查。CI 还会额外忽略 tutorials 和本地 URL，详见 pages-deploy.yml。
-bundle exec htmlproofer _site --disable-external=true --enforce_https=false
+bundle exec htmlproofer _site --disable-external --no-enforce-https
 ```
 
 仓库没有独立测试套件。CI 的卡点是 `bundle exec jekyll b` 和 `htmlproofer`。
@@ -89,19 +89,13 @@ description: "一句话摘要，用于 SEO 和 feed"
 
 ## 交付和远端操作
 
-**核心规则:本地操作走 `git`,远端发布走 `gh`。**
-
-- ✅ **本地操作 — 用 `git`**:`status`、`diff`、`add`、`commit`、`log`、`branch`、`checkout`、`stash`、`pull`、`fetch`、本地 `reset`/`restore` 等都可以正常用。
-- ❌ **远端发布 — 禁止 `git push`**(包括 `git push -f`)。无论用户是否口头授权都不要执行 `git push`。
-- ✅ **远端发布 — 用 `gh`**:
-  - 直接把文件提交到远端 master:`gh api -X PUT repos/:owner/:repo/contents/<path>`(等价一次远端 commit,不需要 push)。
-  - 走 PR 流程:`gh pr create`(`gh` 内部代理 push)。
+- ✅ **本地 git 操作**:`status`、`diff`、`add`、`commit`、`log`、`branch`、`checkout`、`stash`、`pull`、`fetch`、本地 `reset`/`restore` 等。
+- ✅ **推送到远端**:`git push`（直接推送到 master）。
+- ✅ **gh CLI 辅助操作**:
   - 看部署状态:`gh run list --workflow=pages-deploy.yml`;失败日志:`gh run view <id> --log-failed`。
   - PR / Issue:`gh pr ...`、`gh issue ...`。
   - 手动触发部署:`gh workflow run pages-deploy.yml`。
   - 仓库元信息 / Release:`gh repo view`、`gh release ...`。
-
-判断口诀:**只读自己机器 → `git`;改远端的状态 → `gh`**。`git pull/fetch` 虽然访问远端但只读本地不改远端,所以归 `git`。
 
 ## Commit 签名
 
