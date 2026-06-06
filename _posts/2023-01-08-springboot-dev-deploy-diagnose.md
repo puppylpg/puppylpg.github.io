@@ -14,7 +14,7 @@ tags: springboot
 # spring-boot-devtools
 [spring-boot-devtools](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#using.devtools)会给springboot的开发带来一些便利，**但是注意依赖需要设置为optional，防止作为本工程依赖时，别的项目被迫引入devtools。因为在生产环境使用它可能会导致安全问题。**
 
-```
+```java
 <dependencies>
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -22,7 +22,7 @@ tags: springboot
         <optional>true</optional>
     </dependency>
 </dependencies>
-```
+```xml
 
 ## 默认properties
 默认会设置一些开发友好的properties，比如禁用thymeleaf cache。在开发环境不禁用的话影响实时看效果。
@@ -51,7 +51,7 @@ tags: springboot
 > **Developer tools are automatically disabled when running a fully packaged application**. If your application is launched from `java -jar` or if it is started from a special classloader, then it is considered a “production application”. You can control this behavior by using the `spring.devtools.restart.enabled` system property. To enable devtools, irrespective of the classloader used to launch your application, set the `-Dspring.devtools.restart.enabled=true` system property. **This must not be done in a production environment where running devtools is a security risk**. To disable devtools, **exclude the dependency or set the `-Dspring.devtools.restart.enabled=false` system property**.
 
 所以首先要允许把devtools打包到jar包里：
-```
+```java
 <build>
     <plugins>
         <plugin>
@@ -118,15 +118,15 @@ endpoint可以查看app状态，基本把app里大家比较关心的各种状态
 除了shutdown，所有的endpoints默认都开启了。shutdown需要手动enable：
 ```properties
 management.endpoint.shutdown.enabled=true
-```
+```java
 也可以反着来，禁掉所有，然后显式开启其中某一个：
 ```properties
 management.endpoints.enabled-by-default=false
-```
+```sql
 只开启`info` endpoint：
 ```properties
 management.endpoint.info.enabled=true
-```
+```java
 
 > **对所有的endpoints的设置用的是复数endpoints，对某一个的设置用的是单数endpoint。老眼昏花，很容易看错！**
 
@@ -156,7 +156,7 @@ heal info还可以[进一步细化配置](https://docs.spring.io/spring-boot/doc
 比如springboot对redis的健康检查默认会使用`info server`命令，查看返回值里是否有`redis_version`的信息。但是曾经碰到过有些redis云服务平台搞了些骚操作，用代理偷偷替换了`info server`的返回，删除了`redis_version`，此时redis健康监测就会失败。可以把它禁掉：
 ```properties
 management.health.re.enabled=false
-```
+```java
 
 ### security
 **如果有spring security，springboot默认会对除`health`的endpoint进行保护**。health可能会被用作服务健康监控，默认不设置权限还挺合理的。
@@ -165,7 +165,7 @@ management.health.re.enabled=false
 
 如果自己配置security的话，actuator提供了`EndpointRequest.toAnyEndpoint()`可以配置所有actuator相关的url。
 
-```
+```java
 import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -186,7 +186,7 @@ public class MySecurityConfiguration {
     }
 
 }
-```
+```java
 
 ## http trace
 可以记录下最近100条request/response的具体信息，但是默认不会记录下cookie、session等信息，需要手动设置。
@@ -201,10 +201,10 @@ public class MySecurityConfiguration {
     public HttpTraceRepository httpTraceRepository() {
         return new InMemoryHttpTraceRepository();
     }
-```
+```java
 
 完整actuator配置：
-```
+```bash
 # actuator
 management:
     ### enable
@@ -232,7 +232,7 @@ management:
     trace:
         http:
             include: AUTHORIZATION_HEADER,COOKIE_HEADERS,PRINCIPAL,REMOTE_ADDRESS,REQUEST_HEADERS,RESPONSE_HEADERS,SESSION_ID,TIME_TAKEN
-```
+```java
 
 # startup tracking
 spring 5.3引入了startup tracking的功能，springboot 2.4可以通过actuator把`startup` endpoint暴露出来。它不仅能监控每一部分的启动时间，更能让人对spring context的启动过程有一个更直观的把控：
@@ -246,7 +246,7 @@ spring 5.3引入了startup tracking的功能，springboot 2.4可以通过actuato
         application.setApplicationStartup(new BufferingApplicationStartup(10000));
         application.run(args);
     }
-```
+```java
 
 [这里](https://www.baeldung.com/spring-boot-actuator-startup)提供的解析结果很不错：
 ```
@@ -255,7 +255,7 @@ spring 5.3引入了startup tracking的功能，springboot 2.4可以通过actuato
  | sort_by(.duration) | reverse[]
  | select(.startupStep.name | match("spring.beans.instantiate"))
  | {beanName: .startupStep.tags[0].value, duration: .duration}]'
-```
+```java
 需要安装jq做json parser，可以分析出每一个bean实例化的时间，倒排一下，看看有没有特别拖累启动速度的bean。
 
 # 感想

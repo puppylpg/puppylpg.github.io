@@ -261,7 +261,7 @@ UTF-8可以和ASCII兼容，UTF-16/32则不可以。
         // use surrogate pair
         String smile0 = "\uD83D\uDE00";
         System.out.printf("simle0: %s%n", smile0);
-```
+```java
 要么指明露齿笑在补充面板的码点，然后使用`StringBuilder#appendCodePoint`或者`Character#toChars将补充面板的码点**转换成两个char（两个代理区域的码点），最终只能以String的形式保存（因为一个char保存不下）**：
 ```java
         int smileCodePoint = 0x1F600;
@@ -273,7 +273,7 @@ UTF-8可以和ASCII兼容，UTF-16/32则不可以。
         // use Character code point
         String smile2 = new String(Character.toChars(smileCodePoint));
         System.out.printf("simle2: %s%n", smile2);
-```
+```java
 但无论如何，要表示它都必须使用两个char，4byte。
 
 所以说`Character.toChars(int codePoint)`方法将码点转成char，返回值是char数组而不是char：
@@ -298,7 +298,7 @@ Ref:
 ```java
     /** The value is used for character storage. */
     private final char value[];
-```
+```java
 所以String也可以说是用UTF-16编码实现的。
 
 但是java9引入了[Compact Strings](https://openjdk.org/jeps/254)，内部用byte数组表示，并用一个表示位表示byte数组用UTF-16解释还是用LATIN1解释：
@@ -329,7 +329,7 @@ Ref:
      * field after construction will cause problems.
      */
     private final byte coder;
-```
+```java
 如果只有ASCII字符集里的字符出现，String实际使用的字节数和字符数比值为1：1，UTF-16则至少是2：1。
 
 所以compact string优化了Java String的内部空间占用。但是，**虽然实现上不再用char数组表示了，但不影响逻辑上用到的char的个数**。
@@ -355,7 +355,7 @@ Ref:
     public int length() {
         return value.length;
     }
-```
+```java
 对于java9，只是内部存储方式不同，虽然实现上不再用char数组表示了，但不影响逻辑上用到的char的个数，因此并不影响接口本身：length返回的依旧是char的个数。只不过现在计算有多少个char的时候不像原来直接获取`value.length`那么简单了，要分情况讨论了：
 ```java
 
@@ -370,7 +370,7 @@ Ref:
     public int length() {
         return value.length >> coder();
     }
-```
+```java
 - 如果的确是紧凑字符串，byte数组的长度就是char的长度：`value.length >> 0`；
 - 如果不是紧凑字符串，byte数组的长度是char长度的二倍：`value.length >> 1`；
 
@@ -384,7 +384,7 @@ Ref:
         System.out.printf("%s.length = %d, by code point. %n", notDong, notDong.length());
         // length is 1
         System.out.printf("%s.length = %d, by CJK word. %n", dong, dong.length());
-```
+```java
 所以“冬”作为BMP字符，length=1；补充面板中的那个[像冬而不是冬的字符](http://www.ltg.ed.ac.uk/~richard/utf-8.cgi?input=2F81A&mode=hex)，length=2。
 
 emoji在java里的length也都是2。
@@ -396,7 +396,7 @@ emoji在java里的length也都是2。
 for (char c : s.toCharArray()) {
     ...
 }
-```
+```java
 **严格来说，这个是逐char遍历，而不是逐字符遍历**。如果碰到补充面板的字符，每次只拿到一个char，就可能拿到的不是一个完整字符。而现在emoji已经很常见了，遍历他们就可能出现问题。
 
 假设`s = "😋hello😋"`
@@ -407,9 +407,9 @@ for (char c : s.toCharArray()) {
 for (char c : s.toCharArray()) {
     System.out.println(c);
 }
-```
+```java
 半个emoji后面加上`\n`，输出结果就无法解释了：
-```
+```text
 ?
 ?
 h
@@ -419,24 +419,24 @@ l
 o
 ?
 ?
-```
+```java
 除非连起来输出，这样虽然每次都只输出半个emoji，但是因为挨着，就能被console解释为一个emoji：
 ```java
 // 不换行的话就可以，让两个char连起来就能表示emoji
 for (char c : s.toCharArray()) {
     System.out.print(c);
 }
-```
+```java
 结果为：
-```
+```java
 😋hello😋
-```
+```java
 如果不想因为不同的输出方式不同而导致遍历失败，需要使用**逐字符遍历**：
 ```java
 s.codePoints().forEach(
         points -> System.out.println(Character.toChars(points))
 );
-```
+```java
 或者：
 ```java
 int offset = 0;
@@ -445,7 +445,7 @@ while (offset < s.length()) {
     System.out.println(Character.toChars(points));
     offset += Character.charCount(points);
 }
-```
+```java
 这样无论用print还是println，一定都能正确输入，因为每次都拿着一个完整的字符在操作。
 
 > “原子”输出。

@@ -36,7 +36,7 @@ ApplicationContext，看它的接口定义：
 ```java
 interface ApplicationContext extends EnvironmentCapable, ListableBeanFactory, HierarchicalBeanFactory,
 		MessageSource, ApplicationEventPublisher, ResourcePatternResolver
-```
+```java
 它是这么多接口的集合，其中包括BeanFactory，所以它自然比BeanFactory强：
 - Bean factory methods for accessing application components. Inherited from ListableBeanFactory.
 - 它继承了ResourcePatternResolver接口，而后者继承了ResourceLoader，所以只需要告诉ApplicationContext config的地址，它是可以直接加载配置的：The ability to load file resources in a generic fashion. Inherited from the org.springframework.core.io.ResourceLoader interface.
@@ -132,7 +132,7 @@ refresh和destroy都不允许并发，所以加锁。
 		// Validate that all properties marked as required are resolvable
 		// see ConfigurablePropertyResolver#setRequiredProperties
 		getEnvironment().validateRequiredProperties();
-```
+```xml
 也没看出来要干啥。第一个好像是org.springframework.web.context.support.WebApplicationContextUtils.initServletPropertySources子类才override了这个空方法。
 
 ## prepare bean factory
@@ -164,7 +164,7 @@ refresh和destroy都不允许并发，所以加锁。
     			}
     		}
     	}
-    ```
+```java
 - 既然上面的这些xxxAware都会被ApplicationContextAwareProcessor处理，那这些接口就被ApplicationContext记下来，不再单独处理他们了：`ignoreDependencyInterface`
 - 如果需要织入，添加一个BeanPostProcessor：LoadTimeWeaverAwareProcessor
 - 注册几个bean作为singleton：
@@ -211,7 +211,7 @@ BeanDefinitionRegistryPostProcessor继承了BeanFactoryPostProcessor，所以它
 再从bean factory里获取其他的BeanFactoryPostProcessor：
 ```java
 String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanDefinitionRegistryPostProcessor.class, true, false);
-```
+```java
 > 从这里开始，貌似后面都开始从BeanFactory（map）里根据type获取bean了（无论是spring自己提前put进去的，还是程序猿自己的@Bean被解析了然后put进去的）。从这里开始，bean已经都注册上了，可以这么获取了。
 
 再依次处理一遍。总体而言，他们的处理顺序是：
@@ -229,7 +229,7 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanDefinitionRegi
 再获取所有的BeanFactoryPostProcessor：
 ```java
 String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanFactoryPostProcessor.class, true, false);
-```
+```java
 按上面的顺序再来一遍（已经在上面执行过的就不再执行了）。这里主要是为了处理我们也自定义的BeanFactoryPostProcessor。因为ConfigurationClassPostProcessor已经分析完了所有的@Configuration，这里我们自定义的BeanFactoryPostProcessor也会出现了。
 
 比如我们的BeanFactoryPostProcessor可能会给修改某个BeanDefinition，添加一个属性：
@@ -239,7 +239,7 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanFactoryPostPro
 		bd.getPropertyValues().addPropertyValue("brand", "奇瑞QQ");
 		System.out.println("ApplicationContext启动后，加载完配置，还没实例化bean：调用MyBeanFactoryPostProcessor.postProcessBeanFactory()！");
 	}
-```
+```java
 
 总之，这一大块儿的目的，就是处理完所有的BeanFactoryPostProcessor。（同时@Configuration里定义的@Bean也被处理完了）
 
@@ -283,7 +283,7 @@ String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanPostProcessor.
 			}
 			return bean;
 		}
-```
+```java
 把所有的ApplicationListener bean添加到ApplicationContext里：`this.applicationContext.addApplicationListener((ApplicationListener<?>) bean)`。
 
 这就是spring解耦逻辑的地方：我有一个BeanPostProcessor，专门处理实现了某个接口的bean。
@@ -378,7 +378,7 @@ if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
 			}
 		}
 	}
-    ```
+```java
 - **初始化前回调**：`BeanPostProcessor#postProcessBeforeInitialization`
 - 调用init method
     + InitializingBean#afterPropertiesSet

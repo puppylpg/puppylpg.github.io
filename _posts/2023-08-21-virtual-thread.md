@@ -172,7 +172,7 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
             afterSleep(event);
         }
     }
-```
+```java
 会对当前线程做判断：
 - 如果是虚线程，则jvm自己控制虚线程“挂起”，也就是umount；
 - 如果是os线程，则像之前的jdk一样调用native代码（`sleep0`）由操作系统挂起os线程；

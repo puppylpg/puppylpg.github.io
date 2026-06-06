@@ -13,7 +13,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 
 # Java如何序列化反序列化
 序列化样例：
-```
+```java
         String location = "/tmp/people.ser";
 
         try {
@@ -27,9 +27,9 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
         } catch (IOException e) {
             e.printStackTrace();
         }
-```
+```java
 反序列化样例：
-```
+```java
         try {
             FileInputStream fis = new FileInputStream(location);
             ObjectInputStream ois = new ObjectInputStream(fis);
@@ -69,7 +69,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 
 ### 为什么想要序列化的类必须实现Serializable接口
 在writeObject0里有以下几步：
-```
+```json
             // remaining cases
             if (obj instanceof String) {
                 writeString((String) obj, unshared);
@@ -87,12 +87,12 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
                     throw new NotSerializableException(cl.getName());
                 }
             }
-```
+```json
 所以一个类如果不实现Serializable接口，最终会落到else里，抛出NotSerializableException。
 
 ### 都序列化了什么东西
 在writeOrdinaryObject里，有如下代码：
-```
+```bash
             desc.checkSerialize();
 
             bout.writeByte(TC_OBJECT);
@@ -110,7 +110,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
 - 真实数据信息；
 
 其中，类描述信息是ObjectStreamClass类，它里面放了要序列化的对象的类信息，比如：
-```
+```xml
     /** class associated with this descriptor (if any) */
     private Class<?> cl;
     /** name of class represented by this descriptor */
@@ -129,14 +129,14 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
     /** true if desc has data written by class-defined writeObject method */
     private boolean hasWriteObjectData;
     ...
-```
+```python
 大致有：
 - 类名；
 - 类的serial version id（实现了Serializable接口，就得有这个id）；
 - 其他很多辅助信息；
 
 最后使用defaultWriteFields方法真正序列化对象的时候：
-```
+```json
     /**
      * Fetches and writes values of serializable fields of given object to
      * stream.  The given class descriptor specifies which field values to
@@ -212,16 +212,16 @@ Ref：
 
 ### 自定义序列化方式
 在序列化最后真正写数据的时候，invokeWriteObject里还有这样的代码：
-```
+```java
 writeObjectMethod.invoke(obj, new Object[]{ out })
-```
+```json
 调用了一个反射去写对象。方法是：
-```
+```java
     /** class-defined writeObject method, or null if none */
     private Method writeObjectMethod;
 ```
 该方法来自于：
-```
+```java
 writeObjectMethod = getPrivateMethod(
     cl, 
     "writeObject",

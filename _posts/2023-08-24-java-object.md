@@ -74,7 +74,7 @@ header和body里都有指向别的对象的指针：
 [在JDK 15之后，二者是独立的](https://bugs.openjdk.org/browse/JDK-8241825)，可以选择单独压缩oop指针或klass指针。
 
 在[32bit jvm](https://gist.github.com/arturmkrtchyan/43d6135e8a15798cc46c)里，kp占32bit：
-```
+```java
 |----------------------------------------------------------------------------------------|--------------------|
 |                                    Object Header (64 bits)                             |        State       |
 |-------------------------------------------------------|--------------------------------|--------------------|
@@ -90,11 +90,11 @@ header和body里都有指向别的对象的指针：
 |-------------------------------------------------------|--------------------------------|--------------------|
 |                                              | lock:2 |      OOP to metadata object    |    Marked for GC   |
 |-------------------------------------------------------|--------------------------------|--------------------|
-```
+```bash
 此时对象头长度为：**32bit mark word + 32bit klass pointer** = 64bit
 
 在64bit jvm里，kp占64bit：
-```
+```java
 |------------------------------------------------------------------------------------------------------------|--------------------|
 |                                            Object Header (128 bits)                                        |        State       |
 |------------------------------------------------------------------------------|-----------------------------|--------------------|
@@ -115,7 +115,7 @@ header和body里都有指向别的对象的指针：
 
 ## header里的指针压缩
 **开启指针压缩之后，kp被压缩为32bit**：
-```
+```java
 |--------------------------------------------------------------------------------------------------------------|--------------------|
 |                                            Object Header (96 bits)                                           |        State       |
 |--------------------------------------------------------------------------------|-----------------------------|--------------------|
@@ -131,7 +131,7 @@ header和body里都有指向别的对象的指针：
 |--------------------------------------------------------------------------------|-----------------------------|--------------------|
 |                                                                       | lock:2 |    OOP to metadata object   |    Marked for GC   |
 |--------------------------------------------------------------------------------|-----------------------------|--------------------|
-```
+```bash
 此时对象头长度为：**64bit mark word + 32bit klass pointer** = 96bit
 
 ## header的结构
@@ -147,7 +147,7 @@ header和body里都有指向别的对象的指针：
 不过时过境迁，[**从JDK 15起，偏向锁被废除了**](https://openjdk.org/jeps/374)，所以header的结构不完全是上面的样子了。
 
 在当前openjdk/jdk的项目里（jdk20），[markWord.hpp](https://github.com/openjdk/jdk/blob/82749901b1497f524e53e47c45708c8e4a63c8b9/src/hotspot/share/oops/markWord.hpp#L37)这样定义mark word：
-```
+```java
 //  32 bits:
 //  --------
 //             hash:25 ------------>| age:4  unused_gap:1  lock:2 (normal object)
@@ -202,7 +202,7 @@ public class A {
 
     Object _oop2 = new Object();
 }
-```
+```java
 同时使用jol展示Java对象的布局：
 ```xml
         <dependency>
@@ -210,7 +210,7 @@ public class A {
             <artifactId>jol-core</artifactId>
             <version>0.17</version>
         </dependency>
-```
+```java
 
 ## 开启指针压缩
 默认情况下，指针压缩是开启的：
@@ -224,7 +224,7 @@ public class ObjectHeaderCompressedOops {
         System.out.println(ClassLayout.parseInstance(a).toPrintable());
     }
 }
-```
+```java
 从vm detail能看出很多有用信息：
 ```
 # VM mode: 64 bits
@@ -235,7 +235,7 @@ public class ObjectHeaderCompressedOops {
 # Field sizes:            4,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    4,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    16,   16,   16,   16,   16,   16,   16,   16,   16
-```
+```java
 每一行的信息都很重要：
 - 这是一个64bit jvm；
 - 开启了oop指针压缩`XX:+UseCompressedOops`；
@@ -244,7 +244,7 @@ public class ObjectHeaderCompressedOops {
     + 对齐后，地址（ref）的大小变成了4byte，占用32bit而非64bit；
 
 此时A类型的对象的内存布局如下：
-```
+```bash
 jvm.object.header.A object internals:
 OFF  SZ               TYPE DESCRIPTION               VALUE
   0   8                    (object header: mark)     0x0000000000000001 (non-biasable; age: 0)
@@ -258,7 +258,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  28   4                    (object alignment gap)    
 Instance size: 32 bytes
 Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
-```
+```java
 header：
 - mark word：8byte
 - klass pointer：4byte（**kp指针压缩**）
@@ -287,13 +287,13 @@ vm detail：
 # Field sizes:            8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    16,   16,   16,   16,   16,   16,   16,   16,   16
-```
+```java
 可以看到oop指针压缩disabled，**但是klass pointer指针压缩依然正常开启**。
 
 此时地址（ref）的大小为8byte，64bit。
 
 A类型的对象的内存布局如下：
-```
+```bash
 jvm.object.header.A object internals:
 OFF  SZ               TYPE DESCRIPTION               VALUE
   0   8                    (object header: mark)     0x0000000000000001 (non-biasable; age: 0)
@@ -306,7 +306,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  32   8   java.lang.Object A._oop2                   (object)
 Instance size: 40 bytes
 Space losses: 5 bytes internal + 0 bytes external = 5 bytes total
-```
+```java
 **header依然开启kp指针压缩，所以没变化，依然是4byte**。
 
 body关闭了oop指针压缩，oop变成了8byte，此时普通变量和oop之间padding了5byte，才能让oop地址按照oop的大小（8byte）做地址对齐。
@@ -328,7 +328,7 @@ vm detail：
 # Field sizes:            8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    24,   24,   24,   24,   24,   24,   24,   24,   24
-```
+```java
 可以看到oop指针压缩disabled，**klass pointer指针也disabled**。
 
 此时地址（ref）的大小为8byte，64bit。
@@ -347,7 +347,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  32   8   java.lang.Object A._oop2                   (object)
 Instance size: 40 bytes
 Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
-```
+```java
 **header关闭了kp指针压缩，所以klass pointer从4byte变成了8byte**。
 
 body关闭了oop指针压缩，oop变成了8byte，此时普通变量和oop之间padding了1byte，和上一个例子相比，因为header里的klass pointer占了额外的4byte，所以这里少padding了4byte。

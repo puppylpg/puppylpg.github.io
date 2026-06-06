@@ -23,7 +23,7 @@ tags: redis
 建议创建不同的文件夹，保存不同redis节点的配置，然后**分别从各自的文件夹启动redis**。这个“分别从自己的目录下启动”很重要，因为启动的时候redis会在current working directory生成一些额外的文件，比如`nodes.conf`记录当前集群的节点都有哪些。
 
 比如：
-```
+```bash
 win-pichu@DESKTOP-T467619 ~/Utils/redis/redis-6.0.9/confs $ tree
 .
 └── cluster
@@ -37,7 +37,7 @@ win-pichu@DESKTOP-T467619 ~/Utils/redis/redis-6.0.9/confs $ tree
         └── redis.conf
 
 3 directories, 6 files
-```
+```bash
 其中`nodes.conf`和`appendonly.aof`分别是开启了cluster mode和aof持久化之后生成的文件。
 
 所以，如果启动完一台redis后还要在当前目录下启动redis，redis会发现当前目录已经存在`nodes.conf`等文件，将报错：`Sorry, the cluster configuration file nodes.conf is already used by a different Redis Cluster node. Please make sure that different nodes use different cluster configuration files.`
@@ -48,10 +48,10 @@ client使用`-c`选项以cluster模式连上一台集群模式的redis，发送 
 > 我试了不用`-c`启动client貌似也没关系。cluster的功能也能用。**但是这种模式的client识别不了server返回的MOVED等指令**。
 
 redis server本身要开启cluster-enabled，否则不能识别cluster指令：
-```
+```bash
 127.0.0.1:6379> cluster meet 127.0.0.1 1111
 (error) ERR This instance has cluster support disabled
-```
+```bash
 
 **`CLUSTER NODES`** 可以显示cluster的所有node，其实就是`node.conf`里的内容。
 

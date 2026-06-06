@@ -27,7 +27,7 @@ tags: jekyll
 ```bash
 » bundle show minima
 /home/win-pichu/Codes/Java/puppylpg.github.io/vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
-```
+```java
 然后到该路径下，看一下minima的目录结构：
 ```bash
 $ tree
@@ -61,7 +61,7 @@ $ tree
 	└── minima.scss
 
 5 directories, 22 files
-```
+```python
 
 参阅：
 - https://jekyllrb.com/docs/structure/
@@ -94,7 +94,7 @@ layout就是上面说的网页模板，放在`_layouts`目录下。
 
 </html>
 {% endraw %}
-```
+```json
 body标签之间的就是网页内容，模板中body大致有三块内容：
 - body开头引用了`header.html`；
 - 中间引用了内容；
@@ -178,7 +178,7 @@ layout: default
 
 </article>
 {% endraw %}
-```
+```json
 
 ### `_layouts/post.html`
 post模板同理：
@@ -212,7 +212,7 @@ layout: default
   <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
 </article>
 {% endraw %}
-```
+```json
 页面略复杂，大致包括：
 - page title；
 - date；
@@ -234,7 +234,7 @@ categories: jekyll update
 ---
 blabla...
 {% endraw %}
-```
+```bash
 最终的效果如图所示：
 ![Jekyll welcome blog](/pics/Jekyll_welcome_blog.png )
 
@@ -311,7 +311,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 [jekyll-gh]:   https://github.com/jekyll/jekyll
 [jekyll-talk]: https://talk.jekyllrb.com/
 {% endraw %}
-```
+```json
 - 用的模板是post.html；
 - 用的标题和日期。如果标题不指定，会使用文件名日期后的字符串作为标题，如`bananas`；
 - YAML Front Matter下面只需要给出文章正文就行了。
@@ -344,7 +344,7 @@ Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most ou
 	<p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
   {%- endif -%}
 {% endraw %}
-```
+```python
 **`site.posts`在Jekyll中代表所有发表在`_posts`下的文章**。通过`{% raw %}{% for post in site.post %}{% endraw %}`就可以遍历所有文章，并访问每个文章的date、title、excerpt等信息。
 
 这也是使用了`home.html`模板的页面也会显示所有文章的原因。
@@ -369,7 +369,7 @@ list_title: puppylpg wanna say -
 ---
 Welcome to puppylpg's home website, pika~
 {% endraw %}
-```
+```bash
 index页面使用的模板是`home.html`，所以会列出所有的文章目录。
 
 ## `about.md`

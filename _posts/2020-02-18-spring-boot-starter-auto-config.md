@@ -45,11 +45,11 @@ springboot干啥了，怎么就自动配置了？
 以自己写的pikachu-spring-boot-starter为例——
 
 假设世界上有一个接口叫pokemon：
-```
+```java
 public interface Pokemon {
     String show();
 }
-```
+```java
 pikachu就是一个pokemon，所以是该接口实现者之一。它就是一个普通的类，定义了一些属性，实现了show方法：打印一只皮卡丘。
 
 ## auto config类
@@ -77,7 +77,7 @@ public class PikachuAutoConfig {
         return pikachu;
     }
 }
-```
+```java
 在有Pikachu这个类的情况下才考虑配置pikachu（sure，没有pikachu这个类还怎么new。。。），且Pokemon这个bean不存在，即：开发者还没有手动new。**如果开发者自己手动new了pikachu或者其他的pokemon实现类，那我们就别瞎掺和了**。人家已经有自己中意的bean了，就不要再自动配置了。
 
 > 条件注解有@ConditionalOnClass、@ConditionalOnMissingBean、@ConditionalOnProperty等等注解。
@@ -103,7 +103,7 @@ public class PikachuProperties {
 
     private int height;
 }
-```
+```java
 使用了`@ConfigurationProperties`，就是从配置文件里读pokemon.pikachu.xxx了。
 
 在刚刚写的pikachu的autoconfig类里，有`@EnableConfigurationProperties(PikachuProperties.class)`，就是说启用这个类，并在new pikachu的时候从这个类里读数据。
@@ -127,7 +127,7 @@ spring boot会加载META-INF/spring.factories指定的那些类，而各个autoc
 ```properties
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
   io.puppylpg.pokemon.pikachu.PikachuAutoConfig
-```
+```java
 多个类之间使用逗号分隔。
 
 META-INF/spring.factories必须要打包到jar的root下，不放在resources下当然也行，但是必须用maven的指定resources的方法把它指定为resources。
@@ -139,7 +139,7 @@ META-INF/spring.factories必须要打包到jar的root下，不放在resources下
 
 ```properties
 io.puppylpg.pokemon.pikachu.PikachuAutoConfig
-```
+```java
 每个类独占一行。
 
 该变动是[springboot 2.7引入的](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.7-Release-Notes#auto-configuration-registration)，当时对二者均支持。3.x之后就只支持新版配置了。
@@ -169,12 +169,12 @@ io.puppylpg.pokemon.pikachu.PikachuAutoConfig
 
 # 其他
 当文件被打成jar包之后，就不能从file读了：
-```
+```java
         ClassLoader classLoader = getClass().getClassLoader();
         File file = new File(classLoader.getResource("pikachu.pic").getFile());
-```
+```java
 但是可以从InputStream读：
-```
+```java
         ClassLoader classLoader = getClass().getClassLoader();
         InputStream inputStream = classLoader.getResourceAsStream("pikachu.pic");
         try {
@@ -182,7 +182,7 @@ io.puppylpg.pokemon.pikachu.PikachuAutoConfig
         } catch (IOException e) {
             e.printStackTrace();
         }
-```
+```java
 打成jar之后，file就不是file了。和操作系统从文件系统上读普通文件是不一样的。
 
 参阅：

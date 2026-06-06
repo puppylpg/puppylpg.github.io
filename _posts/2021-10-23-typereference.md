@@ -29,7 +29,7 @@ tags: java serialization jackson json
 想把一个list json反序列化为java对象：
 ```java
 List<Student> list = new ObjectMapper().readValue(studentStr, List<Student>.class);
-```
+```java
 编译器会报错：`Cannot select from parameterized type`，即没有`List<Student>.class`这种写法。
 
 > **因为Java的泛型是伪泛型，所以实际上不存在`List<Student>`这个类型，自然也不可能对一个不存在的类调用它的`class`属性**。
@@ -37,7 +37,7 @@ List<Student> list = new ObjectMapper().readValue(studentStr, List<Student>.clas
 直接使用`List.class`作为要反序列化的类型？
 ```java
 List<Student> list = new ObjectMapper().readValue(studentStr, List.class);
-```
+```xml
 会有警告：`Unchecked assignment: 'java.util.List' to 'java.util.List<Student>'`，因为这里的List是擦除了类型信息的List，但是接收的list却是`List<Student>`。
 
 归根结底，**我们只能提供`List.class`（不能手写`List<Student>.class`），但是我们需要告诉Jackson的是`List<Student>.class`**。所以核心就是一个问题：**怎么获取`List<Student>.class`这个东西**？
@@ -46,7 +46,7 @@ List<Student> list = new ObjectMapper().readValue(studentStr, List.class);
 Jackson还提供了和上述方法对应的另一种反序列化方法，专门来解决这个问题：
 ```java
 public <T> T readValue(String content, TypeReference valueTypeRef)
-```
+```java
 传入一个`TypeReference`：
 ```java
 List<Student> list = new ObjectMapper().readValue(studentStr, new TypeReference<List<Student>>(){});
@@ -61,11 +61,11 @@ TypeReference是怎么做到的？
 匿名类的语法：
 ```java
 new class-name ( [ argument-list ] ) { class-body }
-```
+```java
 or:
 ```java
 new interface-name () { class-body }
-```
+```java
 
 - docstore.mik.ua/orelly/java-ent/jnut/ch03_12.htm
 
@@ -83,7 +83,7 @@ A a = new A {
         // xxx
     }
 }
-```
+```java
 a的类型是A的**匿名子类**。
 
 其实对类也可以：
@@ -115,7 +115,7 @@ System.out.println(s.getClass().getSuperclass().getSuperclass());
 
 // null
 System.out.println(Object.class.getSuperclass());
-```
+```java
 **s是extends Object的一个子类（但是没有名字，所以是匿名的）**，它的父类是Object，Object的父类是null。
 
 > 注意s本身的class的名称，**和父类是什么无关，只和自己被定义时所在的位置有关：因为它是在`GenericTypeDemo`里定义的匿名类，所以它的类名为`GenericTypeDemo$1`**。
@@ -129,7 +129,7 @@ public final class Class<T> implements java.io.Serializable,
                               GenericDeclaration,
                               Type,
                               AnnotatedElement
-```
+```xml
 Class是Type的子类，有Type的功能。
 
 Type描述的是类型，有一个子接口是ParameterizedType。**对于泛型类来说，它是Class，同时也是`ParameterizedType`**。
@@ -146,7 +146,7 @@ Class是Type的子类，有Type的功能，所以Class类有以下方法：
 比如这个类它是HashMap的匿名子类：
 ```java
 Map<String, Integer> intMap = new HashMap<String, Integer>(){};
-```
+```java
 它的父类信息：
 ```java
 // class java.util.HashMap
@@ -176,7 +176,7 @@ System.out.println(Arrays.toString((pType).getActualTypeArguments()));
 
 // class java.util.HashMap
 System.out.println(pType.getRawType());
-```
+```java
 对于泛型类来说，`getClass().getSuperClass() == getClass().getGenericSuperClass().getRawType()`。
 
 这是一个典型的用法：**泛型的匿名子类 + ParameterizedType**。jackson的`TypeReference`就是这么使用的典型。
@@ -197,7 +197,7 @@ System.out.println(pType.getRawType());
     }
 
     public Type getType() { return _type; }
-```
+```xml
 它的初始化方法，就是利用了上面的知识：
 1. 先获取匿名子类的带泛型的父类：`TypeReference<xxx>`；
 2. 然后获取它的泛型参数`xxx`，把这个参数存到`_type`属性里；
@@ -210,7 +210,7 @@ System.out.println(pType.getRawType());
     
     // 输出：java.util.List<java.lang.String>
     System.out.println(type.getType());
-```
+```java
 **TypeReference的意义就是：无论想要什么类型，管他是`String.class`还是`List<Student>.class`，只要放到TypeReference的形参里，现在一个`getType()`方法就都能取得了**。
 
 它的java doc是这么举例的：
@@ -267,7 +267,7 @@ class Student {
     private int age;
     // getter and setter methods
 }
-```
+```java
 
 ## 自己实现
 自己照着他们的思路抄一遍也不是不行：

@@ -26,7 +26,7 @@ servlet开发者需要关注的是`ServletInputStream`里的方法：
 同理，`ServletOutputStream`需要关注的是`setWriterListener(WriteListener wl)`。
 
 看一个例子：
-```
+```java
 @WebServlet(urlPatterns={"/asyncioservlet"}, asyncSupported=true)
 public class AsyncIOServlet extends HttpServlet {
    @Override
@@ -58,12 +58,12 @@ public class AsyncIOServlet extends HttpServlet {
       });
    }
 }
-```
+```java
 
 nio的细节在哪里？servlet容器负责实现了，servlet开发者可以不关注。如果深入研究，其实就是**servlet容器使用[Java NIO]({% post_url 2020-10-29-java-nio %})介绍的jdk的Selector/ServletSocketChannel/SocketChannel实现了nio的流程，servlet开发者只需要告诉servlet容器socket读到那儿（ReadListener）、写什么（WriteListener）就够了**。
 
 拿tomcat这一servlet容器实现举例，查看它新的nio连接coyote的两个实现类`NioSelectorPool`和`NioBlockingSelector`，可以看到它是使用jdk提供的Selector作为自己的selector实现的：
-```
+```java
     protected Selector getSharedSelector() throws IOException {
         if (shared && sharedSelector == null) {
             synchronized (NioSelectorPool.class) {
@@ -74,7 +74,7 @@ nio的细节在哪里？servlet容器负责实现了，servlet开发者可以不
         }
         return  sharedSelector;
     }
-```
+```java
 使用servlet 3.1标准提供的`javax.servlet.ServletInputStream`和`javax.servlet.ServletOutputStream`里做NIO读写，对servlet开发者来讲相当简单。
 
 （~~大哭，再也不用考虑单撸NIO实现了~~）
@@ -87,9 +87,9 @@ nio的细节在哪里？servlet容器负责实现了，servlet开发者可以不
 - server处理任务这一端：异步servlet则是从另一端省了thread——将长任务异步去做，解放servlet容器工作线程。
 
 异步servlet的关键api是：
-```
+```java
 AsyncContext acontext = req.startAsync();
-```
+```java
 从请求获取`AsyncContext`。然后它的`start(Runnable run)`方法让一个新线程异步执行长任务，本工作线程直接返回。
 
 也就是说，异步servlet是让工作线程在处理一个比较长的任务，比如读db、请求其他服务的时候，将任务解耦出来，异步去做，从而可以让工作线程直接解放。但是直观地想，把一件阻塞的活儿从一个线程交给另一个线程，似乎没什么意义，毕竟工作负担还是那么多，只不过干活的人换了一个，反而更麻烦了不是吗？
@@ -97,7 +97,7 @@ AsyncContext acontext = req.startAsync();
 
 
 比如下面的例子：
-```
+```java
 @WebServlet(urlPatterns={"/asyncservlet"}, asyncSupported=true)
 public class AsyncServlet extends HttpServlet {
    /* ... Same variables and init method as in SyncServlet ... */
@@ -116,7 +116,7 @@ public class AsyncServlet extends HttpServlet {
             acontext.complete();
    }
 }
-```
+```java
 其实，上面的场景并不适合异步servlet，异步servlet主要用于server push的场景。
 
 参阅：
@@ -156,7 +156,7 @@ server push本质上用的还是http，所以本质上还是client先请求，se
 
 **这个阻塞，它可能是活干的时间太久（计算时间长、sleep等），用异步没意义，也可能是活暂时没有，需要等，这个时候用异步推送就很合适，让一个工作线程等就够了。**
 
-```
+```java
 @WebServlet(name="myServlet", urlPatterns={"/auctionservice"}, asyncSupported=true)
 public class MyServlet extends HttpServlet {
    
@@ -219,7 +219,7 @@ public class BidPushService implements ServletContextListener{
    public void contextDestroyed(ServletContextEvent sce) {
    }
 }
-```
+```java
 1. http thread把context扔到BlockingQueue里；
 2. worker thread监听事件BlockingQueue，有消息就拿出来，依次给到context所在的BlockingQueue，写入每一个response；
 

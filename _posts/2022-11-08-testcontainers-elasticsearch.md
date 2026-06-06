@@ -22,14 +22,14 @@ elasticsearch 7.x默认绑定两个端口：
 - https://discuss.elastic.co/t/what-are-ports-9200-and-9300-used-for/238578?u=puppylpg
 
 这是container内部绑定的端口，**默认情况下，会把container内部绑定的两个端口都映射为本地端口**：
-```
+```java
 > docker container ls
 CONTAINER ID   IMAGE                                                  COMMAND                  CREATED          STATUS          PORTS                                              NAMES
 bdcb01292e95   docker.elastic.co/elasticsearch/elasticsearch:7.12.0   "/bin/tini -- /usr/l…"   11 seconds ago   Up 10 seconds   0.0.0.0:12625->9200/tcp, 0.0.0.0:12626->9300/tcp   hopeful_bhabha
 d7c6a5102a69   testcontainers/ryuk:0.3.4                              "/app"                   13 seconds ago   Up 11 seconds   0.0.0.0:12611->8080/tcp                            testcontainers-ryuk-93b16e0f-c92c-426a-b6fc-2d0ead3c3d3e
-```
+```dockerfile
 **如果使用`.withExposedPorts(9200)`显式将docker绑定的端口映射到本地端口，则只有显式声明的端口才会映射到本地端口**：
-```
+```java
 > docker container ls
 CONTAINER ID   IMAGE                                                  COMMAND                  CREATED         STATUS         PORTS                               NAMES
 122f2219e24d   docker.elastic.co/elasticsearch/elasticsearch:7.12.0   "/bin/tini -- /usr/l…"   7 seconds ago   Up 6 seconds   9300/tcp, 0.0.0.0:12290->9200/tcp   gifted_wing
@@ -48,7 +48,7 @@ CONTAINER ID   IMAGE                                                  COMMAND   
 在[testcontainer elasticsearch](https://www.testcontainers.org/modules/elasticsearch/)官方实例中，示范了 **获取本地动态映射端口的方法：`ElaticsearchContainer#getHttpHostAddress()`**
 
 比如手动构建client：
-```
+```java
 client =
         RestClient
             .builder(HttpHost.create(container.getHttpHostAddress()))
@@ -56,7 +56,7 @@ client =
                 return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
             })
             .build();
-```
+```java
 
 **但是如果是使用spring boot，elasticsearch client是根据properties属性自动创建的。也就是说`spring.elasticsearch.uris`是提前写到properties文件里的**，这怎么办？
 
@@ -67,7 +67,7 @@ client =
 > **This annotation and its supporting infrastructure were originally designed to allow properties from Testcontainers  based tests** to be exposed easily to Spring integration tests. However, this feature may also be used with any form of external resource whose lifecycle is maintained outside the test's ApplicationContext.
 
 所以可以在运行时获取动态地址后，设置到`spring.elasticsearch.uris`属性：
-```
+```java
     @DynamicPropertySource
     static void elasticProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.elasticsearch.uris", container::getHttpHostAddress);
@@ -80,7 +80,7 @@ client =
 ## 完整示例
 
 定义container：
-```
+```java
 public class XxxElasticsearchContainer {
 
     private static final String IMAGE_NAME = "docker.elastic.co/elasticsearch/elasticsearch:7.12.0";
@@ -91,9 +91,9 @@ public class XxxElasticsearchContainer {
                 .withEnv("ES_JAVA_OPTS", "-Xms1024m -Xmx1024m");
     }
 }
-```
+```java
 使用container：
-```
+```java
 @SpringBootTest
 @Testcontainers
 public class ElasticsearchClientIntegrationTest {
@@ -118,20 +118,20 @@ public class ElasticsearchClientIntegrationTest {
 ```
 
 # testcontainer jupiter
-```
+```java
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>junit-jupiter</artifactId>
     <version>1.17.6</version>
     <scope>test</scope>
 </dependency>
-```
+```java
 testcontainers的`junit-jupiter`包提供了对jupiter测试框架的扩展`TestcontainersExtension`，通过它可以解析`@Container`注解。
 
 > **这个包的artifact id和junit-jupiter一样，只有group id不一样（`org.testcontainers:junit-jupiter` vs. `org.junit.jupiter:junit-jupiter`）**，所以不要看错了。
 
 `@ExtendWith(TestcontainersExtension.class)`已经放在了`@Testcontainers`注解中，所以直接使用`@Testcontainers`即可：
-```
+```java
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @ExtendWith(TestcontainersExtension.class)
@@ -182,7 +182,7 @@ public @interface Testcontainers {
 具体映射到的本地端口可以通过`docker container ls`查看。获取本地映射的端口后，往docker发送一些请求，以诊断错误：
 ```bash
 GET -C elastic:pikachu http://localhost:3024/<index>/_search
-```
+```java
 
 > 才发现这个命令不是curl。GET是Simple command line user agent工具中的一个：
 >

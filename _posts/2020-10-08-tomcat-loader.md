@@ -14,7 +14,7 @@ Tomcat是一个servlet容器，要载入程序猿开发的servlet才能使用ser
 # `org.apache.catalina.Loader`
 Tomcat定义自己的Loader的最大原因就是程序猿servlet不一定是健康的、无害的。Tomcat内部管理着很多servlet，如果直接用系统classloader加载一个servlet，那么这个servlet可以访问CLASSPATH下的所有的类、库。为了安全性，Tomcat只让servlet访问`WEB-INF/classes`和`WEB-INF/lib`。其他类，比如Tomcat本身的类，使用的是系统的classloader，和load servlet的classloader不是同一个，servlet便无法访问Tomcat自身的类。
 
-```
+```java
 public interface Loader {
 
     public ClassLoader getClassLoader();
@@ -46,7 +46,7 @@ public interface Loader {
     public void addPropertyChangeListener(PropertyChangeListener listener);
     public void removePropertyChangeListener(PropertyChangeListener listener);
 }
-```
+```java
 Loader接口最重要的方法有：
 - getClassLoader：返回一个ClassLoader，**用于加载类，是真正在加载类的时候干活的人**；
 - addRepository：所谓repository，就是Loader里的ClassLoader寻找要加载的类的地方。换句话说，这就是这个ClassLoader的classpath；
@@ -72,7 +72,7 @@ WebappLoader也是一个Lifecycle组件，所以看他的start方法，做了以
 
 # 应用程序目录
 Context的标准实现StandardContext支持设置path：
-```
+```java
     /**
      * Set the context path for this web application.
      *
@@ -83,7 +83,7 @@ Context的标准实现StandardContext支持设置path：
 Loader从该目录下的`WEB-INF/classes`里寻找servlet。
 
 Tomcat寻找应用程序目录是从`catalina.base`的目录下寻找的。一般设置为当前目录：
-```
+```java
     System.setProperty("catalina.base", System.getProperty("user.dir"));
     context.setPath("/myApp");
 ```

@@ -23,14 +23,14 @@ tags: elasticsearch
 > max virtual memory areas vm.max_map_count [131072] is too low, increase to at least [262144]
 
 elasticsearch一般使用detach（`-d`）的方式[启动](https://www.elastic.co/guide/en/elasticsearch/reference/current/starting-elasticsearch.html)，可以顺带保留pid（`-p`）到文件内：
-```
+```txt
 ./bin/elasticsearch -d -p pid
-```
+```txt
 
 也可以自定义heap size：
-```
+```txt
 ES_JAVA_OPTS="-Xms32g -Xmx32g" ./bin/elasticsearch -d -p pid
-```
+```bash
 如果想持久化jvm配置，**也可以把jvm参数放到`config/jvm.options`里**。
 
 [关闭](https://www.elastic.co/guide/en/elasticsearch/reference/current/stopping-elasticsearch.html)elasticsearch更简单，直接kill pid就行。
@@ -55,7 +55,7 @@ PUT /_cluster/settings
     "cluster.routing.allocation.exclude._name" : null
   }
 }
-```
+```txt
 
 ## 重启节点 - 有副本时
 
@@ -78,7 +78,7 @@ PUT /_cluster/settings
     "cluster.routing.allocation.enable" : "none"
   }
 }
-```
+```java
 
 # 配置的种类
 elasticsearch的[配置](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html)主要分为[dynamic和static](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#cluster-setting-types)：
@@ -109,12 +109,12 @@ PUT /_cluster/settings
     "cluster.routing.allocation.enable" : "none"
   }
 }
-```
+```bash
 
 通过[get setting api](https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html)查看设置：
-```
+```txt
 GET _cluster/settings
-```
+```txt
 结果示例：
 ```json
 {
@@ -140,7 +140,7 @@ GET _cluster/settings
     }
   }
 }
-```
+```xml
 
 > 这里设置了监控保留最近30天的history信息。[但是很遗憾并无卵用](https://discuss.elastic.co/t/xpack-monitoring-history-duration-with-a-value-other-than-7d-does-not-work/238134/2?u=puppylpg)，不掏钱的话依旧只能保留7天……
 
@@ -185,11 +185,11 @@ GET _cluster/settings
 - `0.0.0.0`：比`_global_`少绑定了了ipv6
 
 使用示例：
-```
+```python
 network.host: [ "_site_" ]
 network.host: "_site_"
 network.host: _site_
-```
+```bash
 
 ## 节点发现
 如前所述，[development模式下的节点发现](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/important-settings.html#discovery-settings)是默认开启的：
@@ -203,13 +203,13 @@ network.host: _site_
 如果想和其他机器上的节点组集群，**就要设置一些初始seed，作为本节点的初始哥们儿，同时哥们儿的哥们儿也是我的哥们儿，大家就全都成了一个集群**。
 
 可以通过[`discovery.seed_hosts`](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/important-settings.html#unicast.hosts)设置初始seed，格式为yaml sequence或array：
-```
+```python
 discovery.seed_hosts:
    - 192.168.1.10:9300
    - 192.168.1.11 
    - seeds.mydomain.com 
    - [0:0:0:0:0:ffff:c0a8:10c]:9301
-```
+```xml
 可以用ip、hostname、甚至domain。因为这是一个static配置，所以需要重启节点才能生效，**因此通过DNS配置domain才是比较合理的选择**。
 
 > ip的端口如果不指定，默认是9300。**如果该节点不存在，也无所谓**。
@@ -219,17 +219,17 @@ discovery.seed_hosts:
 > **DNS本身就像是一个中间层！如果`seed_hosts`使用了DNS，就不需要配置provider了！**
 
 [最简单的provider可以是一个文件](https://www.elastic.co/guide/en/elasticsearch/reference/7.12/modules-discovery-hosts-providers.html#built-in-hosts-providers)：
-```
+```python
 discovery.seed_providers: file
-```
+```bash
 然后就可以**在`$ES_PATH_CONF/unicast_hosts.txt`里配置seed**：
-```
+```python
 10.10.10.5
 10.10.10.6:9305
 10.10.10.5:10005
 # an IPv6 address
 [2001:0db8:85a3:0000:0000:8a2e:0370:7334]:9301
-```
+```txt
 **该文件可以动态修改，无需重启elasticsearch。**
 
 如果设置provider的同时还设置了`discovery.seed_hosts`，二者会**取并集**。
@@ -283,18 +283,18 @@ PUT /_cluster/settings
     "cluster.routing.allocation.enable" : "none"
   }
 }
-```
+```txt
 吃瓜节点（nodeC）的相关log：
-```
+```dockerfile
 [2023-04-03T15:01:06,331][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [all] to [none]
 [2023-04-03T15:01:06,331][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [all] to [none]
-```
+```txt
 
 ## 停机
 然后给旧节点（nodeA）停机。此时cluster state为yellow，下掉的主分片对应的副本会转正，但是会缺少副本，所以是yellow。
 
 nodeA的相关log：
-```
+```java
 [2023-04-03T15:03:42,313][INFO ][o.e.n.Node               ] [nodeA] stopping ...
 [2023-04-03T15:03:42,333][INFO ][o.e.x.w.WatcherService   ] [nodeA] stopping watch service, reason [shutdown initiated]
 [2023-04-03T15:03:42,334][INFO ][o.e.x.m.p.l.CppLogMessageHandler] [nodeA] [controller/42927] [Main.cc@169] ML controller exiting
@@ -305,20 +305,20 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 [2023-04-03T15:03:48,535][INFO ][o.e.n.Node               ] [nodeA] stopped
 [2023-04-03T15:03:48,535][INFO ][o.e.n.Node               ] [nodeA] closing ...
 [2023-04-03T15:03:48,554][INFO ][o.e.n.Node               ] [nodeA] closed
-```
+```json
 
 吃瓜节点的相关log，先是发现一个节点（nodeA）没了，消息来自master（nodeM）：
 {% raw %}
-```
+```json
 [2023-04-03T15:03:42,505][INFO ][o.e.c.s.ClusterApplierService] [nodeC] removed {{nodeA}{IfvgMjsHRCqS4MKQiZ6naQ}{kA-_4F3DRTWElSlUUZbhqQ}{10.105.132.120}{10.105.132.120:9300}{cdfhilmrstw}{ml.machine_memory=609641574400, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69262, reason: ApplyCommitRequest{term=18, version=69262, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
-```
+```json
 {% endraw %}
 然后把自己相关的索引replica分片变成主分片：
-```
+```json
 [2023-04-03T15:03:42,534][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index1][5] primary-replica resync completed with 0 operations
 [2023-04-03T15:03:42,535][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index2][0] primary-replica resync completed with 0 operations
 [2023-04-03T15:03:42,607][INFO ][o.e.i.s.IndexShard       ] [nodeC] [index3][14] primary-replica resync completed with 296 operations
-```
+```txt
 
 ## 新节点
 把旧节点所有数据copy到新节点所在的机器，可能要修改配置：
@@ -330,9 +330,9 @@ org.elasticsearch.transport.NodeDisconnectedException: [nodeM][10.105.132.30:930
 
 {% raw %}
 吃瓜节点的相关log，发现一个新的node（nodeB）加入，消息同样来自master：
-```
+```json
 [2023-04-03T15:53:36,617][INFO ][o.e.c.s.ClusterApplierService] [nodeC] added {{nodeB}{IfvgMjsHRCqS4MKQiZ6naQ}{h0JTe5CsQe6wORb3kQ6rYQ}{10.105.132.124}{10.105.132.124:9300}{cdfhilmrstw}{ml.machine_memory=135211626496, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
-```
+```json
 {% endraw %}
 
 ## 允许分片分配
@@ -344,21 +344,21 @@ PUT /_cluster/settings
     "cluster.routing.allocation.enable" : null
   }
 }
-```
+```txt
 
 吃瓜节点的相关log：
-```
+```dockerfile
 [2023-04-03T15:54:37,036][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [none] to [all]
 [2023-04-03T15:54:37,036][INFO ][o.e.c.s.ClusterSettings  ] [nodeC] updating [cluster.routing.allocation.enable] from [none] to [all]
-```
+```json
 
 新节点上的数据会直接恢复，并同步下线期间的translog。所有分片同步完translog后，都会变成replica。cluster state重新变为green。
 
 {% raw %}
 新节点（nodeB）的相关log：
-```
+```json
 [2023-04-03T15:53:36,729][INFO ][o.e.c.s.ClusterApplierService] [nodeB] master node changed {previous [], current [{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}]}, added {{nodeD}{5hXjsmQiR6ad5w_feDNAaw}{MHvS3YF8RPuAQrYKGtYXbw}{10.105.132.121}{10.105.132.121:9300}{cdfhilmrstw}{ml.machine_memory=609639878656, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34071904256, transform.node=true},{nodeD}{tdKN6CHeRpmZxNd-sgLLpQ}{nVdtFXayTu206cqv43Di3A}{10.105.132.33}{10.105.132.33:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeF}{d8UzAE-DTIOxRMR81OWmQg}{pe3V7E70RQSKtXDtxMkSaA}{10.105.132.32}{10.105.132.32:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true},{nodeC}{ekqiqzAzSaavjYE-TnNtYA}{3MX6YkY_SKaERocVWDl1dw}{10.105.132.34}{10.105.132.34:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}, term: 18, version: 69281, reason: ApplyCommitRequest{term=18, version=69281, sourceNode={nodeM}{86WG7aelQzOnoCZLOBy3sw}{yl4LmPWZTheYSGF6EK-hsQ}{10.105.132.30}{10.105.132.30:9300}{cdfhilmrstw}{ml.machine_memory=135211630592, ml.max_open_jobs=20, xpack.installed=true, ml.max_jvm_size=34115485696, transform.node=true}}
-```
+```json
 现在的6个节点是B/C/D/E/F/M，没有了nodeA。
 {% endraw %}
 

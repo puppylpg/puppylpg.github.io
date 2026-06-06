@@ -31,7 +31,7 @@ tags: elasticsearch
             // next page
             pageReq = pageReq.next();
         } while (page != null && !page.isEmpty());
-```
+```java
 结果，的确是一页一页查了n条数据，和index里doc的数量相同。但是，处理结果并非不重不漏：有的doc被处理了两遍，有的没有被处理到。
 
 上述现象是从log日志里看到的，有的doc id出现了多次，有的doc id根本就没出现。为什么？
@@ -54,7 +54,7 @@ GET stored_kol/_search
   "size": 3,
   "explain": true
 }
-```
+```java
 实验证明：**只有在没有replica的情况下，相同得分的文档返回的顺序才是永远一样的！**
 
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/paginate-search-results.html
@@ -66,7 +66,7 @@ GET stored_kol/_search
 在原有page上加了个sort在unique字段上，以保证数据有序，每一条数据都能遍历到：
 ```java
     PageRequest.of(0, 1000, Sort.by("user_id").descending())
-```
+```java
 
 ## search_after
 **但是既然免不了使用sort，为什么不用[search_after]({% post_url 2022-05-08-es-performance %})呢？使用search_after翻页，不仅比分页效率高，写起来page似乎还简单些，不用指定from，size了，也不用算下一页的偏移了，指定一个`search_after`就够了。**
@@ -103,7 +103,7 @@ GET twitter/_search
         {"tie_breaker_id": "asc"}
     ]
 }
-```
+```bash
 直到没有结果返回。
 
 **search_after的本质就是：elasticsearch先把文档排好序，再把指定sort后的文档返回给客户端。**
@@ -122,13 +122,13 @@ GET twitter/_search
 先获取pit id：
 ```json
 POST stored_kol/_pit?keep_alive=10m
-```
+```json
 pit id：
 ```json
 {
   "id": "48myAw8Nc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBRZYcXo0ZEdVMlNHQ24zeGlkb1A2dWJnAAAAAAAAbcXqFnM3TlZzeXpRVG15b21MRWVxdzFYTGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQQWR2lDLXIwTG1UeWkxaGIxbmZWY3ZtdwAAAAAAAFfUZRZEdDBHaUUzYlRkeW0xR3hHSlkxQUt3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEHFkdpQy1yMExtVHlpMWhiMW5mVmN2bXcAAAAAAABX1GcWRHQwR2lFM2JUZHltMUd4R0pZMUFLdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BBhZHaUMtcjBMbVR5aTFoYjFuZlZjdm13AAAAAAAAV9RmFkR0MEdpRTNiVGR5bTFHeEdKWTFBS3cADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQkWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi-xZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEIFjZXaUo4V0VFUzYtaTNEQkNONmdBRWcAAAAAAABZq00WN0h6VkhHV3pTRTYyYnBnQmNUMUdsZwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BCxZvYzR5OUE1SlFjZWxyVktMdmVMbXhnAAAAAAAASYETFlVTNlQwRGRrUzhlNHRoeWVjanpodXcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQoWQ1dLcnlSNmtSZU93SGMxUS00aUlsZwAAAAAAAFRi_BZkRmppLTA0U1FZYTJNWXlYc2s5MHRnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUENFm9jNHk5QTVKUWNlbHJWS0x2ZUxteGcAAAAAAABJgRQWVVM2VDBEZGtTOGU0dGh5ZWNqemh1dwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BDBZlMDhPZEhQcVE0T1JlTkZLNHFTNE5RAAAAAAAAX0hzFkVKTmZaZXloUnlDX0puRlhCNThxbHcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQ4Wb2M0eTlBNUpRY2VsclZLTHZlTG14ZwAAAAAAAEmBFRZVUzZUMERka1M4ZTR0aHllY2p6aHV3AA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUEBFmUwOE9kSFBxUTRPUmVORks0cVM0TlEAAAAAAABfSHIWRUpOZlpleWhSeUNfSm5GWEI1OHFsdwANc3RvcmVkX2tvbF92OBY3ak1uNEhsSlRBeTU1a09VSHVWMy1BABY2V2lKOFdFRVM2LWkzREJDTjZnQUVnAAAAAAAAWatLFjdIelZIR1d6U0U2MmJwZ0JjVDFHbGcADXN0b3JlZF9rb2xfdjgWN2pNbjRIbEpUQXk1NWtPVUh1VjMtQQMWNldpSjhXRUVTNi1pM0RCQ042Z0FFZwAAAAAAAFmrTBY3SHpWSEdXelNFNjJicGdCY1QxR2xnAA1zdG9yZWRfa29sX3Y4FjdqTW40SGxKVEF5NTVrT1VIdVYzLUECFlhxejRkR1UyU0dDbjN4aWRvUDZ1YmcAAAAAAABtxekWczdOVnN5elFUbXlvbUxFZXF3MVhMZwABFjdqTW40SGxKVEF5NTVrT1VIdVYzLUEAAA=="
 }
-```
+```json
 
 > 之后查的时候就不用指定索引了，把pit id带上就行了。
 >
@@ -254,7 +254,7 @@ GET /_search
     ]
   }
 }
-```
+```json
 
 > 所以现在sort里多了一个`_shard_doc`值，变成了两个值。
 
@@ -280,7 +280,7 @@ GET /_search
   "_source": "nickname",
   "explain": true
 }
-```
+```json
 如果把上一次sort里的`_shard_doc`值去掉，只留下0，会从fan_num=1的doc返回。因为有那么多fan_num=0的文档，没有`shard_doc`作为第二顺位帮忙指定具体是哪一条，elasticsearch就当做是最后一条了，所以从fan_num=1的文档开始返回；
 
 ### 最快的遍历
@@ -300,7 +300,7 @@ GET /_search
   ]
   "explain": true
 }
-```
+```json
 **使用`_shard_doc`比使用自定义字段排序更快，因为elasticsearch不需要遍历完所有文档就能给出这个序：**
 > **search_after requests have optimizations that make them faster when the sort order is _shard_doc and total hits are not tracked.** If you want to iterate over all documents regardless of the order, this is the most efficient option.
 >
@@ -390,7 +390,7 @@ GET witake_media/_search
     }
   }
 }
-```
+```json
 返回10条文档花了7s，`total`的值显示一共有超过10000条符合条件的文档：
 ```json
 {
@@ -408,7 +408,7 @@ GET witake_media/_search
       "relation" : "gte"
     },
     "max_score" : 0.0,
-```
+```json
 **也就是说这个query至少查到了10000条返回条件的文档，最终才返回10条**。慢是应该的。
 
 如果设置`"track_total_hits": 100`，4.6s就返回了：
@@ -428,7 +428,7 @@ GET witake_media/_search
       "relation" : "gte"
     },
     "max_score" : 0.0,
-```
+```json
 这次找到100条就停止搜索了，所以快了些。
 
 > 为了防止filter cache，这次搜索换了个关键词。虽然关键词不一样对结果也有影响，但选的都是简单基本常用词，所以影响没那么大。上次用的是hello，这次是good，下面用的是world。

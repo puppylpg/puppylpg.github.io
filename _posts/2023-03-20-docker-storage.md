@@ -34,7 +34,7 @@ volume和bind mount最终对应的都是host上的directory。唯一的区别是
 > When you need to back up, restore, or migrate data from one Docker host to another, volumes are a better choice.
 
 **volume实际也是对应实体机上的文件夹，一般在`/var/lib/docker/volumes/`下，可以使用`docker inspect`查看**：
-```
+```bash
 debian:app (master*) $ docker volume create todo-db
 todo-db
 debian:app (master*) $ docker volume inspect todo-db 
@@ -49,7 +49,7 @@ debian:app (master*) $ docker volume inspect todo-db
         "Scope": "local"
     }
 ]
-```
+```bash
 
 ## 挂载volume
 用`--volume`和`--mount`都可以。
@@ -83,19 +83,19 @@ debian:app (master*) $ docker volume inspect todo-db
 > 在[Docker - 容器化nginx]({% post_url 2023-03-13-dockerize-nginx %})里，acme-companion就用到了`--volumes-from`挂载和nginx-proxy相同的volume。
 
 假设某个container挂载了一个匿名volume到/dbdata：
-```
+```bash
 docker run -v /dbdata --name dbstore ubuntu /bin/bash
-```
+```bash
 我们使用一个新容器挂载该匿名volume（使用`--volumes-from`），同时bind mount一个本地文件夹到容器，就可以将该container作为中转站，把匿名volume的内容copy到本地文件夹：
-```
+```bash
 docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
-```
+```bash
 同理，可以把备份内容恢复到另一个volume里：
-```
+```bash
 docker run -v /dbdata2 --name dbstore2 ubuntu /bin/bash
 
 docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /dbdata2 && tar xvf /backup/backup.tar --strip 1"
-```
+```bash
 
 # bind mount
 [bind mount](https://docs.docker.com/storage/bind-mounts/)**主要是[为了直接把host machine的本地文件暴露给container](https://docs.docker.com/storage/#good-use-cases-for-bind-mounts)**。但是不能使用docker管理bind mount，所以如果没有特殊理由就用volume。
@@ -146,7 +146,7 @@ docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /db
 - https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes
 
 无论mount volume还是bind mount，在docker compose里用的都是[`volumes`](https://docs.docker.com/compose/compose-file/#volumes)关键字（或者参考[v3的文档](https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes)）。因此volume的语法有short syntax和long syntax：
-```
+```bash
 version: "3.9"
 services:
   web:
@@ -170,7 +170,7 @@ services:
 volumes:
   mydata:
   dbdata:
-```
+```bash
 如果只绑定到一个service上，没必要定义一个顶级`volumes` key。如果想在多个service之间使用同一个volume，则需要定义。
 
 > You can mount a host path as part of a definition for a single service, and there is no need to define it in the top level volumes key.
@@ -178,7 +178,7 @@ volumes:
 > But, if you want to reuse a volume across multiple services, then define a named volume in the top-level volumes key.
 
 short syntax写起来和docker的`--mount`/`--volume`的short syntax一样。如果不是路径，那就是volume：
-```
+```bash
 volumes:
   # Just specify a path and let the Engine create a volume
   - /var/lib/mysql
@@ -194,17 +194,17 @@ volumes:
 
   # Named volume
   - datavolume:/var/lib/mysql
-```
+```bash
 
 **默认创建的volume名字是`[projectname]_[volume name]`，而非volume name。**
 
 如果volume是提前创建好的，可以使用[`external: true`](https://docs.docker.com/compose/compose-file/compose-file-v3/#external)属性。在3.4里被弃用了，使用`name`属性：
-```
+```bash
 volumes:
   data:
     external:
       name: actual-name-of-volume
-```
+```bash
 
 # rancher volume
 一般来说，使用docker创建volume只能创建在单个宿主机上。在rancher上，可以创建被多个宿主机共享的volume，从而被多个container共享。

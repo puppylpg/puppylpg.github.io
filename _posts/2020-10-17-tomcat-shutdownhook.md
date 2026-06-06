@@ -21,7 +21,7 @@ Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ct
 所谓的hook，其实就是一个Thread对象。它记录着要做的事情（run），jvm在结束前会执行它一下。
 
 并行执行（`hook.start()`）：
-```
+```java
     /* Iterates over all application hooks creating a new thread for each
      * to run in. Hooks are run concurrently and this method waits for
      * them to finish.
@@ -46,13 +46,13 @@ Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ct
             }
         }
     }
-```
+```java
 使用`hook.join()`等待所有hook执行完。
 
 # Catalina注册shutdownhook
 清理Server残局的shutdown hook就一句话：`server.stop()`，然后按照Tomcat的lifecycle机制，一串子组件都依次关闭了。
 
-```
+```java
     /**
      * Shutdown hook which will perform a clean shutdown of Catalina if needed.
      */
@@ -78,7 +78,7 @@ Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ct
 ```
 
 有趣的是Catalina注册该shutdown hook的地方：
-```
+```java
         Thread shutdownHook = new CatalinaShutdownHook();
 
         // Start the new server

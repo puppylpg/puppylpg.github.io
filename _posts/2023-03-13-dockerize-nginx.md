@@ -64,7 +64,7 @@ docker run --detach \
 --volume /var/run/docker.sock:/tmp/docker.sock:ro \
 --restart=always \
 nginxproxy/nginx-proxy:latest
-```
+```nginx
 
 绑定80和443端口。
 
@@ -90,7 +90,7 @@ docker run --detach \
 --net my-network \
 --restart=always \
 nginxproxy/nginx-proxy:latest
-```
+```bash
 
 当然也可以后期再连接上网络：`docker network connect youtube-dl_default nginx-proxy`。
 
@@ -105,7 +105,7 @@ docker run --detach \
 --env "DEFAULT_EMAIL=puppylpg@puppylpg.top" \
 --restart=always \
 nginxproxy/acme-companion:latest
-```
+```python
 
 通过`--volumes-from`挂载同样的volume，还要多挂载一个volume以保存acme.sh：
 
@@ -163,7 +163,7 @@ upstream memory.puppylpg.top {
     #                      access the container's server directly.
     server 172.17.0.3:8765;                
 }  
-```
+```txt
 
 使用示例：
 
@@ -175,7 +175,7 @@ $ docker run --detach \
 --env "LETSENCRYPT_HOST=othersubdomain.yourdomain.tld" \
 --env "LETSENCRYPT_EMAIL=mail@yourdomain.tld" \
 grafana/grafana
-```
+```xml
 
 **所有自动生成的配置均放置在container里的**`/etc/nginx/conf.d/default.conf`。
 
@@ -193,14 +193,14 @@ grafana/grafana
 -T             Same as -t, but additionally dump configuration files to standard output.
 
 -t             Do not run, just test the configuration file.  nginx checks the configuration file syntax and then tries to open files referenced in the configuration file.
-```
+```nginx
 
 ### 发送请求
 也可以直接发送http请求来nginx配置的正确性：
 
 ```bash
 curl -H "Host: netdata.puppylpg.top" localhost
-```
+```nginx
 
 **直接往localhost发送一个带有相应Host header的http请求即可，这也是nginx分流的本质！**
 
@@ -208,7 +208,7 @@ curl -H "Host: netdata.puppylpg.top" localhost
 
 ```bash
 curl -k -H "Host: netdata.puppylpg.top" https://localhost/netdata.conf
-```
+```txt
 
 使用`-k`允许自签名证书：
 
@@ -217,7 +217,7 @@ curl -k -H "Host: netdata.puppylpg.top" https://localhost/netdata.conf
          (TLS) By default, every SSL connection curl makes is verified to be secure. This option allows curl to proceed and operate even for server connections otherwise considered insecure.
 
          The server connection is verified by making sure the server's certificate contains the right name and verifies successfully using the cert store.
-```
+```nginx
 
 ## 自定义配置
 默认情况下，nginx支持的最大request是1M，通过`client_max_body_size`控制。如果部署了一些需要上传图片的服务，很可能就会因为request太大导致nginx返回`413 (Request Entity Too Large)`。可以按照需求给这个参数设置为一个大小，甚至直接设置为0，禁用request size校验。
@@ -230,7 +230,7 @@ curl -k -H "Host: netdata.puppylpg.top" https://localhost/netdata.conf
 
 ```plain
 docker exec -it nginx-proxy bash
-```
+```nginx
 
 （使用apt安装nano或vim）编辑`/etc/nginx/nginx.conf`文件，在 http 块中添加或修改 `client_max_body_size` 指令。
 
@@ -238,7 +238,7 @@ docker exec -it nginx-proxy bash
 
 ```plain
 nginx -s reload
-```
+```nginx
 
 这样就可以生效了。
 
@@ -259,7 +259,7 @@ docker run --detach \
 --volume /home/pichu/nginx.default.properties:/etc/nginx/conf.d/my_proxy.conf:ro \
 --restart=always \
 nginxproxy/nginx-proxy:latest
-```
+```txt
 
 # 单容器部署
 ## portainer
@@ -273,7 +273,7 @@ docker run --detach --name portainer \
 --env VIRTUAL_PROTO=https \
 --env LETSENCRYPT_HOST=portainer.puppylpg.top \
 portainer/portainer-ce:latest
-```
+```bash
 
 portainer比较特殊，在[Docker - 容器化]({% post_url 2022-03-20-dockerize %})里可以看到，它只开启了https访问，没有开启http，所以反向代理必须设置为https。另外，portainer的UI在[9443](https://docs.portainer.io/start/install-ce/server/docker/linux)端口，所以这里我们要手动指定。
 
@@ -333,7 +333,7 @@ server {
         proxy_pass https://portainer.puppylpg.top;             
     }                                                   
 }
-```
+```nginx
 
 注意，最后生成的`proxy_pass`用的是https协议：
 
@@ -341,7 +341,7 @@ server {
     location / {                               
         proxy_pass https://portainer.puppylpg.top;             
     }   
-```
+```txt
 
 ## v2ray
 ```bash
@@ -353,7 +353,7 @@ docker run -d --name v2ray \
 --env VIRTUAL_PATH=/v2ray \
 --restart=always \
 v2fly/v2fly-core:v4.23.4 v2ray -config=/etc/v2ray/docker.config.json
-```
+```xml
 
 v2ray也比较特殊，没有使用单独的子域名，**直接挂在主域名下，通过location定位**。nginx-proxy[支持location](https://github.com/nginx-proxy/nginx-proxy#path-based-routing)，使用`VIRTUAL_PATH`即可。
 
@@ -379,7 +379,7 @@ http {
         proxy_set_header Connection $connection_upgrade;
     }
 }
-```
+```xml
 
 `$http_upgrade`**指的是**`Upgrade`**header的值**，定义在`$http_<name>`里。
 
@@ -411,7 +411,7 @@ location ~ /v2ray {
     
     ...
 }
-```
+```nginx
 
 由nginx-proxy生成的配置：
 
@@ -458,7 +458,7 @@ location ^~ /.well-known/acme-challenge/ {
     try_files $uri =404;
     break;
 }
-```
+```xml
 
 可以看到，除了location用的是`/v2ray`，协议用的是http，其他和portainer的配置并没有什么区别。新加的那两个websocket的header哪去了？`Upgrade`**相关信息并没有单独配置在**`server`**里，而是配置在了**`http`**里、**`server`**外**。相当于websocket相关的header是`http`下所有`server`的全局配置。
 
@@ -477,7 +477,7 @@ docker run --detach --name memos \
 --env VIRTUAL_PORT=5230 \
 --env LETSENCRYPT_HOST=memos.puppylpg.top \
 neosmemo/memos:stable
-```
+```nginx
 
 为了上传大照片，记得修改nginx的`client_max_body_size`属性。
 
@@ -494,7 +494,7 @@ docker run \
 -v daily-txt-dc:/app/data \
 --restart=always \
 --name dailytxt -d phitux/dailytxt:1.0.13
-```
+```bash
 
 也可以使用docker compose（使用compose起单个服务，hhh）：
 
@@ -527,7 +527,7 @@ dailytxt:
     # "<host_port>:8765"
   volumes:
     - "daily-txt-dc:/app/data/"
-```
+```dockerfile
 
 这个服务通过`PORT`环境变量指定服务端口，我们直接使用80，就可以不设置nginx-proxy的`VIRTUAL_PORT`参数了（不存在`EXPOSE`的情况下，它的默认值也是80）。
 
@@ -545,7 +545,7 @@ upstream memory.puppylpg.top {
     #     using port: 80
     server 172.17.0.3:80;
 }
-```
+```txt
 
 ## netdata
 ```bash
@@ -565,7 +565,7 @@ docker run -d --name=netdata \
 --cap-add SYS_PTRACE \
 --security-opt apparmor=unconfined \
 netdata/netdata:latest
-```
+```nginx
 
 netdata默认的port是`19999`.
 
@@ -585,7 +585,7 @@ upstream netdata.puppylpg.top {
     #     using port: 19999
     server 172.17.0.4:19999;
 }
-```
+```bash
 
 如果使用docker compose 3：
 
@@ -621,7 +621,7 @@ volumes:
   netdataconfig:
   netdatalib:
   netdatacache:
-```
+```nginx
 
 **默认会生成netdata_network，如果不把nginx-proxy attach到这个network上，会无法访问到netdata容器！**
 
@@ -635,7 +635,7 @@ docker run -d \
     --env VIRTUAL_HOST=bibi.puppylpg.top \
     --env LETSENCRYPT_HOST=bibi.puppylpg.top \
     yidadaa/chatgpt-next-web
-```
+```txt
 
 ## jupyter notebook
 给jupyter notebook加个密钥：
@@ -647,7 +647,7 @@ docker run --detach --name jupyter-base-notebook \
     --env VIRTUAL_HOST=jupyter.puppylpg.top \
     --env LETSENCRYPT_HOST=jupyter.puppylpg.top \
     jupyter/base-notebook
-```
+```bash
 
 启动后，可以在jupyter内置的ternimal里，使用conda创建环境，安装依赖。**然后**[手动把这个环境添加到jupyter的kernel里](https://ipython.readthedocs.io/en/stable/install/kernel_install.html#kernels-for-different-environments)：
 
@@ -655,7 +655,7 @@ docker run --detach --name jupyter-base-notebook \
 (base) jovyan@79097436643e:~$ conda deactivate
 jovyan@79097436643e:~$ python -m ipykernel install --user --name=test
 Installed kernelspec test in /home/jovyan/.local/share/jupyter/kernels/test
-```
+```xml
 
 之后就可以使用该环境打开notebook了！
 
@@ -668,7 +668,7 @@ Installed kernelspec test in /home/jovyan/.local/share/jupyter/kernels/test
 ```bash
 docker-compose up -d
 docker-compose down
-```
+```bash
 
 也可以使用portainer来维护docker compose，直接在上面启动stack即可。
 
@@ -694,7 +694,7 @@ upstream download.puppylpg.top {
     # Fallback entry
     server 127.0.0.1 down;
 }
-```
+```xml
 
 > By default, if you don't pass the `--net` flag when your nginx-proxy container is created, it will only be attached to the default `bridge` network. This means that it will not be able to connect to containers on networks other than `bridge`.
 >
@@ -703,7 +703,7 @@ upstream download.puppylpg.top {
 
 ```bash
 docker network connect youtube-dl_default nginx-proxy
-```
+```nginx
 
 此时nginx-proxy同时挂载到两个网络上（**相当于有两个网卡，分属于不同网段**）：
 
@@ -753,7 +753,7 @@ upstream download.puppylpg.top {
     # using port: 17442
     server 192.168.96.3:17442;
 }
-```
+```xml
 
 > portainer用处很大。事实证明，一个好的ui胜过千言万语，查问题时了然于胸。
 >
@@ -809,7 +809,7 @@ volumes:
     users:
     db:
     configdb:
-```
+```xml
 
 **从docker-compose 3开始，volume和service的默认前缀是项目名称**。在portainer里是docker-composec创建时的stack名称。
 
@@ -823,7 +823,7 @@ volumes:
             "/data/configdb": {},
             "/data/db": {}
         },
-```
+```nginx
 
 如果不在compose里创建具名volume，则会生成匿名volume，每次重启新建一个，比较烦。所以也加到上述compose里了。
 
@@ -881,7 +881,7 @@ server {
         proxy_pass http://download.puppylpg.top;
     }
 }
-```
+```nginx
 
 # 高阶用法
 ## 多host
@@ -904,7 +904,7 @@ docker run -d --name=netdata \
 --cap-add SYS_PTRACE \
 --security-opt apparmor=unconfined \
 netdata/netdata:latest
-```
+```txt
 
 原理也很简单，就是配置多个upstream，只不过upstream里的server其实是同一个：
 
@@ -965,7 +965,7 @@ server {
     ssl_certificate /etc/nginx/certs/default.crt;
     ssl_certificate_key /etc/nginx/certs/default.key;
 }
-```
+```java
 
 ## static resource
 nginx-proxy支持的是为container生成反向代理，不支持对static resource的反向代理。比如为puppylpg.top生成static resource的反向代理。
@@ -992,7 +992,7 @@ location ^~ /.well-known/acme-challenge/ {
     break;
 }
 ## End of configuration add by letsencrypt containe
-```
+```xml
 
 是在配置acme challenge相关的location。如果发现有`/etc/nginx/vhost.d/<VIRTUAL_HOST>`文件，应该就include该文件，而非default了。
 
@@ -1012,7 +1012,7 @@ dist
 ├── assets
 ├── index.html
 └── vite.svg
-```
+```nginx
 
 可以直接把文件挂载到一个nginx容器上，使用新的子域名即可（毕竟主域名被v2ray占了，而且已经开放出去也好再改了）。
 
@@ -1027,7 +1027,7 @@ docker run -d --name ttq \
   -e LETSENCRYPT_HOST=ttq.puppylpg.top \
   --restart=always \
   nginx:alpine
-```
+```txt
 
 之后就可以通过`ttq.puppylpg.top`访问了。
 

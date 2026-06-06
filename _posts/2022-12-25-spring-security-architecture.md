@@ -38,7 +38,7 @@ public void doFilter(ServletRequest request, ServletResponse response, FilterCha
     chain.doFilter(request, response); // invoke the rest of the application
     // do something after the rest of the application
 }
-```
+```xml
 
 所以直接把filter chain传给Filter，好处是可以在filter处理过后，也加一些操作。
 
@@ -73,7 +73,7 @@ Filter配置在Context container里：
    <filter-name>AuthenFilter</filter-name>
    <url-pattern>/*</url-pattern>
 </filter-mapping>
-```
+```json
 Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，如果一个filter-name适用于该请求，加载filter-name对应的filter。**所有符合条件的filter会组成一个filter chain，chain的最后是servlet**。
 
 所以spring security的第一步就是注册一个security相关的servlet Filter到servlet容器：
@@ -137,7 +137,7 @@ try {
 		accessDenied();
 	}
 }
-```
+```txt
 1. 调用FilterChain.doFilter(request, response)处理请求；
 2. 如果出现错误，catch住；
 3. 如果是认证错误，**缓存请求，重定向到登录页（或者发送`WWW-Authenticate` header）**；
@@ -168,7 +168,7 @@ spring security对请求暂存的抽象是`RequestCache`，上面介绍的把请
 		} else {
 			this.logger.trace("Did not save request since there's no session and createSessionAllowed is false");
 		}
-```
+```xml
 
 > session是tomcat创建的。`request.getSession()`可以直接获取session，如果没有session，会新建一个。`request.getSession(false)`则不新建，如果没有就返回null。
 
@@ -181,7 +181,7 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 		savedCookie.setPath(getCookiePath(request));
 		savedCookie.setHttpOnly(true);
 		response.addCookie(savedCookie);
-```
+```xml
 
 > 缺点就是请求响应本身会变大。
 
@@ -195,7 +195,7 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 **spring security的关键其实就是如何把`DelegatingFilterProxy`作为一个`Filter`注册到servlet容器上**。spring security基于spring mvc，[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})说过，SpringMVC通过`WebApplicationInitializer`初始化servlet容器。所以spring security提供了基于它的抽象实现类`AbstractSecurityWebApplicationInitializer`，**在wac初始化的时候，手动把这个`Filter`添加到servlet上即可**：
 ```java
 Dynamic registration = servletContext.addFilter(filterName, filter);
-```
+```xml
 
 > **它只`ServeletContext#addFilter`，不`ServeletContext#addServlet`。所以spring security不涉及servlet。与之相对的，springmvc的`AbstractDispatcherServletInitializer`则是`ServeletContext#addServlet`**。两个对照着看，意图都很明显。
 
@@ -214,7 +214,7 @@ Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"s
 			rootAppContext.register(this.configurationClasses);
 			servletContext.addListener(new ContextLoaderListener(rootAppContext));
 		}
-```
+```txt
 此时spring security自己启动一个`AnnotationConfigWebApplicationContext`作为root wac。
 
 这个配置类示例：
@@ -230,7 +230,7 @@ public class SecurityConfig {
 		return manager;
 	}
 }
-```
+```java
 它通过`@EnableWebSecurity`启用了spring security的相关bean，并通过`@Configuration`成为spring bean配置类。所以可以直接把这个配置类显式传给spring security：
 ```java
 public class SecurityWebApplicationInitializer
@@ -240,7 +240,7 @@ public class SecurityWebApplicationInitializer
 		super(WebSecurityConfiguration.class);
 	}
 }
-```
+```txt
 
 如果服务本身就使用了SpringMVC框架，那么一定有wac，所以不用手动传入spring security的config类了：
 ```java
@@ -248,7 +248,7 @@ public class SecurityWebApplicationInitializer
 	extends AbstractSecurityWebApplicationInitializer {
 
 }
-```
+```json
 只需要按照[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})的方式加载我们的spring security相关的config类就行了：
 ```java
 public class MvcWebApplicationInitializer extends
@@ -261,7 +261,7 @@ public class MvcWebApplicationInitializer extends
 
 	// ... other overrides ...
 }
-```
+```xml
 
 > 有句话不知当讲不当讲……怎么感觉用已有的SpringMVC框架加载spring security配置，反而更麻烦了……
 
@@ -270,7 +270,7 @@ public class MvcWebApplicationInitializer extends
 一切配置完毕，按照SpringMVC的约定，wac一定和servlet绑定起来了，所以可以从servlet里拿到wac：
 ```java
 WebApplicationContextUtils.getWebApplicationContext(getServletContext(), attrName)
-```
+```bash
 拿wac干什么？`DelegatingFilterProxy`要从它里面取`SecurityFilterChain`啊！
 
 # 配置
@@ -304,7 +304,7 @@ springboot默认配置的`SecurityFilterChain`是：
 		}
 
 	}
-```
+```txt
 这条security filter chain做了三件事：
 1. 所有请求都要认证；
 2. 支持表单登录；
@@ -347,7 +347,7 @@ spring security支持多条filter chain。**多条`SecurityFilterChain`之间可
 		applyDefaultConfigurers(http);
 		return http;
 	}
-```
+```xml
 `HttpSecurity`里已经预设好一些属性了，所以每次新建一个filter chain的时候，不用担心最基础的东西都要重新设置一遍，比如session管理、request cache等等。我们只需要专注于定义自己需要的过滤行为就行了。正因如此，一下子就能把一个很复杂的过滤规则拆开成多个规则了。
 
 > 这里设置的`PasswordEncoder`比较有意思，是个`LazyPasswordEncoder`。而它其实就是个wrapper，等到实际执行的时候，从`ApplicationContext`里寻找类型为`PasswordEncoder`的bean，并把实际功能实现delegate给它。所以 **虽然spring security在我们配置`PasswordEncoder`之前就设置好了`PasswordEncoder`，但实际用的还是我们配置的`PasswordEncoder`**……这和`DelegatingFilterProxy`的思想一毛一样啊！
@@ -356,7 +356,7 @@ spring security支持多条filter chain。**多条`SecurityFilterChain`之间可
 ```java
 public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<DefaultSecurityFilterChain, HttpSecurity>
 		implements SecurityBuilder<DefaultSecurityFilterChain>, HttpSecurityBuilder<HttpSecurity> {
-```
+```txt
 `HttpBuilder`会在`performBuild`里，构造出一个`DefaultSecurityFilterChain`：
 ```java
 	@Override
@@ -374,7 +374,7 @@ public final class HttpSecurity extends AbstractConfiguredSecurityBuilder<Defaul
 		}
 		return new DefaultSecurityFilterChain(this.requestMatcher, sortedFilters);
 	}
-```
+```txt
 因此，我们可以通过`HttpSecurity`工具类比较方便地构造出`SecurityFilterChain`对象。
 
 比如配置多条优先级不同的filter chain：
@@ -475,7 +475,7 @@ public class MultipleSecurityFilterChainConfig {
         return http.build();
     }
 }
-```
+```txt
 
 我们一共配置了4条security filter chain：
 1. 对"`/h2-console/**`"使用form认证，进行admin鉴权；
@@ -556,7 +556,7 @@ public class MultipleSecurityFilterChainConfig {
 		put(AuthorizationFilter.class, order.next());
 		put(SwitchUserFilter.class, order.next());
 	}
-```
+```xml
 如果我们使用上述`http.addFilterBefore(<jwtAuthenticationTokenFilter>, UsernamePasswordAuthenticationFilter.class)`新注册了一个filter，该filter也会添加到现有的order里，以便继续使用`http.addFilterBefore(<another>, <jwtAuthenticationTokenFilter>.class)`在其前后添加filter。
 
 > 怎么让client发送的request带上jwt token？client也是自己写的，发送的时候直接手动设置header，带上token就行了……
@@ -571,36 +571,36 @@ public class MultipleSecurityFilterChainConfig {
 如果我们此时使用basic auth提供guest用户访问`/basic` url，会因为权限不足而被拒。具体流程可以从debug日志看出来——
 
 首先，因为我们的用户存在了in-memory database里，`DaoAuthenticationProvider`先从db里获取了用户：
-```
+```python
 2022-12-30 16:59:07.770 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Securing GET /basic
 2022-12-30 16:59:08.547 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Set SecurityContextHolder to empty SecurityContext
 2022-12-30 16:59:09.072 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.a.dao.DaoAuthenticationProvider    : Authenticated user
-```
+```python
 然后`BasicAuthenticationFilter`认证了请求，创建了一个guest用户的authentication `UsernamePasswordAuthenticationToken [Principal=org.springframework.security.core.userdetails.User [Username=guest, Password=[PROTECTED], Enabled=true, AccountNonExpired=true, credentialsNonExpired=true, AccountNonLocked=true, Granted Authorities=[ROLE_no auth]], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=0:0:0:0:0:0:0:1, SessionId=null], Granted Authorities=[ROLE_no auth]]`，放到了`SecurityContextHolder`里：
-```
+```python
 2022-12-30 16:59:09.073 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.a.www.BasicAuthenticationFilter  : Set SecurityContextHolder to UsernamePasswordAuthenticationToken [Principal=org.springframework.security.core.userdetails.User [Username=guest, Password=[PROTECTED], Enabled=true, AccountNonExpired=true, credentialsNonExpired=true, AccountNonLocked=true, Granted Authorities=[ROLE_no auth]], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=0:0:0:0:0:0:0:1, SessionId=null], Granted Authorities=[ROLE_no auth]]
 2022-12-30 16:59:09.075 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.csrf.CsrfAuthenticationStrategy  : Replaced CSRF Token
 2022-12-30 16:59:09.075 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Secured GET /basic
-```
+```json
 **filter chain走完了，最后到了servlet**，显然是`DispatcherServlet`。dispatcher servlet按照请求mapping，找到了controller `FrontPageController#basic()`：
-```
+```json
 2022-12-30 16:59:09.077 DEBUG 81703 --- [nio-8081-exec-1] org.apache.tomcat.util.http.Parameters   : Set encoding to UTF-8
 2022-12-30 16:59:09.078 DEBUG 81703 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : GET "/wtf/basic", parameters={}
 2022-12-30 16:59:09.085 DEBUG 81703 --- [nio-8081-exec-1] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to com.puppylpg.server.controller.FrontPageController#basic()
-```
+```java
 因为方法设置了`@PreAuthorize("hasAnyAuthority('ROLE_USER')")`，**且配置里设置了`@EnableMethodSecurity`**，所以aop发挥作用，before method interceptor进行拦截认证，发现权限不对，没有user权限。所以鉴权的结果是不通过。返回一个`ExpressionAttributeAuthorizationDecision`，值为`[granted=false, expressionAttribute=ExpressionAttribute [Expression=hasAnyAuthority('ROLE_USER')]]`：
-```
+```java
 2022-12-30 16:59:09.100 DEBUG 81703 --- [nio-8081-exec-1] horizationManagerBeforeMethodInterceptor : Authorizing method invocation ReflectiveMethodInvocation: public java.lang.String com.puppylpg.server.controller.FrontPageController.basic(); target is of class [com.puppylpg.server.controller.FrontPageController]
 2022-12-30 16:59:09.114 DEBUG 81703 --- [nio-8081-exec-1] horizationManagerBeforeMethodInterceptor : Failed to authorize ReflectiveMethodInvocation: public java.lang.String com.puppylpg.server.controller.FrontPageController.basic(); target is of class [com.puppylpg.server.controller.FrontPageController] with authorization manager org.springframework.security.authorization.method.PreAuthorizeAuthorizationManager@6b7a3dd8 and decision ExpressionAttributeAuthorizationDecision [granted=false, expressionAttribute=ExpressionAttribute [Expression=hasAnyAuthority('ROLE_USER')]]
-```
+```txt
 这是权限不足，所以由`AccessDeniedHandlerImpl`往response status里写入403 forbidden，请求结束，默认清理掉`SecurityContextHolder`：
-```
+```python
 2022-12-30 16:59:09.122 DEBUG 81703 --- [nio-8081-exec-1] o.s.web.servlet.DispatcherServlet        : Failed to complete request: org.springframework.security.access.AccessDeniedException: Access Denied
 2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] o.s.s.w.access.AccessDeniedHandlerImpl   : Responding with 403 status code
 2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Cleared SecurityContextHolder to complete request
-```
+```txt
 试图返回`/error`：
-```
+```python
 2022-12-30 16:59:09.124 DEBUG 81703 --- [nio-8081-exec-1] o.a.c.c.C.[Tomcat].[localhost]           : Processing ErrorPage[errorCode=0, location=/error]
 2022-12-30 16:59:09.575 DEBUG 81703 --- [nio-8081-exec-1] o.s.security.web.FilterChainProxy        : Securing GET /error
 2022-12-30 16:59:09.899 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Set SecurityContextHolder to empty SecurityContext
@@ -611,7 +611,7 @@ public class MultipleSecurityFilterChainConfig {
 2022-12-30 16:59:10.840 DEBUG 81703 --- [nio-8081-exec-1] s.s.w.c.SecurityContextPersistenceFilter : Cleared SecurityContextHolder to complete request
 2022-12-30 16:59:10.840 DEBUG 81703 --- [nio-8081-exec-1] o.a.c.c.C.[.[.[.[dispatcherServlet]      :  Disabling the response for further output
 2022-12-30 16:59:10.845 DEBUG 81703 --- [nio-8081-exec-1] o.a.coyote.http11.Http11InputBuffer      : Before fill(): parsingHeader: [true], parsingRequestLine: [true], parsingRequestLinePhase: [0], parsingRequestLineStart: [0], byteBuffer.position(): [0], byteBuffer.limit(): [0], end: [306]
-```
+```bash
 
 ## 最常配的功能
 - https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/authorize-http-requests.html
@@ -622,7 +622,7 @@ public class MultipleSecurityFilterChainConfig {
 ```java
 @PreAuthorize("hasRole('USER')")
 public void create(Contact contact);
-```
+```txt
 当然，一两个特殊的权限可以用权限注解，大部分相同的权限可以直接配置到security filter chain里：which means that access will only be allowed for users with the role "ROLE_USER". **Obviously the same thing could easily be achieved using a traditional configuration and a simple configuration attribute for the required role.**
 
 一遍遍写相同的权限注解不嫌累啊？
@@ -649,7 +649,7 @@ security 5：
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 
         return http.build();
-```
+```txt
 
 security 6：
 ```java
@@ -659,7 +659,7 @@ security 6：
                 // basic auth不要用session
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .build();
-```
+```txt
 可以看到csrf方法本身返回`HttpSecurity`，因此不需要通过`and`方法再转回`HttpSecurity`；而csrf的相关配置均在csrf方法里通过customizer搞定了，非常方便！
 
 上面的配置转成spring security 6后如下：
@@ -764,7 +764,7 @@ public class MultipleSecurityFilterChainConfig {
                 .build();
     }
 }
-```
+```bash
 
 # 集成springboot
 - https://docs.spring.io/spring-security/reference/servlet/getting-started.html#servlet-hello-auto-configuration

@@ -91,7 +91,7 @@ int zslRandomLevel(void) {
         level += 1;
     return (level<ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;
 }
-```
+```sql
 因此跳表独立插入，并根据随机函数确定层数，没有旋转和维持平衡的开销，使得它**写入性能会比B+树要好**。
 
 > 事实上，facebook造了个rocksDB的存储引擎，里面就用了跳表。相当于在磁盘上用跳表。它的写入性能确实是比innodb要好（没有页分裂），但读性能确实比innodb要差不少（io次数过多）。
@@ -230,9 +230,9 @@ select尽量加`limit 1`，最多最多回表一次 :D
 没事儿别老`select *`。按照二级索引或者联合索引检索的时候，尽量select二级索引、联合索引里的值，这样就不用回表到聚簇索引查找所有列的值了。
 
 比如：
-```
+```sql
 select key1, key2 from table where key1 = xxx
-```
+```bash
 只需要查key1和key2的联合索引就行了，不用回表。
 
 ### 索引列不要有太多重复值
@@ -252,7 +252,7 @@ select key1, key2 from table where key1 = xxx
 按照key1列的前十个字符做索引，索引名为idx_key1：
 ```
 ALTER TABLE t1 ADD INDEX idx_key1(key1(10));
-```
+```bash
 
 但这样会损害**索引的另一个功能：排序**。本来如果查询结果要按照key1排序，索引其实本身就是按key1排好序的，可以直接用。现在因为key1这个索引不是完整的索引，而是前缀索引，就没办法用于排序了。**只能和没有索引的列一样，先进行全表扫描，再进行文件排序了**。
 
@@ -260,23 +260,23 @@ ALTER TABLE t1 ADD INDEX idx_key1(key1(10));
 使用`KEY`或者`INDEX`创建索引，二者等价。
 
 新建：
-```
+```sql
 CREATE TABLE t1 (
     c1 INT,
     c2 INT
     PRIMARY KEY(c1),
     INDEX idx_c2(c2)
 ) CHARSET=utf8mb4 ENGINE=INNODB ROW_FORMAT=COMPACT;
-```
+```bash
 index最好自己起个名字，最好是idx+列名。否则MySQL会自动给index起个名字。有名字了，删也好删：
 ```
 ALTER TABLE t1 DROP INDEX idx_c2;
-```
+```bash
 
 新增：
 ```
 ALTER TABLE t1 ADD (INDEX|KEY) idx_c2(c2);
-```
+```bash
 
 # B树？
 提及B+树，就不得不提一下B树。

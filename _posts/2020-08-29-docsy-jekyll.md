@@ -88,7 +88,7 @@ collections:
   books:
     output: true
     permalink: /:collection/:path
-```
+```bash
 
 `_books`下没有Front Matter的文件会被当成static file，内容不会被处理：
 > Front matter is processed if the front matter exists, and everything after the front matter is pushed into the document’s content attribute. If no front matter is provided, Jekyll will consider it to be a static file and the contents will not undergo further processing. If front matter is provided, Jekyll will process the file contents into the expected output.
@@ -118,7 +118,7 @@ permalink: /about/
 
 This is a [starter template](https://vsoch.github.com/docsy-jekyll/) for a Docsy jekyll theme, based
 ...
-```
+```bash
 这里使用permalink指定了url为about，**否则就是它的路径pages/about**。
 
 - https://jekyllrb.com/docs/pages/
@@ -149,7 +149,7 @@ defaults:
       type: life
     values:
       layout: page
-```
+```bash
 - scope：对谁设定defaults；
     + path：限定文件的目录，空字符串代表整个工程。必填；
     + type：限定文件的类型，`pages`/`posts`/`drafts`，**或者其他自定义的collection**。可选；
@@ -181,12 +181,12 @@ defaults:
 
 ## 安装gem
 我倾向于把gem安装在本目录下（记得gitignore一下）：
-```
+```bash
 bundle install --path vendor/bundle
-```
+```bash
 
 ## 启动
-```
+```bash
 bundle exec jekyll serve --port 4444
 ```
 

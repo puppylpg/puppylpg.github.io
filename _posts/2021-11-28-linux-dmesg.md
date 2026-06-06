@@ -13,25 +13,25 @@ tags: linux
 
 # /var/log/messages
 可以从系统日志里查到：
-```
+```bash
 $ grep -i "out of memory" /var/log/messages
 
 Mar 11 19:42:19 th013 kernel: Out of memory: Kill process 26044 (java) score 49 or sacrifice child
 Mar 11 19:42:19 th013 kernel: Killed process 26044 (java) total-vm:36223404kB, anon-rss:6966396kB, file-rss:40kB
-```
+```bash
 # dmesg
-```
+```java
 $ dmesg -T | grep -i "out of memory"
 ```
 一样的。`-T`是使用人类可读的时间戳。
 
 想看看被kill掉的进程，可以使用：
-```
+```java
 $ dmesg -T | grep -i "killed process"
-```
+```bash
 
 想看看自己的进程有没有被kill掉，用自己的uid去grep就行：
-```
+```java
 $ dmesg -T | grep -i `id -u liuhaibo`
 
 [Thu Sep  9 02:25:07 2021] Killed process 94063 (java), UID 4375, total-vm:53544756kB, anon-rss:17819464kB, file-rss:0kB, shmem-rss:0kB
@@ -46,12 +46,12 @@ $ dmesg -T | grep -i `id -u liuhaibo`
 > 原文链接：https://blog.csdn.net/qq_41961459/article/details/119179200
 
 查看自己的id：
-```
+```java
 ± % id liuhaibo
 uid=4375(liuhaibo) gid=500(kaiwoo) groups=500(kaiwoo)
-```
+```bash
 也可以通过id查看人：
-```
+```java
 ± % id 4375
 uid=4375(liuhaibo) gid=500(kaiwoo) groups=500(kaiwoo)
 ```
@@ -67,7 +67,7 @@ dmesg会把log记录到ring buffer里，当klogd或者syslogd启动之后，dmes
 dmesg的日志没有时间戳，且buffer空间不太大，所以随着系统的运行，肯定只能记住最近的log，早期的都被覆盖了。
 
 看起来logrotate记录了系统日志的落地方式：
-```
+```java
 liuhaibo@th013: /disk1/liuhaibo/youdao/coursenaive/running dynamic-wp!
 $ ll /var/log | grep messages                                                                                                                                                                           [12:41:09]
 -rwxr-xr-x  1 root         kaiwoo 5.8M Mar 12 12:41 messages

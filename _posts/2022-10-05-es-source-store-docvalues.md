@@ -31,7 +31,7 @@ GET <index>/_search
     }
   }
 }
-```
+```json
 
 > 但是只能用long字面值的string，用其他string是不合法的。
 
@@ -65,11 +65,11 @@ elasticsearch的`_search` API有三种查询参数，对应了不同的查询方
 **所谓行式列式：在存储在磁盘/内存的时候其实都是行式，但是如果这一行存储的是所有的文档的这一列（把列按行存），在逻辑上相当于一次能读写一列。所以把列按行存（行实际上存的是列的数据），就是列式存储。**
 
 假设有以下三个文档：
-```
+```json
 Doc1: { "name": "Alice", "age": 25, "city": "NY" }
 Doc2: { "name": "Bob", "age": 30, "city": "LA" }
 Doc3: { "name": "Charlie", "age": 35, "city": "SF" }
-```
+```json
 可以把他们看做行式存储，每一行一个doc。
 
 列式存储会分别为每个字段存储其值和 `doc_id` 的关联：
@@ -189,7 +189,7 @@ GET <index>/_search
   "fields": ["updateTime", "timestamp", "likes"],
   "_source": ["updateTime", "timestamp", "likes"]
 }
-```
+```json
 结果`fields`返回的是string，`_source`返回的是存入时的long：
 ```json
       {
@@ -215,7 +215,7 @@ GET <index>/_search
           ]
         }
       },
-```
+```json
 
 **官方认为`fields`查询比`_source`查询有一些优势。由于它用到了mapping**，所以能：
 1. **规范化返回数据**：比如上述`epoch_millis`既存储了long又存储了string，就可以使用mapping统一返回string；
@@ -250,7 +250,7 @@ GET <index>/_search
     "wtf"
   ]
 }
-```
+```json
 返回的是long：
 ```json
 {
@@ -294,7 +294,7 @@ GET <index>/_search
     ]
   }
 }
-```
+```json
 
 ## `stored_fields`查询
 [stored_fields](https://www.elastic.co/guide/en/elasticsearch/reference/8.4/search-fields.html#stored-fields)查询，直接查`stored`字段。
@@ -341,7 +341,7 @@ GET /_search
     }
   }
 }
-```
+```json
 也可以用script获取`_source`里的field：
 ```json
 GET /_search
@@ -355,7 +355,7 @@ GET /_search
     }
   }
 }
-```
+```json
 - `doc['my_field'].value`：会把field缓存到内存里，所以更快，但需要占用内存；
 - `params['_source']['my_field']`：每次都从`_source`里解析，所以慢，但省内存；
 

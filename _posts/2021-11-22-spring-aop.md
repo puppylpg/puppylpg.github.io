@@ -76,7 +76,7 @@ public interface Student {
    void play(String name);
    void breakdown(String name) throws RuntimeException;
 }
-```
+```txt
 原生类：一个正常的学生实现：
 ```java
 public class NaiveStudent implements Student {
@@ -97,7 +97,7 @@ public class NaiveStudent implements Student {
 		throw new RuntimeException("<exit>");
 	}
 }
-```
+```txt
 但这还不够——一个优秀的学生，考前要知道复习，考后要记得放松休息。
 
 考前复习增强：
@@ -117,7 +117,7 @@ public class PrepareBeforeExam implements MethodBeforeAdvice {
         }
     }
 }
-```
+```txt
 
 考后放松增强：
 ```java
@@ -137,7 +137,7 @@ public class SleepAfterPlay implements AfterReturningAdvice {
 		}
 	}
 }
-```
+```txt
 
 其实来个环绕增强，可以一步搞定前面的两种增强。考前放松，考后休息一步到位：
 ```java
@@ -168,7 +168,7 @@ public class PrepareThenRelaxAroundExam implements MethodInterceptor {
 		}
 	}
 }
-```
+```txt
 
 异常处理的增强：
 ```java
@@ -191,7 +191,7 @@ public class BreakdownManager implements ThrowsAdvice {
         System.out.println("    -----------");
     }
 }
-```
+```xml
 异常处理ThrowsAdvice只是一个标记接口，没有定义函数，但是有一些默认的规范，有好几种写法，上面是其中一种。
 
 > 小心一个思维误区：**异常处理增强会处理异常，并不意味着不需要管异常了。在处理完exception之后，会继续把异常往外抛：它不会直接把异常吞掉**。它只是在发生异常之后做一些事情，比如spring @Transaction处理增强，是在发生异常之后完成事务回滚的要求：删掉事务中已插入的数据。处理完之后，异常还会继续抛出去，需要调用者处理（比如打log）。
@@ -236,7 +236,7 @@ public class OnlyAdvice {
         return proxyFactoryBean;
     }
 }
-```
+```txt
 组装的方式和jdk动态代理或者cglib差不多简单：
 1. 指定要代理的对象/接口：如果指定的是对象，就只能使用cglib以子类的方式生成代理；
 2. 指定要进行的增强；
@@ -273,9 +273,9 @@ public class OnlyAdvice {
             System.out.println("BUT THE EXCEPTION STILL THROW");
         }
     }
-```
+```txt
 输出：
-```
+```python
 ========= examine =========
 [before] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
 [around] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
@@ -297,7 +297,7 @@ exception catched: <exit>
 Handle student's exception successfully~
     -----------
 BUT THE EXCEPTION STILL THROW
-```
+```txt
 examine和play都织入了增强。
 
 不过有个问题：examine前需要复习，play前还需要复习吗？**如果只想对examine注入增强怎么办？这是一个指定切点的问题**。
@@ -333,7 +333,7 @@ public interface Pointcut {
 	Pointcut TRUE = TruePointcut.INSTANCE;
 
 }
-```
+```xml
 
 > 虽然可以在实现增强的时候先判断一下类和方法是不是目标类和方法，但是这样对开发者的负担过重了。如果框架能提前让开发者指定只给特定的方法注入增强，也就是切点，那么开发者的开发工作会清晰简洁很多。这一点很像spring容器提供的事件触发机制：只有接收相应事件的listener才能收到事件，而不是所有的listener。
 
@@ -379,7 +379,7 @@ public class ExamAdvisor extends StaticMethodMatcherPointcutAdvisor {
         return NaiveStudent.class::isAssignableFrom;
     }
 }
-```
+```txt
 **切面所定义的切点只是“在哪个方法”，但是在方法“之前”还是“之后”则由增强决定**。比如上面说的AfterReturnAdvice。
 
 同理，其他两个切面：
@@ -421,7 +421,7 @@ public class BreakdownAdvisor extends StaticMethodMatcherPointcutAdvisor {
         return NaiveStudent.class::isAssignableFrom;
     }
 }
-```
+```txt
 
 配置的时候，先把advice放入advisor，这样切面就完整了（切点 + 增强）：
 ```java
@@ -464,7 +464,7 @@ public class BreakdownAdvisor extends StaticMethodMatcherPointcutAdvisor {
         breakdownAdvisor.setAdvice(breakdownManager);
         return breakdownAdvisor;
     }
-```
+```txt
 切面定义好了，和之前一样，配置一个ProxyFactoryBean用于生成代理对象bean就行了：
 ```java
     /**
@@ -483,11 +483,11 @@ public class BreakdownAdvisor extends StaticMethodMatcherPointcutAdvisor {
         proxyFactoryBean.setInterceptorNames("beforeExamAdvisor", "afterPlayAdvisor", "aroundExamAdvisor", "afterThrowBreakdownAdvisor");
         return proxyFactoryBean;
     }
-```
+```txt
 这次`setInterceptorNames`方法里设置的是advisor，之前设置的是advice。
 
 输出结果：
-```
+```python
 ========= examine =========
 [before] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
 [around] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
@@ -504,7 +504,7 @@ exception catched: <exit>
 Handle student's exception successfully~
     -----------
 BUT THE EXCEPTION STILL THROW
-```
+```txt
 输出里没有了“[WRONG after]/[WRONG before]/[WRONG around]”，说明增强只在指定的切点生效了。
 
 ### `RegexpMethodPointcutAdvisor`
@@ -520,7 +520,7 @@ regex匹配切点的切面只需要配置一下想要的正则就行了，切点
         advisor.setPattern(".*play.*");
         return advisor;
     }
-```
+```txt
 
 - 好处：自然是比直接静态方法名匹配功能强大；
 - 坏处：后期添加新方法的时候，没准儿就和正则匹配上了，导致添加了毫无预期的增强，有点儿不可控。
@@ -553,7 +553,7 @@ public interface ClassFilter {
 	ClassFilter TRUE = TrueClassFilter.INSTANCE;
 
 }
-```
+```txt
 就是简单和类名匹配一下，看类名是不是自己想增强的类。不是的话就不是pointcut。
 
 判断方法是否符合也是一样的，`MethodMatcher`：
@@ -608,7 +608,7 @@ public interface MethodMatcher {
 	MethodMatcher TRUE = TrueMethodMatcher.INSTANCE;
 
 }
-```
+```txt
 但是这个东西除了判断方法名，还有一个重载方法，**判断args。这就是运行时动态判断了**。所以接口里还有一个`isRuntime()`方法，直接挑明究竟用不用动态匹配。
 
 动态匹配和静态匹配的区别是什么：
@@ -657,7 +657,7 @@ public class PrepareDynamicPointcut extends DynamicMethodMatcherPointcut {
 		return result;
 	}
 }
-```
+```txt
 
 ### 组合切面
 `ComposablePointcut`，它也是一个`Pointcut`，**可以无限intersection或者union其他切面，所以它是一个切面的交并集**。因此，使用`DefaultPointcutAdvisor`的时候，切点使用组合切点，其实就是一个组合的切面。
@@ -683,7 +683,7 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
 	<bean class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator"
 		p:beanNames="*Teacher" p:interceptorNames="prepareAdvice"
 		p:optimize="true"/>
-```
+```xml
 然后我们就不用手动配置加强版学生和老师的bean了。**所以获取bean也只能获取naiveStudent/naiveTeacher了，因为配置里只写了它们的名字**。
 
 > **注意：同理，使用正则配置非常坑，因为spring本身也有很多bean，很可能他们就和正则名称匹配上了。** 一开始我配置的正则是`*er`，直接导致spring启动失败了，因为它内部的某些bean也是er结尾的，在注入增强的时候，增强的逻辑是把入参强转为string（见上面的PrepareAdvice代码），而他们的入参不能强制转为string，报错了。
@@ -736,7 +736,7 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
         breakdownAdvisor.setAdvice(breakdownManager);
         return breakdownAdvisor;
     }
-```
+```txt
 就可以自动给符合这些切面的bean创建动态代理了：
 ```java
     /**
@@ -748,15 +748,15 @@ spring实现了一些`BeanPostProcessor`，只要发现要创建的bean满足某
         return new DefaultAdvisorAutoProxyCreator();
     }
 }
-```
+```txt
 
 现在可以直接获取Student类型的bean了：之前的那些配置都会先创建普通的Student，再创建增强的Student，会有两个Student类型的bean，所以要使用名称作区分。现在spring只创建了增强后的Student，直接通过类型获取bean就可以了：
 ```java
         // 这里只需要使用类型就行了，因为只会有一个名为naiveStudent的bean，它在创建的时候会被BeanPostProcessor处理一下，变成增强bean，但名字没变
         Student strengthen = applicationContext.getBean(Student.class);
-```
+```txt
 输出：
-```
+```python
 ========= examine =========
 [before] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
 [around] prepare for: math in: io.puppylpg.aop.NaiveStudent.examine
@@ -773,7 +773,7 @@ exception catched: <exit>
 Handle student's exception successfully~
     -----------
 BUT THE EXCEPTION STILL THROW
-```
+```json
 输出和之前使用ProxyFactoryBean的时候一模一样，功能没什么区别。
 
 ## 这些`BeanPostProcessor`是谁
@@ -792,7 +792,7 @@ BUT THE EXCEPTION STILL THROW
 			this.proxyTypes.put(cacheKey, proxy.getClass());
 			return proxy;
 		}
-```
+```sql
 1. 获取这个bean相关的切面；
 3. createProxy：创建的流程几乎等于之前手动配置ProxyFactoryBean。不过这里创建的是ProxyFactory；
 
@@ -807,7 +807,7 @@ BUT THE EXCEPTION STILL THROW
 		}
 		return eligibleAdvisors;
 	}
-```
+```java
 1. 获取所有的advisor：`advisors.add(this.beanFactory.getBean(name, Advisor.class))`；
 2. 遍历advisor，找到符合该bean的advisor：通过advisor配置的class filter之类的进行判断；
 
@@ -815,35 +815,35 @@ BUT THE EXCEPTION STILL THROW
 假设一个类有方法a和b，给a和b都进行了增强。
 
 调用增强后的a：
-```
+```txt
 ...a before advice
 ...a
 ...a after advice
-```
+```txt
 
 调用增强后的b：
-```
+```txt
 ---b before advice
 ---b
 ---b after advice
-```
+```txt
 
 如果现在修改一下，在a的方法里调用b，则a的输出为：
-```
+```txt
 ...a before advice
 ...a
 ---b
 ...a after advice
-```
+```txt
 而非：
-```
+```txt
 ...a before advice
 ...a
 ---b before advice
 ---b
 ---b after advice
 ...a after advice
-```
+```txt
 也就是说，**此时a中调用的b并不是增强后的b**。
 
 因为 **在同一个类方法内部进行调用的时候，不会使用被增强的代理类，而是直接调用了方法**。
@@ -857,7 +857,7 @@ a() {
 
 @Transactional
 b()
-```
+```txt
 如果方法a没有开启事务，b开启事务：
 - 直接调用b是会得到AOP的事务增强的；
 - 但是如果调用的是a，那么其实是同类中的方法调用，b也不会有事务增强。

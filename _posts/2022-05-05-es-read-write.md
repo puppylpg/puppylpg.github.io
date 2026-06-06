@@ -181,7 +181,7 @@ PUT /<index>/_settings
 {
   "refresh_interval": "1s"
 }
-```
+```json
 
 ## `flush`：translog - es的redo log
 虽然refresh可以写到page cache，但终究不是长久之计，如果写到page cache就算commit了，那服务崩溃了怎么办？这些还没来得及fsync的数据岂不是丢了？

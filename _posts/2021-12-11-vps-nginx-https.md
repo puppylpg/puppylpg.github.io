@@ -76,9 +76,9 @@ chrome貌似没有这个权限，使用ie浏览器打开网站，就有把证书
 通过openssl生成证书和私钥：
 - https://stackoverflow.com/questions/10175812/how-to-generate-a-self-signed-ssl-certificate-using-openssl?rq=1
 
-```
+```nginx
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes
-```
+```nginx
 `-nodes`是no DES，访问私钥的时候不需要单独的密码。
 
 最后还要交互式输入一些组织结构信息、发布人、邮箱等。反正也不提交给CA，随便写就行。
@@ -102,13 +102,13 @@ Let's Encrypt打造了一个非常顺手的数字证书获取软件[Certbot](htt
 然后就可以通过snapd安装certbot了。
 
 snapd安装的软件都在`/snap/bin`里，为了能直接访问到，可以配置个软连放到`/usr/bin`里：
-```
+```nginx
 sudo ln -s /snap/bin/certbot /usr/bin/certbot
 ```
 
 ### 获取证书
 使用snapd装好certbot后，就可以使用certbot从Let's Encrypt获取数字证书了：
-```
+```nginx
 pichu@pokemon: ~ $ sudo certbot certonly --nginx                                                              [1:45:55]
 Saving debug log to /var/log/letsencrypt/letsencrypt.log
 Enter email address (used for urgent renewal and security notices)
@@ -152,7 +152,7 @@ If you like Certbot, please consider supporting our work by:
  * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
  * Donating to EFF:                    https://eff.org/donate-le
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-```
+```python
 因为选的是nginx，所以certbot检测到我的nginx目前配置了两个域名：`puppylpg.xyz`和`netdata.puppylpg.xyz`。我先给后者生成了数字签名。
 
 > 生成证书之后，给nginx配置一下就行了。后面会介绍。
@@ -165,7 +165,7 @@ If you like Certbot, please consider supporting our work by:
 > **此服务器无法证明它是puppylpg.xyz；其安全证书来自netdata.puppylpg.xyz。出现此问题的原因可能是配置有误或您的连接被拦截了。**
 
 所以再来一次，给`puppylpg.xyz`也生成证书：
-```
+```nginx
 pichu@pokemon: ~ $ sudo certbot certonly --nginx                                                              [2:07:54]
 [sudo] password for pichu:
 Saving debug log to /var/log/letsencrypt/letsencrypt.log
@@ -194,7 +194,7 @@ If you like Certbot, please consider supporting our work by:
 ```
 
 生成的证书文件只有root用户才能读取：
-```
+```nginx
 pichu@pokemon: ~ $ ll /etc/letsencrypt                                                                        [2:17:20]
 total 36K
 drwx------ 3 root root 4.0K Dec 28 01:46 accounts
@@ -206,7 +206,7 @@ drwx------ 4 root root 4.0K Dec 28 02:09 live
 drwxr-xr-x 2 root root 4.0K Dec 28 02:09 renewal
 drwxr-xr-x 5 root root 4.0K Dec 28 01:46 renewal-hooks
 -rw-r--r-- 1 root root  424 Dec 28 01:46 ssl-dhparams.pem
-```
+```nginx
 其他用户并不能读取live下的文件，因为没有r权限。更无法获取live下的文件的权限等信息，因为没有x权限。
 
 证书默认三个月有效，certbot会同时生成crontab脚本，每天检查证书是不是过期了，并自动续期。
@@ -220,7 +220,7 @@ nginx配置http文档：
 2. 指定ssl的证书和私钥的路径；
 
 相关配置如下：
-```
+```nginx
 server {
     # nginx listens to this
     listen 80;

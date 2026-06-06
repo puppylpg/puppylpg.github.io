@@ -47,7 +47,7 @@ PUT _ingest/pipeline/student_process
     }
   ]
 }
-```
+```json
 然后使用simulate api模拟它在不同数据上的表现，可以添加verbose参数，详细展示每一步操作：
 ```json
 POST /_ingest/pipeline/_simulate?verbose
@@ -77,7 +77,7 @@ POST /_ingest/pipeline/_simulate?verbose
     }
   ]
 }
-```
+```json
 结果：
 ```json
 {
@@ -164,7 +164,7 @@ POST /_ingest/pipeline/_simulate?verbose
     }
   ]
 }
-```
+```json
 对于pikachu，remove执行成功，set则跳过了，因为不满足if前置条件；对于raichu，remove执行成功，set也执行成功。其中，每一个processor执行过后的数据状态也一一进行了展示。
 
 再看一个**remove object field**的例子——
@@ -210,7 +210,7 @@ POST /_ingest/pipeline/_simulate?verbose
     }
   ]
 }
-```
+```json
 结果只有pikachu被删掉了：
 ```json
 {
@@ -244,7 +244,7 @@ POST /_ingest/pipeline/_simulate?verbose
     }
   ]
 }
-```
+```python
 可能对于simulate api来说，没有把`hello.similarity`这个field转成object，直接把给出的doc当做最终的doc来处理了。
 
 # processor
@@ -300,7 +300,7 @@ PUT _ingest/pipeline/urls_extract
     }
   ]
 }
-```
+```json
 注意null值处理，如果description为null代码会报错。对null的判断可以放在代码里，也可以放在if属性里。
 
 > [Thanks to @Sagar Patel](https://stackoverflow.com/questions/72949027/is-it-possible-to-set-new-field-value-when-analyzing-document-being-indexed-in-e)
@@ -331,7 +331,7 @@ PUT _enrich/policy/url_lookup_policy
 然后根据policy生成一个enrich index：
 ```json
 PUT _enrich/policy/url_lookup_policy/_execute
-```
+```json
 - enrich policy: https://www.elastic.co/guide/en/elasticsearch/reference/current/put-enrich-policy-api.html
 - exec policy: https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html
 
@@ -366,7 +366,7 @@ PUT _ingest/pipeline/url_lookup
     }
   ]
 }
-```
+```json
 **如果max_matches > 1，enrich的数据是一个数组（否则是一个json object）**。因为：
 1. 一个url可能匹配到多个url_info里的url；
 2. 更何况urls本身就是多值的，会匹配到url_info里的多个url；
@@ -433,7 +433,7 @@ PUT _ingest/pipeline/branding_lookup
     }
   ]
 }
-```
+```json
 所以写foreach主要就是写内嵌的processor的。这里用的是一个enrich processor。
 
 **如果想访问当前正在遍历到的array里的值，可以使用`_ingest.value`引用它**：

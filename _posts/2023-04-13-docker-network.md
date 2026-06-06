@@ -40,6 +40,16 @@ docker网络用于：
 docker network create -d bridge my-net
 docker run --network=my-net -itd --name=container3 busybox
 ```
+
+所有接在同一个网络上的容器可以相互通信（局域网）。ip通信肯定是可以的，使用container name作为域名通信在`docker0`上不行，在其他用户创建的bridge网络上可以。
+
+### `docker0`
+为了方便，docker已经默认创建了一个名为`docker0`的bridge网络，如果启动容器的时候不指定网络信息，就会默认连接到`docker0`上。因此，**所有的容器如果不指定网络，都是能相互联通的**。
+
+也可以在启动容器时使用`--network container:<container name|id>`直接连上另一个容器使用的网络。
+
+### 发布端口
+连接在docker网络上的容器**不能从网络外部访问**，只能从内部访问，所以容器间是可以相互通信的。**如果只需要容器间相互通信，没必要把端口发布出来**。
 所有接在同一个网络上的容器可以相互通信（局域网）。ip通信肯定是可以的，使用container name作为域名通信在`docker0`上不行，在其他用户创建的bridge网络上可以。
 
 ### `docker0`
@@ -103,6 +113,7 @@ $ sudo ip link add puppy type bridge
 
 $ sudo ip link delete puppy
 ```
+
 之后可以继续使用`ip`命令把网卡接到bridge上。
 
 **docker创建bridge其实就是调用的linux内核接口。**
@@ -195,14 +206,48 @@ PING 172.17.0.3 (172.17.0.3): 56 data bytes
 2 packets transmitted, 2 packets received, 0% packet loss
 round-trip min/avg/max = 0.054/0.057/0.061 ms
 / #
-```
+```xml
+
+/ # ps aux
+PID   USER     TIME  COMMAND
+    1 root      0:00 sleep 1h
+   18 root      0:00 sh
+   24 root      0:00 ps aux
+
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+2: tunl0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN qlen 1000
+    link/ipip 0.0.0.0 brd 0.0.0.0
+3: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+9: eth0@if10: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+
+/ # ping b-in-docker0
+^C
+
+/ # ping 172.17.0.3
+PING 172.17.0.3 (172.17.0.3): 56 data bytes
+64 bytes from 172.17.0.3: seq=0 ttl=64 time=0.054 ms
+64 bytes from 172.17.0.3: seq=1 ttl=64 time=0.061 ms
+^C
+--- 172.17.0.3 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.054/0.057/0.061 ms
+/ #
+```dockerfile
 同样只能通过ip通信。
 
 ## host
 如果启动一个nginx：
 ```bash
 docker run --rm -d --network=host --name nginx nginx
-```
+```nginx
 直接可以在host上通过`localhost:80`访问。使用`netstat`可以看到80端口被占用了，相当于直接在host上起了一个nginx服务。
 
 可以再启动一个alpine，进去执行一下`ip addr`，会发现和在host上执行该命令的效果相同：
@@ -226,7 +271,7 @@ $ docker run --rm -it --network=none --name alpine alpine sh
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
 / #
-```
+```nginx
 
 ## macvlan
 在Debian上用docker装openwrt做旁路由的时候，接触到了macvlan。
@@ -236,14 +281,14 @@ $ docker run --rm -it --network=none --name alpine alpine sh
 首先给host的有线网卡开启混杂，因为macvlan就是一个mac映射为多个mac，所以要让网卡通过混杂模式接收所有的mac帧：
 ```bash
 ~ sudo ip link set enp2s0 promisc on
-```
+```dockerfile
 创建一个macvlan网络，子网和网关设置的和host一致，这样该网络上的容器的网卡相当于此子网下的一个真实的物理硬件：
 ```bash
 ~ docker network create -d macvlan \
   --subnet=192.168.0.0/24 \
   --gateway=192.168.0.1 \
   -o parent=enp2s0 mvlan
-```
+```nginx
 启动openwrt：
 ```bash
 ~ docker run -d --restart always --name openwrt --network mvlan --privileged sulinggg/openwrt:x86_64 /sbin/init
@@ -253,7 +298,7 @@ $ docker run --rm -it --network=none --name alpine alpine sh
 bash-5.1# vim /etc/config/network
 ```
 配置interface为当前网段，设置ipaddr，给openwrt容器静态绑定一个ip：`192.168.0.198`
-```
+```nginx
 config interface 'lan'
         option ifname 'eth0'
         option proto 'static'
@@ -262,7 +307,7 @@ config interface 'lan'
         option ipaddr '192.168.0.198'
         option gateway '192.168.0.1'
         option dns '192.168.0.1'
-```
+```dockerfile
 **查看openwrt容器的网卡，可以看到eth0的ip为`192.168.0.198`，虚拟出来的硬件地址为`02:42:c0:a8:00:02`**：
 ```bash
 bash-5.1# ip addr
@@ -278,7 +323,7 @@ bash-5.1# ip addr
        valid_lft forever preferred_lft forever
     inet6 fe80::42:c0ff:fea8:2/64 scope link
        valid_lft forever preferred_lft forever
-```
+```nginx
 **此时再去查看路由器的ip-mac记录，真看到了一条`192.168.0.198`和`02:42:c0:a8:00:02`的映射记录！**
 
 而且，局域网内的设备可以和这个虚拟设备相互ping通！虚拟硬件ping局域网里的另一个硬件：
@@ -302,7 +347,7 @@ PING 192.168.0.198 (192.168.0.198): 56 data bytes
 ^C--- 192.168.0.198 ping statistics ---
 2 packets transmitted, 2 packets received, 0% packet loss
 round-trip min/avg/max/stddev = 0.482/0.585/0.688/0.103 ms
-```
+```nginx
 但是openwrt容器和它的host无法ping通，不知道为啥。
 
 ## 教程
@@ -362,11 +407,11 @@ Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
 
 Chain OUTPUT (policy ACCEPT 1 packets, 52 bytes)
  pkts bytes target     prot opt in     out     source               destination 
-```
+```python
 默认三条链都是ACCEPT。
 
 以上参数的意义：
-```
+```bash
 -L, --list [chain]
               List all rules in the selected chain.  If no chain is selected, all chains are listed. 
               
@@ -380,10 +425,10 @@ Chain OUTPUT (policy ACCEPT 1 packets, 52 bytes)
 
 **清除原有规则**
 
-```
+```bash
 pArch# iptables -F  #清除预设表filter中的所有规则链的规则
 pArch# iptables -X  #清除预设表filter中使用者自定链中的规则
-```
+```python
 如果已经有了过滤规则，可以通过以上命令清空，然后再一步步设置。
 
 **预设规则**
@@ -400,12 +445,12 @@ Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
 
 Chain OUTPUT (policy ACCEPT 22 packets, 1626 bytes)
  pkts bytes target     prot opt in     out     source               destination      
-```
+```bash
 其中参数：
 ```
 -P, --policy chain target
               Set  the  policy  for  the chain to the given target. Only built-in (non-user-defined) chains can have policies, and neither built-in nor user-defined chains can be policy targets.
-```
+```bash
 可以看到，INPUT的policy已经变成DROP了，而立刻就有妄图发到我的电脑的26 packets, 3074 bytes被丢弃了。
 
 *注：如果你是远程SSH登陆的话，当你输入第一个命令回车的时候就应该掉了，因为设置完默认丢弃所有包之后，没有设置任何可以接收的包。掉线了怎么办呢,只能去本机操作了=.=!*
@@ -421,9 +466,9 @@ pArch# iptables -nvL --line-numbers
 Chain INPUT (policy DROP 227 packets, 36248 bytes)
 num   pkts bytes target     prot opt in     out     source               destination         
 1       18  1869 ACCEPT     icmp --  *      *       0.0.0.0/0            0.0.0.0/0     
-```
+```python
 其中：
-```
+```bash
 -A, --append chain rule-specification
               Append one or more rules to the end of the selected chain.  When the source and/or destination names resolve to more than one address, a rule will be added for each possible address combination.
 
@@ -453,7 +498,7 @@ num   pkts bytes target     prot opt in     out     source               destina
 Chain OUTPUT (policy DROP 0 packets, 0 bytes)
 num   pkts bytes target     prot opt in     out     source               destination         
 1     171K   11M ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
-```
+```bash
 其中`--dport`代表destination port，目的端口号；`--sport`代表source port，源端口号。
 
 上面的设置就是说我的电脑对访问外部服务器的80端口的tcp协议报文是放行的，即对请求网页的报文是放行的，再说白点儿就是允许上网。
@@ -541,7 +586,7 @@ pkts bytes target     prot opt in     out     source               destination
 Chain DOCKER-USER (1 references)
  pkts bytes target     prot opt in     out     source               destination
   83M   91G RETURN     all  --  any    any     anywhere             anywhere
-```
+```dockerfile
 首先观察`FORWARD` chain：
 ```bash
 Chain FORWARD (policy DROP 0 packets, 0 bytes)
@@ -556,7 +601,7 @@ Chain FORWARD (policy DROP 0 packets, 0 bytes)
   58990 3575K DOCKER     all  --  any    docker0  anywhere             anywhere                
   21M   31G ACCEPT     all  --  docker0 !docker0  anywhere             anywhere              
   26929 1636K ACCEPT     all  --  docker0 docker0  anywhere             anywhere
-```
+```bash
 它的默认策略的确是`DROP`，然后配置所有的流量都先走`DOCKER-USER` chain。然后看docker0相关的流量：
 - in=any, out=docker0：即**外部发给docker0容器的流量**，全都交给`DOCKER` chain进一步处理；
 - in=docker0, out=!docker0：即docker0容器发给外部的流量，全都ACCEPT；

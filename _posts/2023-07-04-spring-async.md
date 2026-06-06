@@ -53,7 +53,7 @@ public class AsyncService {
         }
     }
 }
-```
+```java
 
 异步回调：
 ```java
@@ -74,7 +74,7 @@ public class Listener implements ListenableFutureCallback<String> {
         log.info("onSuccess: {}", result);
     }
 }
-```
+```java
 
 主线程进行任务结果获取，并添加callback：
 ```java
@@ -88,7 +88,7 @@ public class Listener implements ListenableFutureCallback<String> {
                 l.add(future);
             }
     );
-```
+```java
 
 ## spring aop的逻辑
 
@@ -132,7 +132,7 @@ public class Listener implements ListenableFutureCallback<String> {
 
 		return doSubmit(task, executor, invocation.getMethod().getReturnType());
 	}
-```
+```java
 可以很明显的看到对程序猿函数的执行、拆`Future`的动作。（最后再封装为`Future`是executor的事儿）
 
 callable的提交方式，就是提交给线程池执行。当然根据具体future类型，选择了不同的线程池提交方式：
@@ -159,7 +159,7 @@ callable的提交方式，就是提交给线程池执行。当然根据具体fut
 			return null;
 		}
 	}
-```
+```java
 1. 如果返回jdk的CompletableFuture，就用jdk的CompletableFuture提交任务；
 2. 如果返回spring的ListenableFuture，就用spring的ListenableFuture提交任务；
 3. 否则就用jdk的Executor直接submit；
@@ -167,7 +167,7 @@ callable的提交方式，就是提交给线程池执行。当然根据具体fut
 
 ## 输出结果
 最后看一眼上面程序的完整输出：
-```
+```log
 2023-07-04 11:28:22.576 [main] INFO  io.puppylpg.AsyncApp 41 - [org.springframework.util.concurrent.ListenableFutureTask@264c5d07[Not completed, task = org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58@2b9b7f1f], org.springframework.util.concurrent.ListenableFutureTask@69cac930[Not completed, task = org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58@847f3e7], org.springframework.util.concurrent.ListenableFutureTask@5d39f2d8[Not completed, task = org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58@19593091], org.springframework.util.concurrent.ListenableFutureTask@55ea2d70[Not completed, task = org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58@6ad6fa53]]
 2023-07-04 11:28:23.584 [worker-thread-2] INFO  io.puppylpg.AsyncService 30 - 2 future instance is: org.springframework.scheduling.annotation.AsyncResult@456e7b2d
 2023-07-04 11:28:23.584 [worker-thread-2] INFO  io.puppylpg.Listener 23 - onSuccess: 2
@@ -202,7 +202,7 @@ java.lang.RuntimeException: what about now?
 2023-07-04 11:28:24.588 [worker-thread-1] INFO  io.puppylpg.Listener 23 - onSuccess: 4
 
 Process finished with exit code 0
-```
+```java
 - 代理future对象是`org.springframework.util.concurrent.ListenableFutureTask`；
     - 它的task为`org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58`，也就是上述`AsyncExecutionInterceptor#invoke`处的代码；
 - 程序猿生成的future对象是`org.springframework.scheduling.annotation.AsyncResult`；
@@ -258,7 +258,7 @@ Process finished with exit code 0
 			}
 		}
 	}
-```
+```java
 是这么说的：
 1. 啥都不干即可，原本来自程序猿函数里`Future`的异常会自动被executor捕获，封装到最终的代理`Future`里，相当于异常传递了：Handles a fatal error thrown while asynchronously invoking the specified Method. If the return type of the method is a Future object, the original exception can be propagated by just throwing it at the higher level. 
 1. 如果程序猿的函数不返回future，却抛异常了，因为异常也不可能被传回到client端，**根据[线程池异常处理]({% post_url 2021-11-28-java-executor-exception %})可知，异常就“被吞了”（set到`Future`，但无人接收）**。但是，虽然不能把异常传回client，spring AOP依然能帮你处理异常，只需要设置`AsyncUncaughtExceptionHandler`就行了。（如果处理的过程中又出了异常，spring AOP弱弱帮你打个warn拉倒）：However, for all other cases, the exception will not be transmitted back to the client. In that later case, the current `AsyncUncaughtExceptionHandler` will be used to manage such exception.
@@ -277,7 +277,7 @@ Process finished with exit code 0
 > 因为这样的话我们的代码就编译不过去了……一个返回`T`的方法如何注册callback？还得返回`ListenableFuture`才能注册callback。所以**spring可以用代理改变你的行为，但是不能改变你的返回值啊（`T` -> `Future<T>`）**。
 
 此时如果任务流程有未catch异常，spring AOP会用自己的`AsyncUncaughtExceptionHandler`处理异常。spring有一个默认的实现，`SimpleAsyncUncaughtExceptionHandler`，它会简简单单打个error：
-```
+```log
 2023-07-04 11:38:25.999 [worker-thread-2] ERROR org.springframework.aop.interceptor.SimpleAsyncUncaughtExceptionHandler 39 - Unexpected exception occurred invoking async method: public void io.puppylpg.AsyncService.service(int)
 java.lang.RuntimeException: what about now?
 	at io.puppylpg.AsyncService.service(AsyncService.java:25)
@@ -291,7 +291,7 @@ java.lang.RuntimeException: what about now?
 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
 	at java.base/java.lang.Thread.run(Thread.java:833)
-```
+```java
 
 # 总结
 之前的代理（[Java反射与动态代理]({% post_url 2020-08-02-java-reflection-dynamic-proxy %})，[Spring - AOP]({% post_url 2021-11-22-spring-aop %})），代理的都是一个“小”功能。`@Async`的代理比较独特，把同步执行的对象代理为了异步执行的对象，看完之后代理似乎变得更通透了。

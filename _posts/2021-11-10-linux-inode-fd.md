@@ -62,7 +62,7 @@ Ref：
 如果对目录文件有只有r权限，**可以读取目录文件的内容（也就是看目录下有哪些文件）**，可以看到他们的文件名，但是**无法获取其他信息（比如文件的权限、修改日期）**，因为其他信息都是从inode里获取的。**想读取inode信息需要x权限**。
 
 比如，有一个hello文件夹，下面有一个world.txt：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll
 total 0
@@ -72,15 +72,15 @@ win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll hello
 total 0
 -rw-r--r-- 1 win-pichu win-pichu 13 Jan 15 00:32 world.txt
-```
+```bash
 因为对hello目录文件有r和x权限，所以可以获取hello目录文件记录的world文件的inode信息，进而获取其内容：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > cat hello/world.txt
 pikapika
 ```
 去掉用户在hello目录文件的x权限：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > chmod -x hello
 
@@ -88,9 +88,9 @@ win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll
 total 0
 drw-r--r-- 1 win-pichu win-pichu 512 Jan 15 00:32 hello
-```
+```bash
 只能看到hello目录文件记录了一个world.txt的文件，但是它的信息不明，不知道它的权限、大小、修改日期等（都记录在inode里）：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll hello
 ls: cannot access 'hello/world.txt': Permission denied
@@ -101,13 +101,13 @@ total 0
 > 所以说`ls -l`的内容都记录在inode里！
 
 自然也看不了world.txt的内容（需要读取inode，获取其在磁盘上的位置，才能读出其内容）：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > cat hello/world.txt
 cat: hello/world.txt: Permission denied
-```
+```bash
 如果现在把r权限也删了：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > chmod -r hello
 
@@ -117,13 +117,13 @@ total 0
 d-w------- 1 win-pichu win-pichu 512 Jan 15 00:32 hello
 ```
 连读hello目录文件的权限都没了，自然不知道都有哪些子文件（不知道记录了哪些文件名到inode的映射）：
-```
+```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll hello
 ls: cannot open directory 'hello': Permission denied
-```
+```bash
 现在觉得，**`ls -li`才是读取完整目录文件内容的方法**，既显示文件名，又显示它的inode的信息：
-```
+```bash
 > ls -li hello
 total 0
 14918173766753660 -rw-r--r-- 1 win-pichu win-pichu 13 Jan 15 00:32 world.txt

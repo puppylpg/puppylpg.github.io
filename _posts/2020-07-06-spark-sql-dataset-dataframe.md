@@ -15,7 +15,7 @@ Spark SQL is a Spark module for structured data processing. Unlike the basic Spa
 
 # sql
 sql查询原来是这么操作的：
-```
+```sql
 // Register the DataFrame as a SQL temporary view
 df.createOrReplaceTempView("people")
 
@@ -28,12 +28,12 @@ sqlDF.show()
 // |  30|   Andy|
 // |  19| Justin|
 // +----+-------+
-```
+```sql
 
 TempView是session-scoped，session结束就消失。GlobalTempView是跨session的，spark应用结束才消失。
 
 Global temporary view is tied to a system preserved database `global_temp`, and we must use the qualified name to refer it, e.g. `SELECT * FROM global_temp.view1`.
-```
+```sql
 // Register the DataFrame as a global temporary view
 df.createGlobalTempView("people")
 
@@ -65,7 +65,7 @@ Datasets are similar to RDDs, however, **instead of using Java serialization or 
 
 > 这一点像Hadoop中额外提供的`RowComparator<T> extends Comparator<T>`接口，它新增的compare接口需要实现一种直接进行序列化后的字节比较的方式，从而做到在不反序列化的情况下比较对象。方法需要指定序列化后的字节数组、开始比较的字节位置、需要比较的字节长度三个参数。
 
-```
+```java
 case class Person(name: String, age: Long)
 
 // Encoders are created for case classes
@@ -92,7 +92,7 @@ peopleDS.show()
 // |  30|   Andy|
 // |  19| Justin|
 // +----+-------+
-```
+```json
 
 Seq有toDS方法，又是通过implicits来搞的，肯定也是DatasetHolder里的toDS。
 
@@ -126,18 +126,18 @@ RDD[String]转RDD[Row]的时候和RDD[String]转RDD[T]（T是一个case class）
 - https://spark.apache.org/docs/latest/sql-data-sources.html
 
 ## load
-```
+```bash
 sparkSession.read.format("xxx").load(path)
 ```
 spark load file的时候必须指定类型，比如全限定名`org.apache.spark.sql.parquet`，但是对于内置的格式，使用简写也可以，比如json/parquest/csv/text/avro等。
 
 load之前还能指定一些option选项，比如：
-```
+```bash
 spark.read.format("csv")
     .option("header", "true")
     .option("seq", ";")
     .load(path)
-```
+```sql
 告诉spark读的时候有header，分隔符不是逗号而是分号。
 
 所有的csv的option可参考：
@@ -150,7 +150,7 @@ spark的源代码中也可以窥见对这些option的使用：
 - https://docs.databricks.com/data/data-sources/index.html
 
 读的时候支持filter和递归读取模式
-```
+```bash
 val testGlobFilterDF = spark.read.format("parquet")
   .option("recursiveFileLookup", "true")
   .option("pathGlobFilter", "*.parquet") // json file should be filtered out
@@ -158,9 +158,9 @@ val testGlobFilterDF = spark.read.format("parquet")
 ```
 
 ## save
-```
+```bash
 dataset.write.format("xxx").save(path)
-```
+```sql
 
 一般存储的时候会指定模式，可以用Enum类也可以直接用plain text：
 - SaveMode.Overwrite/"overwrite"：文件已存在则覆盖，一般用这个；
@@ -171,7 +171,7 @@ dataset.write.format("xxx").save(path)
 # DataFrameWriter: partitionBy/bucketBy/sortBy
 都是DataFrameWriter里的方法。
 
-```
+```bash
 val df = Seq((2012, 8, "Batman", 9.8),
     (2012, 8, "Hero", 8.7),
     (2012, 7, "Robot", 5.5),
@@ -181,12 +181,12 @@ val df = Seq((2012, 8, "Batman", 9.8),
 df.write.mode("overwrite").partitionBy("year", "month").format("avro").save("/tmp/test_dataset")
 ```
 文件会以如下形式存放：
-```
+```bash
 dbfs:/tmp/test_dataset/year=2011/
 dbfs:/tmp/test_dataset/year=2012/
-```
+```sql
 读的时候**指定到根目录就行了**：
-```
+```bash
 val data = spark.read.format("avro").load("/tmp/test_dataset")
 ```
 这样存放和直接存Dataset，在读取后没啥区别，不过看起来在hdfs上更“条理化”了。
@@ -210,7 +210,7 @@ val data = spark.read.format("avro").load("/tmp/test_dataset")
 
 注意udf不支持可变参数，即普通函数的参数个数不能是无限个。在spark里内置了零参数udf一直到10参数udf。这种定义方式有点儿暴力啊……
 
-```
+```json
 import org.apache.spark.sql.functions.{col, udf}
 val squared = udf((s: Long) => s * s)
 display(spark.range(1, 20).select(squared(col("id")) as "id_squared"))

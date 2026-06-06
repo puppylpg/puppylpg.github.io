@@ -90,7 +90,7 @@ profile api使用：
 2. 最好url添加`?human=true`，能把时间显示的人性化一点儿；
 
 比如：
-```
+```json
 GET /<index>/_search?human=true
 {
   "query":{
@@ -126,9 +126,9 @@ GET /<index>/_search?human=true
   },
   "profile":"true"
 }
-```
+```json
 profile api不对shard按时间倒序排序，用kibana看出倒序结果后，**如果配置了慢日志，可以去相应节点查看这段时间查询的慢日志**，确实很慢：
-```
+```json
 [puppylpg@a.com elasticsearch-3]$ grep -i "halo infinite" logs/<index>-es_index_search_slowlog.log
 [2022-04-19T10:59:04,543][WARN ][i.s.s.query              ] [node-3] [<index>][9] took[5.7s], took_millis[5736], total_hits[8719 hits], types[], stats[], search_type[QUERY_THEN_FETCH], total_shards[15], source[{"query":{"bool":{"filter":[{"range":{"timestamp":{"from":1640966400000,"to":null,"include_lower":true,"include_upper":true,"boost":1.0}}}],"should":[{"match":{"title.reb_eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}},{"match":{"description.reb_eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}},{"match":{"tags.eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}}],"adjust_pure_negative":true,"minimum_should_match":"1","boost":1.0}},"profile":true}], id[],
 [2022-04-19T10:59:13,159][WARN ][i.s.s.query              ] [node-3] [<index>][0] took[14.3s], took_millis[14352], total_hits[6917 hits], types[], stats[], search_type[QUERY_THEN_FETCH], total_shards[15], source[{"query":{"bool":{"filter":[{"range":{"timestamp":{"from":1640966400000,"to":null,"include_lower":true,"include_upper":true,"boost":1.0}}}],"should":[{"match":{"title.reb_eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}},{"match":{"description.reb_eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}},{"match":{"tags.eng":{"query":"halo infinite","operator":"OR","prefix_length":0,"max_expansions":50,"fuzzy_transpositions":true,"lenient":false,"zero_terms_query":"NONE","auto_generate_synonyms_phrase_query":true,"boost":1.0}}}],"adjust_pure_negative":true,"minimum_should_match":"1","boost":1.0}},"profile":true}], id[],
@@ -137,7 +137,7 @@ profile api不对shard按时间倒序排序，用kibana看出倒序结果后，*
 
 # slow log
 比如给索引设置默认slow log threshold：
-```
+```json
 PUT _template/default_template
 {
    "index_patterns": "*",

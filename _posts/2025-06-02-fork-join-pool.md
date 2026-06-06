@@ -56,7 +56,7 @@ tags: java executor
         q.push(task, this, signalIfEmpty);
         return task;
     }
-```
+```java
 
 > `ForkJoinPool`还提供了一个独有的直接提交`ForkJoinTask`的方法：`execute(ForkJoinTask<?> task)`
 
@@ -75,7 +75,7 @@ tags: java executor
             lock.unlock();
         }
     }
-```
+```java
 **所以`ForkJoinPool`使用双端队列是不是因为通过分治产生的子任务太多了，如果每个任务都要通过竞争去获取，最终性能也好不了？**
 
 ### 分治任务模型
@@ -100,7 +100,7 @@ tags: java executor
 
 ## 执行流程
 `ForkJoinTask` 在 `ForkJoinPool` 中的执行流程图：
-```
+```java
 提交任务到 ForkJoinPool
 │
 ├─ 任务由提交线程直接执行，或分配给工作线程
@@ -119,7 +119,7 @@ tags: java executor
        ├─ 调用 join() 获取子任务结果（可能触发工作窃取）
        │
        └─ 合并子任务结果并返回
-```
+```java
 
 代码示例：
 ```java
@@ -189,7 +189,7 @@ public class ParallelCalculator {
         }
     }
 }
-```
+```java
 **所以任务的拆分粒度要合适，不能太大也不能太小。太小的话，fork创建任务/提交任务的开销就超过计算开销了。**
 
 # 总结

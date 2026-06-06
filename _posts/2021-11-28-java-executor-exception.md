@@ -19,7 +19,7 @@ tags: java executor
 当时就感觉很纳闷，为什么两类线程，一个放不进去，一个取不出来呢？后来仔细观察才发现get和put针对的不是同一个blocking queue——
 
 主线程是往ArrayBlockingQueue里put，放满了，放不进去了：
-```
+```java
 名称: http-nio-8022-exec-2
 状态: java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@5d2234ff上的WAITING
 总阻止数: 3,000, 总等待数: 78,807
@@ -29,9 +29,9 @@ sun.misc.Unsafe.park(Native Method)
 java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
 java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:2039)
 java.util.concurrent.ArrayBlockingQueue.put(ArrayBlockingQueue.java:353)
-```
+```sql
 线程池的worker是从LinkedBlockingQueue取任务，take不出来：
-```
+```java
 名称: stream process kol extractions executor-16
 状态: java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@4464a11a上的WAITING
 总阻止数: 623, 总等待数: 48,046
@@ -53,7 +53,7 @@ java.lang.Thread.run(Thread.java:745)
 
 # 线程池处理异常
 线程池两个线程，执行6个任务，每个人物有50%的概率抛出异常，50%的概率正常结束并返回线程id作为结果：
-```
+```java
     public static void main(String... args) throws InterruptedException {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -79,9 +79,9 @@ java.lang.Thread.run(Thread.java:745)
             }
         }
     }
-```
+```bash
 查看最终六个任务的结果，输出如下：
-```
+```java
 pool-1-thread-1 : 12 : 0
 pool-1-thread-2 : 13 : 1
 pool-1-thread-1 : 12 : 2
@@ -103,7 +103,7 @@ exception: java.lang.Exception: what happened
 首先分析第一个结论，为什么任务出异常线程不会终止。这就要看看谁调用的`Callable#call()`。
 
 `Future`的实现类`FutureTask`调用了`Callable#call`，相关代码片段：
-```
+```java
             Callable<V> c = callable;
             if (c != null && state == NEW) {
                 V result;
@@ -140,7 +140,7 @@ exception: java.lang.Exception: what happened
             finishCompletion();
         }
     }
-```
+```xml
 可见：
 - 任务如果正常执行，就把结果放到Future的`outcome`变量中；
 - 如果任务出了异常，就catch住异常，并把异常放到`outcome`变量中；
@@ -150,7 +150,7 @@ exception: java.lang.Exception: what happened
 
 # 异步任务异常传递
 异常放到output里是什么操作？其实有点儿像是future实现时候的一个trick。看从future取结果时候的操作`get()`：
-```
+```xml
     public V get() throws InterruptedException, ExecutionException {
         int s = state;
         if (s <= COMPLETING)
@@ -180,7 +180,7 @@ exception: java.lang.Exception: what happened
 2. 任务本身不想处理，由取任务结果的线程处理异常：在get的时候，catch住异常，并处理异常；
 
 而如果想让任务永不停止，需要在while true里catch住所有异常：
-```
+```json
     /**
      * 启动处理线程
      */

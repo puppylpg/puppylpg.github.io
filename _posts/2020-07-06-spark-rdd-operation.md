@@ -38,11 +38,11 @@ RDD中也有一个sparkContext变量……和SparkSession一样。
     + 参数3：不同partition之间的U怎么合并；
 
 比如有一个pair rdd：
-```
+```java
 val pairs: RDD[(String, Int)] = sc.parallelize(Array(("a", 3), ("a", 1), ("b", 7), ("a", 5)))
-```
+```bash
 把它按key聚合，值收集为set：
-```
+```java
 val sums: RDD[(String, HashSet[Int])] = pairs.aggregateByKey(new HashSet[Int])(_+=_, _++=_)
 ```
 
@@ -60,7 +60,7 @@ val sums: RDD[(String, HashSet[Int])] = pairs.aggregateByKey(new HashSet[Int])(_
 
 ## 常见误操作
 RDD是Tuple2时，经常有一个误操作：
-```
+```java
 scala> val rdd = sc.wholeTextFiles("licenses")
 rdd: org.apache.spark.rdd.RDD[(String, String)] = licenses MapPartitionsRDD[1] at wholeTextFiles at <console>:24
 
@@ -72,9 +72,9 @@ Note: The expected type requires a one-argument function accepting a 2-Tuple.
                 ^
 <console>:26: error: missing parameter type
        rdd.map((k, v) => k).foreach(println)
-```
+```bash
 原因很简单，map的函数是个单参数函数，传入T，map为U。这里T指代的是Tuple2：
-```
+```java
 scala> rdd.map(t => t._1).foreach(println)
 file:/home/win-pichu/Utils/spark/spark-2.4.6-bin-hadoop2.7/licenses/LICENSE-join.txt
 file:/home/win-pichu/Utils/spark/spark-2.4.6-bin-hadoop2.7/licenses/LICENSE-AnchorJS.txt
@@ -82,12 +82,12 @@ file:/home/win-pichu/Utils/spark/spark-2.4.6-bin-hadoop2.7/licenses/LICENSE-CC0.
 ```
 
 或者使用中括号和case，至于为啥之后再看： TODO
-```
+```java
 scala> rdd.map({ case (k, v) => k }).foreach(println)
-```
+```bash
 
 我们自己转换成的Tuple2的RDD也一样：
-```
+```java
 scala> val file = sc.textFile("licenses/LICENSE-protobuf.txt")
 file: org.apache.spark.rdd.RDD[String] = licenses/LICENSE-protobuf.txt MapPartitionsRDD[5] at textFile at <console>:24
 
@@ -99,16 +99,16 @@ scala> filePair.map(t => t._1).foreach(println)
 
 ## 输出所有数据
 另外想按序数据rdd所有元素，必须都collect到driver里（注意driver可能会OOM）：
-```
+```java
 scala> rdd.sortByKey(true).map(t => t._1).collect.foreach(println)
-```
+```bash
 否则：
 - 对于local运行模式，会无序输出。因为那个executor先输出不一定；
 - 对于cluster运行模式，不输出，因为executor的输出并不能显示在driver端；
 
 ## 重新分区
 关于coalesce和repartition：
-```
+```java
 scala> filePair.saveAsTextFile("tmp-data/protobuf")
 
 scala> filePair.coalesce(1).saveAsTextFile("tmp-data/protobuf-coalesce")
@@ -116,7 +116,7 @@ scala> filePair.coalesce(1).saveAsTextFile("tmp-data/protobuf-coalesce")
 scala> filePair.repartition(4).saveAsTextFile("tmp-data/protobuf-repartition")
 ```
 结果：
-```
+```java
 win-pichu@DESKTOP-T467619:~/Utils/spark/spark-2.4.6-bin-hadoop2.7/tmp-data
 % tree                                                                                              20-06-17 - 22:41:21
 .
@@ -135,7 +135,7 @@ win-pichu@DESKTOP-T467619:~/Utils/spark/spark-2.4.6-bin-hadoop2.7/tmp-data
     └ _SUCCESS
 
 3 directories, 10 files
-```
+```bash
 
 # shuffle
 To organize all the data for a single reduceByKey reduce task to execute, Spark needs to perform an all-to-all operation. It must read from all partitions to find all the values for all keys, and then bring together values across partitions to compute the final result for each key - **this is called the shuffle**.
@@ -159,7 +159,7 @@ Spark使用了类似MapReduce里的map和reduce的操作。map的数据存储在
 只读。把一个变量创建为Broadcast的好处是，只向各个executor发送一次，就会被executor缓存下来，供以后使用。适用于一些大的只读查询表。
 
 而常规变量作为函数的一部分，每次发送函数到executor的时候都要重新发一遍这些变量。
-```
+```bash
 scala> val broadcastVar = sc.broadcast(Array(1, 2, 3))
 broadcastVar: org.apache.spark.broadcast.Broadcast[Array[Int]] = Broadcast(0)
 

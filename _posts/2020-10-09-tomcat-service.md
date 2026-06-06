@@ -24,7 +24,7 @@ StandardServer是Server的标准实现，它做的事情很单纯：init时，in
 另一个方法就是await，它类似于Connector，只不过Connector等待接收8080端口上的请求，而await等待接收8050上的请求：一旦改端口收到请求，内容为"SHUTDOWN"，就关闭server，否则就一直阻塞主线程。以此达到优雅关闭的目的。
 
 比如，可以启动另一个程序，向8050发送"SHUTDOWN"来达到关闭服务器的目的：
-```
+```java
   public static void main(String[] args) {
     // the following code is taken from the Stop method of
     // the org.apache.catalina.startup.Catalina class
@@ -44,7 +44,7 @@ StandardServer是Server的标准实现，它做的事情很单纯：init时，in
       System.out.println("Error. The server has not been started.");
     }
   }
-```
+```java
 
 # `org.apache.catalina.Service`
 之前启动一个server是分别启动Connector和Container，现在只要启动Service就行了。所以Service是什么？大胆猜测，**Service就是Connector和Container的聚合体**！
@@ -54,7 +54,7 @@ StandardServer是Server的标准实现，它做的事情很单纯：init时，in
 当添加一个Connector或者Container的时候，Service会将内部的Connectors和Container相互关联。
 
 比如addConnector实现：
-```
+```java
     public void addConnector(Connector connector) {
 
         synchronized (connectors) {
@@ -92,7 +92,7 @@ StandardServer是Server的标准实现，它做的事情很单纯：init时，in
 > 当然也有removeConnector方法，无非就是先停掉connector，再从connector列表里删掉它。
 
 setContainer考虑的事情更多一些：
-```
+```json
     public void setContainer(Container container) {
 
         Container oldContainer = this.container;
@@ -126,7 +126,7 @@ setContainer考虑的事情更多一些：
         support.firePropertyChange("container", oldContainer, this.container);
 
     }
-```
+```java
 1. **只有顶级容器Engine才能和Service相关联**；
 2. 所有的connector都要和新的Container相关联；
 3. 如果已经启动了，要启动新的容器，关闭旧的容器；
@@ -136,7 +136,7 @@ setContainer考虑的事情更多一些：
 StandardService是Service的标准实现，它还实现了Lifecycle接口。所以在它的start方法里，start Service里所有的connector和一个container就行了。很好理解。
 
 # 使用Server接口，使用Service启动的servlet容器
-```
+```java
 public final class Bootstrap {
   public static void main(String[] args) {
 

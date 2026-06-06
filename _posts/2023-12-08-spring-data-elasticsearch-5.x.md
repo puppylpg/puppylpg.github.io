@@ -51,7 +51,7 @@ if (CollectionUtils.isNotEmpty(mediaSubTypeList)) {
     queryBuilder.filter(QueryBuilders.termsQuery(WITAKE_MEDIA_SUBTYPE,
             mediaSubTypeList.stream().map(MediaSubType::getValue).collect(Collectors.toList())));
 }
-```
+```java
 
 使用elasticsearch-java重写后的代码非常清晰，和elasticsearch原生查询请求体里的json几乎无异：
 ```java
@@ -96,14 +96,14 @@ Query q = new Query.Builder()
                 }
         )
         .build();
-```
+```json
 需要特殊注意的是range里的范围取值。旧的hlrc直接传数字或null，但是新的取值必须是`JsonData`类型或null。在获取`JsonData`类型时，一般直接使用`JsonData.of(value)`转换数据，但该方法不支持null value，所以需要单独判断null：
 ```java
     @Nullable
     private static JsonData jsonDataConverter(Number value) {
         return Objects.isNull(value) ? null : JsonData.of(value);
     }
-```
+```java
 
 > *getKolRecentDaysMediaStatistic*
 
@@ -144,7 +144,7 @@ Query q = new Query.Builder()
                 }
         )
         .build();
-```
+```java
 
 > *getKolLastItemsSubTypedMediaStatistic*
 
@@ -153,7 +153,7 @@ Query q = new Query.Builder()
     new Query.Builder()
             .term(new TermQuery.Builder().field("user_id").value("10").build())
             .build()
-```
+```xml
 直接传入lambda表达式，专注逻辑，享受屏蔽builder带来的好处：
 ```java
     q -> q
@@ -161,7 +161,7 @@ Query q = new Query.Builder()
                     field("platform")
                     .value("YouTube")
             )
-```
+```java
 
 > 原理可参考[Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})的设计理念部分。
 
@@ -223,7 +223,7 @@ HLRC请求需要把builder构造成`SearchRequest`：
                 // 手动序列化
                 .map(str -> JacksonUtil.toObject(str, BrandAnalysisMedia.class))
                 .toList();
-```
+```java
 **如果想获取hits，只能获取string结果，然后自己序列化为对象**。
 
 ## `ElasticsearchTemplate` search
@@ -243,7 +243,7 @@ elasticsearch-java使用`ElasticsearchTemplate`发起请求，可以接受`org.s
                 .withMaxResults(0)
                 .build();
         SearchHits<WitakeMediaEs> searchHits = elasticsearchTemplate.search(query, WitakeMediaEs.class);
-```
+```xml
 返回的结果已经被序列化好了。
 
 ## `ElasticsearchClient` search
@@ -278,7 +278,7 @@ for (Hit<Product> hit: hits) {
     Product product = hit.source();
     logger.info("Found product " + product.getSku() + ", score " + hit.score());
 }
-```
+```java
 结果直接就是泛型。
 
 # 更多查询
@@ -327,7 +327,7 @@ Query q = new Query.Builder()
 
         )
         .build();
-```
+```bash
 
 ## agg
 agg应该是最难写的查询部分了。
@@ -341,7 +341,7 @@ TermsAggregationBuilder groupByUserIdAgg = AggregationBuilders.terms(USER_ID_GRO
         .subAggregation(AggregationBuilders.extendedStats(WITAKE_MEDIA_EXTENDED_STATS_LIKES).field(WITAKE_MEDIA_LIKES))
         .subAggregation(AggregationBuilders.extendedStats(WITAKE_MEDIA_EXTENDED_STATS_COMMENT).field(WITAKE_MEDIA_COMMENT))
         .subAggregation(AggregationBuilders.avg(MEDIA_INTERACTIVE_IN_TIME_GROUP).script(new Script(MEDIA_SCRIPT_INTERACTION_RATE)));
-```
+```bash
 新的查询在写agg的时候会简单非常多：
 ```java
 Aggregation agg = Aggregation.of(a -> a
@@ -380,7 +380,7 @@ Aggregation agg = Aggregation.of(a -> a
                 )
         )
 );
-```
+```bash
 
 > *getKolRecentDaysMediaStatistic*
 
@@ -412,7 +412,7 @@ TermsAggregationBuilder groupByUserIdAgg = AggregationBuilders.terms(USER_ID_GRO
         .subAggregation(PipelineAggregatorBuilders.extendedStatsBucket(WITAKE_MEDIA_EXTENDED_STATS_REPOSTED, TIME_GROUP_TO_MEDIA_REPOST))
         .subAggregation(PipelineAggregatorBuilders.extendedStatsBucket(WITAKE_MEDIA_EXTENDED_STATS_LIKES, TIME_GROUP_TO_MEDIA_LIKE))
         .subAggregation(PipelineAggregatorBuilders.extendedStatsBucket(WITAKE_MEDIA_EXTENDED_STATS_COMMENT, TIME_GROUP_TO_MEDIA_COMMENT));
-```
+```java
 
 elasticsearch-java的pipeline agg由于和原始json对应，难度降低了不少。**但也是找了半天才发现应该使用`AggregationBuilders`获取pipeline agg**。除了这一点，基本没什么太大的困难了：
 ```java
@@ -496,7 +496,7 @@ Aggregation agg = Aggregation.of(a -> a
                 )
         )
 );
-```
+```bash
 
 > *getKolLastItemsSubTypedMediaStatistic*
 
@@ -512,7 +512,7 @@ Query query = new NativeSearchQueryBuilder()
         .withSort(SortBuilders.fieldSort(USER_ID).order(SortOrder.DESC))
         .withPageable(pageable)
         .build();
-```
+```java
 elasticsearch-java的sort，和query一样，基本不太需要查看api：
 ```java
 NativeQuery query = new NativeQueryBuilder()
@@ -557,7 +557,7 @@ NativeQuery query = new NativeQueryBuilder()
 hlrc的highlight：
 ```java
 HighlightBuilder.Field field = new HighlightBuilder.Field(NICKNAME_AUTOCOMPLETE).numOfFragments(0);
-```
+```java
 这一点spring data elasticsearch比较奇怪，`NativeQuery`接收的是自己定义的highlight query，而非elasticsearch-java原生的`co.elastic.clients.elasticsearch.core.search.Highlight`：
 ```java
         HighlightQuery hq = new HighlightQuery(

@@ -15,7 +15,7 @@ Tomcat作为一个servlet容器，让用户部署web应用，这些“关联”�
 
 # 配置文件解析 - Digester
 接触过Spring的用户对这种xml配置的方式其实都不陌生，比如：
-```
+```java
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <employee firstName="Freddie" lastName="Mercury">
   <office description="Headquarters">
@@ -25,7 +25,7 @@ Tomcat作为一个servlet容器，让用户部署web应用，这些“关联”�
     <address streetName="Downing Street" streetNumber="10"/>
   </office>
 </employee>
-```
+```python
 实际相当于实例化了一个employee，设置firstName和lastName属性，并set两个office对象，每个office对象内含一个address。
 
 这种配置方式和Spring的xml配置并不完全相同，但大致都表达了一个意思。
@@ -41,7 +41,7 @@ Tomcat作为一个servlet容器，让用户部署web应用，这些“关联”�
 # Tomcat的配置文件
 ## `conf/server.xml`
 Tomcat对自己基本组件的配置放在`conf/server.xml`里，可以看一下Tomcat9的配置文件内容：
-```
+```java
 <!-- Note:  A "Server" is not itself a "Container", so you may not
      define subcomponents such as "Valves" at this level.
      Documentation at /docs/config/server.html
@@ -211,7 +211,7 @@ Tomcat对自己基本组件的配置放在`conf/server.xml`里，可以看一下
 Tomcat使用`web.xml`定义web应用里的一些组件。Tomcat默认也有自己的一些servlet（和用户部署的servlet相区别），这些servlet的配置是在`conf/web.xml`里配置的。
 
 主要是这些servlet，以及servlet的mapping：
-```
+```java
 <web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
@@ -260,7 +260,7 @@ Tomcat使用`web.xml`定义web应用里的一些组件。Tomcat默认也有自�
     </servlet-mapping>
     
 </web-app>
-```
+```bash
 配置了两个servlet。
 
 ## `webapps/META-INF/web.xml`
@@ -281,7 +281,7 @@ Tomcat的启动分为两个类：
 
 ## Bootstrap创建的classloader
 Tomcat4搞了这些classloader来加载不同的类：
-```
+```java
       Bootstrap
           |
        System
@@ -315,7 +315,7 @@ jdk的classloader：
 - WebappX：用户部署的各个webapp私有的类，只有他们的classloader能访问到；
 
 Tomcat6变成了这样：
-```
+```java
       Bootstrap
           |
        System
@@ -323,7 +323,7 @@ Tomcat6变成了这样：
        Common
        /     \
   Webapp1   Webapp2 ...
-```
+```xml
 Catalina专有的classloader被取消了。貌似交由Common classloader加载了。所以一个common classloader就够了，删掉了原有的Shared classloader。但是各个webapp要隔离的思想还在。
 
 
@@ -371,7 +371,7 @@ Tomcat启动的时候自己解析了自己的配置：`conf/server.xml`，启动
 
 ## HostConfig监听器
 Catalina启动，使用Digester解析`conf/server.xml`，如果发现Host，会实例化一个Host，并给它添加一个监听器HostConfig。后者先根据Host的配置，设置一些参数：
-```
+```java
 setDeployXML(((StandardHost) host).isDeployXML());
 setLiveDeploy(((StandardHost) host).getLiveDeploy());
 setUnpackWARs(((StandardHost) host).isUnpackWARs());
@@ -381,7 +381,7 @@ setUnpackWARs(((StandardHost) host).isUnpackWARs());
 - Set the unpack WARs flag.
 
 然后在收到Host的start事件时，然后会触发start方法：
-```
+```java
     protected void start() {
 
         if (debug >= 1)
@@ -396,9 +396,9 @@ setUnpackWARs(((StandardHost) host).isUnpackWARs());
         }
 
     }
-```
+```python
 deployApps，它包含三个主要行为：
-```
+```java
     /**
      * Deploy applications for any directories or WAR files that are found
      * in our "application root" directory.
@@ -443,7 +443,7 @@ Deployer是啥？
 它是部署Context到Container（其实就是Host）的一套接口，定义了install/remove一个Context的行为。其实就是把真正部署/卸载一个Context的逻辑抽象出来到Deployer里。
 
 StandardHost有关Deployer的行为都是委托给StandardHostDeployer去做的，比如install方法，它的核心逻辑在于：
-```
+```java
         // Install the new web application
         try {
             Class clazz = Class.forName("org.apache.catalina.core.StandardContext");
@@ -465,7 +465,7 @@ StandardHost有关Deployer的行为都是委托给StandardHostDeployer去做的�
                      e);
             throw new IOException(e.toString());
         }
-```
+```bash
 1. new一个StandardContext；
 2. 和Host关联起来；
 3. **给这个Context设置一个ContextConfig作为Context的监听器**；
@@ -480,7 +480,7 @@ Context和Wrapper又是怎么关联起来的？
 **Host使用HostConfig完成和Context的关联，同时会给Context加一个ContextConfig，这就是一套类似的逻辑，显然可以猜出ContextConfig完成了Context和Wrapper的关联。**
 
 HostConfig和ContextConfig都是以监听器的形式存在的，所以ContextConfig也是响应Context的start事件。主要做的事情是：
-```
+```bash
         // Process the default and application web.xml files
         defaultConfig();
         applicationConfig();

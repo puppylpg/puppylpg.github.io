@@ -18,9 +18,9 @@ tags: jmx
 - https://stackoverflow.com/a/39345042/7676237
 
 即：
-```
+```bash
 -Djava.rmi.server.hostname=<external ip>
-```
+```bash
 
 # 方法二：修改hostname为外网ip
 远程访问，就是得设定hostname：
@@ -34,9 +34,9 @@ tags: jmx
 - https://stackoverflow.com/a/27245447/7676237
 
 修改hostname为ip：
-```
+```bash
 sudo hostname <external ip>
-```
+```bash
 
 所以猜想：其实jmx默认是绑定到hostname上的。所以要么让hostname是外网可用的ip，要么让jmx不绑定到默认的hostname上，使用参数手动指定一个。
 

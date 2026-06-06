@@ -20,9 +20,9 @@ redis常被用来实现分布式锁。分布式锁和并发编程理念一致，
 之所以那redis作为分布式锁，是因为redis用起来相当方便，部署启动方便，set/get也很方便。
 
 在redis里，当一个key不存在时，set一个key/value成功了，就认为拿到锁了，处理完互斥操作后再把kv删除就行了，相当简单。当然，这个操作必须是原子的。redis提供了set if not exist的原子操作，即：
-```
+```bash
 SETNX key value
-```
+```bash
 正常情况下，一个分布式锁就这么实现了。一般这个value最好能唯一标志进程。
 
 - setnx: https://redis.io/commands/setnx

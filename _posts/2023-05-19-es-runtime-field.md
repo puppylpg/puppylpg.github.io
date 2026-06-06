@@ -45,7 +45,7 @@ PUT my-index-000001/
     }
   }
 }
-```
+```json
 和script field不同的是，**使用runtime field，必须在painless脚本里使用[`emit`函数](https://www.elastic.co/guide/en/elasticsearch/painless/8.7/painless-runtime-fields-context.html)把计算的值emit出来**：
 
 > When defining a Painless script to use with runtime fields, you must include the emit method to emit calculated values.
@@ -58,7 +58,7 @@ PUT my-index-000001/_mapping
    "day_of_week": null
  }
 }
-```
+```json
 
 ## in query
 如果只是临时用一用，我更喜欢把runtime field定义在单次查询的请求里。缺点是每次查询都要带上。
@@ -95,7 +95,7 @@ GET <index>/_search
     "a", "b", "a_b_ratio"
   ]
 }
-```
+```json
 
 > 如果这里的返回值不使用`emit`，比如第二个条件直接`return 0`，会报错：`class_cast_exception: Cannot cast from [int] to [void]`。
 
@@ -146,7 +146,7 @@ GET <index>/_search
     ]
   }
 }
-```
+```json
 
 > 关于[fields](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html)查询参数，可以参考：[Elasticsearch：_source store doc_values]({% post_url 2022-10-05-es-source-store-docvalues %})
 
@@ -184,7 +184,7 @@ PUT my-index-000001/
     }
   }
 }
-```
+```json
 参考[完整的例子](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime-indexed.html)。
 
 # 总结

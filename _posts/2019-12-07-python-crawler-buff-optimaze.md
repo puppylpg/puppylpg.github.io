@@ -66,10 +66,10 @@ tags: python csgo
 - 如果只设置了黑名单，则爬取除了黑名单之外的所有物品；
 
 比如：
-```
+```python
 category_white_list = ["weapon_ak47", "weapon_m4a1", "weapon_m4a1_silencer"]
 category_black_list = ["weapon_m4a1"]
-```
+```python
 则最终会爬取AK、M4A1、M4A4三种物品。
 
 > NOTE: M4A1游戏代号为"weapon_m4a1_silencer"、M4A4游戏代号为"weapon_m4a1"。
