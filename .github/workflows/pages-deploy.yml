@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # 完整 git 历史，不做浅克隆
           # _plugins/posts-lastmod-hook.rb 需要读历史来注入 last_modified_at
@@ -42,7 +42,7 @@ jobs:
       # 如果站点不在根路径（如 /repo-name/），后续构建需要用到
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v6
 
       # 安装 Ruby；bundler-cache: true 自动跑 bundle install 并缓存 gems
       # Gemfile.lock 不变时直接用缓存，加速构建
@@ -77,7 +77,7 @@ jobs:
       # 把 _site/ 打包上传为 artifact，供 deploy job 使用
       # 两个 job 不共享文件系统，只能通过 artifact 传递产物
       - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: "_site${{ steps.pages.outputs.base_path }}"
 
@@ -92,4 +92,4 @@ jobs:
       # GitHub Pages 在这里只做托管，Jekyll 构建早已在 build job 完成
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
