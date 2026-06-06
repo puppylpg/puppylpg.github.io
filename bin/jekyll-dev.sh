@@ -1,58 +1,47 @@
 #!/bin/bash
 # Local Jekyll dev server.
-# Usage: bin/jekyll-dev.sh {start|stop|restart|status}
+# Usage: bin/jekyll-dev.sh {start|stop|restart}
 
 set -euo pipefail
 
+# 切到项目根目录
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# 端口可通过环境变量 JEKYLL_PORT 覆盖，默认 4000
 PORT="${JEKYLL_PORT:-4000}"
-PIDFILE="/tmp/puppylpg-jekyll.pid"
-LOGFILE="/tmp/puppylpg-jekyll.log"
-URL="http://127.0.0.1:${PORT}/"
 
-# macOS Homebrew Ruby (system Ruby 2.6 ships bundler 1.17, Gemfile.lock needs 2.x).
-for d in /opt/homebrew/opt/ruby/bin /usr/local/opt/ruby/bin; do
-  [[ -d "$d" ]] && export PATH="$d:$PATH" && break
-done
-
-is_running() {
-  [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
-}
+# 要求 Ruby >= 3.0
+ruby_ver=$(ruby -e 'puts RUBY_VERSION' 2>/dev/null | cut -d. -f1)
+if [[ "${ruby_ver:-0}" -lt 3 ]]; then
+  echo "Error: Ruby 3.0+ required, got $(ruby -e 'puts RUBY_VERSION' 2>/dev/null || echo 'unknown')"
+  echo "Please set PATH to a newer Ruby before running this script"
+  exit 1
+fi
 
 start() {
-  if is_running; then
-    echo "already running at ${URL} (pid $(cat "$PIDFILE"))"
-    return 0
-  fi
+  # 确保依赖就绪，缺失则安装
   bundle check >/dev/null 2>&1 || bundle install
-  echo "==> starting at ${URL} (log: ${LOGFILE})"
-  nohup bundle exec jekyll serve --host 0.0.0.0 --port "$PORT" --livereload \
-    >"$LOGFILE" 2>&1 &
-  echo $! >"$PIDFILE"
-  for _ in $(seq 1 60); do
-    curl -sf -o /dev/null "$URL" && { echo "==> ready"; return 0; }
+  echo "Starting at http://127.0.0.1:${PORT}/"
+  # 后台启动，日志写 /tmp/jekyll.log
+  nohup bundle exec jekyll serve --host 0.0.0.0 --port "$PORT" --livereload >/tmp/jekyll.log 2>&1 &
+  # 轮询等待端口就绪，避免访问过早返回 404
+  echo -n "Waiting for server"
+  while ! nc -z 127.0.0.1 "$PORT" 2>/dev/null; do
+    echo -n "."
     sleep 1
   done
-  echo "did not respond in time, see $LOGFILE" >&2
-  return 1
+  echo " ready!"
 }
 
 stop() {
-  if [[ -f "$PIDFILE" ]]; then
-    kill "$(cat "$PIDFILE")" 2>/dev/null || true
-    rm -f "$PIDFILE"
-  fi
-  pkill -f "jekyll serve.*--port ${PORT}" 2>/dev/null || true
-  echo "==> stopped"
+  # 匹配所有 "jekyll serve" 进程并终止
+  pkill -f "jekyll serve" || true
+  echo "Stopped"
 }
 
 case "${1:-}" in
   start) start ;;
   stop) stop ;;
   restart) stop; start ;;
-  status)
-    if is_running; then echo "running ${URL} (pid $(cat "$PIDFILE"))"
-    else echo "stopped (port ${PORT})"; fi ;;
-  *) echo "usage: $0 {start|stop|restart|status}" >&2; exit 1 ;;
+  *) echo "usage: $0 {start|stop|restart}" >&2; exit 1 ;;
 esac

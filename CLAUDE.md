@@ -81,8 +81,7 @@ description: "一句话摘要，用于 SEO 和 feed"
 
 ## 构建坑点
 
-- `bin/lower_tag.sh` 只处理 `_posts` 和 `_tutorials` 里的 `categories:` / `tags:`。如果其他集合重度使用归档，需要扩展这个脚本。
-- `jekyll-archives` 同时生成 category 和 tag 页面；`Java` / `java` 这种大小写混用会生成重复归档页。
+- `jekyll-archives` 同时生成 category 和 tag 页面；`Java` / `java` 这种大小写混用会生成重复归档页。确保 `categories` / `tags` 始终小写。
 - `_tutorials/` 里有 Chirpy starter 模板残留的坏链接。CI 故意给 `htmlproofer` 传 `--ignore-files "/tutorials/"`；清理前不要去掉。
 - `last_modified_at` 依赖 git 历史。CI 已经设置 `fetch-depth: 0`；浅克隆可能让 hook 失效。
 - `assets/lib` submodule 只有在 `_config.yml` 启用 `assets.self_host.enabled` 时才需要，日常开发不必 `git submodule update --init`。

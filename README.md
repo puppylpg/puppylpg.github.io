@@ -39,7 +39,7 @@
 │
 ├── assets/              # 静态资源（含 chirpy-static-assets 子模块）
 ├── pics/                # 头像等图片
-├── bin/                 # 构建前脚本
+├── bin/                 # 辅助脚本
 └── .github/workflows/   # CI / CD
 ```
 
@@ -79,7 +79,7 @@ tags: 标签名
 
 ### 分类与标签
 
-启用 `jekyll-archives` 生成分类、标签归档页。CI 构建前会执行 `bin/lower_tag.sh`，将 `_posts` 与 `_tutorials` 中 `categories:` / `tags:` 行的英文统一为小写，避免归档重复。源文件已统一小写，脚本在 CI 中作为安全网保留。
+启用 `jekyll-archives` 生成分类、标签归档页。源文件中 `categories` / `tags` 已统一小写，无需额外脚本处理。
 
 ## 本地开发
 
@@ -131,17 +131,16 @@ bundle install
 bundle exec jekyll serve
 ```
 
-本地开发与 CI 行为一致；`bin/clean_toc.sh` / `bin/lower_tag.sh` 仅在 CI 中作为安全网执行，日常不必手动跑。
+本地开发与 CI 行为一致。
 
 ## 构建与部署
 
 推送到 `main` 或 `master` 分支时，`.github/workflows/pages-deploy.yml` 会自动：
 
 1. 安装 Ruby 依赖（`bundle`）
-2. 执行 `bin/lower_tag.sh`、`bin/clean_toc.sh`
-3. `bundle exec jekyll build` 生成静态站点
-4. `html-proofer` 校验站内链接
-5. 部署至 GitHub Pages
+2. `bundle exec jekyll build` 生成静态站点
+3. `html-proofer` 校验站内链接
+4. 部署至 GitHub Pages
 
 本地模拟生产构建：
 
@@ -169,8 +168,6 @@ JEKYLL_ENV=production bundle exec jekyll build
 | `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
 | `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
 | `bin/jekyll-dev.sh` | macOS 本地 `start` / `stop` / `restart` / `status` |
-| `bin/lower_tag.sh` | 构建前统一 `_posts`、`_tutorials` 的 tags / categories 大小写 |
-| `bin/clean_toc.sh` | 移除 `_posts`、`_tutorials` 首行 `[toc]` 占位（CI 安全网） |
 
 站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。
 

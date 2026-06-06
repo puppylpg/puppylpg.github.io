@@ -105,19 +105,8 @@ git add <PATH>
 git commit -m "Add: <COMMIT_DESC>
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
+git push
 ```
-
-```bash
-CONTENT_B64=$(base64 -i <PATH>)
-gh api -X PUT "repos/puppylpg/puppylpg.github.io/contents/<PATH>" \
-  -f message="Add: <COMMIT_DESC>" \
-  -f content="$CONTENT_B64" \
-  -f branch=master
-```
-
-（新文件不需要 `-f sha=...`；若文件已存在远端则需要加）
-
-`gh api` 产生的远端 commit 与本地 hash 不同，之后执行 `git fetch && git reset --hard origin/master` 对齐。
 
 查 CI：
 ```bash
@@ -139,5 +128,4 @@ gh run list --workflow=pages-deploy.yml --limit 1
 - ❌ tag / category 大写
 - ❌ 文件名用中文
 - ❌ 不等用户确认直接 commit
-- ❌ 用 `git push`（禁止，只能用 `gh api`）
 - ❌ title 照搬原文标题

@@ -25,7 +25,7 @@ Gemfile       （声明依赖：jekyll-theme-chirpy 等）
 
 - **Jekyll**: 静态站点生成器，把 Markdown 转成 HTML
 - **Ruby**: Jekyll 用 Ruby 写的运行环境
-- **Bundler**: 管理 Jekyll 及其依赖 gem
+- **Bundler**: 管理 Jekyll 及其依赖 gem，版本由 `Gemfile.lock` 末尾 `BUNDLED WITH` 字段决定，`ruby/setup-ruby` action 会自动读取并安装对应版本
 - **Chirpy**: Jekyll 主题 gem，提供博客布局/样式/JS
 
 ## 启动方式
@@ -35,7 +35,7 @@ Gemfile       （声明依赖：jekyll-theme-chirpy 等）
 ```bash
 bin/jekyll-dev.sh start
 bin/jekyll-dev.sh restart
-bin/jekyll-dev.sh stop|status
+bin/jekyll-dev.sh stop
 ```
 
 ### 方式二：直接用 Bundler
@@ -76,10 +76,12 @@ Jekyll 版本、插件完全由你的 `Gemfile` 控制。
 本博客走的是模式二（`.github/workflows/pages-deploy.yml`），所以：
 
 - Jekyll 版本 = `Gemfile.lock` 里锁定的（目前是 **4.4.1**）
-- Ruby 版本 = workflow 里 `ruby-version` 指定的（目前是 **3.2.2**）
+- Ruby 版本 = workflow 里 `ruby-version` 指定的（目前是 **4.0**）
 - `pages.github.com/versions/` 那个页面对本博客**无关**
 
 ## 本地与 CI 对齐
+
+### gem 版本对齐
 
 只需要：
 
@@ -87,21 +89,57 @@ Jekyll 版本、插件完全由你的 `Gemfile` 控制。
 bundle install   # 按 Gemfile.lock 安装，和 CI 完全一致
 ```
 
-如果想 Ruby 版本也一致（CI 用 3.2.2），可以用 rbenv：
+### Ruby 版本对齐
+
+本地 Ruby 版本不需要和 CI 完全一致，只要所有 gem 都兼容即可。CI 用的是 Ruby 4.0。
+
+如果出现 gem 不兼容的问题，用 rbenv 切换版本：
 
 ```bash
-# 安装 rbenv
+# 安装 rbenv（如果没有）
 brew install rbenv ruby-build
+
+# 写入 shell 配置
 echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.zshrc
 echo 'eval "$(rbenv init - zsh)"' >> ~/.zshrc
-
-# 设置国内镜像（加速下载）
-echo 'export RUBY_BUILD_MIRROR_URL=https://cache.ruby-china.com/' >> ~/.zshrc
 source ~/.zshrc
 
-# 安装和 CI 一致的版本
-rbenv install 3.2.2
-rbenv local 3.2.2  # 在项目目录生效
+# 安装指定版本（用国内镜像加速）
+export RUBY_BUILD_MIRROR_URL=https://cache.ruby-china.com/
+rbenv install 4.0.5
+rbenv local 4.0.5  # 在项目目录生效
+```
+
+### gem 源
+
+Gemfile 已配置国内镜像源（`gems.ruby-china.com`），`bundle install` 速度正常。
+
+系统级 gem 命令也建议切换：
+
+```bash
+gem sources --add https://gems.ruby-china.com/ --remove https://rubygems.org/
+```
+
+### nokogiri 编译问题
+
+nokogiri 有 native extension，在某些环境下编译 libxml2 可能失败。用系统自带库绕过：
+
+```bash
+bundle config set --local build.nokogiri "--use-system-libraries"
+bundle install
+```
+
+## gem 兼容性注意事项
+
+升级 Ruby 大版本时需要关注 gem 的 Ruby 版本约束，尤其是：
+
+- **有 native extension 的 gem**（nokogiri、ffi、sass-embedded 等）：包含 C 代码，需要针对 Ruby 版本重新编译，但通常不限制版本范围
+- **明确限制 Ruby 版本的 gem**：如 html-proofer 4.x 要求 `< 4.0`，升级到 Ruby 4.0 时必须同步升级到 html-proofer 5.x
+
+查看某个 gem 的 Ruby 版本要求：
+
+```bash
+gem specification --remote <gem名> -v <版本> | grep -A8 required_ruby_version
 ```
 
 ## 常见问题
@@ -109,6 +147,14 @@ rbenv local 3.2.2  # 在项目目录生效
 ### Q: `bundle exec jekyll serve` 报错找不到 gem
 
 A: 运行 `bundle install` 安装依赖。
+
+### Q: `cannot load such file -- bundler`
+
+A: Ruby 版本切换后 bundler 需要重新安装：
+```bash
+gem install bundler:$(grep -A1 "BUNDLED WITH" Gemfile.lock | tail -1 | tr -d ' ')
+bundle install
+```
 
 ### Q: 本地跑没问题，推到 GitHub 报错
 
@@ -118,17 +164,9 @@ gh run list --workflow=pages-deploy.yml
 gh run view <id> --log-failed
 ```
 
-### Q: Bundler 版本问题
-
-A: 如果遇到 `cannot load such file -- bundler`，尝试：
-```bash
-gem install bundler
-bundle install
-```
-
 ## 参考
 
 - Jekyll 文档：https://jekyllrb.com/
 - Chirpy 主题：https://github.com/cotes2020/jekyll-theme-chirpy
 - GitHub Pages 依赖版本（模式一适用）：https://pages.github.com/versions/
-- Ruby 中国镜像：https://cache.ruby-china.com/
+- Ruby 中国镜像：https://gems.ruby-china.com/

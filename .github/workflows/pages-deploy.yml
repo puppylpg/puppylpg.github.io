@@ -52,10 +52,6 @@ jobs:
           ruby-version: 4.0
           bundler-cache: true
 
-      # 构建前预处理：把 tags/categories 转小写，清理 TOC
-      - name: puppylpg's scripts
-        run: bin/lower_tag.sh && bin/clean_toc.sh
-
       # 核心构建步骤，用 Gemfile.lock 里的 Jekyll（目前 4.4.1）生成静态文件
       # JEKYLL_ENV=production 开启 analytics、comments 等生产环境功能
       - name: Build site
