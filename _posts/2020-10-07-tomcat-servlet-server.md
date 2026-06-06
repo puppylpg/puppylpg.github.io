@@ -32,7 +32,7 @@ public interface Servlet {
 
     public void destroy();
 }
-```java
+```
 
 > 关于init、service、destroy的调用时机这里不再多提。
 
@@ -56,7 +56,7 @@ public interface Servlet {
     <version>4.0.1</version>
     <scope>provided</scope>
 </dependency>
-```python
+```
 maven默认给servlet包加了provided scope：因为servlet最终会被部署到servlet容器中，而servlet容器肯定是引入了servlet相关的包的，所以我们引入的servlet包只在编译的时候用就行了，打包的时候没必要也打进去。
 
 # `javax.servlet.ServletRequest` & `javax.servlet.ServletResponse`：标准化的输入输出
@@ -89,7 +89,7 @@ Servlet类最重要的方法service需要传入两个参数：ServletRequest和S
     System.out.print(request.toString());
     uri = parseUri(request.toString());
   }
-```java
+```
 然后按照http request的规范肢解http请求。比如获取请求路径：
 ```java
   private String parseUri(String requestString) {
@@ -109,7 +109,7 @@ Servlet类最重要的方法service需要传入两个参数：ServletRequest和S
 ServletResponse里有一个`getWriter`方法：
 ```java
 PrintWriter getWriter() throws IOException;
-```java
+```
 Java doc:
 
 > Returns a PrintWriter object that can send character text to the client. The PrintWriter uses the character encoding returned by getCharacterEncoding. If the response's character encoding has not been specified as described in getCharacterEncoding (i.e., the method just returns the default value ISO-8859-1), getWriter updates it to ISO-8859-1.
@@ -213,13 +213,13 @@ public class HttpServer1 {
     }
   }
 }
-```bash
+```
 注意这里的Response，是一个ServletResponse实现，如前所述，创建的时候传入了Socket的OutputStream：
 ```java
         // create Response object
         Response response = new Response(output);
         response.setRequest(request);
-```java
+```
 `Response#getWriter`返回的就是这个OutputStream：
 ```java
   Request request;
@@ -287,11 +287,11 @@ public class ServletProcessor1 {
 
   }
 }
-```bash
+```
 webroot是什么？是作者自定义的一个工程下的名为webroot的文件夹：
 ```java
 public static final String WEB_ROOT = System.getProperty("user.dir") + File.separator  + "webroot";
-```json
+```
 **它里面放置了程序猿提前写好并编译过的servlet的.class文件**。真正的tomcat也是有一个类似的约定好的放置servlet的地方的，我们就把写好的servlet放在那里。
 
 **所以servlet容器并不创建servlet类，只需要能找到servlet类所在的位置，需要用它的时候把它load到jvm里就行了**。
@@ -362,7 +362,7 @@ HttpServlet要实现Servlet接口的service()方法：
             resp.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, errMsg);
         }
     }
-```bash
+```
 所以servlet开发者开发关于Http的servlet更简单：**只需要extends HttpServlet，并根据自己要处理的内容，overrider相应的doGet/doPost/...方法就行了，service方法都不需要写了**。
 
 # Tomcat里的Facade
@@ -375,7 +375,7 @@ Tomcat里用到了大量的facade，类似于装饰器模式。
     if (animal instanceof Person) {
         ((Person) animal).work
     }
-```java
+```
 这就不符合handle方法将Animal作为参数的初衷（只让调用eat）了。
 
 可以创建一个PersonFacade，实现Animal接口，只有一个eat方法：
@@ -391,7 +391,7 @@ public class PersonFacade implements Animal {
         person.eat();
     }
 }
-```java
+```
 实际上PersonFacade对eat方法的实现还是由Person对象完成的，只不过在handle方法里，PersonFacade只是一个Animal类型，不可能被强制转型为Person类型，也无法获取它内部的Person对象，也就没法调用Person对象的work方法。起到了保护作用。
 
 # 前后端进化史
@@ -452,7 +452,7 @@ JSP就是这么干的，写出来很像html，但又有类似java代码的逻辑
     <p>This number is <%= i %>.</p>
 <% } %>
 <p>OK.</p>
-```java
+```
 然后JSP可以被编译为servlet。这样程序猿只需要写jsp就行了，servlet自动编译生成，生成的servlet就像之前刀耕火种版手撸html的servlet一样。
 
 JSP的编译过程：JSP引擎从磁盘中载入JSP文件，然后将它们转化为Servlet。**这种转化只是简单地将所有模板文本改用 println() 语句，并且将所有的 JSP 元素转化成 Java 代码。**

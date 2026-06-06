@@ -48,7 +48,7 @@ POST _analyze
   "tokenizer": "standard",
   "text": "hello123 456 world 你好吗"
 }
-```txt
+```
 输出：
 ```json
 {
@@ -97,7 +97,7 @@ POST _analyze
     }
   ]
 }
-```xml
+```
 标准分词器做的事情还是挺多的，它会按照Unicode Standard Annex #29定义的统一文本处理算法去处理文本，包括丢掉标点之类的。但是它对中文等特定语言的处理并不好，如果要考虑这些语言的语义，则要使用更专业的分词器，比如icu或ik。
 
 > **另外可以看出分出来的token除了token本身，还有位置信息、类型信息等，`match_phrase`搜索会使用position**。
@@ -137,11 +137,11 @@ GET _analyze
   "filter" : ["lowercase"],
   "text" : "THE Quick FoX JUMPs"
 }
-```txt
+```
 输出：
 ```json
 [ the, quick, fox, jumps ]
-```bash
+```
 
 **stop word filter，过滤掉语言中的stop word，比如a/an/the等无意义词**：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-stop-tokenfilter.html
@@ -188,7 +188,7 @@ PUT /english_example
     }
   }
 }
-```bash
+```
 第一个是`stop word filter`，**当不想要某些token时，可以把他们过滤掉**。这里设置的stop word集合是es内置的english stop word，`_english_`：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-stop-tokenfilter.html#english-stop-words
 
@@ -212,7 +212,7 @@ GET /_analyze
   "filter": ["reverse", "edge_ngram", "reverse"], 
   "text" : "Hello!"
 }
-```txt
+```
 从尾部生成edge_ngram。当然，和设置edge_ngram的`side=back`一个效果。
 
 ## 自定义analyzer
@@ -244,7 +244,7 @@ PUT my-index-000001
     }
   }
 }
-```txt
+```
 也可以自定义一个char filter，把&转为and：
 ```json
 "char_filter": {
@@ -253,7 +253,7 @@ PUT my-index-000001
         "mappings": [ "&=> and "]
     }
 }
-```json
+```
 实际是在mapping char_filter的基础上，改了改配置。
 
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/custom-analyzers.html
@@ -276,7 +276,7 @@ GET /_analyze
   "char_filter" : ["html_strip"],
   "text" : "this is a <b>test</b>"
 }
-```txt
+```
 或者自定义一个truncate filter：
 ```json
 GET _analyze
@@ -293,7 +293,7 @@ GET _analyze
     "Hello World"
   ]
 }
-```txt
+```
 返回：
 ```json
 {
@@ -307,7 +307,7 @@ GET _analyze
     }
   ]
 }
-```json
+```
 
 **一个比较方便的功能是引用已有的index的某个field的analyzer**：
 ```json
@@ -316,7 +316,7 @@ GET /<index>/_analyze
   "field": "description", 
   "text": ["hello world"]
 }
-```txt
+```
 或者直接指定analyzer名称，无论analyzer还是search_analyzer都可以：
 ```json
 GET <index>/_analyze
@@ -324,7 +324,7 @@ GET <index>/_analyze
   "analyzer": "autocomplete_sentence_search",
   "text": ["hello world"]
 }
-```txt
+```
 
 # search as you type
 有一些比较猛的tokenizer/filter，因为太强，所以单独拎出来说了。常用来做search as you type。
@@ -343,11 +343,11 @@ POST _analyze
   "tokenizer": "ngram",
   "text": "Quick Fox"
 }
-```txt
+```
 产生：
 ```txt
 [ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
-```txt
+```
 `token_chars`属性配置了保留哪些词作为token。默认为空数组，即保留整个文本作为一个token，**相当于把整个字符串当成一个keyword**。`min_gram`/`max_gram`默认为1/2。
 
 自定义tokenizer：
@@ -361,7 +361,7 @@ GET _analyze
   },
   "text": "hello world"
 }
-```txt
+```
 会产生一大堆token：
 ```json
 {
@@ -488,7 +488,7 @@ GET _analyze
   ]
 }
 
-```txt
+```
 由于n-gram产生的token实在是太炸裂了，所以要求min和max的差值不能超过1，否则会报错：
 ```json
 {
@@ -504,7 +504,7 @@ GET _analyze
   },
   "status" : 400
 }
-```txt
+```
 但即便如此，仍然会产生过多的token。**而且n-gram产生的token的起点比较无意义，所以一般不用n-gram。**
 
 n-gram filter同理，不过因为它只是filter，所以要搭配一个tokenizer使用：
@@ -521,7 +521,7 @@ GET _analyze
   ],
   "text": "hello world"
 }
-```txt
+```
 
 产生的结果token比n-gram tokenizer好一些，因为standard tokenizer把字符串分成了俩token，每个token能产生的n-gram就变少了：
 ```json
@@ -600,7 +600,7 @@ GET _analyze
   ]
 }
 
-```bash
+```
 
 ## edge n-gram tokenizer/filter - 左窗口固定为edge的滑动窗口
 [edge n-gram tokenizer](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenizer.html)和[edge n-gram filter](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenfilter.html)和n-gram tokenizer/filter相比，**左窗口（起点）固定为edge，所以它产生的都是前缀，比较有意义**。
@@ -615,7 +615,7 @@ GET _analyze
   },
   "text": "hello world"
 }
-```txt
+```
 由于不像n-gram一样从每一个位置都做滑动窗口，所以产生的token要少很多，因此也就没有min和max的差距不能超过1的限制：
 ```json
 {
@@ -657,7 +657,7 @@ GET _analyze
     }
   ]
 }
-```txt
+```
 
 edge n-gram filter则同样要搭配一个tokenizer使用：
 ```json
@@ -673,7 +673,7 @@ GET _analyze
   ],
   "text": "hello world"
 }
-```txt
+```
 输出：
 ```json
 {
@@ -722,7 +722,7 @@ GET _analyze
     }
   ]
 }
-```txt
+```
 standard tokenizer把字符串分成hello和world两个token，edge n-gram filter则把他们映射为了6个token，每个token都是原有token的2-4个字符不等的前缀。
 
 这样当我们输入字符的时候，只要搜索框在输入大于两个字符时就对es发起搜索请求，并把搜索结果实时展示在搜索框下，就会产生一种search as you type的效果！（如果搜索返回速度还赶不上用户输入速度，那就凉凉了……）
@@ -753,7 +753,7 @@ GET _analyze
   ],
   "text": "hello world"
 }
-```txt
+```
 结果：
 ```json
 {
@@ -802,7 +802,7 @@ GET _analyze
     }
   ]
 }
-```txt
+```
 
 也可以直接配置edge n-gram tokenized把单词作为分词的token并产生ngram，同时不要filter：
 ```json
@@ -815,7 +815,7 @@ GET _analyze
   },
   "text": "hello world"
 }
-```txt
+```
 结果：
 ```json
 {
@@ -864,7 +864,7 @@ GET _analyze
     }
   ]
 }
-```txt
+```
 **二者产生的token都是一样的，不过offset信息不太一样，毕竟一个是tokenizer，一个是filter。**
 
 ### 如果把tokenizer和filter一起用呢？
@@ -886,7 +886,7 @@ GET _analyze
   ],
   "text": "hello world"
 }
-```txt
+```
 不过这么搞的意义就没那么大了。
 
 ### truncate token filter - 输入词过长
@@ -933,7 +933,7 @@ GET _analyze
     "char_filter":{
     }
   }
-```xml
+```
 
 ## completion suggester - search as you type
 **如果按照乱序前缀匹配文档，用edge n-gram，如果用widely known order，用completion suggester**：
@@ -974,7 +974,7 @@ GET _analyze
           }
         }
       }
-```json
+```
 `name.autocomplete`这个field使用自定义的`autocomplete_sentence` analyzer作为index analyzer，使用自定义的`autocomplete_sentence_search`作为search analyzer。
 
 前者使用edge n-gram，后者就是单纯的keyword tokenizer：
@@ -1004,7 +1004,7 @@ GET _analyze
           }
         }
       }
-```bash
+```
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-analyzer.html
 
 ## shingle - token滑动窗口
@@ -1024,7 +1024,7 @@ GET /_analyze
   ],
   "text": "To beyond and halo infinite"
 }
-```txt
+```
 能生成4个单独的word，和5个shingle：
 ```json
 {
@@ -1107,7 +1107,7 @@ GET /_analyze
   ]
 }
 
-```xml
+```
 
 > min=3，但是单个单词也出现了，因为还有一个`output_unigrams`的属性，默认为true，会输出原始单个单词。
 
@@ -1244,7 +1244,7 @@ PUT /puzzle
     }
   }
 }
-```json
+```
 设置mapping：
 ```json
 PUT /puzzle/_mapping
@@ -1296,7 +1296,7 @@ PUT /puzzle/_mapping
     }
   }
 }
-```txt
+```
 搜索：
 ```json
 GET /puzzle/_search
@@ -1321,7 +1321,7 @@ GET /puzzle/_search
       }
    }
 }
-```bash
+```
 
 **shingle介于match和match_phrase之间**：它像match一样不要求所有搜索词都出现（match_phrase虽然可以调slop，但是所有词必须出现），同时不像match丝毫不考虑顺序（shingle考虑了局部顺序，单词局部顺序和shingle匹配的得分会高）：
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/shingles.html
@@ -1340,7 +1340,7 @@ GET /_analyze
   "tokenizer": "standard",
   "text": ["hello #world @wtf &emmm ???  ? . , !tanhao ! ！ ……我爱你 才怪"]
 }
-```txt
+```
 结果：
 ```json
 {
@@ -1417,7 +1417,7 @@ GET /_analyze
     }
   ]
 }
-```xml
+```
 起作用的主要是standard analyzer里的standard tokenizer，它会按照[Unicode Text Segmentation algorithm](https://discuss.elastic.co/t/standard-tokenizer-punctuation-symbols-removed/223426)在分词的时候就[把标点删掉](https://unicode.org/reports/tr29/#Default_Word_Boundaries)。
 
 > 所以删东西的未必是filter，tokenizer也可以在生成token的时候去掉一些东西。
@@ -1429,7 +1429,7 @@ GET /_analyze
   "tokenizer": "whitespace",
   "text": ["hello #world @wtf &emmm ???  ? . , !tanhao ! ！ ……我爱你 才怪"]
 }
-```txt
+```
 结果：
 ```json
 {
@@ -1527,7 +1527,7 @@ GET /_analyze
     }
   ]
 }
-```java
+```
 可以看到它给出的类型是word，而非更详细的ALPHANUM之类的。
 
 参考[这篇文章](https://www.pixlee.com/blog/finding-hashtags-in-elasticsearch-1-7)，如果想保留#/@等符号，需要使用[Word delimiter graph token filter](https://www.elastic.co/guide/en/elasticsearch/reference/7.17/analysis-word-delimiter-graph-tokenfilter.html#analysis-word-delimiter-graph-tokenfilter)保留这些符号：
@@ -1538,7 +1538,7 @@ GET /_analyze
     "type_table": ["# => ALPHANUM", "@ => ALPHANUM"]
   }
 }
-```txt
+```
 但是filter是在tokenizer后生效的，所以只能把tokenizer改成whitespace，否则tokenizer就把标点过滤掉了，filter也无从保留。
 
 `word_delimiter_graph`的原理如下：
@@ -1551,7 +1551,7 @@ GET /_analyze
   "filter": ["word_delimiter_graph"],
   "text": ["hello #world @wtf &emmm ???  ? . , !tanhao ! ！ ……我爱你 才怪 rainy"]
 }
-```txt
+```
 产生的token就和standard tokenizer差不多了：
 ```json
 {
@@ -1614,7 +1614,7 @@ GET /_analyze
     }
   ]
 }
-```java
+```
 **此时如果我们指定不要去掉#和@，就可以保留`#hello`这样的token**！
 
 新的analyzer如下：
@@ -1633,7 +1633,7 @@ GET /_analyze
   ],
   "text": ["hello #world @wtf &emmm# ???  ? . , !tanhao ! ！ ……我爱你 才怪 rainy"]
 }
-```txt
+```
 结果：
 ```json
 {
@@ -1696,7 +1696,7 @@ GET /_analyze
     }
   ]
 }
-```xml
+```
 token `#world`被成功保留了下来。
 
 > 当然，`emmm#`也被保留了下来。
@@ -1718,7 +1718,7 @@ GET /_analyze
   ],
   "text": ["hello #world @wtf &emmm ???  ? . , !tanhao ! ！ ……我爱你 才怪 rainy"]
 }
-```txt
+```
 则会把过滤之前带标点的和过滤之后不代标点的都保留下来：
 ```json
 {
@@ -1844,7 +1844,7 @@ GET /_analyze
     }
   ]
 }
-```java
+```
 如果想更强大一些，我们可以借用english analyzer的成分，组一个能够区分词干又能够保留#和@的analyzer：
 ```json
   "analysis":{
@@ -1891,5 +1891,5 @@ GET /_analyze
     "char_filter":{
     }
   }
-```txt
+```
 

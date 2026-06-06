@@ -18,7 +18,7 @@ while true:
     processFileEvents();
     processTimeEvents();
     flushAOF();
-```bash
+```
 **该loop是由redis主进程的主线程完成的。**
 
 1. file events: 服务器通过socket与client进行连接，读写socket。Linux上，一切皆文件，所以socket也是文件，所以对socket的处理就是file event；
@@ -127,7 +127,7 @@ redis 6的时候，上述**IO多线程**（说IO多线程比较严谨，毕竟wo
 # sure you also run the benchmark itself in threaded mode, using the
 # --threads option to match the number of Redis threads, otherwise you'll not
 # be able to notice the improvements.
-```bash
+```
 默认IO thread还是单线程，官方建议除非redis真的遇到了IO瓶颈，想继续再提一提单机redis的并发量，否则尽量别用多IO thread。
 
 用redis提供的`redis-benchmark`，测试qps差不多翻倍：

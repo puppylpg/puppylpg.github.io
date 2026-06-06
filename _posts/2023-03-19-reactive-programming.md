@@ -86,7 +86,7 @@ userService.getFavorites(userId, new Callback<List<String>>() {
     UiUtils.errorPopup(error);
   }
 });
-```bash
+```
 
 > **因为需要展示在ui上，所以使用ui线程调用show方法**，这样主线程就能干其他事儿了。
 
@@ -100,7 +100,7 @@ userService.getFavorites(userId)
            .take(5) 
            .publishOn(UiUtils.uiThreadScheduler()) 
            .subscribe(uiList::show, UiUtils::errorPopup); 
-```xml
+```
 
 **reactor的代码写出来几乎和逻辑描述是一样的，所以非常好读。**
 
@@ -137,7 +137,7 @@ assertThat(results).contains(
 		"Name NameHenry has stats 105",
 		"Name NameNicole has stats 106",
 		"Name NameABSLAJNFOAJNFOANFANSF has stats 121");
-```java
+```
 可看到`CompletableFuture`虽然可以进行组合，但还是挺麻烦的。而且依然有其他问题：
 - It is easy to end up with another blocking situation with `Future` objects by calling the `get()` method.
 - They do not support lazy computation.
@@ -314,7 +314,7 @@ subscrbe会返回Disposable：These variants return a reference to the subscript
 ```xml
 Flux<Integer> ints = Flux.range(1, 3); 
 ints.subscribe(); 
-```python
+```
 
 因为publisher会出现error（RuntimeException），所以可能在消费的时候需要onError。subscribe方法可以直接提供一个lambda用于onError。同理可以再提供一个lambda用于onCompletion。
 
@@ -351,7 +351,7 @@ public class SampleSubscriber<T> extends BaseSubscriber<T> {
 		request(1);
 	}
 }
-```java
+```
 
 > `SampleSubscriber` is the absolute minimum implementation of a Subscriber that performs **bounded requests**.
 
@@ -401,7 +401,7 @@ Obtaining a Flux or a Mono does not necessarily mean that it runs in a dedicated
 15:10:15.557 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | onNext(hello world )
 Thread-0: hello world ! 
 15:10:15.558 [Thread-0] INFO reactor.Mono.MapFuseable.1 - | onComplete()
-```html
+```
 
 In Reactor, the execution model and where the execution happens is determined by the Scheduler that is used.
 

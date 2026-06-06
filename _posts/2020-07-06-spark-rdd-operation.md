@@ -40,7 +40,7 @@ RDD中也有一个sparkContext变量……和SparkSession一样。
 比如有一个pair rdd：
 ```java
 val pairs: RDD[(String, Int)] = sc.parallelize(Array(("a", 3), ("a", 1), ("b", 7), ("a", 5)))
-```bash
+```
 把它按key聚合，值收集为set：
 ```java
 val sums: RDD[(String, HashSet[Int])] = pairs.aggregateByKey(new HashSet[Int])(_+=_, _++=_)
@@ -72,7 +72,7 @@ Note: The expected type requires a one-argument function accepting a 2-Tuple.
                 ^
 <console>:26: error: missing parameter type
        rdd.map((k, v) => k).foreach(println)
-```bash
+```
 原因很简单，map的函数是个单参数函数，传入T，map为U。这里T指代的是Tuple2：
 ```java
 scala> rdd.map(t => t._1).foreach(println)
@@ -84,7 +84,7 @@ file:/home/win-pichu/Utils/spark/spark-2.4.6-bin-hadoop2.7/licenses/LICENSE-CC0.
 或者使用中括号和case，至于为啥之后再看： TODO
 ```java
 scala> rdd.map({ case (k, v) => k }).foreach(println)
-```bash
+```
 
 我们自己转换成的Tuple2的RDD也一样：
 ```java
@@ -101,7 +101,7 @@ scala> filePair.map(t => t._1).foreach(println)
 另外想按序数据rdd所有元素，必须都collect到driver里（注意driver可能会OOM）：
 ```java
 scala> rdd.sortByKey(true).map(t => t._1).collect.foreach(println)
-```bash
+```
 否则：
 - 对于local运行模式，会无序输出。因为那个executor先输出不一定；
 - 对于cluster运行模式，不输出，因为executor的输出并不能显示在driver端；
@@ -135,7 +135,7 @@ win-pichu@DESKTOP-T467619:~/Utils/spark/spark-2.4.6-bin-hadoop2.7/tmp-data
     └ _SUCCESS
 
 3 directories, 10 files
-```bash
+```
 
 # shuffle
 To organize all the data for a single reduceByKey reduce task to execute, Spark needs to perform an all-to-all operation. It must read from all partitions to find all the values for all keys, and then bring together values across partitions to compute the final result for each key - **this is called the shuffle**.

@@ -78,7 +78,7 @@ chrome貌似没有这个权限，使用ie浏览器打开网站，就有把证书
 
 ```nginx
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes
-```nginx
+```
 `-nodes`是no DES，访问私钥的时候不需要单独的密码。
 
 最后还要交互式输入一些组织结构信息、发布人、邮箱等。反正也不提交给CA，随便写就行。
@@ -152,7 +152,7 @@ If you like Certbot, please consider supporting our work by:
  * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
  * Donating to EFF:                    https://eff.org/donate-le
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-```python
+```
 因为选的是nginx，所以certbot检测到我的nginx目前配置了两个域名：`puppylpg.xyz`和`netdata.puppylpg.xyz`。我先给后者生成了数字签名。
 
 > 生成证书之后，给nginx配置一下就行了。后面会介绍。
@@ -206,7 +206,7 @@ drwx------ 4 root root 4.0K Dec 28 02:09 live
 drwxr-xr-x 2 root root 4.0K Dec 28 02:09 renewal
 drwxr-xr-x 5 root root 4.0K Dec 28 01:46 renewal-hooks
 -rw-r--r-- 1 root root  424 Dec 28 01:46 ssl-dhparams.pem
-```nginx
+```
 其他用户并不能读取live下的文件，因为没有r权限。更无法获取live下的文件的权限等信息，因为没有x权限。
 
 证书默认三个月有效，certbot会同时生成crontab脚本，每天检查证书是不是过期了，并自动续期。

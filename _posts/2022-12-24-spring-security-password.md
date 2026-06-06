@@ -41,7 +41,7 @@ spring security实现的bcrypt算法，就是一种adpative one-way function。
 需要在使用前设置好强度：
 ```java
 new BCryptPasswordEncoder(strength)
-```html
+```
 在我的Intel(R) Core(TM) i5-9400F CPU @ 2.90GHz台式机上，不同的strength对应的加密一次、或验证一次的时长如下：
 
 | strength | encode | verify |
@@ -98,7 +98,7 @@ PasswordEncoder passwordEncoder =
 {pbkdf2}5d923b44a6d129f3ddf3e3c8d29412723dcbde72445e8ef6bf3b508fbf17fa4ed4d6b99ca763d8dc
 {scrypt}$e0801$8bWJaSu2IKSn9Z9kM+TPXfOc/9bdYSrN1oD9qfVThWEwdRTnO7re7Ei+fUZRJ68k9lTyuTeUp4of4g24hHnazw==$OAOec05+bXxvuu/1qZ6NUR+xQYvYv7BeL1QxwRpY5Pc=
 {sha256}97cde38028ad898ebc02e690819fa220e88c62e0699403e94fff291cfffaf8410849f27605abcbc0
-```xml
+```
 同时未来可以更换或增加新的encoder。
 
 **密文通过中括号里的前缀表明这个hash是由哪个encoder产生的**，从而选择相应的encoder进行验证。noop标志着这是一个`NoOpPasswordEncoder`产生的密码，所以后面的数据就是明文密码。
@@ -172,7 +172,7 @@ examples:
 
     To encode a password with pbkdf2:
         $ spring encodepassword -a pbkdf2 mypassword
-```java
+```
 默认bcrypt：
 ```java
 win-pichu@home ~ » spring encodepassword pikachu                                                                  130 ↵

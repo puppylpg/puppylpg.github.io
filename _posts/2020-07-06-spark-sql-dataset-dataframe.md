@@ -28,7 +28,7 @@ sqlDF.show()
 // |  30|   Andy|
 // |  19| Justin|
 // +----+-------+
-```sql
+```
 
 TempView是session-scoped，session结束就消失。GlobalTempView是跨session的，spark应用结束才消失。
 
@@ -92,7 +92,7 @@ peopleDS.show()
 // |  30|   Andy|
 // |  19| Justin|
 // +----+-------+
-```json
+```
 
 Seq有toDS方法，又是通过implicits来搞的，肯定也是DatasetHolder里的toDS。
 
@@ -137,7 +137,7 @@ spark.read.format("csv")
     .option("header", "true")
     .option("seq", ";")
     .load(path)
-```sql
+```
 告诉spark读的时候有header，分隔符不是逗号而是分号。
 
 所有的csv的option可参考：
@@ -160,7 +160,7 @@ val testGlobFilterDF = spark.read.format("parquet")
 ## save
 ```bash
 dataset.write.format("xxx").save(path)
-```sql
+```
 
 一般存储的时候会指定模式，可以用Enum类也可以直接用plain text：
 - SaveMode.Overwrite/"overwrite"：文件已存在则覆盖，一般用这个；
@@ -184,7 +184,7 @@ df.write.mode("overwrite").partitionBy("year", "month").format("avro").save("/tm
 ```bash
 dbfs:/tmp/test_dataset/year=2011/
 dbfs:/tmp/test_dataset/year=2012/
-```sql
+```
 读的时候**指定到根目录就行了**：
 ```bash
 val data = spark.read.format("avro").load("/tmp/test_dataset")

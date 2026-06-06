@@ -41,7 +41,7 @@ Example 1: to archive two class files into an archive called classes.jar:
 Example 2: use an existing manifest file 'mymanifest' and archive all the
            files in the foo/ directory into 'classes.jar':
        jar cvfm classes.jar mymanifest -C foo/ .
-```bash
+```
 
 xvf、c、-0（不压缩只存储），和zip都一毛一样。
 
@@ -61,14 +61,14 @@ adding: audio/yahoo2.au (in=7463) (out=4607) (deflated 38%)
 adding: images/ (in=0) (out=0) (stored 0%)
 adding: images/cross.gif (in=157) (out=160) (deflated -1%)
 adding: images/not.gif (in=158) (out=161) (deflated -1%)
-```bash
+```
 打包进去的class文件和普通文件都会被压缩。
 
 # view
 显示jar内的文件 - `t`，也是模仿的tar：
 ```bash
 jar tf xxx.jar
-```xml
+```
 
 # manifest - META-INF/MANIFEST.MF
 `m`/`M`选项比较特殊，和manifest相关。**默认jar是会自动生成一个manifest的：`META-INF/MANIFEST.MF`**。
@@ -84,7 +84,7 @@ manifest是jar的metadata的集合，因为它，jar才丰富多彩。默认mani
 ```yaml
 Manifest-Version: 1.0
 Created-By: 1.7.0_06 (Oracle Corporation)
-```bash
+```
 
 manifest规范定义了很多kv对。用户也可以自定义kv对，下面的spring-boot manifest会说到。
 
@@ -92,7 +92,7 @@ manifest规范定义了很多kv对。用户也可以自定义kv对，下面的sp
 **一个能启动的jar被称为executable jar，它的manifest必须使用`Main-Class`表明整个application的entry point**：
 ```java
 Main-Class <some-class-name>
-```java
+```
 当然，该class必须包含`public static void main(String[] args)`，要不然也没法启动。
 
 启动jar：
@@ -103,7 +103,7 @@ java -jar <jar-file>
 除了上述手动merge manifest设定entry point，还可以使用`e`选项（entrypoint）：
 ```bash
 jar cef <jar-file-name> <entrypoint-class-name> <input-files>
-```java
+```
 **文件最后一行不被解析，所以最后一行要加一个回车。**
 
 - https://docs.oracle.com/javase/tutorial/deployment/jar/appman.html
@@ -112,7 +112,7 @@ jar cef <jar-file-name> <entrypoint-class-name> <input-files>
 如果jar里的类想要引用其他jar，需要在manifest里指定其他jar的路径：
 ```yaml
 Class-Path: xx/xxx.jar
-```xml
+```
 但是引用的jar**只能是本地的jar，不能是internet上的jar，也不能是jar里嵌套的jar**。使用`Class-Path`唯一的好处就是，在命令行里执行jar的时候，不需要使用`-classpath`指定jar里的类引用的jar了。
 
 **其实这个特性用处不大**，毕竟没有把被引用的jar打包到这个jar里，所以他们之间是一种很松散的引用关系，一旦文件位置移动，这种关系就会被破坏。所以`Class-Path`其实很鸡肋，基本没见它被用到过。
@@ -157,7 +157,7 @@ java有一套关于jar的这套逻辑的代码实现，比如：
 所以，只能使用：
 ```bash
 java -cp target.jar <entry-class>
-```java
+```
 把jar放在classpath下，java自然会去classpath的jar里寻找entry class，和其他需要的类。
 
 但是未必能执行成功。如果引入了第三方依赖，**maven的jar插件并不会将第三方jar包也打进来**，程序执行的时候就会找不到相应的类，挂掉。除非把第三方的jar也放到classpath下：
@@ -204,7 +204,7 @@ $ tree -L 2
 │   └── maven
 └── org
     └── springframework
-```java
+```
 
 意义：assembly插件就是为了打一个可执行jar包，简单粗暴有效。
 
@@ -234,7 +234,7 @@ $ tree -L 2
 │   └── maven
 └── org
     └── springframework
-```java
+```
 分成三部分：
 1. META-INF/MANIFEST.MF：jar规范，manifest文件；
 1. BOOT-INF，它里面又分为两部分：
@@ -264,7 +264,7 @@ Main-Class: org.springframework.boot.loader.JarLauncher
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-loader</artifactId>
 </dependency>
-```java
+```
 显然，spring boot自己把该包打了进来，并使用其中的`JarLauncher`作为整个程序的入口。
 
 再看几个不在manifest规范里，看起来有很重要的项：
@@ -286,7 +286,7 @@ public class Application {
         SpringApplication.run(Application.class, args);
     }
 }
-```java
+```
 这个来也是有`public static void main`方法的，所以在不打jar包的时候，直接通过这个类就可以启动这个spring boot工程了。
 
 打成jar包之后，`JarLauncher`是整个jar包的启动入口，它会根据`Start-Class`找到该类，然后反射调用其main方法，以启动整个spring boot工程。

@@ -86,7 +86,7 @@ public class ApkInfo implements IWritable {
         throw new UnsupportedOperationException();
     }
 }
-```bash
+```
 这个序列化有以下特点：
 1. read和write必须按照固定的顺序，二者必须一致，否则凉凉。因为实际上**二者默认了都按某个顺序序列化反序列化**，这种默认不能出现不一致；
 2. 不管某个field有没有数据，都要写一个数据。比如long类型的adContentId，如果不存在，也必须写个0；
@@ -104,7 +104,7 @@ public class ApkInfo implements IWritable {
             return lengthSize + length;
         }
     }
-```bash
+```
 
 具体每一个对象（long，int等）是怎么被写到DataOutput里的，有赖于DataOutput的实现。如果用DataOutputStream的话，它的writeLong方法实际是这么做的：
 ```
@@ -129,7 +129,7 @@ public class ApkInfo implements IWritable {
         out.write(writeBuffer, 0, 8);
         incCount(8);
     }
-```java
+```
 把long的八个字节转成byte，再把byte数组（8 byte）交给底层的OutputStream。
 
 > 题外话：如果DataOutputStream包裹的底层OutputStream是ByteArrayOutputStream，那么就是把这个字节数组使用`System.arraycopy`拷到自己内部的byte array里。
@@ -196,7 +196,7 @@ key：怎么既标识field number是5，又标识value是Varint？
 zigzag用函数表示很简单：
 ```
 return v < 0 ? (- 2 * v  - 1) : 2 * v
-```xml
+```
 但是用补码表示更高效：[`(n << 1) ^ (n >> 31)`](https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba)
 
 sint32就是使用ZigZag将数值全变为正数，再用变长编码序列化为字节。

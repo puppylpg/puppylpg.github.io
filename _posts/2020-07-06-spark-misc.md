@@ -21,7 +21,7 @@ val conf = new SparkConf().setAppName(“RetailDataAnalysis”).setMaster(“spa
 
 creation of sparkContext:
 val sc = new SparkContext(conf)
-```bash
+```
 
 ## SparkSession - Dataset
 SparkSession在spark2引入，用于读一些结构化数据，构造出Dataset。SparkSession中保存有SparkContext变量sparkContext。
@@ -35,7 +35,7 @@ val spark = SparkSession
 Configuring properties:
 spark.conf.set(“spark.sql.shuffle.partitions”, 6)
 spark.conf.set(“spark.executor.memory”, “2g”)
-```java
+```
 
 Ref：
 - https://data-flair.training/forums/topic/sparksession-vs-sparkcontext-in-apache-spark/
@@ -75,7 +75,7 @@ org.apache.hadoop.mapred.InvalidInputException: Input path does not exist: file:
   at org.apache.spark.rdd.RDD.withScope(RDD.scala:363)
   at org.apache.spark.rdd.RDD.foreach(RDD.scala:919)
   ... 49 elided
-```java
+```
 如果使用相对路径，**相对的是当前working directory**。
 
 ## 本地读avro（读为Dataset）
@@ -90,12 +90,12 @@ org.apache.spark.sql.AnalysisException: Failed to find data source: com.databric
 使用avro需要加额外依赖：
 ```bash
 bin/spark-shell --master "local[4]" --packages com.databricks:spark-avro_2.11:4.0.0,mysql:mysql-connector-java:5.1.42 --repositories http://nexus.corp.youdao.com/nexus/content/groups/public/
-```java
+```
 启动的时候会去central里找依赖，但是貌似是用ivy resolve的依赖……
 ```scala
 scala> val avrodf = spark.read.format("com.databricks.spark.avro").load("/home/pichu/data/tmp/*.avro")
 avrodf: org.apache.spark.sql.DataFrame = [guid: string, abtest: string ... 50 more fields]
-```sql
+```
 
 # 创建DataFrame和RDD
 ## DataFrame - SparkSession
@@ -111,7 +111,7 @@ scala> spark.range(start = 0, end = 10, step = 3).show
 |  6|
 |  9|
 +---+
-```java
+```
 
 - createDataFrame(rowRDD: RDD[Row], schema: StructType)：注意这个是DataFrame
 - createDataset[T](data: RDD[T])(implicit arg0: Encoder[T])：注意这个是Dataset
@@ -151,7 +151,7 @@ scala> spark.createDataset(1 to 5).show
 |    4|
 |    5|
 +-----+
-```bash
+```
 > range那个生成的DataFrame是id，createDataset是value，因为它不只可以用int。
 
 - read：返回DataFrameReader，使用里面的各种load方法加在各种格式的数据，返回DataFrame。
@@ -190,7 +190,7 @@ scala> sc.parallelize(1 to 5).toDF.show
 |    4|
 |    5|
 +-----+
-```bash
+```
 
 # Configuration
 spark如果要读hdfs，一定要有：

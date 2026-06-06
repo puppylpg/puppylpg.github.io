@@ -29,7 +29,7 @@ sun.misc.Unsafe.park(Native Method)
 java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
 java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:2039)
 java.util.concurrent.ArrayBlockingQueue.put(ArrayBlockingQueue.java:353)
-```sql
+```
 线程池的worker是从LinkedBlockingQueue取任务，take不出来：
 ```java
 名称: stream process kol extractions executor-16
@@ -79,7 +79,7 @@ java.lang.Thread.run(Thread.java:745)
             }
         }
     }
-```bash
+```
 查看最终六个任务的结果，输出如下：
 ```java
 pool-1-thread-1 : 12 : 0
@@ -140,7 +140,7 @@ exception: java.lang.Exception: what happened
             finishCompletion();
         }
     }
-```xml
+```
 可见：
 - 任务如果正常执行，就把结果放到Future的`outcome`变量中；
 - 如果任务出了异常，就catch住异常，并把异常放到`outcome`变量中；

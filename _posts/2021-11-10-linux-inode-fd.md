@@ -72,7 +72,7 @@ win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll hello
 total 0
 -rw-r--r-- 1 win-pichu win-pichu 13 Jan 15 00:32 world.txt
-```bash
+```
 因为对hello目录文件有r和x权限，所以可以获取hello目录文件记录的world文件的inode信息，进而获取其内容：
 ```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
@@ -88,7 +88,7 @@ win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll
 total 0
 drw-r--r-- 1 win-pichu win-pichu 512 Jan 15 00:32 hello
-```bash
+```
 只能看到hello目录文件记录了一个world.txt的文件，但是它的信息不明，不知道它的权限、大小、修改日期等（都记录在inode里）：
 ```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
@@ -105,7 +105,7 @@ total 0
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > cat hello/world.txt
 cat: hello/world.txt: Permission denied
-```bash
+```
 如果现在把r权限也删了：
 ```bash
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
@@ -121,7 +121,7 @@ d-w------- 1 win-pichu win-pichu 512 Jan 15 00:32 hello
 win-pichu@DESKTOP-T467619:/tmp/liuhaibo
 > ll hello
 ls: cannot open directory 'hello': Permission denied
-```bash
+```
 现在觉得，**`ls -li`才是读取完整目录文件内容的方法**，既显示文件名，又显示它的inode的信息：
 ```bash
 > ls -li hello

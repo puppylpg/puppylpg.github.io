@@ -49,7 +49,7 @@ Option                  Description
                           zstandard) (default: -1)                         
 --schema [String]       Schema                                             
 --schema-file [String]  Schema File
-```bash
+```
 
 ## 生成Java code
 > 使用avro-maven-plugin可以直接在maven工程里生成Java 代码，没必要手撸。

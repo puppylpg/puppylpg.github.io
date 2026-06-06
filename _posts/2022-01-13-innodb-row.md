@@ -76,7 +76,7 @@ innodb有好几种存储行的方案：
 CREATE TABLE t1 (
     c1 INT
 ) CHARSET=utf8mb4 ENGINE=INNODB ROW_FORMAT=COMPACT;
-```sql
+```
 创建表的时候默认行格式也是compact。
 
 

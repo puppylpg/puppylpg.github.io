@@ -37,7 +37,7 @@ spring data的核心概念就是[Object Mapping](https://docs.spring.io/spring-d
 class Person {
   Person(String firstname, String lastname) { … }
 }
-```java
+```
 为了创建该对象，会生成一个相关的object instantiator：
 ```java
 class PersonObjectInstantiator implements ObjectInstantiator {
@@ -46,7 +46,7 @@ class PersonObjectInstantiator implements ObjectInstantiator {
     return new Person((String) args[0], (String) args[1]);
   }
 }
-```java
+```
 
 ### 属性填充
 属性填充看似简单，实则也设置了[很多规则](https://docs.spring.io/spring-data/commons/reference/object-mapping.html#mapping.property-population)，整体思路就是：**属性尽量搞成不可变的，然后使用`with...`设置不可变属性；尽量使用constructor设置值（spring data推荐使用lombok构建all-args constructor）；使用setter设置值；直接修改值**。
@@ -75,7 +75,7 @@ class Person {
     this.lastname = lastname;
   }
 }
-```java
+```
 也是避免使用反射，而是**使用运行时生成的property accessor来设置属性**：
 ```java
 class PersonPropertyAccessor implements PersistentPropertyAccessor {
@@ -97,7 +97,7 @@ class PersonPropertyAccessor implements PersistentPropertyAccessor {
     }
   }
 }
-```java
+```
 
 规则很复杂，但一般我们使用的场景都比较简单，一个lombok `@Data`走天下:D 如果想更加合理，可以参考spring data给出的[General recommendations](https://docs.spring.io/spring-data/commons/reference/object-mapping.html#mapping.general-recommendations)。
 

@@ -90,7 +90,7 @@ header和body里都有指向别的对象的指针：
 |-------------------------------------------------------|--------------------------------|--------------------|
 |                                              | lock:2 |      OOP to metadata object    |    Marked for GC   |
 |-------------------------------------------------------|--------------------------------|--------------------|
-```bash
+```
 此时对象头长度为：**32bit mark word + 32bit klass pointer** = 64bit
 
 在64bit jvm里，kp占64bit：
@@ -131,7 +131,7 @@ header和body里都有指向别的对象的指针：
 |--------------------------------------------------------------------------------|-----------------------------|--------------------|
 |                                                                       | lock:2 |    OOP to metadata object   |    Marked for GC   |
 |--------------------------------------------------------------------------------|-----------------------------|--------------------|
-```bash
+```
 此时对象头长度为：**64bit mark word + 32bit klass pointer** = 96bit
 
 ## header的结构
@@ -202,7 +202,7 @@ public class A {
 
     Object _oop2 = new Object();
 }
-```java
+```
 同时使用jol展示Java对象的布局：
 ```xml
         <dependency>
@@ -210,7 +210,7 @@ public class A {
             <artifactId>jol-core</artifactId>
             <version>0.17</version>
         </dependency>
-```java
+```
 
 ## 开启指针压缩
 默认情况下，指针压缩是开启的：
@@ -224,7 +224,7 @@ public class ObjectHeaderCompressedOops {
         System.out.println(ClassLayout.parseInstance(a).toPrintable());
     }
 }
-```java
+```
 从vm detail能看出很多有用信息：
 ```
 # VM mode: 64 bits
@@ -235,7 +235,7 @@ public class ObjectHeaderCompressedOops {
 # Field sizes:            4,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    4,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    16,   16,   16,   16,   16,   16,   16,   16,   16
-```java
+```
 每一行的信息都很重要：
 - 这是一个64bit jvm；
 - 开启了oop指针压缩`XX:+UseCompressedOops`；
@@ -258,7 +258,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  28   4                    (object alignment gap)    
 Instance size: 32 bytes
 Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
-```java
+```
 header：
 - mark word：8byte
 - klass pointer：4byte（**kp指针压缩**）
@@ -287,7 +287,7 @@ vm detail：
 # Field sizes:            8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    16,   16,   16,   16,   16,   16,   16,   16,   16
-```java
+```
 可以看到oop指针压缩disabled，**但是klass pointer指针压缩依然正常开启**。
 
 此时地址（ref）的大小为8byte，64bit。
@@ -306,7 +306,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  32   8   java.lang.Object A._oop2                   (object)
 Instance size: 40 bytes
 Space losses: 5 bytes internal + 0 bytes external = 5 bytes total
-```java
+```
 **header依然开启kp指针压缩，所以没变化，依然是4byte**。
 
 body关闭了oop指针压缩，oop变成了8byte，此时普通变量和oop之间padding了5byte，才能让oop地址按照oop的大小（8byte）做地址对齐。
@@ -328,7 +328,7 @@ vm detail：
 # Field sizes:            8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array element sizes:    8,    1,    1,    2,    2,    4,    4,    8,    8
 # Array base offsets:    24,   24,   24,   24,   24,   24,   24,   24,   24
-```java
+```
 可以看到oop指针压缩disabled，**klass pointer指针也disabled**。
 
 此时地址（ref）的大小为8byte，64bit。
@@ -347,7 +347,7 @@ OFF  SZ               TYPE DESCRIPTION               VALUE
  32   8   java.lang.Object A._oop2                   (object)
 Instance size: 40 bytes
 Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
-```java
+```
 **header关闭了kp指针压缩，所以klass pointer从4byte变成了8byte**。
 
 body关闭了oop指针压缩，oop变成了8byte，此时普通变量和oop之间padding了1byte，和上一个例子相比，因为header里的klass pointer占了额外的4byte，所以这里少padding了4byte。

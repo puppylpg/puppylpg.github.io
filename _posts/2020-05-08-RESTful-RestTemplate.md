@@ -77,7 +77,7 @@ server收到的http post请求的 **请求体** 是什么格式的？通过Conte
         }
         return user;
     }
-```java
+```
 这里，**`@RequestMapping`的`producers`**：表明我们只返回json格式的数据。request的Accept应该说它接收json，这个方法的返回才能被client理解。
 
 > 可以使用Jackson Annotations对对象的属性进行标注，以改变转换时的属性名等。
@@ -113,7 +113,7 @@ server收到的http post请求的 **请求体** 是什么格式的？通过Conte
         }
         return user;
     }
-```java
+```
 然后再配个全局异常拦截器：
 ```java
 @RestController
@@ -153,7 +153,7 @@ public class GlobalExceptionHandler {
 		}
 		this.headers = HttpHeaders.readOnlyHttpHeaders(tempHeaders);
 	}
-```xml
+```
 
 ## `ResponseEntity<T>` extends `HttpEntity<T>`
 **status code + header + body的组合体**。代表整个HTTP response：
@@ -189,7 +189,7 @@ public class GlobalExceptionHandler {
         headers.put("pokemon", Arrays.asList("pichu", "pikachu", "raichu"));
         return new ResponseEntity<>(user, headers, HttpStatus.OK);
     }
-```xml
+```
 对于异常，也配个全局异常拦截器。
 
 ## `RequestEntity<T>` extends `HttpEntity<T>`
@@ -243,7 +243,7 @@ builder接收一个`ObjectProvider<HttpMessageConverter<?>> converters`，看名
         builder = this.addCustomizers(builder, restTemplateRequestCustomizers, RestTemplateBuilder::requestCustomizers);
         return builder;
     }
-```xml
+```
 接收`ObjectProvider<HttpMessageConverter<?>> converters`，接收单个的converter。
 
 如果我们自己配置一个converter：
@@ -263,7 +263,7 @@ builder接收一个`ObjectProvider<HttpMessageConverter<?>> converters`，看名
     public RestfulServer(RestTemplateBuilder restTemplateBuilder) {
         this.restTemplate = restTemplateBuilder.build();
     }
-```xml
+```
 
 ## 方法
 - getForObject;
@@ -289,7 +289,7 @@ public <T> ResponseEntity<T> exchange(String url, HttpMethod method,
         ResponseEntity<User> userEntity = restTemplate.exchange(URL_SERVER + "/{id}", HttpMethod.GET, null, User.class, id);
         return userEntity.getBody();
     }
-```java
+```
 但 **exchange方法主要是为了使用`HttpEntity<T>`同时自定义请求的header**：
 ```
     /**
@@ -311,5 +311,5 @@ public <T> ResponseEntity<T> exchange(String url, HttpMethod method,
         ResponseEntity<User> userEntity = restTemplate.exchange(URL_SERVER + "/entity/{id}", HttpMethod.GET, requestEntity, User.class, id);
         return userEntity.getBody();
     }
-```java
+```
 **exchange的各种重载方法返回值只有ResponseEntity类型**。

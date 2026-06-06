@@ -82,7 +82,7 @@ tags: mysql innodb
 开启事务：
 ```bash
 BEGIN;
-```sql
+```
 或者：
 ```bash
 START TRANSACTION;
@@ -90,7 +90,7 @@ START TRANSACTION;
 提交事务：
 ```bash
 COMMIT;
-```sql
+```
 回滚事务：
 ```bash
 ROLLBACK;
@@ -98,7 +98,7 @@ ROLLBACK;
 但是回滚事务有点儿伤，类似于从头再来。如果能像打游戏一样不停保存，每次挂了就可以从上次存档的地方恢复了。savepoint就是存档的点：
 ```xml
 SAVEPOINT <name>;
-```sql
+```
 回滚到上一个存档点：
 ```xml
 RELLBACK TO SAVEPOINT <name>;
@@ -259,7 +259,7 @@ delete undo log在通用field的基础上，还加了几个field：
 这两个就是[Innodb - 行]({% post_url 2022-01-13-innodb-row %})里说到的行的两个隐藏列。把一个列标记删除之前，它的roll_pointer的值记录为undo log的地址（其实就是这条记录的指针指向这条undo log），同时这条undo log的指针指向前一条修改这个列的undo log。这么一来，所有对这条记录的增删改操作的undo log，倒着连成了一条串，叫做 **版本链**：
 ```sql
 记录 -> 倒数第一个undo log -> 倒数第二个undo log -> ... -> 第一个undo log（也就是insert undo log）
-```sql
+```
 **版本链记录着这条记录的各个版本的内容**（其实是可以根据这些undo log恢复到各个版本的内容，所以相当于记录了各个版本的内容）。
 
 > 类型为`TRX_UNDO_DEL_MARK_REC`。

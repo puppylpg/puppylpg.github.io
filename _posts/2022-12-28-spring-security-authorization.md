@@ -28,11 +28,11 @@ spring security主要解决三个问题：
 权限包含在`Authentication`里（所以由`AuthenticationManager`在设置`Authentication`的时候设置）：
 ```java
 Collection<? extends GrantedAuthority> getAuthorities();
-```java
+```
 而`GrantedAuthority`就是简单地用string代表权限：
 ```java
 String getAuthority();
-```java
+```
 **所以说白了，权限就是string**。
 
 在[Spring Security - Authentication]({% post_url 2022-12-25-spring-security-authentication %})中介绍了一个很重要的概念：role和普通authorization没有明显区别，role是额外从authorization里分离出来的一个概念，谈及role的时候，它默认是`ROLE_`开头的权限。比如设置一个role `pikachu`，实际相当于添加了一个`ROLE_pikachu` authorization。
@@ -50,7 +50,7 @@ String getAuthority();
 		}
 		return authentication;
 	};
-```java
+```
 
 最后，[spring security注解相关的权限配置需要手动开启](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html)，使用`@EnableGlobalMethodSecurity`或更新的`@EnableMethodSecurity`。
 
@@ -67,7 +67,7 @@ String getAuthority();
 	 */
 	@Nullable
 	AuthorizationDecision check(Supplier<Authentication> authentication, T object);
-```java
+```
 
 `AuthorizationManager`有很多实现，`RequestMatcherDelegatingAuthorizationManager`是其中一个，用来判断一个http请求是否符合待校验的权限。它也只是一个代理实现，实际会委托给一堆`AuthorizationManager`，每个`AuthorizationManager`绑定一个`RequestMatcher`，如果当前http请求符合matcher，就使用这个`AuthorizationManager`鉴权。
 
@@ -88,7 +88,7 @@ String getAuthority();
 ```java
 Collection<? extends GrantedAuthority> getReachableGrantedAuthorities(
 			Collection<? extends GrantedAuthority> authorities);
-```java
+```
 传入一个role（就是string），返回一个role数组，代表该角色拥有的所有角色权限。比如：
 - 传入admin权限，返回admin、user，代表admin同时拥有user权限；
 - 传入user权限，只返回user，代表user权限不包含更低级的权限；
@@ -104,14 +104,14 @@ Collection<? extends GrantedAuthority> getReachableGrantedAuthorities(
 	Collection<? extends GrantedAuthority> extractAuthorities(Authentication authentication) {
 		return authentication.getAuthorities();
 	}
-```java
+```
 `RoleHierarchyVoter`的权限获取，**可以取得本权限加上所有低层级的权限**：
 ```java
 	@Override
 	Collection<? extends GrantedAuthority> extractAuthorities(Authentication authentication) {
 		return this.roleHierarchy.getReachableGrantedAuthorities(authentication.getAuthorities());
 	}
-```java
+```
 
 所以我们配置一个自定义的`RoleHierarchyVoter`就行了。可以写成一条链，也可以像下面一样写成四条链：
 ```java
@@ -123,7 +123,7 @@ AccessDecisionVoter hierarchyVoter() {
             "ROLE_USER > ROLE_GUEST");
     return new RoleHierarchyVoter(hierarchy);
 }
-```java
+```
 
 # `AuthorizationFilter`
 [security filter chain上有一个filter是`AuthorizationFilter`](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html)，它提供了对url权限的校验。可以通过`HttpSecurity#authorizeHttpRequests`自定义配置修改默认行为：
@@ -138,7 +138,7 @@ SecurityFilterChain web(HttpSecurity http) throws AuthenticationException {
 
     return http.build();
 }
-```java
+```
 
 它决定filter chain要不要执行下去的方式非常简单：就看`AuthorizationManager`返回的`AuthorizationDecision`是否通过，通过则继续：
 
@@ -179,7 +179,7 @@ AuthorizationManager<RequestAuthorizationContext> requestMatcherAuthorizationMan
             .build();
     return (context) -> manager.check(context.getRequest());
 }
-```java
+```
 
 # 感想
 鉴权并不考虑`SecurityContextHolder`里的authentication哪来的，只管拿来用。怎么放进去是认证应该考虑的事情。spring security的分工做的还是挺明确的。

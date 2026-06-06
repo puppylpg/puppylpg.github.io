@@ -36,7 +36,7 @@ spark提交任务流程：
   ... # other options
   <application-jar> \
   [application-arguments]
-```bash
+```
 **主类、集群、部署方式、配置；jar、主类参数。**
 
 ### `--master`
@@ -75,7 +75,7 @@ spark.master            spark://5.6.7.8:7077
 spark.executor.memory   4g
 spark.eventLog.enabled  true
 spark.serializer        org.apache.spark.serializer.KryoSerializer
-```bash
+```
 
 **spark-submit指定`--verbose`可看出配置到底来自哪里。**
 
@@ -83,7 +83,7 @@ spark-submit的`--conf, -c PROP=VALUE`是一种比较特殊的配置，可以指
 ```bash
     --conf spark.driver.extraJavaOptions="-Djava.io.tmpdir=/disk1/liuhaibo/tmp" \
     --driver-java-options '-Djava.io.tmpdir=/disk1/liuhaibo/tmp' \
-```bash
+```
 效果是一样的。
 
 可以使用`spark-submit.sh --help`来查看：
@@ -91,7 +91,7 @@ spark-submit的`--conf, -c PROP=VALUE`是一种比较特殊的配置，可以指
   --conf, -c PROP=VALUE       Arbitrary Spark configuration property.
   
   --driver-java-options       Extra Java options to pass to the driver.
-```bash
+```
 
 ## 依赖
 ### `--jars`：说实话没必要
@@ -130,7 +130,7 @@ Memory in use: 0.0 B Total, 0.0 B Used
 Applications: 0 Running, 0 Completed
 Drivers: 0 Running, 0 Completed
 Status: ALIVE
-```bash
+```
 > 这是spark的cluster manager，有自己的管理界面，而不是Hadoop的那个yarn的管理界面。
 
 ## yarn

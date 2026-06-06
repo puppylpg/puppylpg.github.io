@@ -51,31 +51,31 @@ redis的string不是简单地c string，而是自定义的一个数据结构Simp
         for (byte[] array : jedis.lrange(hello, 0, -1)) {
             System.out.println(new String(array, StandardCharsets.UTF_8));
         }
-```java
+```
 关键是，自己存的二进制要自己去反序列化。
 
 但是上面的demo比较魔幻的是，一开始key和value用的全是UTF8 byte，MONITOR redis server，会发现，输出的是：
 ```java
 1610277272.280990 [0 127.0.0.1:59642] "RPUSH" "hello" "world"
 1610277273.820139 [0 127.0.0.1:59642] "RPUSH" "hello" "!"
-```java
+```
 redis把utf8默认反序列化了为string了，就好像我们在cli里使用string存储的一样：
 ```java
 127.0.0.1:6379> lrange hello 0 -1
 1) "world"
 2) "!"
-```java
+```
 所以后来我把key改成了UTF16，这下redis识别不出来了。输出的是：
 ```java
 1610278078.609975 [0 127.0.0.1:60773] "RPUSH" "\xfe\xff\x00h\x00e\x00l\x00l\x00o" "world"
 1610278080.057863 [0 127.0.0.1:60773] "RPUSH" "\xfe\xff\x00h\x00e\x00l\x00l\x00o" "!"
-```java
+```
 查看key：
 ```java
 127.0.0.1:6379> keys *
 1) "a"
 2) "\xfe\xff\x00h\x00e\x00l\x00l\x00o"
-```java
+```
 **难道redis默认会自动把UTF8的byte转为string？**
 
 ## list

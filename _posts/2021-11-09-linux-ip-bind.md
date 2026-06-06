@@ -12,7 +12,7 @@ tags: linux ip network
 (Not all processes could be identified, non-owned process info
  will not be shown, you would have to be root to see it all.)
 tcp6       0      0 :::8122                 :::*                    LISTEN      137833/java
-```java
+```
 但实际上通过ipv4也能访问8122端口。
 
 这是为什么？
@@ -31,7 +31,7 @@ Network Interface Card
     link/ether f4:8e:38:f2:06:4c brd ff:ff:ff:ff:ff:ff
 3: wlp3s0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default qlen 1000
     link/ether 5a:b6:fa:69:d0:4c brd ff:ff:ff:ff:ff:ff permaddr 3c:f8:62:da:51:15
-```python
+```
 
 无线网卡联网之后，有一个ipv4地址，有一个ipv6地址（和ipv4一样，一般分到的ipv6地址是fc/fd/fe开头的，也是私有地址）：
 ```bash
@@ -43,7 +43,7 @@ Network Interface Card
        valid_lft 431994sec preferred_lft 431994sec
     inet6 fe80::4d1d:d8d9:e463:27cc/64 scope link noprefixroute 
        valid_lft forever preferred_lft forever
-```bash
+```
 
 - https://cloud.tencent.com/developer/article/1468099
 
@@ -108,20 +108,20 @@ ff02::2 ip6-allrouters
 % nc -v -l localhost 3456
 Ncat: Version 7.50 ( https://nmap.org/ncat )
 Ncat: Listening on 127.0.0.1:3456
-```bash
+```
 绑定显示`127.0.0.1:3456`：
 ```bash
 > netstat -anp | grep :3456
 (Not all processes could be identified, non-owned process info
  will not be shown, you would have to be root to see it all.)
 tcp        0      0 127.0.0.1:3456          0.0.0.0:*               LISTEN      9672/nc
-```dockerfile
+```
 尝试使用内网ip连接3456端口，失败：
 ```bash
 % nc -v -z 10.108.160.77 3456
 Ncat: Version 7.50 ( https://nmap.org/ncat )
 Ncat: Connection refused.
-```bash
+```
 **说明不同ip实际上就是对应不同的网卡，访问一个ip不等于访问另一个ip**。监听localhost的3456的服务并不能通过10.108.160.77收到请求。
 
 此时只能通过127.0.0.1:3456连接到这个nc server process。
@@ -142,7 +142,7 @@ Ncat: Listening on 10.108.160.77:3456
  will not be shown, you would have to be root to see it all.)
 tcp        0      0 10.108.160.77:3456      0.0.0.0:*               LISTEN      10808/nc
 tcp        0      0 127.0.0.1:3456          0.0.0.0:*               LISTEN      9672/nc
-```bash
+```
 此时有两个netcat进程分别监听不同ip的3456端口。
 
 **说明不同IP可以绑定同一个端口。ip+port二者共同组成一个socket，确定一个服务进程的位置。**
@@ -156,7 +156,7 @@ tcp        0      0 127.0.0.1:3456          0.0.0.0:*               LISTEN      
 Ncat: Version 7.50 ( https://nmap.org/ncat )
 Ncat: Listening on :::3456
 Ncat: Listening on 0.0.0.0:3456
-```bash
+```
 绑定显示tcp4和tcp6的所有ip都绑定了3456端口：
 ```bash
 % netstat -anp | grep :3456
@@ -164,7 +164,7 @@ Ncat: Listening on 0.0.0.0:3456
  will not be shown, you would have to be root to see it all.)
 tcp        0      0 0.0.0.0:3456            0.0.0.0:*               LISTEN      82931/nc
 tcp6       0      0 :::3456                 :::*                    LISTEN      82931/nc
-```bash
+```
 此时可以通过任意ip的3456端口连接到这个nc server process。
 
 ## 只绑定ipv6，通过ipv4访问
@@ -179,12 +179,12 @@ $ netstat -anp | grep :3456
 (Not all processes could be identified, non-owned process info
  will not be shown, you would have to be root to see it all.)
 tcp6       0      0 :::3456                 :::*                    LISTEN      7655/nc
-```bash
+```
 通过网卡的ipv6访问netcat server：
 ```bash
 $ nc -6 -v -z fe80::6e92:bfff:fe6a:d3a%wlp3s0 3456
 Connection to fe80::6e92:bfff:fe6a:d3a%wlp3s0 3456 port [tcp/*] succeeded!
-```bash
+```
 符合预期。
 
 > 使用ipv6的时候还需要指定网卡名称：https://unix.stackexchange.com/a/136473/283488
@@ -193,7 +193,7 @@ Connection to fe80::6e92:bfff:fe6a:d3a%wlp3s0 3456 port [tcp/*] succeeded!
 ```bash
 $ nc -6 -v -z ::1 3456   
 Connection to ::1 3456 port [tcp/*] succeeded!
-```bash
+```
 
 但是竟然也能通过ipv4地址访问：
 ```bash

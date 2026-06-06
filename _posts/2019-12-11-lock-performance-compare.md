@@ -40,7 +40,7 @@ public interface Counter {
 
     void increment();
 }
-```java
+```
 
 ## Dirty
 这是一种错误的实现。不加任何同步措施直接修改共享变量必然得不到正确的结果。放在这里只是用来作为一个基准：完全无锁情况下读写变量次数及总时间消耗。
@@ -87,7 +87,7 @@ public class Synchronized implements Counter {
         }
     }
 }
-```java
+```
 
 ## volatile + synchronized
 +1这种非原子性操作是必须加锁完成的。能不能把读取的锁去掉？
@@ -158,7 +158,7 @@ public class ReadWriteLockDefault implements Counter {
         }
     }
 }
-```java
+```
 
 ## Lock + 公平策略
 默认的ReentrantLock使用的是非公平策略（synchronized也是非公平策略），效率更高（原因同样见[锁]({% post_url 2019-12-10-lock %})）。
@@ -241,7 +241,7 @@ public class ReadWriteLockDefault implements Counter {
         }
     }
 }
-```java
+```
 
 ## StampedLock 乐观读锁
 StampedLock其实更像volatile + synchronized，不过优化的更激进：
@@ -349,7 +349,7 @@ public class ReadWriteLockStamped implements Counter {
         }
     }
 }
-```java
+```
 
 ## Atomic
 CAS实现，和锁比起来，是一种乐观行为，类似于StampedLock里的乐观读，但是无论读写都是乐观的。是一种利用底层硬件的非阻塞乐观同步行为。详见[CAS vs. 锁]({% post_url 2019-12-10-lock %})。
@@ -399,7 +399,7 @@ public class Adder implements Counter {
         adder.increment();
     }
 }
-```bash
+```
 
 以上参阅：
 - https://www.javaspecialists.eu/archive/Issue215.html
@@ -606,7 +606,7 @@ public class VolatileSynchronized implements Counter {
         }
     }
 }
-```bash
+```
 果然volatile + synchronized和我们预期的相同，比synchronized要快不少（多运行几次也是这样）：
 ```java
 Counter: example.concurrency.synchronization.lock.counters.counter.Synchronized@246b179d

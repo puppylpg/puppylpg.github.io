@@ -18,7 +18,7 @@ $ grep -i "out of memory" /var/log/messages
 
 Mar 11 19:42:19 th013 kernel: Out of memory: Kill process 26044 (java) score 49 or sacrifice child
 Mar 11 19:42:19 th013 kernel: Killed process 26044 (java) total-vm:36223404kB, anon-rss:6966396kB, file-rss:40kB
-```bash
+```
 # dmesg
 ```java
 $ dmesg -T | grep -i "out of memory"
@@ -28,7 +28,7 @@ $ dmesg -T | grep -i "out of memory"
 想看看被kill掉的进程，可以使用：
 ```java
 $ dmesg -T | grep -i "killed process"
-```bash
+```
 
 想看看自己的进程有没有被kill掉，用自己的uid去grep就行：
 ```java
@@ -49,7 +49,7 @@ $ dmesg -T | grep -i `id -u liuhaibo`
 ```java
 ± % id liuhaibo
 uid=4375(liuhaibo) gid=500(kaiwoo) groups=500(kaiwoo)
-```bash
+```
 也可以通过id查看人：
 ```java
 ± % id 4375

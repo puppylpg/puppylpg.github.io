@@ -37,7 +37,7 @@ win-pichu@DESKTOP-T467619 ~/Utils/redis/redis-6.0.9/confs $ tree
         └── redis.conf
 
 3 directories, 6 files
-```bash
+```
 其中`nodes.conf`和`appendonly.aof`分别是开启了cluster mode和aof持久化之后生成的文件。
 
 所以，如果启动完一台redis后还要在当前目录下启动redis，redis会发现当前目录已经存在`nodes.conf`等文件，将报错：`Sorry, the cluster configuration file nodes.conf is already used by a different Redis Cluster node. Please make sure that different nodes use different cluster configuration files.`
@@ -51,7 +51,7 @@ redis server本身要开启cluster-enabled，否则不能识别cluster指令：
 ```bash
 127.0.0.1:6379> cluster meet 127.0.0.1 1111
 (error) ERR This instance has cluster support disabled
-```bash
+```
 
 **`CLUSTER NODES`** 可以显示cluster的所有node，其实就是`node.conf`里的内容。
 

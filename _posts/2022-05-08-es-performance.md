@@ -126,7 +126,7 @@ GET /<index>/_search?human=true
   },
   "profile":"true"
 }
-```json
+```
 profile api不对shard按时间倒序排序，用kibana看出倒序结果后，**如果配置了慢日志，可以去相应节点查看这段时间查询的慢日志**，确实很慢：
 ```json
 [puppylpg@a.com elasticsearch-3]$ grep -i "halo infinite" logs/<index>-es_index_search_slowlog.log

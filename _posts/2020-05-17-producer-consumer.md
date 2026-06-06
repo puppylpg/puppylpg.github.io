@@ -35,7 +35,7 @@ public interface BoundedBuffer<V> {
     V take() throws Exception;
 }
 
-```xml
+```
 如何让对列自己支持安全地并发访问？
 
 最简单的方式就是给put/get方法加锁：
@@ -128,7 +128,7 @@ public class SpinningBoundedBuffer<V> extends BasedBoundedBuffer<V> {
         throw new InterruptedException();
     }
 }
-```java
+```
 先加锁，再判断条件是否成立，如果满了肯定是不能再调用doPut的，锁释放，继续尝试加锁，询问队列是否满了，没满就成功放进去了，满了就继续询问……直到成功。消费者同理。
 
 > 关于中断，参考[Java中断 - 处理InterruptedException]({% post_url 2020-05-17-java-interrupt %})。
@@ -248,7 +248,7 @@ synchronized (sharedObject) {
     // notify other threads
     notifyAll(); // 通知该对象的条件队列里的所有的线程醒醒，看看条件是否满足了。所以要用while进行判断
 }
-```java
+```
 1. 搞清临界资源是什么（比如队列），wait和notify是在等临界资源和通知临界资源；
 2. 使用临界资源要加锁，锁的就是临界资源；
 3. 判断临界资源是否可用，使用while而非if：
@@ -356,7 +356,7 @@ public class Consumer extends Thread {
         }
     }
 }
-```bash
+```
 也不再赘述。
 
 # 条件队列优化 - Condition

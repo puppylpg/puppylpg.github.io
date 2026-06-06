@@ -98,7 +98,7 @@ mysql root@localhost:pokemon> show variables like '%time_zone%';
 | system_time_zone | UTC    |
 | time_zone        | +00:00 |
 +------------------+--------+
-```sql
+```
 或者：
 ```sql
 SELECT @@global.time_zone;
@@ -113,7 +113,7 @@ SELECT @@session.time_zone;
 SET GLOBAL time_zone = '+8:00';
 SET GLOBAL time_zone = 'Europe/Helsinki';
 SET @@global.time_zone = '+00:00';
-```sql
+```
 
 设置当前会话的时区：
 ```bash
@@ -147,7 +147,7 @@ mysql> select CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP;
 | 2019-12-24   | 15:34:12     | 2019-12-24 15:34:12 | 
 +--------------+--------------+---------------------+
 1 row in set (0.00 sec)
-```sql
+```
 具体返回的时间用哪个类型去存储，都行。
 
 > 即，CURRENT_TIME并非一定要和TIMESTAMP类型对应，也可以用DATETIME类型存储其返回值。

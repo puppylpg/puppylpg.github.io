@@ -80,7 +80,7 @@ quick   |   X   |
 summer  |       |  X
 the     |   X   |
 ------------------------
-```sql
+```
 
 正排索引：
 ```bash
@@ -248,7 +248,7 @@ GET users/_search
   },
   "size": 0
 }
-```bash
+```
 **对text+fielddata排序，效果和对keyword排序不同**：
 - **前者按name中的最小的那个token作为这个name的排序值**；
 - 后者按name的自然序，因为整个name是一个token；

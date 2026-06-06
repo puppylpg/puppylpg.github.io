@@ -49,7 +49,7 @@ PUT my-index-000001/_doc/1
     }
   }
 }
-```txt
+```
 实际存储为：
 ```json
 {
@@ -58,7 +58,7 @@ PUT my-index-000001/_doc/1
   "manager.name.first": "John",
   "manager.name.last":  "Smith"
 }
-```json
+```
 
 ### array of objects
 按照[Elasticsearch：basic]({% post_url 2022-04-20-es-basic %})所介绍的：es的任何一个field都能存放多个值，也就是可以存放数组。这意味着可以以数组的形式存储多个inner object。那是不是意味着object也可以存储一对多的关系？
@@ -86,7 +86,7 @@ PUT my-index-000001/_doc/2
     "name.first": "Kate"
   }
 }
-```txt
+```
 和
 ```json
 PUT my-index-000001/_doc/3
@@ -105,7 +105,7 @@ PUT my-index-000001/_doc/3
     ]
   }
 }
-```txt
+```
 **实际上并没有什么区别**！使用`fields`查询可以发现：
 ```json
 GET my-index-000001/_search
@@ -115,7 +115,7 @@ GET my-index-000001/_search
     "manager.name.first", "manager.name.last"
   ]
 }
-```txt
+```
 1. **两个first name实际上都是以数组的形式存储的**；
 2. **first name和last name分属两个数组，失去了关联**；
 
@@ -145,7 +145,7 @@ GET my-index-000001/_search
         }
       }
     ]
-```txt
+```
 
 # 一对多
 一对多是最常见的关系型数据。就以一个用户和他发的所有博客为例进行阐述。
@@ -196,7 +196,7 @@ PUT user-blogs-nested
     }
   }
 }
-```txt
+```
 cortana和john各发了两篇blogs：
 ```json
 PUT user-blogs-nested/_doc/1
@@ -228,7 +228,7 @@ PUT user-blogs-nested/_doc/2
     }
   ]
 }
-```json
+```
 查看mapping，`GET user-blogs-nested/_mapping`：
 ```json
 {
@@ -271,7 +271,7 @@ PUT user-blogs-nested/_doc/2
     }
   }
 }
-```txt
+```
 使用nested query查询这样的文档：blogs（nest field）以halo为名，且内容包含amazing
 ```json
 GET user-blogs-nested/_search
@@ -306,7 +306,7 @@ GET user-blogs-nested/_search
     }
   }
 }
-```txt
+```
 **查询结果显示的是整个完整的逻辑文档（1个父文档john + 2个子文档halo和spartan）**。
 
 有两个类似debug的细节查询：
@@ -388,7 +388,7 @@ GET user-blogs-nested/_search
     ]
   }
 }
-```txt
+```
 **如果偏要使用普通查询查nested field会怎样**？
 
 查询非nested field，没有问题，能显示整个文档：
@@ -407,7 +407,7 @@ GET user-blogs-nested/_search
     }
   }
 }
-```txt
+```
 **使用普通查询查找nested field，什么也查不出来**：
 ```json
 GET user-blogs-nested/_search
@@ -424,7 +424,7 @@ GET user-blogs-nested/_search
     }
   }
 }
-```xml
+```
 
 > 如果既想拥有nested文档的独立子文档特性，又想拥有object可以使用普通查询直接查的特性，可以给nested设置`include_in_root`/`include_in_parent`，把nested子文档的field在root文档/父文档里也存一遍。
 
@@ -474,7 +474,7 @@ PUT user-blogs-join
     }
   }
 }
-```txt
+```
 然后放入两个user，指定他们的类型为父类型user：
 ```json
 PUT user-blogs-join/_doc/u1
@@ -488,7 +488,7 @@ PUT user-blogs-join/_doc/u2
   "user" : "cortana",
   "user_blog": "user"
 }
-```txt
+```
 再放一些blog，类型为blog，同时指定parent的id，指明从属关系：
 ```json
 PUT user-blogs-join/_doc/b1?routing=u1
@@ -538,7 +538,7 @@ PUT user-blogs-join/_doc/b4?routing=u2
       "parent": "u2"
     }
 }
-```txt
+```
 **存储子文档的时候必须指定routing，否则会报错**：`[routing] is missing for join field [user_blog]`。
 
 子文档routing的值设为父文档的routing，使得他们存储在同一个分片上。
@@ -591,7 +591,7 @@ PUT user-blogs-join/_doc/b4?routing=u2
     }
   }
 }
-```txt
+```
 父子文档的查询主要是两种：
 1. 使用子文档查询父文档：`has_child`；
 2. 使用父文档查询子文档：`has_parent`；
@@ -613,7 +613,7 @@ GET user-blogs-join/_search
     }
   }
 }
-```txt
+```
 **查询结果只显示父文档john**，因为它本身就是一个独立的文档，**不像nested显示的是整个父子文档合在一起的大文档**：
 ```json
 {
@@ -645,7 +645,7 @@ GET user-blogs-join/_search
     ]
   }
 }
-```bash
+```
 
 - https://www.elastic.co/guide/cn/elasticsearch/guide/current/has-child.html
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-has-child-query.html
@@ -665,7 +665,7 @@ GET user-blogs-join/_search
     }
   }
 }
-```txt
+```
 查询结果只显示cortana发表的所有blog，他们都是独立的子文档：
 ```json
 {
@@ -721,7 +721,7 @@ GET user-blogs-join/_search
     ]
   }
 }
-```bash
+```
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-has-parent-query.html
 
 还可以使用bool查询，**在使用子文档查询父文档的同时，给父文档加上过滤条件**：
@@ -752,7 +752,7 @@ GET user-blogs-join/_search
     }
   }
 }
-```txt
+```
 只查询名字含有cortana且发的blog内容包含halo的user。
 
 ### inner hits
@@ -779,7 +779,7 @@ GET user-blogs-join/_search
     }
   }
 }
-```txt
+```
 结果显示：
 ```json
 {
@@ -891,7 +891,7 @@ GET user-blogs-join/_search
     ]
   }
 }
-```txt
+```
 john和cortana都发了一条内容含有halo的blog，所以他们俩都被匹配到了。
 
 ### 打分
@@ -937,7 +937,7 @@ GET user-blogs-join/_search
     }
   }
 }
-```txt
+```
 显然，在分之差不多的情况下，cortana名字更长，最终得分更高：
 ```json
 {
@@ -979,7 +979,7 @@ GET user-blogs-join/_search
     ]
   }
 }
-```txt
+```
 
 ### 错误的routing
 如果routing指定错了怎么办？parent设定为u1，但是routing却指定为了u2：
@@ -995,7 +995,7 @@ PUT user-blogs-join/_doc/b1?routing=u2
       "parent": "u1"
     }
 }
-```txt
+```
 也就是说，这个属于u1的blog有可能存错分片了。如果u2和u1在同一个分片上，那么还是能够查到这个子文档blog的。如果不在一个分片上，我猜应该就查不到了。
 
 ### 多级父子关系
@@ -1042,7 +1042,7 @@ join使用了doc_values
             "user" : "blog"
           }
         }
-```txt
+```
 
 ### 缺点
 相对于nested来讲，会慢一些。毕竟需要通过id再查一次父文档或者子文档。但是还好，因为强制被扔到了同一个分片上，这种查询是不跨分片的，所以不跨节点，没有网络开销。
@@ -1103,7 +1103,7 @@ POST _reindex?wait_for_completion=false
     }
   }
 }
-```python
+```
 1. user的`_routing`未必要和`_id`一致，但下面blog类型的`_routing`要和user的`_id`一致；
 2. 增加新的field：`user_blog=user`；
 3. **给user的所有field添加一层嵌套，外层field为`user`**：`ctx._source = [params.outer_field: ctx._source];`，**实际就是把原有的field和value作为新field的value，嵌套为一个map**；
@@ -1141,7 +1141,7 @@ POST _reindex?wait_for_completion=false
     }
   }
 }
-```txt
+```
 1. `_routing`要和user类型的`_id`相同，至于blog类型的`_id`用什么并不重要，不重复就行；
 2. 增加新的field：`user_blog=blog`；
 3. 给blog的所有field添加一层嵌套，外层field为`blog`；

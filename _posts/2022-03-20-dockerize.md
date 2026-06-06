@@ -40,7 +40,7 @@ mkdir netdataconfig
 docker run -d --name netdata_tmp netdata/netdata
 docker cp netdata_tmp:/etc/netdata netdataconfig/
 docker rm -f netdata_tmp
-```dockerfile
+```
 以后要是想获取哪个服务的默认配置，这种方式很方便啊！
 
 数据拷出来之后，再把volume挂载到新的monica上，再然后monica就工作不正常了……
@@ -138,7 +138,7 @@ $ docker run -d -p 8000:8000 -p 9443:9443 --name portainer \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
     portainer/portainer-ce:latest
-```dockerfile
+```
 
 > 题外话：portainer 9443只支持https，所以nginx反向代理的时候也只能打https流量过来。
 
@@ -188,7 +188,7 @@ f6f2a0174d16dcd958bafd8da4eda142912591d81f10b673fb7805e3a9a23652
 使用的是宿主机上已有的v2ray的配置，只不过为了保险起见，重新copy了一份`docker.config.json`作为container版v2ray的配置：
 ```nginx
 docker run -d --name v2ray -v /etc/v2ray:/etc/v2ray -p 127.0.0.1:10087:10087 v2fly/v2fly-core:v4.23.4 v2ray -config=/etc/v2ray/docker.config.json
-```dockerfile
+```
 
 ## docker container内网络绑定
 第一个碰到的问题就是，之前实体机v2ray的配置，为了不暴露给公网，绑定的是127.0.0.1。**如果container内的v2ray绑定这个ip，宿主机就连不上docker里的v2ray了！只有container自己内部才能访问它的v2ray应用**！
@@ -226,7 +226,7 @@ tcp        0      0 127.0.0.1:59938         127.0.0.1:10087         ESTABLISHED 
 tcp        0      0 127.0.0.1:10087         127.0.0.1:59934         TIME_WAIT   -
 tcp        0      0 172.17.0.1:58536        172.17.0.3:10087        ESTABLISHED -
 
-```dockerfile
+```
 
 ## 切换版本
 这个让我想起了开启debug：
@@ -244,7 +244,7 @@ tcp        0      0 172.17.0.1:58536        172.17.0.3:10087        ESTABLISHED 
 听说是从4.24起加入的，22年开始强制启用。所以我直接用4.23版本：
 ```nginx
 docker run -d --name v2ray --restart=always -v /etc/v2ray:/etc/v2ray -p 127.0.0.1:10087:10087 v2fly/v2fly-core:v4.23.4 v2ray -config=/etc/v2ray/docker.config.json
-```dockerfile
+```
 这就是使用docker的方便之处——**一键启动 & 任意版本切换**！
 
 还意外地发现，protainer能统计container累计的网络总使用量！这样一来，甚至不用去搬瓦工查看累计流量使用情况了~

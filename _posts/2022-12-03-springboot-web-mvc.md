@@ -72,7 +72,7 @@ public interface ServletContextInitializer {
 	void onStartup(ServletContext servletContext) throws ServletException;
 
 }
-```java
+```
 **所以这俩的设计思路是一模一样的。唯一的区别就是：在springboot里，SpringMVC被掐断了，所以SpringMVC提供的`WebApplicationInitializer`不能用了，用springboot提供的`ServletContextInitializer`吧。用法还和之前写SpringMVC的`WebApplicationInitializer`一样。**
 
 > 反而觉得springboot的名字起的更直白：所谓init web app，不就是init `ServletContext`嘛！
@@ -126,7 +126,7 @@ springboot启动mvc的流程：
             }
 
         }
-```java
+```
 
 ### 调用`ServletContainerInitializer`
 tomcat启动到`Context` container的时候，就涉及到`ServletContainerInitializer`的调用了。和SpringMVC的入口一样，springboot亦如此：
@@ -143,7 +143,7 @@ tomcat启动到`Context` container的时候，就涉及到`ServletContainerIniti
                     break;
                 }
             }
-```java
+```
 会调用所有的`ServletContainerInitializer`。
 
 > tomcat的ServletContext的实现就叫`org.apache.catalina.core.ApplicationContext`：`ApplicationContext implements ServletContext`，重名了，就很魔性。**`getServletContext()`获取的就是这个tomcat的ApplicationContext**。
@@ -158,19 +158,19 @@ tomcat启动到`Context` container的时候，就涉及到`ServletContainerIniti
 tomcat的[WebappServiceLoader](https://github.com/apache/tomcat/blob/af983a45c8e3f2252c1a14d52024dde63ffffff2/java/org/apache/catalina/startup/WebappServiceLoader.java#L187)会遍历所有的jar包，并从jar里加载文件：
 ```java
 uri = new URI("jar:" + baseExternal + "!/" + entryName);
-```java
+```
 这显然是为了使用SPI机制。
 
 `ContextConfig`用于配置`Context` container，它会探测`ServletContainerInitializer`的SPI实现：
 ```java
 detectedScis = loader.load(ServletContainerInitializer.class);
-```java
+```
 它是默认的Context config类：the default context configuration class for deployed web applications.
 
 在apache `Tomcat`的main函数里，tomcat在加载web app的时候，自动就注册上这个config类了：
 ```java
 tomcat.addWebapp(path, war.getAbsolutePath());
-```java
+```
 所以正常的tomcat一定会探测`ServletContainerInitializer`的SPI实现。
 
 **springboot启动的是embed tomcat。创建完`Tomcat`实例之后，手撸了一组tomcat的`Container`组件，手动配置了`Context` container，没有使用标准的`ContextConfig`类配置`Context`，所以失去了探测`ServletContainerInitializer`的SPI实现的功能。**
@@ -190,7 +190,7 @@ tomcat.addWebapp(path, war.getAbsolutePath());
 			beans.onStartup(servletContext);
 		}
 	}
-```java
+```
 **它的最后一步，会把servlet bean、filter bean都从`ServletWebServerApplicationContext`里取出来，用来初始化`ServletContext`！**
 
 **`ServletWebServerApplicationContext`里注册的servlet相关的spring bean是各路`RegistrationBean`**：
@@ -214,7 +214,7 @@ getBeanFactory().registerSingleton("webServerGracefulShutdown",
 		new WebServerGracefulShutdownLifecycle(this.webServer));
 getBeanFactory().registerSingleton("webServerStartStop",
 		new WebServerStartStopLifecycle(this, this.webServer));
-```java
+```
 
 最后`ServletWebServerApplicationContext#finishRefresh`的时候，调起`LifecycleProcessor#onRefresh`，启动所有`Lifecycle` bean的start方法（有点儿像tomcat lifecycle的方式），这个时候就启动`TomcatWebServer`了！
 
@@ -224,7 +224,7 @@ getBeanFactory().registerSingleton("webServerStartStop",
 ```java
 logger.info("Tomcat started on port(s): " + getPortsDescription(true) + " with context path '"
 		+ getContextPath() + "'");
-```java
+```
 
 > Tomcat started on port(s): 8081 (http) with context path '/wtf' :D
 

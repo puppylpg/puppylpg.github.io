@@ -42,7 +42,7 @@ public @interface Conditional {
 	Class<? extends Condition>[] value();
 
 }
-```java
+```
 `@Conditional`注解需要指定一个`Condition` class。这个`Condition` class就是要满足的条件，所以返回一个boolean：
 ```java
 public interface Condition {
@@ -58,7 +58,7 @@ public interface Condition {
 	boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata);
 
 }
-```xml
+```
 因此spring只需要执行这个`Condition`就行了。
 
 > 它相当于是一个lambda函数，到时候spring会调用这个函数做bean condition的校验。
@@ -79,7 +79,7 @@ public interface Condition {
 		// other code
 		// ...
 	}
-```java
+```
 整个流程就是这么简单。`ConditionEvaluator`会返回boolean代表校验是否通过。
 
 ## 具体怎么校验的
@@ -111,12 +111,12 @@ public interface Condition {
 		Class<?> conditionClass = ClassUtils.resolveClassName(conditionClassName, classloader);
 		return (Condition) BeanUtils.instantiateClass(conditionClass);
 	}
-```java
+```
 
 所有的`Condition`要按照配置的order排一下序：
 ```java
 		AnnotationAwareOrderComparator.sort(conditions);
-```java
+```
 
 最后，判断所有的`Condition`是否都返回true就行了：
 ```java
@@ -131,7 +131,7 @@ public interface Condition {
 				}
 			}
 		}
-```java
+```
 非常简单。
 
 # 应用
@@ -174,7 +174,7 @@ class ProfileCondition implements Condition {
 	}
 
 }
-```java
+```
 很整洁的实现。
 
 ## springboot
@@ -197,7 +197,7 @@ public @interface ConditionalOnBean {
 	
 	// ...
 }
-```java
+```
 `OnBeanCondition`会判断bean factory里是否已经有声明的bean，再决定是否要注册这个bean。
 
 同理用的比较多的还有：
@@ -222,7 +222,7 @@ springboot基于`@Conditional`创建了一系列条件注解，我们（或者sp
 		}
 
 	}
-```java
+```
 当然前提是classpath上必须有`RestClientBuilder`类：
 ```java
 @ConditionalOnClass(RestClientBuilder.class)

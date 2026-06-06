@@ -46,7 +46,7 @@ public interface Loader {
     public void addPropertyChangeListener(PropertyChangeListener listener);
     public void removePropertyChangeListener(PropertyChangeListener listener);
 }
-```java
+```
 Loader接口最重要的方法有：
 - getClassLoader：返回一个ClassLoader，**用于加载类，是真正在加载类的时候干活的人**；
 - addRepository：所谓repository，就是Loader里的ClassLoader寻找要加载的类的地方。换句话说，这就是这个ClassLoader的classpath；

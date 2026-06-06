@@ -21,7 +21,7 @@ jdk的CompletableFuture和guava的ListenableFuture，在功能上基本是一致
 CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> "Hello")
     .thenApply(s -> s + " World")
     .thenAccept(System.out::println);
-```java
+```
 执行流程：
 1. supplyAsync() 创建第一个 Future（f1），提交任务到线程池。
 2. thenApply() 创建第二个 Future（f2），并注册回调 s -> s + " World" 到 f1 的链表。
@@ -67,7 +67,7 @@ CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> "Hello")
      * @return the new CompletionStage
      */
     public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
-```xml
+```
 
 > 强烈建议多看CompletableFuture的javadoc，里面有很多很重要的信息。
 
@@ -75,7 +75,7 @@ CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> "Hello")
 ```java
 public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn);
 public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn, Executor executor);
-```java
+```
 
 再来看thenApply的实现：
 ```java
@@ -133,7 +133,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
             }
         }
     }
-```java
+```
 `tryFire()`是每一种Completion的任务执行方法，不同的Completion有不同的实现，但是每一种在执行的最后都有类似`d.postComplete()`的操作（d是当前Completion的下一个Completion），**也就是说，上一个任务完成后，会触发下一个任务的所有回调**。
 
 # 创建`CompletableFuture`
@@ -144,7 +144,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   ```java
   CompletableFuture<String> future = CompletableFuture.completedFuture("Hello");
   // future.get() 立即返回 "Hello"
-```xml
+```
 
 
 ## **2. 创建异步任务**
@@ -155,7 +155,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
       System.out.println("异步任务执行中");
   });
-```java
+```
 
 - **`runAsync(Runnable runnable, Executor executor)`**  
   使用自定义线程池执行任务：
@@ -173,7 +173,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
       return "计算结果";
   });
-```java
+```
 
 - **`supplyAsync(Supplier<U> supplier, Executor executor)`**  
   使用自定义线程池执行带返回值的任务：
@@ -182,7 +182,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
       return 42;
   }, executor);
-```xml
+```
 
 
 ## **3. 组合多个 CompletableFuture**
@@ -195,7 +195,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   
   CompletableFuture<Integer> combined = future1.thenCombine(future2, (a, b) -> a + b);
   // combined.get() 返回 30
-```java
+```
 
 ### **任意一个 Future 完成时执行**
 - **`acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action)`**  
@@ -218,7 +218,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   }).exceptionally(ex -> "默认值");
   
   // future.get() 返回 "默认值"
-```java
+```
 
 ### **无论是否异常都执行操作**
 - **`whenComplete(BiConsumer<? super T, ? super Throwable> action)`**  
@@ -233,7 +233,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
           System.out.println("结果: " + result);
       }
   });
-```xml
+```
 
 
 ## **5. 多任务并行与聚合**
@@ -247,7 +247,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   );
   
   allFutures.get(); // 等待所有任务完成
-```java
+```
 **注意`allOf`的返回：它返回的是一个新的`CompletableFuture`，这个cf的结果比较特殊：如果有子任务挂了，它的结果就是一个`CompletionException`，cause是具体的任务异常。如果子任务都没挂，不能从这个任务获取结果（get方法会返回null值），需要从原始的子任务获取结果（比如对原始cf增加`whenComplete`/`thenApply`链式调用以收集结果）。**
 
 另外还有一点要注意：**`allOf`只返回一个新的cf，但并不阻塞等待任务完成，所以如果需要阻塞等待任务完成，对新的cf使用`get()/join()`方法**。
@@ -289,7 +289,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   }).start();
   
   // future.get() 将阻塞直到手动完成
-```java
+```
 
 
 ## **总结：创建方法对比表**
@@ -338,7 +338,7 @@ CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
 });
 
 // future.get() 可能返回 "正常结果" 或 "默认值"
-```xml
+```
 **若链中的某个阶段抛出异常且未被处理，异常会传播到后续所有阶段，直到遇到 exceptionally、handle 或被 get() 捕获**。
 也就是说，**cf如果出现异常，后面的thenApply、thenAccept等回调函数都不会触发function/supplier/consumer等的执行，而是直接返回一个outcome为exception的cf。因此，无论中间哪一个cf产生异常，异常都会被一直传递下去**。
 
@@ -385,7 +385,7 @@ CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
             return d.postFire(a, mode);
         }
     }
-```json
+```
 
 **因此在执行过程中抛出的异常，一定会被最后的exceptionally捕获**，我们可以通过exceptionally处理异常，返回一个默认值。**这样，异常处理就被集中到exceptionally中，而不是分散在各个回调函数中。**
 
@@ -418,7 +418,7 @@ CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
         System.out.println("结果: " + result);
     }
 });
-```java
+```
 和`handle`的区别在于，`whenComplete`的action是一个`BiConsumer`，而`handle`的action是一个`BiFunction`。所以`whenComplete`仅用于副作用（如日志记录），不影响最终结果；而`handle`则可以为cf return一个新的结果。
 
 # 混搭？
@@ -437,7 +437,7 @@ CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> "Hello")
     .exceptionally(e -> ...)
 
     // 或者直接使用whenComplete以取代thenAccept和exceptionally
-```java
+```
 
 ```java
 // 传统方式获取结果
@@ -446,7 +446,7 @@ try {
 } catch (xxx) {
     // 其实在cf的链式调用里，已经可以处理exception了，这里再处理就重复了
 }
-```java
+```
 **如果把上述两种方式混在一起编程，看起来就很奇怪，而且混乱。最难受的是exception要处理两遍，但其实没必要**。混搭着写说明没有完全理解cf的用法。所以建议只使用cf的链式调用。
 
 同样，阻塞等待任务完成也有类似的情况：
@@ -461,7 +461,7 @@ try {
 } catch (xxx) {
     // 其实在cf的链式调用里，已经可以处理exception了，这里再处理就重复了
 }
-```java
+```
 同样建议使用第一种。
 
 # 感想

@@ -71,7 +71,7 @@ public class SimulatedCAS {
         }
     }
 }
-```java
+```
 
 ## 使用场景
 读取A的值，计算得到B，在set回去之前，判断A是否变了，没变则将A设为B。
@@ -108,7 +108,7 @@ public class CasCounter {
         return v + 1;
     }
 }
-```xml
+```
 
 可以看到CAS和加锁比，**主要缺陷**就是：**使用CAS要自己考虑处理竞争问题（是否要重试之类的），而使用锁，锁自己会处理这些问题，我们只需要假设拿到锁，考虑怎么用就行了**。
 
@@ -161,7 +161,7 @@ public class CasCounter {
               newStamp == current.stamp) ||
              casPair(current, Pair.of(newReference, newStamp)));
     }
-```java
+```
 的set和compareAndSet都要提供一个新的stamp，般设置为`AtomicStampedReference#getStamp() + 1`。
 
 参考：
@@ -179,7 +179,7 @@ Integer now = xxx.getReference()
 如果用int接收，则**发生了拆箱**。如果拆箱之后再调用compareAndSet：
 ```java
 xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
-```java
+```
 此时由于该函数接收的第一个参数类型为Integer，所以**又会发生装箱**。
 
 装箱：
@@ -189,7 +189,7 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
             return IntegerCache.cache[i + (-IntegerCache.low)];
         return new Integer(i);
     }
-```xml
+```
 -128~127的Integer是被IntegerCache这个东西cache好的：
 ```java
     private static class IntegerCache {
@@ -225,7 +225,7 @@ xxx.compareAndSet(now, now * 2, expectedStamp, newStamp)
 
         private IntegerCache() {}
     }
-```java
+```
 所以jdk里的-127~127的Integer，除非自己手动创建，否则装箱后都是同一个Integer对象。但是超出这个范围，每个装箱后的Integer都是一个全新的Integer。**`AtomicStampedReference#compareAndSet`是使用`==`来进行引用比较的，不是值比较**。
 
 **所以如果用int承接`AtomicStampedReference<Integer>`的值，再比较Integer还是不是之前的Integer，只要不在这个范围，都会因为用的是引用比较返回false，拒绝更新**。
@@ -253,7 +253,7 @@ JVM里的CAS原子变量类直接利用了硬件对并发的支持。
 该操作使用了unsafe的compareAndSwapInt，这是一个native方法：
 ```java
 public final native boolean compareAndSwapInt(Object var1, long var2, int var4, int var5);
-```java
+```
 > Unsafe是位于sun.misc包下的一个类，主要提供一些用于执行低级别、不安全操作的方法，如直接访问系统内存资源、自主管理内存资源等，这些方法在提升Java运行效率、增强Java语言底层资源操作能力方面起到了很大的作用。
 > 
 > 具体可参考[Java魔法类：Unsafe应用解析](https://tech.meituan.com/2019/02/14/talk-about-java-magic-class-unsafe.html)
@@ -271,7 +271,7 @@ Unsafe提供的CAS操作有：
                 (AtomicInteger.class.getDeclaredField("value"));
         } catch (Exception ex) { throw new Error(ex); }
     }
-```java
+```
 在使用的时候，通过object和valueOffset可以定位value这个字段的内存地址，然后取该内存的值判断是否和expected相同，相同则将其更新为update。
 
 ## 拓展原子复合操作
@@ -288,7 +288,7 @@ Unsafe提供的CAS操作有：
     public final int getAndAdd(int delta) {
         return unsafe.getAndAddInt(this, valueOffset, delta);
     }
-```java
+```
 它使用的是unsafe的getAndAddInt，而这个方法就是使用unsafe自身的CAS操作compareAndSwapInt实现的：
 ```java
     public final int getAndAddInt(Object object, long valueOffset, int delta) {

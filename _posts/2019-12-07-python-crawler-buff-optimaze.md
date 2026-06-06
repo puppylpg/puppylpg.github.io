@@ -69,7 +69,7 @@ tags: python csgo
 ```python
 category_white_list = ["weapon_ak47", "weapon_m4a1", "weapon_m4a1_silencer"]
 category_black_list = ["weapon_m4a1"]
-```python
+```
 则最终会爬取AK、M4A1、M4A4三种物品。
 
 > NOTE: M4A1游戏代号为"weapon_m4a1_silencer"、M4A4游戏代号为"weapon_m4a1"。

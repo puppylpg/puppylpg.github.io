@@ -45,12 +45,12 @@ Linux中的进程使用`struct task_struct`表示，包含：
 重定向，管道，现在也很好理解了：
 ```bash
 $ command < file1.txt
-```bash
+```
 其实就是command本来要从第0个file也就是键盘读数据，现在从第N个file也就是file1.txt读数据了。读数据来源从数组的一个位置换到了另一个位置而已。
 
 ```bash
 $ command1 | command2 | command3
-```bash
+```
 管道其实就是进程1的输出不输出到第1个file（显示器），而是输出给第N个file，进程2的输入不是第0个file（键盘），而是第N个file。相当于两个进程之间插了一个管，直接传送输入输出数据。
 
 Ref：

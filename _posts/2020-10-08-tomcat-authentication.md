@@ -27,7 +27,7 @@ Realm中最重要的一个方法就是authenticate：
      *  authenticating this username
      */
     public Principal authenticate(String username, String credentials);
-```xml
+```
 如果用户名和密码正确，就返回Principal对象。Principal只有一个getName方法，感觉不太足以代表一个人的所有信息，所以Tomcat在其实现类GenericPrincipal中加入了许多其他方法，比如getPassword、getRealm、getRole等。
 
 之前介绍Container时说过，Container里有很多组件，Realm就是其中一个。所以Container里有get/setRealm，Realm里也有get/SetContainer，二者互相关联。
@@ -66,7 +66,7 @@ WWW-Authenticate: Basic realm=realm name
 client（如果是浏览器，会让用户填写用户名和密码），然后将`base64(username:password)`（假设值为abcdefg）的形式，放到header里：
 ```java
 Authorization: Basic abcdefg
-```java
+```
 
 - [HTTP authentication](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication)
 - [WWW-Authenticate](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate)
@@ -211,7 +211,7 @@ server和之前基本一样，多了：
     catch (Throwable t) {
     }
   }
-```java
+```
 当Context启动时，会触发start事件，调用所有的listener。该listener就在此时注册Authenticator valve：
 1. Context没有constraint，无需认证；
 2. Context没有LoginConfig，搞一个无需认证的`LoginConfig("NONE", null, null, null)`；

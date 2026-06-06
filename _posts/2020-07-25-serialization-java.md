@@ -27,7 +27,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
         } catch (IOException e) {
             e.printStackTrace();
         }
-```java
+```
 反序列化样例：
 ```java
         try {
@@ -87,7 +87,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
                     throw new NotSerializableException(cl.getName());
                 }
             }
-```json
+```
 所以一个类如果不实现Serializable接口，最终会落到else里，抛出NotSerializableException。
 
 ### 都序列化了什么东西
@@ -129,7 +129,7 @@ Java序列化框架是一种Java专有的非通用的序列化方案，这是和
     /** true if desc has data written by class-defined writeObject method */
     private boolean hasWriteObjectData;
     ...
-```python
+```
 大致有：
 - 类名；
 - 类的serial version id（实现了Serializable接口，就得有这个id）；
@@ -214,7 +214,7 @@ Ref：
 在序列化最后真正写数据的时候，invokeWriteObject里还有这样的代码：
 ```java
 writeObjectMethod.invoke(obj, new Object[]{ out })
-```json
+```
 调用了一个反射去写对象。方法是：
 ```java
     /** class-defined writeObject method, or null if none */

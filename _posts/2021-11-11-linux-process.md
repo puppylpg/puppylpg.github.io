@@ -22,7 +22,7 @@ tags: linux
  ~ ping localhost -aq | grep icmp &
 [1] 5989 5990
  ~ ping localhost -aq | grep icmp
-```text
+```
 
 然后在yakuake里再打开一个使用zsh的终端pts/1，查看所有终端0的进程：
 ```text
@@ -33,7 +33,7 @@ tags: linux
    3564    5990    5989    3564 pts/0       7887 SN    1000   0:00 grep --color=auto --exclude-dir=.bzr --exclude-dir=CVS --exclude-dir=.git --exclude-dir=.hg --exclude-dir=.svn --exclude-dir=.idea --exclude-dir=.tox icmp
    3564    7887    7887    3564 pts/0       7887 S+    1000   0:00 ping localhost -aq
    3564    7888    7887    3564 pts/0       7887 S+    1000   0:00 grep --color=auto --exclude-dir=.bzr --exclude-dir=CVS --exclude-dir=.git --exclude-dir=.hg --exclude-dir=.svn --exclude-dir=.idea --exclude-dir=.tox icmp
-```text
+```
 - PID：process id；
 - PPID：parent process id；
 - PGID： process group id；
@@ -88,7 +88,7 @@ PROCESS STATE CODES
                s    is a session leader
                l    is multi-threaded (using CLONE_THREAD, like NPTL pthreads do)
                +    is in the foreground process group
-```text
+```
 - `+`就是前台进程。不用比较TPGID是否等于PGID了；
 - `s`就是session leader。不用比较PID是否等于SID了；
 
@@ -107,7 +107,7 @@ PROCESS STATE CODES
    1626    5995    5995    5995 pts/2       8675 Ss    1000   0:00  \_ /usr/bin/zsh
    5995    8675    8675    5995 pts/2       8675 R+    1000   0:00      \_ ps axjf
 
-```text
+```
 
 # 系统process总览
 最后总览一下Debian + KDE的所有进程表：
@@ -374,7 +374,7 @@ PROCESS STATE CODES
       1    2115    1623    1623 ?             -1 Sl    1000   0:01 /usr/libexec/at-spi2-registryd --use-gnome-session
       1    7918    7917    7917 ?             -1 Sl    1000   0:00 /opt/google/chrome/chrome_crashpad_handler --monitor-self --monitor-self-annotation=ptype=crashpad-handler --database=/ho
       1    7920    7919    7919 ?             -1 Sl    1000   0:00 /opt/google/chrome/chrome_crashpad_handler --no-periodic-tasks --monitor-self-annotation=ptype=crashpad-handler --databas
-```text
+```
 可以观察到几点：
 - PID=1是`/sbin/init`，也就是init进程，负责系统的启动关闭；
 - PID=2是`[kthreadd]`，是kernel thread daemon；

@@ -61,7 +61,7 @@ public enum Threading {
 	public abstract boolean isActive(Environment environment);
 
 }
-```java
+```
 此时`VIRTUAL#isActive`会是true，`PLATFORM#isActive`则是false。
 
 该方法在`OnThreadingCondition`里被调用：
@@ -91,7 +91,7 @@ class OnThreadingCondition extends SpringBootCondition {
 	}
 
 }
-```xml
+```
 由[@Conditional]({% post_url 2023-10-27-conditional %})可知，**`Condition`类用于搭配`@Conditional`注解**，所以`OnThreadingCondition`类其实是为了和`@Conditional`注解一起构建出新的注解`@ConditionalOnThreading`：
 ```java
 /**
@@ -113,7 +113,7 @@ public @interface ConditionalOnThreading {
 	Threading value();
 
 }
-```java
+```
 它接受的参数是`Threading`。
 
 > **注解的名字叫conditional on啥，接受的参数就是啥！**
@@ -142,7 +142,7 @@ public @interface ConditionalOnThreading {
 		factory.setExecutor(executor);
 		return factory;
 	}
-```java
+```
 **只是苦了springboot，原本的一份自动配置现在变成了两份**，很多支持虚线程的组件，配置都要翻倍了……
 
 也有不是两份配置的。比如tomcat的虚线程处理http请求，其实是创建一个自定义的customizer：
@@ -177,7 +177,7 @@ public class TomcatVirtualThreadsWebServerFactoryCustomizer
 	}
 
 }
-```java
+```
 该executor是tomcat提供的用于支持Java21的组件。
 
 # 正向梳理

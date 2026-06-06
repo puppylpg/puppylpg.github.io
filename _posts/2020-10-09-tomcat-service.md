@@ -44,7 +44,7 @@ StandardServer是Server的标准实现，它做的事情很单纯：init时，in
       System.out.println("Error. The server has not been started.");
     }
   }
-```java
+```
 
 # `org.apache.catalina.Service`
 之前启动一个server是分别启动Connector和Container，现在只要启动Service就行了。所以Service是什么？大胆猜测，**Service就是Connector和Container的聚合体**！
@@ -126,7 +126,7 @@ setContainer考虑的事情更多一些：
         support.firePropertyChange("container", oldContainer, this.container);
 
     }
-```java
+```
 1. **只有顶级容器Engine才能和Service相关联**；
 2. 所有的connector都要和新的Container相关联；
 3. 如果已经启动了，要启动新的容器，关闭旧的容器；

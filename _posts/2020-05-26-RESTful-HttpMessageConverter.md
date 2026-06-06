@@ -23,14 +23,14 @@ Spring自动注册了几个消息转换器，比如`MappingJackson2HttpMessageCo
 ```text
 client -> json -> server
 client <- json <- server
-```java
+```
 那么client的RestTemplate和server均只注册一个`MappingJackson2HttpMessageConverter`就行了。
 
 其他场景同理，只是根据二者之间交互数据的不同，选用不同的HttpMessageConverter。比如：
 ```text
 client -> json -> server
 client <- protobuf <- server
-```xml
+```
 client和server都需要`MappingJackson2HttpMessageConverter`和`ProtobufHttpMessageConverter`。其中：
 - client使用`MappingJackson2HttpMessageConverter`将Java对象序列化为json作为请求的body，使用`ProtobufHttpMessageConverter`反序列化响应的body（protobuf字节流）为Java对象；
 - server使用`MappingJackson2HttpMessageConverter`反序列化请求的body中的json为Java对象，使用`ProtobufHttpMessageConverter`将Java对象序列化为protobuf字节，放入响应的body，返回给client。
@@ -72,7 +72,7 @@ HttpMessageConverter的使用基本可以总结为如下几条：
 			// Ignore when no TransformerFactory implementation is available
 		}
 		this.messageConverters.add(new AllEncompassingFormHttpMessageConverter());
-```java
+```
 另外，如果classpath下有某些序列化反序列化库，也会注册上相应的converter，比如json：
 ```java
 		jackson2Present =
@@ -86,7 +86,7 @@ HttpMessageConverter的使用基本可以总结为如下几条：
 ```java
         ProtobufHttpMessageConverter protobufConverter = new ProtobufHttpMessageConverter();
         RestTemplate restTemplate = new RestTemplate(Collections.singletonList(protobufConverter));
-```java
+```
 这样就可以把自定义的converter添加到RestTemplate的converter列表里。
 
 > 如果使用`setMessageConverters`方法，需要注意RestTemplate会先清掉自己的converts，再设置手动设置的converters。所以调用set方法注册converter的时候，一定要把需要的converter全部手动注册上。
@@ -173,7 +173,7 @@ org.springframework.web.HttpMediaTypeNotSupportedException: Content type 'applic
         at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [na:1.8.0_252]
         at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) [tomcat-embed-core-9.0.35.jar:9.0.35]
         at java.lang.Thread.run(Thread.java:748) [na:1.8.0_252]
-```bash
+```
 之所以不支持该media type（application/x-protobuf），因为没有能处理protobuf的converter。
 
 ## 没有特定的converter
@@ -190,7 +190,7 @@ org.springframework.web.HttpMediaTypeNotSupportedException: Content type 'applic
         U request = ...
         RequestEntity<U> requestEntity = new RequestEntity<>(request, headers, HttpMethod.POST, new URI(url));
         ResponseEntity<V> rawResp = restTemplate.exchange(requestEntity, getResponseClass());
-```python
+```
 这里的U代表一个java类`com.entity.TextAsyncRequest`。就会报错：
 ```java
 2021-09-15 16:29:15.776 ERROR http-nio-8022-exec-1 o.a.c.c.C.[.[.[.[dispatcherServlet]:175 Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed; nested exception is org.springframework.web.client.RestClientException: No Ht
@@ -227,7 +227,7 @@ org.springframework.web.client.RestClientException: No HttpMessageConverter for 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.set("pikachu", "springboot");
-```json
+```
 构建MultiValueMap，把java object里所有的属性和值都以kv的形式扔进去：
 ```java
         MultiValueMap<String, String> bodyPair = new LinkedMultiValueMap();
@@ -241,7 +241,7 @@ org.springframework.web.client.RestClientException: No HttpMessageConverter for 
 构建HttpEntity（request body + header），此时converter就进行请求体的转换了：
 ```java
         HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(bodyPair, headers);
-```json
+```
 发送post请求：
 ```java
         ResponseEntity<V> rawResp = restTemplate.postForEntity(url, requestEntity , getResponseClass());

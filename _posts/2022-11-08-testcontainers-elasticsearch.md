@@ -27,7 +27,7 @@ elasticsearch 7.x默认绑定两个端口：
 CONTAINER ID   IMAGE                                                  COMMAND                  CREATED          STATUS          PORTS                                              NAMES
 bdcb01292e95   docker.elastic.co/elasticsearch/elasticsearch:7.12.0   "/bin/tini -- /usr/l…"   11 seconds ago   Up 10 seconds   0.0.0.0:12625->9200/tcp, 0.0.0.0:12626->9300/tcp   hopeful_bhabha
 d7c6a5102a69   testcontainers/ryuk:0.3.4                              "/app"                   13 seconds ago   Up 11 seconds   0.0.0.0:12611->8080/tcp                            testcontainers-ryuk-93b16e0f-c92c-426a-b6fc-2d0ead3c3d3e
-```dockerfile
+```
 **如果使用`.withExposedPorts(9200)`显式将docker绑定的端口映射到本地端口，则只有显式声明的端口才会映射到本地端口**：
 ```java
 > docker container ls
@@ -56,7 +56,7 @@ client =
                 return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
             })
             .build();
-```java
+```
 
 **但是如果是使用spring boot，elasticsearch client是根据properties属性自动创建的。也就是说`spring.elasticsearch.uris`是提前写到properties文件里的**，这怎么办？
 
@@ -91,7 +91,7 @@ public class XxxElasticsearchContainer {
                 .withEnv("ES_JAVA_OPTS", "-Xms1024m -Xmx1024m");
     }
 }
-```java
+```
 使用container：
 ```java
 @SpringBootTest
@@ -125,7 +125,7 @@ public class ElasticsearchClientIntegrationTest {
     <version>1.17.6</version>
     <scope>test</scope>
 </dependency>
-```java
+```
 testcontainers的`junit-jupiter`包提供了对jupiter测试框架的扩展`TestcontainersExtension`，通过它可以解析`@Container`注解。
 
 > **这个包的artifact id和junit-jupiter一样，只有group id不一样（`org.testcontainers:junit-jupiter` vs. `org.junit.jupiter:junit-jupiter`）**，所以不要看错了。
@@ -182,7 +182,7 @@ public @interface Testcontainers {
 具体映射到的本地端口可以通过`docker container ls`查看。获取本地映射的端口后，往docker发送一些请求，以诊断错误：
 ```bash
 GET -C elastic:pikachu http://localhost:3024/<index>/_search
-```java
+```
 
 > 才发现这个命令不是curl。GET是Simple command line user agent工具中的一个：
 >

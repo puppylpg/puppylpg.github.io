@@ -27,7 +27,7 @@ tags: spring aop aspectj
     		}
     	}
     }
-```java
+```
 2. 切点：切点定义在切面里，且切点定义太麻烦了，指定类和方法需要override相应的函数，看起来臃肿；
     ```java
     public class PlayAdvisor extends StaticMethodMatcherPointcutAdvisor {
@@ -42,7 +42,7 @@ tags: spring aop aspectj
             return NaiveStudent.class::isAssignableFrom;
         }
     }
-```java
+```
 3. 切面：切面不能把切点和增强直接定义在一起，还要在配置里进行组装，麻烦；
     ```java
     @Bean
@@ -51,7 +51,7 @@ tags: spring aop aspectj
         playAdvisor.setAdvice(sleepAfterPlay);
         return playAdvisor;
     }
-```java
+```
 
 所以spring aop的配置看起来不够优雅。
 
@@ -139,7 +139,7 @@ public class AfterPlayAspect {
         System.out.println("[after] sleep for: " + name + " in: " + target.getClass().getName() + "." + method.getName());
     }
 }
-```java
+```
 **在后置增强中，可以使用AfterReturning.returning()绑定连接点方法的返回值**。不过play方法没有返回值，所以没法使用了。
 
 环绕增强切面：
@@ -164,7 +164,7 @@ public class AroundExamAspect {
         return obj;
     }
 }
-```java
+```
 环绕增强的ProceedingJoinPoint比前后增强org.aspectj.lang.JoinPoint 多了ProceedingJoinPoint.proceed()，因为要执行连接点的方法。 
 
 异常处理切面：
@@ -205,7 +205,7 @@ public class AfterBreakdownAspect {
         creator.setProxyTargetClass(true);
         return creator;
     }
-```xml
+```
 因为用了AspectJ定义切面，所以使用`AspectJAwareAdvisorAutoProxyCreator`（的子类`AnnotationAwareAspectJAutoProxyCreator`）按照AspectJ的切面自动为相应bean创建动态代理对象。
 
 > 当然这里的对象还是spring aop的动态代理对象，和AspectJ创建代理对象完全没关系。
@@ -248,7 +248,7 @@ exception catched: <exit>
 Handle student's exception successfully~
     -----------
 BUT THE EXCEPTION STILL THROW
-```java
+```
 输出跟之前的spring aop没什么区别。
 
 # AspectJ切面中语法
@@ -288,7 +288,7 @@ public class BeforeExamAspect {
         System.out.println("[before] prepare for: " + name + " in: " + target.getClass().getName() + "." + method.getName());
     }
 }
-```java
+```
 
 ## 连接点JoinPoint/ProceedingJoinPoint
 spring aop的增强接口是传了一堆散参数（method、returnObject、args、target），而AspectJ则是集中放到了JoinPoint/ProceedingJoinPoint里。
@@ -389,7 +389,7 @@ public class DebugLogAspect {
         return oneArgInfo.toString();
     }
 }
-```bash
+```
 接口，没标记任何注解：
 ```bash
 public interface Student {
@@ -425,7 +425,7 @@ public class NaiveStudent implements Student {
 		throw new RuntimeException("<exit>");
 	}
 }
-```bash
+```
 一个好玩的现象是——
 
 如果生成动态代理的AnnotationAwareAspectJAutoProxyCreator使用jdk动态代理（`setProxyTargetClass(false)`），输出：

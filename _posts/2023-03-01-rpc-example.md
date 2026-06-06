@@ -40,7 +40,7 @@ tags: rpc proxy
         // 读取返回的结果
         ObjectInputStream input = new ObjectInputStream(consumer.getInputStream());
         Object result = input.readObject();
-```java
+```
 server监听tcp端口收到数据，做本地调用，往socket写回结果：
 ```java
         //用于存放生产者服务接口的Map,实际的框架中会有专门保存服务提供者的
@@ -72,7 +72,7 @@ server监听tcp端口收到数据，做本地调用，往socket写回结果：
             ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
             output.writeObject(result);
         }
-```java
+```
 虽然看起来很不rpc，但它确实展示了rpc的核心。只不过这个rpc很脆弱，基于约定的参数数据，毫无拓展性，毫无服务发现机制等等。但是话说回来，正是因为没有这些，所以它才很简单……
 
 > 做人虽然想既要又要，但大多数情况下也只能想想了:(
@@ -84,7 +84,7 @@ server监听tcp端口收到数据，做本地调用，往socket写回结果：
         Calculator calculator = new CalculatorRemoteImpl();
         int result = calculator.add(1, 2);
         log.info("result is {}", result);
-```java
+```
 实际socket细节在这个[静态代理类内部](https://github.com/puppylpg/simple-rpc/blob/master/src/main/java/com/sexycode/simplerpc/client/service/CalculatorRemoteImpl.java)：
 ```java
     public int add(int a, int b) {
@@ -127,7 +127,7 @@ server监听tcp端口收到数据，做本地调用，往socket写回结果：
         calculateRpcRequest.setMethod("add");
         return calculateRpcRequest;
     }
-```java
+```
 
 server端也跟之前一样，只不过从socket里读出来的是一个request object，稍微不那么散装了，有点儿“协议”的意思了：
 ```java
@@ -156,7 +156,7 @@ server端也跟之前一样，只不过从socket里读出来的是一个request 
                     // 返回结果
                     ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
                     objectOutputStream.writeObject(new Integer(result));
-```java
+```
 但是本质上，这俩就是rpc的原始雏形。**而`CalculateRpcRequest`就是约定好的rpc协议**，只不过它不能跨语言罢了。
 
 > 当然，实际的rpc框架肯定是用的是动态代理，见后面的讨论。
@@ -173,7 +173,7 @@ import com.github.yeecode.easyrpc.client.rpc.RemoteClass;
 public interface SchoolService {
     String querySchoolName(Integer id);
 }
-```java
+```
 然后在通信（放在动态代理g(x)里）的时候，使用注解里的类名就行了：
 ```java
     @Override
@@ -188,7 +188,7 @@ public interface SchoolService {
         
         ...
     }
-```java
+```
 
 **所以关键是要让server知道协议里用的哪个类，server只要能明白就行。client和server用同一个类作为协议只是其中最简单的一种实现罢了。**
 
@@ -203,7 +203,7 @@ public interface SchoolService {
 之后把定义的接口和对象编译为java类，协议和对象就都有了：
 ```bash
 thrift --gen java tutorial.thrift
-```java
+```
 接下来引入thrift的依赖。最后按照thrift的规范编程。thrift**直接就可以使用动态代理生成client端调用对象，socket的那一套都省了，比原始的rpc省了不少步骤**：
 ```java
 TTransport  transport = new TSocket("localhost", 9090);
@@ -211,7 +211,7 @@ TProtocol protocol = new  TBinaryProtocol(transport);
 Calculator.Client client = new Calculator.Client(protocol);
 
 int sum = client.add(1,1);
-```java
+```
 这就是rpc框架的好处！
 
 # gRPC
@@ -240,7 +240,7 @@ int sum = client.add(1,1);
 ```java
     @DubboReference
     private DemoService demoService;
-```java
+```
 就是这么猛！
 
 当然之所以特别简单，springboot功不可没。[如果写个普通的dubbo](https://cn.dubbo.apache.org/zh-cn/overview/quickstart/java/brief/)和thrift/grpc进行对比，其实又差不多了。大家都是[手动获取一个动态代理对象](https://github.com/apache/dubbo-samples/blob/master/1-basic/dubbo-samples-api/src/main/java/org/apache/dubbo/samples/client/Application.java)：
@@ -256,13 +256,13 @@ int sum = client.add(1,1);
 
         GreetingsService service = reference.get();
         String message = service.sayHi("dubbo");
-```java
+```
 不同的是dubbo一般使用zookeeper做[服务发现](https://cn.dubbo.apache.org/zh-cn/docs3-v2/java-sdk/concepts-and-architecture/service-discovery/)，而不是直接搞个ip:port让client连接server。所以还要额外启动一个zk：
 ```bash
 docker run --name dubbo-zk --restart always -p 2181:2181 -d zookeeper
 
 docker run -it --rm --link dubbo-zk:zookeeper zookeeper zkCli.sh -server zookeeper
-```java
+```
 
 ## IDL
 当然也可以使用IDL做支持异构的接口和数据结构：
@@ -366,7 +366,7 @@ public class RPCProxyClient implements java.lang.reflect.InvocationHandler{
         return result;
     }
 }
-```java
+```
 获取代理对象的`getProxy`方法放在哪里都行，这里放在`RPCProxyClient`里了。
 
 之后就可以获取动态代理对象，无感知进行rpc调用了：
@@ -378,7 +378,7 @@ public class Test {
         helloWorldService.sayHello("test");
     }
 }
-```java
+```
 
 ## 通信框架
 开头的两个例子，用的都是jdk的tcp通信，典型的bio通信。实际上框架级的rpc必然都是nio。
@@ -429,7 +429,7 @@ public class Test {
             return result;
         }
     }
-```java
+```
 4. 服务端接收到请求并处理后，将response结果（此结果中包含了前面的requestID）发送给客户端，**客户端socket连接上专门监听消息的线程（想具有主动通知的功能，client里也必须有一个监听线程）收到消息，分析结果，取到requestID，再从前面的ConcurrentHashMap里面get(requestID)，从而找到callback对象，再用synchronized获取callback上的锁，将方法调用结果设置到callback对象里，再调用callback.notifyAll()唤醒前面处于等待状态的线程**。
     ```java
     private void doneJob(Object response) {

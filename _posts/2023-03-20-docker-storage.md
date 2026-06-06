@@ -49,7 +49,7 @@ debian:app (master*) $ docker volume inspect todo-db
         "Scope": "local"
     }
 ]
-```bash
+```
 
 ## 挂载volume
 用`--volume`和`--mount`都可以。
@@ -85,17 +85,17 @@ debian:app (master*) $ docker volume inspect todo-db
 假设某个container挂载了一个匿名volume到/dbdata：
 ```bash
 docker run -v /dbdata --name dbstore ubuntu /bin/bash
-```bash
+```
 我们使用一个新容器挂载该匿名volume（使用`--volumes-from`），同时bind mount一个本地文件夹到容器，就可以将该container作为中转站，把匿名volume的内容copy到本地文件夹：
 ```bash
 docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
-```bash
+```
 同理，可以把备份内容恢复到另一个volume里：
 ```bash
 docker run -v /dbdata2 --name dbstore2 ubuntu /bin/bash
 
 docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /dbdata2 && tar xvf /backup/backup.tar --strip 1"
-```bash
+```
 
 # bind mount
 [bind mount](https://docs.docker.com/storage/bind-mounts/)**主要是[为了直接把host machine的本地文件暴露给container](https://docs.docker.com/storage/#good-use-cases-for-bind-mounts)**。但是不能使用docker管理bind mount，所以如果没有特殊理由就用volume。
@@ -170,7 +170,7 @@ services:
 volumes:
   mydata:
   dbdata:
-```bash
+```
 如果只绑定到一个service上，没必要定义一个顶级`volumes` key。如果想在多个service之间使用同一个volume，则需要定义。
 
 > You can mount a host path as part of a definition for a single service, and there is no need to define it in the top level volumes key.
@@ -194,7 +194,7 @@ volumes:
 
   # Named volume
   - datavolume:/var/lib/mysql
-```bash
+```
 
 **默认创建的volume名字是`[projectname]_[volume name]`，而非volume name。**
 
@@ -204,7 +204,7 @@ volumes:
   data:
     external:
       name: actual-name-of-volume
-```bash
+```
 
 # rancher volume
 一般来说，使用docker创建volume只能创建在单个宿主机上。在rancher上，可以创建被多个宿主机共享的volume，从而被多个container共享。

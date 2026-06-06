@@ -75,7 +75,7 @@ innodb索引即数据，有两种page：存放数据记录的叶子节点page、
 在windows powershell里下载最新版的mysql镜像，创建container，启动，并映射为系统的3306端口：
 ```bash
 PS C:\Users\puppylpg> docker run --name demo-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=password -d mysql:latest
-```dockerfile
+```
 
 ## mysql的数据存放位置
 可以查看`datadir`变量了解mysql的数据存储位置：
@@ -96,7 +96,7 @@ MySQL [(none)]> show variables like 'datadir';
 使用WSL（Debian）里的mysql client连接docker里的mysql。**默认linux的mysql客户端用的是unix domain socket连接mysql**，docker里的mysql server和WSL相当于不在同一个系统上，所以WSL里自然没有`/run/mysqld/mysqld.sock`。因此直接启动WSL里的mysql client是连不上的docker里的mysql的：
 ```bash
 ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/run/mysqld/mysqld.sock' (2)
-```dockerfile
+```
 **只能通过`--protocol=TCP`显式指定使用tcp连接，WSL里的mysql client才会使用tcp通过3306端口连接上docker里的mysql**：
 ```yaml
 ╰─○ mysql -hlocalhost -uroot -ppassword --protocol=TCP
@@ -117,7 +117,7 @@ mysql是在docker里启动的，所以会在这个container里创建socket。可
 首先使用bash打开这个container：
 ```bash
 PS C:\Users\puppylpg> docker exec -it demo-mysql /bin/bash
-```dockerfile
+```
 然后查看mysql server创建的socket的确存在：
 ```bash
 root@cc38467fca81:/# which mysql
@@ -143,7 +143,7 @@ owners.
 Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 
 mysql>
-```dockerfile
+```
 的确连上了。
 
 ## 数据库的位置
@@ -182,7 +182,7 @@ Database changed
 ```bash
 root@cc38467fca81:/var/lib/mysql# ls -lhb | grep pokemon
 drwxr-x--- 2 mysql mysql 4.0K Jan 22 07:06 pokemon
-```dockerfile
+```
 创建了一个叫pokemon的文件夹。**所以一个database在物理上就对应一个文件夹**。
 
 ## 表的位置
@@ -233,7 +233,7 @@ total 264K
 -rw-r----- 1 mysql mysql 3.9K Jan 22 07:06 enemy_364.sdi
 -rw-r----- 1 mysql mysql 128K Jan 22 07:05 player.ibd
 -rw-r----- 1 mysql mysql 128K Jan 22 07:02 user.ibd
-```sql
+```
 - 每个innodb的表对应一个`<表名>.ibd`的二进制文件：
     + `.idb`：存储数据 + 表结构；
 - 每个MyISAM的表对应三个文件，其中两个代表数据文件和索引文件，因为MyISAM数据和索引是分开的，所以存储的时候也是分开的：

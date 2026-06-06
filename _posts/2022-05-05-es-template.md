@@ -29,7 +29,7 @@ org.elasticsearch.xpack.monitoring.exporter.ExportException: StrictDynamicMappin
  ...
  
 Caused by: org.elasticsearch.index.mapper.StrictDynamicMappingException: mapping set to strict, dynamic introduction of [threads] within [node_stats.thread_pool.write] is not allowed
-```bash
+```
 
 看报错信息，写es失败：`node_stats.thread_pool.write`这个filed接收不了threads这个子field。因为索引的dynamic=strict，所以不能接受未定义field。
 
@@ -69,7 +69,7 @@ green open .monitoring-kibana-7-2022.04.22     e5kmnwW6SLKQswyoNeM1uQ 15 1    48
 green open .async-search                       cIYn0VToR0uE6lsNQzA8EQ  1 1      0      0  25.5kb  12.7kb
 green open .monitoring-es-7-2022.04.21         sDG2cWHHT5CuD9bCZ4nIQg  1 1 779440 703560   1.2gb 626.2mb
 green open .monitoring-es-7-2022.04.20         DDNoYKUqSy6JKYo5AxLTsw  1 1 732097  59782   1.1gb 584.3mb
-```json
+```
 其中和监控相关的index有两种，一种是kibana的监控数据，一种是es的监控数据，各7天，每天一个index：
 ```json
 GET _cat/indices/.monitoring-*
@@ -88,7 +88,7 @@ green open .monitoring-kibana-7-2022.04.18 -pAUY81cS6-9oPoDdeCUTw  1 1  17264   
 green open .monitoring-es-7-2022.04.20     DDNoYKUqSy6JKYo5AxLTsw  1 1 732097  59782  1.1gb 584.3mb
 green open .monitoring-kibana-7-2022.04.17 p8qay42gSQ23h1Jx_ray-g  1 1  17280      0  6.3mb   3.1mb
 green open .monitoring-kibana-7-2022.04.19 _69KXenXRRWWZWly12Eu0w  1 1  17280      0  6.2mb   3.1mb
-```bash
+```
 查看今天的es monitoring的mapping：
 ```json
 GET .monitoring-es-7-2022.04.22/_mapping
@@ -111,7 +111,7 @@ GET .monitoring-es-7-2022.04.22/_mapping
                 "cluster_name" : {
                   "type" : "keyword"
 ...
-```bash
+```
 
 > 查看`.monitoring-es-7-2022.04.22`的mappings定义，监控的metric还挺多。
 
@@ -121,7 +121,7 @@ GET .monitoring-es-7-2022.04.22/_mapping
 看了一下昨天的index的mapping：
 ```json
 GET .monitoring-es-7-2022.04.21/_mapping
-```json
+```
 **dynamic为false，所以可以写入mapping里未定义的threads field，不会报错**！
 
 这就离谱了，为啥昨天的index denamic=false，今天存储监控信息的index的dynamic=strict，两个还不一样？
@@ -146,7 +146,7 @@ PUT _template/default_template
    "dynamic": "strict"
  }
 }
-```bash
+```
 看着那个index_patterns，擦……所有的index都默认被设置为dynamic=strict！所以不是x-pack给监控索引设置的dynamic=strict，是默认设置的……
 
 > 突然想起刚刚查到的也遇到过这个问题的：
@@ -164,7 +164,7 @@ GET _template
     "index_patterns" : [
       ".monitoring-es-7-*"
     ],
-```bash
+```
 优先级是order=0。
 
 而晓立设置的default template默认匹配所有的index：
@@ -172,7 +172,7 @@ GET _template
    "index_patterns" : [
      "*"
    ],
-```json
+```
 优先级也是order=0。
 
 **两个优先级相同的模板同时满足`.monitoring-es-7-2022.04.22`这个索引，会发生什么情况**？
@@ -196,7 +196,7 @@ PUT _template/default_template
       "dynamic" : "false"
     }
 }
-```json
+```
 这样es先解析order=-1的template，再拿order=0的覆盖它，最后新建的monitor相关的index的dynamic就是false。
 
 Ref：
@@ -310,7 +310,7 @@ PUT _template/default_template
 GET _cat/indices?h=health,status,index,id,pri,rep,docs.count,docs.deleted,store.size,creation.date.string&v=
 
 green  open   .monitoring-es-7-2022.04.21     sDG2cWHHT5CuD9bCZ4nIQg   1   1     779440       703560      1.2gb 2022-04-21T00:00:00.307Z
-```java
+```
 果然是UTC零点，也就是东八区早上八点创建的。（Z：zulu时区，也是UTC时区）
 
 新创建的索引mapping有问题，所以八点报的错。

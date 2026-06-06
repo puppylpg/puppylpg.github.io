@@ -46,7 +46,7 @@ Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ct
             }
         }
     }
-```java
+```
 使用`hook.join()`等待所有hook执行完。
 
 # Catalina注册shutdownhook

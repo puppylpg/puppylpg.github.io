@@ -19,7 +19,7 @@ new Thread(
     }
   }
 ).start();
-```java
+```
 这个线程在开启之后一直在做无意义的空循环，且这个线程本身没有退出的设定，因此除非退出JVM，否则别的线程奈何不了它，它将会一直欢快地空转下去。
 
 1. Table of Contents, ordered
@@ -51,7 +51,7 @@ new Thread(
     }
   }
 ).start();
-```java
+```
 因此**当执行很耗时的操作时，需要经常check interrupt的状态，并且一旦发现为true，就应该立即退出，这样才能及时取消那些非常耗时的操作**。
 
 # 阻塞方法
@@ -76,7 +76,7 @@ try {
     e.printStackTrace();
     throw new RuntimeException(e);
 }
-```java
+```
 这一通操作之后，线程还活着，并且只给上层调用者一个`RuntimeException`，这是不对的。我们必须告诉上层调用者有人想中断这个线程，至于上层怎么做，就不归我们管了。如果一个caller调用的方法可能会抛出InterruptedException异常，那么这个caller需要考虑怎么处理这个异常。
 
 ## 恢复中断状态
@@ -147,7 +147,7 @@ public class InterruptRethrow extends Thread {
         log.info("task thread interrupted? " + thread.isInterrupted());
     }
 }
-```bash
+```
 输出：
 ```java
 2023-01-12 16:45:53 [Thread-0] INFO  example.thread.interrupt.InterruptRethrow:29 - task round: 0
@@ -163,7 +163,7 @@ java.lang.InterruptedException: sleep interrupted
 	at example.thread.interrupt.InterruptRethrow.task(InterruptRethrow.java:39)
 	at example.thread.interrupt.InterruptRethrow.caller(InterruptRethrow.java:31)
 	at example.thread.interrupt.InterruptRethrow.run(InterruptRethrow.java:17)
-```java
+```
 
 ## task方法：恢复中断状态
 ```java
@@ -236,7 +236,7 @@ public class InterruptReInterrupt extends Thread {
 2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:45 - interruption happens...
 2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:25 - task round: 3
 2023-01-12 16:46:34 [Thread-0] INFO  example.thread.interrupt.InterruptReInterrupt:29 - thread is interrupted. exiting...
-```java
+```
 
 
 **当然，如果子线程在耗时操作`caller()`里始终不检查是否被中断了，也永远不会退出。所以我们在做一个很耗时的操作时，应该有觉悟检查中断状态，以便收到中断信号时退出。**
@@ -301,7 +301,7 @@ public class InterruptFailure extends Thread {
     }
 
 }
-```bash
+```
 输出：
 ```
 2023-01-12 16:50:24 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 0
@@ -331,7 +331,7 @@ public class InterruptFailure extends Thread {
 2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:23 - task round: 11
 2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:26 - alert: process interruption wrongly. can't wait any longer. exit myself
 2023-01-12 16:50:35 [Thread-0] INFO  example.thread.interrupt.InterruptFailure:31 - thread is interrupted. exit loop    
-```bash
+```
 
 对于最后一种情况，如果不是当i>10时，线程自己给自己置flag为true，然后进行了自我了断，那么i将一直增长到Integer.MAX_VALUE，才会结束for循环，线程才会退出。也就是说，**另一个线程（main thread）想要打断该线程，但是打断操作被该线程忽略了**。
 

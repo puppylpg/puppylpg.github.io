@@ -40,7 +40,7 @@ while (rs.next()) {
     int id = rs.getInt("id");
     ...
 }
-```java
+```
 
 在介绍`Connection`和jdbc的设计之前，先简单介绍这些接口的作用。
 
@@ -54,13 +54,13 @@ Statement stmt = conn.createStatement();
 stmt.execute("SET @my_variable = 'my_value'");
 // 或者
 stmt.execute("SET SESSION my_variable = 'my_value'");
-```sql
+```
 
 ```java
 Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/my_database", "username", "password");
 Statement stmt = conn.createStatement();
 stmt.execute("SET GLOBAL my_variable = 'my_value'");
-```java
+```
 **一种更简单的方案是把session变量直接加到jdbc的url上，比如`jdbc:mysql://localhost:3306/my_database?sessionVariables=k1=v1,k2=v2&other_param=value`。这样创建出来的每一个`Statement`都已经设置了session variable**。
 
 > 但是我觉得这种方法可能容易遗忘，抄url的时候可能抄的不是这一条，session variable就忘了设置了。
@@ -91,7 +91,7 @@ ResultSet rs = stmt.executeQuery("SELECT * FROM users WHERE username = '" + user
 如果用户输入的username为`'; DROP TABLE users; --`，拼接出来的sql语句就成了：
 ```sql
 SELECT * FROM users WHERE username = ''; DROP TABLE users; --' AND password = '';
-```java
+```
 1. 执行一个select操作，过滤条件是username为空；
 2. drop users表；
 3. 后面的部分被`--`注释掉了；
@@ -109,7 +109,7 @@ pstmt.setString(1, username);
 pstmt.setString(2, password);
 
 ResultSet rs = stmt.executeQuery();
-```sql
+```
 1. 创建`PreparedStatement`的时候，必须提供sql模板，参数部分用问号代替；
 2. 通过`PreparedStatement`提供的方法设置值，1代表第0个参数，**不是从0开始数的，有点儿反程序员了**；
 
@@ -119,7 +119,7 @@ ResultSet rs = stmt.executeQuery();
 它和普通`Statement`最大的不同是：**sql模板和sql参数分次提供，所以二者能区分开来，确保参数值不会被误认为sql代码**。如果用户输入的username是`'; DROP TABLE users; --`，`PreparedStatement`知道它是参数，会给它加上引号，sql语句变成：
 ```sql
 SELECT * FROM users WHERE username = "'; DROP TABLE users; --" AND password = '';
-```java
+```
 1. 执行一条select语句，username为`"'; DROP TABLE users; --"`，password为空；
 
 这样就不会发生sql注入问题了。所以**建议使用`PreparedStatement`而非`Statement`**。
@@ -140,7 +140,7 @@ Connection conn = new MySQLConnectionImpl(info);
 或者h2：
 ```java
 Connection conn = new org.h2.jdbc.JdbcConnection(String url, Properties info, String user, Object password, boolean forbidCreation);
-```java
+```
 其实他们的入参都差不多，和使用`mysql` cli客户端相似，无非就是：
 - host
 - port
@@ -160,7 +160,7 @@ interface Driver {
 
     Connection getConnection(Properties info);
 }
-```java
+```
 在`mysql-connector-java-xxx.jar`中：
 ```java
 public class MysqlDriver implements Driver {
@@ -170,7 +170,7 @@ public class MysqlDriver implements Driver {
         return new MySqlConnectionImpl(info);
     }
 }
-```java
+```
 当然，其他比如`oracle-jdbc.jar`等也类似。
 
 此时程序可以使用驱动包实例化driver：
@@ -189,7 +189,7 @@ driverName = "com.mysql.jdbc.Driver"
 Class<?> clazz = Class.forName(driverName);
 Driver driver = (Driver)clazz.newInstance();
 Connection conn = driver.getConnection(info);
-```java
+```
 配置是肯定免不了的，毕竟用哪个数据库只有我们自己知道，总需要在一个地方体现出来。
 
 > **除非像spring boot一样，发现有哪个数据库的lib，就自动创建那个数据库的driver，通过引入的lib来标识自己想用的数据库**。但jdk又没有“自动装配”这种东西。
@@ -229,7 +229,7 @@ public class DriverManager {
         }
     }
 }
-```java
+```
 **DriverManager通过所配置的db的url**，从注册到自己上面的drivers里检索出一个匹配的，创建Connection。
 
 关键在于：**driver是怎么注册到DriverManager上的**？
@@ -250,7 +250,7 @@ public class MysqlDriver implements Driver {
         }
     }
 }
-```java
+```
 **如果我们想用mysql driver，就调用`Class.forName(xxx)`，这样就会加载这个Driver类，与此同时，静态代码块里的代码就会被执行，mysql driver被注册到`DriverManager`**：
 ```java
 Class.forName("com.mysql.jdbc.Driver");
@@ -315,7 +315,7 @@ public class Driver extends NonRegisteringDriver implements java.sql.Driver {
         // Required for Class.forName().newInstance()
     }
 }
-```java
+```
 
 > 通过静态代码块注册，只要new这个实例，肯定就加载了这个类，执行了静态代码块，注册行为也就完成了。
 
@@ -325,7 +325,7 @@ public class Driver extends NonRegisteringDriver implements java.sql.Driver {
 **在JDBC4.0之前，因为没有`ServiceLoader`，这种触发行为必须是手动的**：
 ```java
 Class.forName("com.mysql.cj.jdbc.Driver")
-```java
+```
 **在JDBC 4之后（同时搭配jdk 1.6+），这个必须手写的操作就过时了，注册行为可以按照SPI标准自动完成了**。
 
 - https://stackoverflow.com/a/18297412/7676237
@@ -446,7 +446,7 @@ public class JdbcExample {
         }
     }
 }
-```bash
+```
 或者用try-with-resources简化一下：
 ```java
 try (Connection conn = DriverManager.getConnection(url, user, password);
@@ -488,7 +488,7 @@ public class JdbcExample {
         }
     }
 }
-```java
+```
 如果带上事务提交和回滚，就更麻烦了：
 ```java
 import java.sql.Connection;
@@ -580,7 +580,7 @@ public class JdbcSavepointExample {
         }
     }
 }
-```bash
+```
 
 虽然jdbc写出来的代码被诟病繁琐，并出现了很多基于jdbc的高层封装，比如spring jdbc、mybatis、hibernate等，但jdbc永远是其基石，这一点也就决定了jdbc是无可撼动的。
 

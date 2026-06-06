@@ -72,7 +72,7 @@ puppylpg.xyz.           172800  IN      NS      ns1.dnsowl.com.
 puppylpg.xyz.           172800  IN      NS      ns2.dnsowl.com.
 puppylpg.xyz.           172800  IN      NS      ns3.dnsowl.com.
 ;; Received 223 bytes from 162.159.27.130#53(ns2.dnsowl.com) in 4 ms
-```txt
+```
 - 向根级域名的域名服务器查顶级域名`.xyz`的**NS服务器**，`l.root-servers.net`给结果最快，给出了4个NS服务器（xyz的NS），木有A记录；
 - 向这4个NS（顶级域名的域名服务器）查次级域名`.puppylpg`的**NS服务器**，`y.nic.xyz`反应最快，给出了3个NS服务器（puppylpg的NS），木有A记录；
 - 向这3个NS（次级域名的域名服务器）查主机名`netdata`的**A记录（查的就是它的ip，所以不再是NS记录了）**，`ns2.dnsowl.com`反应最快，给出了`netdata.puppylpg.xyz.`的CNAME，它没有A记录；
@@ -86,7 +86,7 @@ puppylpg.xyz.           172800  IN      NS      ns1.dnsowl.com.
 puppylpg.xyz.           172800  IN      NS      ns2.dnsowl.com.
 puppylpg.xyz.           172800  IN      NS      ns3.dnsowl.com.
 ;; Received 217 bytes from 162.159.26.234#53(ns3.dnsowl.com) in 8 ms
-```txt
+```
 返回的就是`puppylpg.xyz`的A记录和NS记录了。但是之前查的是`netdata.puppylpg.xyz.`，所以`puppylpg.xyz`就只显示NS记录，不显示A记录了。
 
 每一级NS服务器找出下一级域名，再根据下一级域名查到它这一级的NS服务器地址，向该级NS服务器查下一级域名，直到查到，**就像一个链一样。但还有一个条件没有满足：链的头是怎么知道的**？即root NS服务器的地址是怎么知道的？他们因为是root，所以NS记录和IP地址一般是不会变化的，所以内置在DNS服务器里面。
@@ -162,7 +162,7 @@ m.root-servers.net.     511286  IN      AAAA    2001:dc3::35
 ;; SERVER: 1.0.0.1#53(1.0.0.1)
 ;; WHEN: Thu Dec 02 11:05:37 EST 2021
 ;; MSG SIZE  rcvd: 811
-```txt
+```
 不仅给出了所有的13组NS，还给出了他们的ipv4地址和ipv6地址。
 
 我在namesilo买的域名，理所当然默认用的是namesilo的服务器：
@@ -192,7 +192,7 @@ ns3.dnsowl.com.         0       IN      AAAA    2400:cb00:2049:1::a29f:1b62
 ;; SERVER: 172.26.240.1#53(172.26.240.1)
 ;; WHEN: Mon Mar 06 20:52:03 CST 2023
 ;; MSG SIZE  rcvd: 242
-```xml
+```
 但namesilo的网站界面实在是太丑了。网站又丑又慢还不是原罪，namesilo的NS实在和行业翘楚cloudflare没法比：namesilo每次更新dns时要近一个小时才生效，**cloudflare配置一个新的dns记录秒生效**，体验上简直是云泥之别！
 
 > 而且cloudflare免费服务的一部分，其他还有一些放DDoS的安全措施、邮件转发等，操作起来也非常人性化。
@@ -222,7 +222,7 @@ aryanna.ns.cloudflare.com. 0    IN      A       108.162.194.95
 ;; SERVER: 172.26.240.1#53(172.26.240.1)
 ;; WHEN: Tue Mar 07 21:39:34 CST 2023
 ;; MSG SIZE  rcvd: 192
-```xml
+```
 NS成功从namesilo换成了cloudflare！之后就可以享受cloudflare的NS带来的便捷了。
 
 > 同样是NS，专业的吊打非专业的:D
@@ -260,7 +260,7 @@ puppylpg.xyz.           0       IN      A       104.225.232.103
 ;; SERVER: 172.30.128.1#53(172.30.128.1)
 ;; WHEN: Wed Dec 01 21:20:47 CST 2021
 ;; MSG SIZE  rcvd: 106
-```xml
+```
 
 ## `dig MX <domain>`
 用于获取域名记录的邮件服务器。电子邮件用一种特殊的DNS记录称为MX记录（Mail Exchange）。如果你发一封邮件给`1234@qq.com`,发送方服务器会对@分隔符后面的`qq.com`做一个MX记录查询，DNS返回的查询结果举个例子是`receive.qq.com`,发送方服务器就会使用smtp协议给`receive.qq.com`的特定端口（如25）发送邮件。
@@ -282,7 +282,7 @@ puppylpg.xyz.           0       IN      A       104.225.232.103
 ;; SERVER: 172.30.128.1#53(172.30.128.1)
 ;; WHEN: Wed Dec 01 21:25:04 CST 2021
 ;; MSG SIZE  rcvd: 30
-```java
+```
 **因此如果给`xxx@puppylpg.xyz`发邮件，会无处可发**。
 
 可以在域名服务商提供的域名的管理页面添加MX记录。我给它加了163的邮件接收服务器的地址，之后再查：
@@ -307,7 +307,7 @@ puppylpg.xyz.           7207    IN      MX      10 163mx01.mxmail.netease.com.
 ;; SERVER: 1.0.0.1#53(1.0.0.1)
 ;; WHEN: Thu Dec 02 11:15:01 EST 2021
 ;; MSG SIZE  rcvd: 83
-```xml
+```
 此时如果给`xxx@puppylpg.xyz`发邮件，会发给163邮箱服务器，但应该会被安全策略拒收。
 
 ## `dig TXT <domain>`
@@ -330,7 +330,7 @@ youdaoads.com. 598 IN TXT "v=spf1 include:spf.163.com -all"
 ;; SERVER: 10.238.14.4#53(10.238.14.4)
 ;; WHEN: Mon Jun 28 17:51:46 CST 2021
 ;; MSG SIZE rcvd: 98
-```python
+```
 其实就一条：`youdaoads.com. 598 IN TXT "v=spf1 include:spf.163.com -all"`，是用来记录SPF的。
 
 
@@ -341,7 +341,7 @@ Ref：
 CNAME是Canonical Name的缩写，指的是“真实名称”。一个比较易混的点：cname指的是右边的域名是真实名称，左边的是alias。比如：
 ```txt
 netdata.puppylpg.xyz.	CNAME	puppylpg.xyz.
-```nginx
+```
 指的是netdata.puppylpg.xyz指向的“真实名称”是puppylpg.xyz，也就是说pupyplpg.xyz才是CNAME。
 
 ### 使用场景
@@ -380,7 +380,7 @@ www.baidu.com.
 www.a.shifen.com.
 220.181.38.150
 220.181.38.149
-```txt
+```
 但是想通过这个域名访问baidu，并不会成功：
 ```xml
 ~ curl -v du.puppylpg.xyz
@@ -399,7 +399,7 @@ www.a.shifen.com.
 < Content-Type: text/plain; charset=utf-8
 <
 * Connection #0 to host du.puppylpg.xyz left intact
-```nginx
+```
 因为在http request header里，Host是du.puppylpg.xyz，百度收到这样的请求，是不会处理的。
 
 想实现这种需求，不是通过CNAME来实现的，而是nginx：du.puppylpg.xyz指向自己的nginx服务，nginx把header里的Host换成baidu，再给百度发请求：
@@ -407,7 +407,7 @@ www.a.shifen.com.
 location / { 
     sub_filter www.baidu.com baidu.leishi.io; sub_filter_once off; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header Referer https://www.baidu.com; proxy_set_header Host www.baidu.com; proxy_set_header Accept-Encoding ""; proxy_pass https://www.baidu.com;
 }
-```bash
+```
 
 - https://www.v2ex.com/t/634903
 
@@ -436,7 +436,7 @@ netdata.puppylpg.xyz.   7207    IN      CNAME   puppylpg.xyz.
 ;; SERVER: 1.0.0.1#53(1.0.0.1)
 ;; WHEN: Thu Dec 02 11:20:39 EST 2021
 ;; MSG SIZE  rcvd: 63
-```java
+```
 
 **域名一旦设置CNAME记录以后，就不能再设置其他记录了（比如A记录和MX记录）**。比如`netdata.puppylpg.xyz`不能在设置A和MX了，不然发给`@netdata.puppylpg.xyz`的邮件到底是发给它的MX的，还是发给`puppylpg.xyz`的MX的？冲突了。
 
@@ -449,7 +449,7 @@ netdata.puppylpg.xyz.   7207    IN      CNAME   puppylpg.xyz.
 ;; SERVER: 172.30.208.1#53(172.30.208.1)
 ;; WHEN: Mon Dec 27 17:32:10 CST 2021
 ;; MSG SIZE  rcvd: 66
-```txt
+```
 
 此时可以直接指定NS服务器查询，返回的一定是最新的结果。dig不会再从本机缓存里查询：
 ```txt
@@ -459,7 +459,7 @@ ns3.dnsowl.com.
 ns1.dnsowl.com.
 ~ dig TXT puppylpg.xyz +short
 "spf.163.com"
-```txt
+```
 
 从返回内容也可以看出，是花了一些时间才获取到的，而不是0ms：
 ```python
@@ -467,7 +467,7 @@ ns1.dnsowl.com.
 ;; SERVER: 162.159.27.173#53(162.159.27.173)
 ;; WHEN: Mon Dec 27 17:32:36 CST 2021
 ;; MSG SIZE  rcvd: 283
-```bash
+```
 
 - https://serverfault.com/questions/372066/force-dig-to-resolve-without-using-cache
 

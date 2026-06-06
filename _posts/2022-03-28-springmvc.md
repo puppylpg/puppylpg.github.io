@@ -75,7 +75,7 @@ DispatcherServlet作为servlet，也不例外：
     <servlet-name>mvc</servlet-name>
     <url-pattern>/api</url-pattern>
 </servlet-mapping>
-```java
+```
 
 ### annotation
 **从Servlet 3.0起（spring 4.0支持Servlet 3.0），可以不再使用web.xml了**。servlet规范推出了一套支持annotation的配置逻辑：tomcat会查找`javax.servlet.ServletContainerInitializer`的实现类，它可以直接配置servlet。**所以找到它就相当于找到了web.xml**。
@@ -115,7 +115,7 @@ public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherSer
   }
 
 }
-```java
+```
 在自己写的配置类里，用户按照自己的需求，进行不同程度的自定义配置：
 - 自定义一些配置，比如：把哪个uri映射到DispatcherServlet上（一般是`/`）；
 - 业务逻辑相关的配置写在了RootConfig类里；
@@ -220,7 +220,7 @@ handler interceptor其实挺好记：
 	public boolean supportsReturnType(MethodParameter returnType) {
 		return ModelAndView.class.isAssignableFrom(returnType.getParameterType());
 	}
-```java
+```
 而它的处理方式就是从ModelAndView里获取model和view。
 
 > **注意：这里并不是渲染view**。
@@ -334,7 +334,7 @@ public class GlobalExceptionHandler {
 			}
 		}
 	}
-```java
+```
 1. 它会从ApplicationContext里找到所有的`@ControllerAdvice` bean；
 2. 然后把`@ExceptionHandler`找出来；
 3. 再把返回`@ResponseBody`的找出来；
