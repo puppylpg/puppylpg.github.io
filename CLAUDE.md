@@ -65,6 +65,22 @@ description: "一句话摘要，用于 SEO 和 feed"
 - 除 `open` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
 - `open` 使用 `/:collection/:title/`，列表按 front matter 的 `order` 排序。
 
+## Mermaid 图规则
+
+博客已支持 Mermaid（`_posts`、`_ai`、`_open`、`_tutorials` 默认开启）。写技术文章时，遇到以下场景应主动插入 Mermaid 图帮助理解：
+
+- **接口/类继承体系**：用 `classDiagram`，突出继承和组合关系
+- **多步骤流程**：用 `flowchart TD`（纵向）或 `flowchart LR`（横向），用 `style` 给关键节点上色
+- **时序交互**：用 `sequenceDiagram`，展示组件间的调用顺序和事件
+- **优先级/层级**：用 `flowchart TD`，从高到低排列，用颜色分组
+
+绘图原则：
+
+- **美观**：用 `style` 填充色区分角色/阶段（如 `#fff9c4` 高亮关键步骤，`#e3f2fd` 标注回调，`#e8f5e9` 标注实例化）
+- **层次清晰**：`flowchart` 用子图 `subgraph` 划分阶段；`classDiagram` 用 `<<interface>>` 标注接口
+- **依赖/包含关系突出**：`classDiagram` 用 `--|>` 表示继承、`--` 表示组合；`flowchart` 用箭头方向表示依赖
+- **不滥用**：纯文字能说清楚的不要画图；一张图专注一个关注点，避免信息过载
+
 ## 构建坑点
 
 - `categories` / `tags` 必须小写。`jekyll-archives` 只管 `_posts` 的归档页；自定义集合由 `_plugins/collection-archives.rb` 处理，两者都依赖 slugify，大小写混用会生成重复归档页。
