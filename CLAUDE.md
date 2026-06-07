@@ -74,6 +74,41 @@ description: "一句话摘要，用于 SEO 和 feed"
 - PR / Issue：`gh pr ...`、`gh issue ...`
 - 仓库元信息 / Release：`gh repo view`、`gh release ...`
 
+## 文章发布流程
+
+适用于所有 skill（summarize-article、archive-chat 等）生成的文章。
+
+### 本地预览
+
+```bash
+bin/jekyll-dev.sh restart
+open "http://127.0.0.1:4000/<collection>/<path>/"
+```
+
+- `_ai` 集合的 URL 格式：`/ai/YYYY/MM/DD/<slug>/`
+- `_open` 集合的 URL 格式：`/open/<slug>/`
+- 先让用户预览，确认 OK 后再 commit，不自动 commit
+
+### 文件命名
+
+- 集合文章文件名：`YYYY-MM-DD-<slug>.md`
+- slug 用英文短横线小写串（去掉中文标点和特殊符号，保留中英文单词和数字，用短横线连接）
+- 不用中文做文件名
+
+### Git 提交与发布
+
+```bash
+git add <PATH>
+git commit -m "Add: <一句话描述>
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+git push
+```
+
+查 CI：`gh run list --workflow=pages-deploy.yml --limit 1`
+
+用户不满意时清理：`rm <PATH>`
+
 ## Commit 签名
 
 所有 commit message 必须附加 Co-Authored-By trailer 标识 Claude 参与贡献:
