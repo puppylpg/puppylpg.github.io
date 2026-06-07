@@ -1,6 +1,6 @@
 ---
 title: "Claude Code LSP 能力演示与原理解析"
-date: 2026-06-08 10:00:00 +0800
+date: 2026-06-08 01:48:00 +0800
 categories: [ai, tool]
 tags: [claude-code, lsp, jdtls, java, code-navigation]
 description: "通过 8 种 LSP 操作的实际演示，深入理解 Claude Code 如何利用 jdtls 实现精确的代码导航，以及背后的索引原理。"
