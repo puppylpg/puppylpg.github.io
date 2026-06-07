@@ -6,7 +6,7 @@ tags: [claude-code, lsp, jdtls, java, code-navigation]
 description: "通过 8 种 LSP 操作的实际演示，深入理解 Claude Code 如何利用 jdtls 实现精确的代码导航，以及背后的索引原理。"
 ---
 
-LSP（Language Server Protocol）是 Claude Code 与代码库交互的核心能力之一。本文记录一次完整的演示过程：从铺开 8 种基础操作，到在真实业务类上做深度分析，再到追问"这一切背后怎么工作的"。理论讲解穿插在每次实际操作之后，因为看到结果再理解原理比纯讲理论更自然。
+LSP（Language Server Protocol）是 Claude Code 与代码库交互的核心能力之一。本文先用一个简单接口把 8 种操作跑一遍，再换到真实业务类看规模，最后追问这些查询为什么这么快——背后靠的是 jdtls 启动时建好的内存索引。
 
 1. Table of Contents, ordered
 {:toc}
@@ -96,9 +96,9 @@ LSP prepareCallHierarchy — IndicesTemplate.java:134
 → 为 incomingCalls/outgoingCalls 初始化调用链查询上下文
 ```
 
-# 换到真实业务类，看规模
+# 在真实业务类上看规模
 
-`IndexOperations` 是接口，换 `AbstractElasticsearchTemplate`（875 行，核心操作抽象基类）看看 LSP 在真实代码上能做什么。
+`IndexOperations` 是接口，换到 `AbstractElasticsearchTemplate`（875 行，核心操作抽象基类）看看 LSP 在真实代码上的表现。
 
 **先摸清规模**
 
@@ -140,7 +140,7 @@ LSP findReferences — AbstractElasticsearchTemplate.java:83
 
 12 处——LSP 返回的是类型系统层面的引用，精确到每一个真正使用了这个类型的位置。
 
-# 追问原理——LSP 怎么知道这一切？
+# LSP 怎么知道这一切？
 
 看完演示，自然会问：这些查询为什么这么快？它怎么知道 `AbstractElasticsearchTemplate` 在 12 个文件里被引用了多少次？
 
@@ -175,11 +175,13 @@ AST（抽象语法树）
 | `incomingCalls` | 调用图（反向） |
 | `outgoingCalls` | 调用图（正向） |
 
-**为什么比 grep 准**：grep 是文本匹配，搜 `save` 会命中所有含该字符串的行，无法区分同名方法。LSP 工作在类型系统层面，`findReferences` 找的是"同一个符号"，不会误匹配。
+和 grep 相比，LSP 的本质优势在于它工作在类型系统层面：grep 搜 `save` 会命中所有含该字符串的行，无法区分同名方法；`findReferences` 找的是"同一个符号"，不会误匹配。
 
 文件变更时，jdtls 只重新分析改动文件及其依赖方（增量更新），不会重跑全量分析。
 
-# 这个进程谁启动的？什么时候？
+# Language Server 进程从哪来？
+
+知道了原理，下一个问题是：这个 jdtls 进程本身是谁启动的？
 
 **实测进程归属**
 
@@ -206,7 +208,4 @@ Cursor 的 jdtls 随项目关闭而销毁，Claude Code 的保持不变。两套
 
 # 结论
 
-+ jdtls 启动时全量静态分析，建立 AST → 符号表 → 引用图 → 调用图，后续查询直接读内存索引
-+ 8 种操作覆盖代码导航核心场景：每种操作背后对应不同的索引查询，理解这一点才能用对工具
-+ Claude Code 与 Cursor 各自维护独立的 jdtls 进程和索引，生命周期与各自客户端绑定
-+ LSP 相比 grep 的本质优势：工作在类型系统层面，精确追踪同一符号，不受文本相似性干扰
+jdtls 启动时全量静态分析，建立 AST → 符号表 → 引用图 → 调用图，后续查询直接读内存索引。8 种操作覆盖代码导航核心场景，每种操作背后对应不同的索引查询，理解这一点才能用对工具。Claude Code 与 Cursor 各自维护独立的 jdtls 进程和索引，生命周期与各自客户端绑定。而 LSP 相比 grep 的本质优势是工作在类型系统层面，精确追踪同一符号，不受文本相似性干扰。
