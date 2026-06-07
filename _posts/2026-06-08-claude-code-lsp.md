@@ -8,9 +8,10 @@ description: "通过 8 种 LSP 操作的实际演示，深入理解 Claude Code 
 
 LSP（Language Server Protocol）是 Claude Code 与代码库交互的核心能力之一。本文记录一次完整的演示过程：从铺开 8 种基础操作，到在真实业务类上做深度分析，再到追问"这一切背后怎么工作的"。理论讲解穿插在每次实际操作之后，因为看到结果再理解原理比纯讲理论更自然。
 
----
+1. Table of Contents, ordered
+{:toc}
 
-## 第一步：用一个简单接口铺开 8 种操作
+# 用一个简单接口铺开 8 种操作
 
 选 `IndexOperations`——Elasticsearch 索引管理接口，方法清晰，方便聚焦在操作本身上。
 
@@ -95,9 +96,7 @@ LSP prepareCallHierarchy — IndicesTemplate.java:134
 → 为 incomingCalls/outgoingCalls 初始化调用链查询上下文
 ```
 
----
-
-## 第二步：换到真实业务类，看规模
+# 换到真实业务类，看规模
 
 `IndexOperations` 是接口，换 `AbstractElasticsearchTemplate`（875 行，核心操作抽象基类）看看 LSP 在真实代码上能做什么。
 
@@ -141,9 +140,7 @@ LSP findReferences — AbstractElasticsearchTemplate.java:83
 
 12 处——LSP 返回的是类型系统层面的引用，精确到每一个真正使用了这个类型的位置。
 
----
-
-## 第三步：追问原理——LSP 怎么知道这一切？
+# 追问原理——LSP 怎么知道这一切？
 
 看完演示，自然会问：这些查询为什么这么快？它怎么知道 `AbstractElasticsearchTemplate` 在 12 个文件里被引用了多少次？
 
@@ -165,7 +162,7 @@ AST（抽象语法树）
   └─▶ 调用图（双向）：caller ↔ callee
 ```
 
-8 种 LSP 操作各自对应哪张索引：
+## 8 种操作各自对应哪张索引
 
 | 操作 | 查的索引 |
 | --- | --- |
@@ -182,9 +179,7 @@ AST（抽象语法树）
 
 文件变更时，jdtls 只重新分析改动文件及其依赖方（增量更新），不会重跑全量分析。
 
----
-
-## 第四步：再追问——这个进程谁启动的？什么时候？
+# 这个进程谁启动的？什么时候？
 
 **实测进程归属**
 
@@ -209,9 +204,7 @@ $ ps aux | grep -i "jdt"
 
 Cursor 的 jdtls 随项目关闭而销毁，Claude Code 的保持不变。两套索引完全独立，互不干扰——这也意味着在 Claude Code 里做的 LSP 查询和 Cursor 的智能提示是各自独立计算的。
 
----
-
-## 结论
+# 结论
 
 + jdtls 启动时全量静态分析，建立 AST → 符号表 → 引用图 → 调用图，后续查询直接读内存索引
 + 8 种操作覆盖代码导航核心场景：每种操作背后对应不同的索引查询，理解这一点才能用对工具
