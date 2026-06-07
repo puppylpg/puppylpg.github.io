@@ -27,6 +27,7 @@ bundle exec htmlproofer _site --disable-external --no-enforce-https
 - 新内容 front matter 必填：`title`、`date`。
 - 推荐补齐：`categories`、`tags`、`description`。
 - 日期带 `+0800`；站点时区是 `Asia/Shanghai`。
+- `date` 必须用当前真实时间，不要编造。用 `date '+%Y-%m-%d %H:%M:%S %z'` 获取。
 - `categories` 和 `tags` 保持小写。
 - 新增集合文章时不要写 `layout:`，交给 `_config.yml` 的 defaults scope。
 - 不要手写 `last_modified_at`，它由 `_plugins/posts-lastmod-hook.rb` 从 git 历史注入。
