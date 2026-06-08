@@ -1,7 +1,7 @@
 ---
 title: "Windows 传电影到树莓派只有 2MB/s：从硬件到芯片的完整排查实录"
 date: 2026-06-04 22:00:00 +0800
-categories: [network, debug, raspberry-pi]
+categories: [ai]
 tags: [wifi, smb, sftp, rtl8832au, network-diagnosis, raspberry-pi, windows, tcp, iperf]
 description: "完整记录从树莓派硬件排查、网络链路分析、纯 TCP 隔离测试到公网测速交叉验证，最终锁定 Realtek RTL8832AU WiFi 网卡上传缺陷的全过程"
 ---

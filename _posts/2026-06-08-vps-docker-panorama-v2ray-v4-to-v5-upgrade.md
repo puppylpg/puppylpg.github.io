@@ -1,7 +1,7 @@
 ---
 title: "VPS Docker 服务全景与 V2Ray v4 到 v5 升级方案分析"
 date: 2026-06-08 22:05:38 +0800
-categories: [ai]
+categories: [docker, network, vps]
 tags: [docker, v2ray, v2fly, nginx-proxy, acme-companion, reverse-proxy, vmess, aead, upgrade]
 description: "梳理 VPS 上所有 Docker 容器的职责与连接方式，深入分析 V2Ray v4→v5 升级不能直接切换的原因及并行部署验证方案。"
 ---
