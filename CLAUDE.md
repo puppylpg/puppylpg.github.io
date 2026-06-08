@@ -27,7 +27,7 @@ bundle exec htmlproofer _site --disable-external --no-enforce-https
 
 ## 内容规则
 
-- 博文放在 `_posts/YYYY-MM-DD-title.md`；Jekyll 要求文件名带日期。
+- 博文放在 `_posts/YYYY-MM-DD-title.md`；Jekyll 要求文件名带日期。侧边栏 Tab 名为 `tech`，所以"发布到 tech"等同于放入 `_posts/`。
 - 集合文章放在 `_<collection>/<file>.md`。
 - 新内容 front matter 必填：`title`、`date`。
 - 推荐补齐：`categories`、`tags`、`description`。
