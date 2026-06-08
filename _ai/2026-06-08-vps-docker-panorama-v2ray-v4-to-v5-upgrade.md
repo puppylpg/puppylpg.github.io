@@ -68,7 +68,45 @@ flowchart LR
 
 ## Docker 网络实际状况
 
-这台 VPS 上所有容器都接在默认的 `bridge` 网络上，子网为 `172.17.0.0/16`，网关 `172.17.0.1`。只有 `nginx-proxy` 将端口映射到宿主机（`-p 80:80 -p 443:443`），其余容器均只暴露内部端口，完全依赖 Docker 内部网络通信：
+### 不是每个容器一个网络
+
+一个常见的误解是"每个容器有自己的 Docker 网络"。实际上：**大家共享同一个网络，但每人分配一个独立 IP**。
+
+Docker 默认会创建一个 `bridge` 网络（底层对应宿主机上的 `docker0` 网桥），相当于一台虚拟路由器。所有不指定网络的容器，都会自动连到这个网络上——就像大家连在同一个 WiFi 下：
+
+```mermaid
+flowchart TB
+    subgraph host["VPS 宿主机"]
+        direction TB
+        docker0["docker0 网桥<br/>172.17.0.1（网关）"]
+
+        subgraph network["Docker bridge 网络<br/>子网 172.17.0.0/16"]
+            direction LR
+            proxy["nginx-proxy<br/>172.17.0.4"]
+            ttq_node["ttq<br/>172.17.0.3"]
+            memos_node["memos<br/>172.17.0.5"]
+            v2ray_node["v2ray<br/>172.17.0.6"]
+            v2raynew_node["v2ray-new<br/>172.17.0.11"]
+            other["... 其他容器"]
+        end
+    end
+
+    docker0 --- proxy
+    docker0 --- ttq_node
+    docker0 --- memos_node
+    docker0 --- v2ray_node
+    docker0 --- v2raynew_node
+    docker0 --- other
+
+    classDef gateway fill:#dff1ff,stroke:#4a90c2,color:#0f2f44;
+    classDef app fill:#ffe5ec,stroke:#d85a7f,color:#3b1723;
+    classDef net fill:#f4f4f5,stroke:#9ca3af,color:#1f2937;
+    class docker0 gateway;
+    class proxy,ttq_node,memos_node,v2ray_node,v2raynew_node,other app;
+    class network net;
+```
+
+在这台 VPS 上，确实只有一个 `bridge` 网络，10 个容器全部接在里面：
 
 | 容器名 | 实际 IP | 暴露端口 | 外部映射 |
 |--------|---------|----------|----------|
@@ -83,7 +121,25 @@ flowchart LR
 | `portainer` | `172.17.0.10` | 9443 | 无 |
 | `v2ray-new` | `172.17.0.11` | 10087 | 无 |
 
-所有容器处于同一二层网络，彼此可直接通过 IP 或容器名通信。外部流量必须经由 `nginx-proxy` 的 80/443 入口进入，再由其按规则分发。
+### 为什么端口相同却不冲突？
+
+`v2ray` 和 `v2ray-new` 内部都用 `10087` 端口，但由于它们拥有**不同的 IP 地址**，就像两个不同手机都开了微信，完全不会冲突：
+
+```
+172.17.0.6:10087   ← v2ray (v4)
+172.17.0.11:10087  ← v2ray-new (v5)
+      ↑                ↑
+   不同 IP          不同 IP
+```
+
+### 容器间如何通信
+
+因为所有容器在同一网段，它们之间可以直接通信：
+
+- **通过 IP**：`nginx-proxy` 可以直接访问 `172.17.0.3:80`（ttq）
+- **通过容器名**：Docker 内置了 DNS，`nginx-proxy` 也可以直接访问 `http://ttq:80`
+
+只有 `nginx-proxy` 把端口映射到了宿主机（`-p 80:80 -p 443:443`），其他 9 个容器都是**只暴露内部端口**，外面直接访问不到。外部流量必须先到达 `nginx-proxy`，再由它按规则转发到对应容器的内网 IP。
 
 ```mermaid
 flowchart TB
