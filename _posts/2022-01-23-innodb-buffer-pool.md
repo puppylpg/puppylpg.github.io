@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb - Buffer Pool"
 date: 2022-01-23 22:29:42 +0800
-categories: mysql innodb pagecache
-tags: mysql innodb pagecache
+categories: [mysql, innodb, pagecache]
+tags: [mysql, innodb, pagecache]
 ---
 
 Innodb以磁盘作为存储介质，所以用的时候需要加载到内存。Innodb管理数据的基本单位是页，每次都加载一页数据到内存里。

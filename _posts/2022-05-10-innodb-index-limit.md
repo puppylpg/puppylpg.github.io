@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb：索引的正确使用与拉胯的limit"
 date: 2022-05-10 00:43:13 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: [mysql, innodb]
+tags: [mysql, innodb]
 ---
 
 最近使用limit对数据库进行分页遍历查询，发现越来越慢。所以进行了一番优化探究，结果极其因吹斯听，深刻重新认识了一波索引。

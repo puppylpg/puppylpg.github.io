@@ -1,10 +1,9 @@
 ---
 
-layout: post  
 title: "Docker - 容器化nginx"  
 date: 2023-03-13 01:20:41 +0800  
-categories: docker nginx websocket  
-tags: docker nginx websocket
+categories: [docker, nginx, websocket]
+tags: [docker, nginx, websocket]
 
 ---
 

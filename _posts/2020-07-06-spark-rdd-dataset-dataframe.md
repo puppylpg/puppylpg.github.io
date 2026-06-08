@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "RDD vs. Dataset vs. DataFrame"
 date: 2020-07-06 15:33:27 +0800
-categories: spark
-tags: spark
+categories: [spark]
+tags: [spark]
 ---
 
 主要介绍RDD、Dataset/DataFrame三者之间的转换，和一些使用上的差异。

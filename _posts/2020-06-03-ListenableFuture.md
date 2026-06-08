@@ -1,6 +1,5 @@
 ---
 
-layout: post
 title: "【已废弃】ListenableFuture"
 date: 2020-06-03 02:30:06 +0800
 

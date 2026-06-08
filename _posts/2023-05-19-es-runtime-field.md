@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：runtime field"
 date: 2023-05-19 17:13:15 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 [runtime field](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime.html)是在查询时计算的field，是一种时间换空间的概念。虽然查询速度会比普通的field慢，但是非常灵活，适合做一些数据探索的工作。

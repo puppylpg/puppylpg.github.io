@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - Authentication"
 date: 2022-12-25 23:08:21 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 spring security主要解决三个问题：

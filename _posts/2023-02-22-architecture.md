@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "演进中的架构"
 date: 2023-02-22 23:56:34 +0800
-categories: microservice kubernetes sidecar filebeat
-tags: microservice kubernetes sidecar filebeat
+categories: [microservice, kubernetes, sidecar, filebeat]
+tags: [microservice, kubernetes, sidecar, filebeat]
 ---
 
 这是目前最震撼我的一篇总结。过于高屋建瓴，我就不指指点点了:D

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "序列化 - Avro"
 date: 2020-07-25 21:27:30 +0800
-categories: avro serialization
-tags: avro serialization
+categories: [avro, serialization]
+tags: [avro, serialization]
 ---
 
 Avro结合Java使用，主要有：

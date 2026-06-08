@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - 模型架构"
 date: 2021-01-13 01:51:27 +0800
-categories: redis
-tags: redis
+categories: [redis]
+tags: [redis]
 ---
 
 上篇写的redis DB是redis server的主要功能。本文梳理一下redis server的架构、事件处理逻辑。

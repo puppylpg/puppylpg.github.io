@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Java反射与动态代理"
 date: 2020-08-02 23:59:06 +0800
-categories: java proxy reflection
-tags: java proxy reflection
+categories: [java, proxy, reflection]
+tags: [java, proxy, reflection]
 ---
 
 Java在运行时，能够实时获取对象的类型信息：RTTI（RealTime Type Identification，实时类型识别）。比如多态，父类引用指向子类对象，在调用方法时能准确地调用子类的override方法。本文从RTTI谈到反射，再聊一聊反射相关的一大应用——动态代理。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - bean的生命周期"
 date: 2021-11-16 03:26:30 +0800
-categories: spring
-tags: spring
+categories: [spring]
+tags: [spring]
 ---
 
 spring bean的生命周期相当复杂，流程图看上去就晕。但其实一一拆解开来，也并不是不可理解。掌握spring bean的生命周期，感觉就真正入门spring的核心了。

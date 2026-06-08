@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "汇总：Elasticsearch"
 date: 2022-04-19 22:20:23 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 时间过得真快，转眼搞elasticsearch小半年了。这半年对es有了不少理解，同时一些地方和之前学习的innodb、redis等作对照，又有了不少更加深入的理解。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot - 开发、部署、诊断"
 date: 2023-01-08 22:37:56 +0800
-categories: springboot
-tags: springboot
+categories: [springboot]
+tags: [springboot]
 ---
 
 2023年是清理库存之年，清理而后轻装向前。就把springboot之前看到的开发、部署以及一些诊断相关的东西都扔在一起做个了结吧。

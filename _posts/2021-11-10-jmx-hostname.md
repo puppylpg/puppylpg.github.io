@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "连接服务器上的jmx"
-date: 2021-11-10日20:06:19 +0800
-categories: jmx
-tags: jmx
+date: 2021-11-10 20:06:19 +0800
+categories: [jmx]
+tags: [jmx]
 ---
 
 在有公网ip的服务器上，部署一个Java服务，开启jmx端口，但是却不能通过公网ip访问。为什么呢？

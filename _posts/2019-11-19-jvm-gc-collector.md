@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "JVM垃圾收集"
 date: 2019-11-19 02:30:19 +0800
-categories: java jvm gc
-tags: java jvm gc
+categories: [java, jvm, gc]
+tags: [java, jvm, gc]
 ---
 
 垃圾回收（Garbage Collection，GC）是JVM的重要特性之一。既然JVM自己管理着一大堆线程，自然也要随时打扫线程留下的垃圾，维护JVM的生态平衡。对于小程序，不太需要考虑垃圾收集，但是在高并发、多线程、多处理器的场景下，GC造成的性能影响可能会成为程序的瓶颈。

@@ -1,5 +1,4 @@
 ---
-layout: post
 title: "【已废弃】CompletableFuture"
 date: 2020-06-05 01:11:55 +0800
 ---

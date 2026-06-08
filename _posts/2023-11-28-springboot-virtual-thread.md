@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot3.2：虚线程支持"
 date: 2023-11-28 18:22:36 +0800
-categories: spring springboot
-tags: spring springboot
+categories: [spring, springboot]
+tags: [spring, springboot]
 ---
 
 springboot3.2在上周发布了，可以直接通过springboot提供的配置`spring.threads.virtual.enabled: true`为许多组件开启虚线程支持，包括：

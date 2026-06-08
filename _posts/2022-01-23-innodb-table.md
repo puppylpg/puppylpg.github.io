@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb - 表"
 date: 2022-01-23 01:43:48 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: [mysql, innodb]
+tags: [mysql, innodb]
 ---
 
 [Innodb - 行]({% post_url 2022-01-13-innodb-row %})组成[Innodb - 页]({% post_url 2022-01-14-innodb-page %})，页组成了innodb的表。页是innodb管理存储空间的基本单位，但是表才是逻辑上对一堆相同结构的数据管理的基本单位。

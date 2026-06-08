@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（二）How Tomcat Works - 原始Servlet服务器"
 date: 2020-10-07 22:40:02 +0800
-categories: tomcat http web servlet
-tags: tomcat http web servlet
+categories: [tomcat, http, web, servlet]
+tags: [tomcat, http, web, servlet]
 ---
 
 web server搭建完成了，servlet server（或者说servlet容器）又是什么东西？和web server又有什么区别？

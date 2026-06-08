@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - cluster"
 date: 2021-01-31 18:32:07 +0800
-categories: redis
-tags: redis
+categories: [redis]
+tags: [redis]
 ---
 
 一台机器的内存是有限的，在上面部署的redis能存储的内容自然也是有限的。如果内容过多，只能使用分布式数据库，将内容分摊到一堆redis里，这就是redis集群。

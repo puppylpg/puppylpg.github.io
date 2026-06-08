@@ -1,5 +1,4 @@
 ---
-layout: post
 title: Refresh - 前缀和
 date: 2024-05-05 00:54:43 +0800
 render_with_liquid: false

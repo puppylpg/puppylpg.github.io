@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：_source store doc_values"
 date: 2022-10-05 21:57:15 +0800
-categories: elasticsearch lucene
-tags: elasticsearch lucene
+categories: [elasticsearch, lucene]
+tags: [elasticsearch, lucene]
 ---
 
 一切始于一个奇怪的现象：elasticsearch以`epoch_millis`存储时间戳的时候，竟然可以接受string（字面值为long）存储，且使用起来和long毫无区别：

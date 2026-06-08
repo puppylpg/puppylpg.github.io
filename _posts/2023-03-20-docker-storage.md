@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Docker - storage"
 date: 2023-03-20 22:40:45 +0800
-categories: docker
-tags: docker
+categories: [docker]
+tags: [docker]
 ---
 
 docker的持久化存储。

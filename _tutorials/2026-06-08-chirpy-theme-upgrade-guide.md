@@ -1,7 +1,7 @@
 ---
 title: "Chirpy 主题升级指南：从版本比对到本地覆盖维护"
 date: 2026-06-08 15:18:14 +0800
-categories: [tutorial, blog]
+categories: [jekyll]
 tags: [jekyll, chirpy, upgrade, maintenance]
 description: "Jekyll Chirpy 主题从 v6 升级到 v7 的完整记录：breaking changes、本地覆盖文件的正确维护方式、升级后踩的两个大坑（生产环境 CSS 丢失、PWA 缓存不刷新）及解决方案。"
 ---

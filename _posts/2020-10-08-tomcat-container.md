@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（四）How Tomcat Works - Tomcat servlet容器Container"
 date: 2020-10-08 12:08:33 +0800
-categories: tomcat http web servlet
-tags: tomcat http web servlet
+categories: [tomcat, http, web, servlet]
+tags: [tomcat, http, web, servlet]
 ---
 
 上一节讲了半天，经历了“client request -> server http connector -> processor -> parse http request”，终于才提到“使用servlet处理请求”。

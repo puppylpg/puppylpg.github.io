@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - Data Access & Transaction"
 date: 2022-08-01 01:56:11 +0800
-categories: spring jdbc orm
-tags: spring jdbc orm
+categories: [spring, jdbc, orm]
+tags: [spring, jdbc, orm]
 ---
 
 Java定义了jdbc（Java Database Connectivity）规范作为数据库的访问标准。虽然DataSource的实现交给了各个数据库厂商，我们只需要引入相应的包就可以获取相应的DataSource实现类进行数据库的访问工作，但是jdbc整套流程还是太过刻板了。

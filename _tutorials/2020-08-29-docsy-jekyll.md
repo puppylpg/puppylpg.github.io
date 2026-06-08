@@ -1,15 +1,15 @@
 ---
-layout: post
 title: "docsy-jekyll"
 date: 2020-08-29 00:48:00 +0800
-categories: jekyll
-tags: jekyll
+categories: [jekyll]
+tags: [jekyll, docsy]
+description: "迁移到 Docsy Jekyll 主题：collection 定义、default layout 配置、导航结构自定义。"
 ---
 
 之前利用github pages提供的便利，使用jekyll创建了个人静态网站：
-- [Jekyll 博客的 Ruby 环境]({% post_url 2019-11-16-ruby-bundler-jekyll %})：Bundler 套娃、gem 管理与 GitHub Pages 部署；
-- [Jekyll：mimima结构]({% post_url 2019-11-17-Jekyll-website %})：minima网站架构；
-- [Jekyll：minima主题自定义]({% post_url 2019-11-23-minima-customize %})：各种自定义元素，以minima为例；
+- [Jekyll 博客的 Ruby 环境]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})：Bundler 套娃、gem 管理与 GitHub Pages 部署；
+- [Jekyll：mimima结构]({% link _tutorials/2019-11-17-Jekyll-website.md %})：minima网站架构；
+- [Jekyll：minima主题自定义]({% link _tutorials/2019-11-23-minima-customize.md %})：各种自定义元素，以minima为例；
 
 使用了jekyll的默认主题minima。
 

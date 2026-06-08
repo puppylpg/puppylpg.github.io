@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "JUnit Jupiter"
 date: 2022-11-20 02:26:45 +0800
-categories: junit jupiter testcontainers maven
-tags: junit jupiter testcontainers maven
+categories: [junit, jupiter, testcontainers, maven]
+tags: [junit, jupiter, testcontainers, maven]
 ---
 
 既然assertj看完了，既然testcontainers、spring、springboot几乎每个框架都接入了jupiter的@ExtendWith，那就好好看看早就想看的jupiter吧！

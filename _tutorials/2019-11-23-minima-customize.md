@@ -1,9 +1,9 @@
 ---
-layout: post
-title: "Jekyll：minima自定义"
+title: "Jekyll：minima 自定义"
 date: 2019-11-23 22:46:25 +0800
-categories: jekyll minima seo
-tags: jekyll minima seo
+categories: [jekyll]
+tags: [jekyll, minima, seo]
+description: "minima 主题自定义：SEO 标签、Google Analytics、站内引用、自定义 CSS/JS、评论系统接入。"
 ---
 
 minima是Jekyll默认的主题，也是最简单的主题，很符合Keep It Stupid and Simple的原则。默认的可能是符合大众的，但一定不是完全适合自己口味的，所以理解一些原理，增加一些自己想要的东西也是很必要的。

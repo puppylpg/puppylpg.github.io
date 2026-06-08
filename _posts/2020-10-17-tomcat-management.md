@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（十二）How Tomcat Works - Tomcat管理"
 date: 2020-10-17 22:48:28 +0800
-categories: tomcat http web jmx
-tags: tomcat http web jmx
+categories: [tomcat, http, web, jmx]
+tags: [tomcat, http, web, jmx]
 ---
 
 一个应用想要受欢迎，除了强大的功能，还要有用户友好的可管理方式。这里介绍Tomcat的两种管理方式：

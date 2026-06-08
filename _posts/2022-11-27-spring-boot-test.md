@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot Test"
 date: 2022-11-27 03:06:04 +0800
-categories: spring springboot test
-tags: spring springboot test
+categories: [spring, springboot, test]
+tags: [spring, springboot, test]
 ---
 
 springboot是基于spring的，[springboot test](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing)自然也是基于[spring test]({% post_url 2022-11-25-spring-test %})的。`spring-boot-test`依赖基于`spring-test`依赖，使用spring test提供的`@BootstrapWith`构建自己的context，至少提供了两方面的便利：

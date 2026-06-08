@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - Async"
 date: 2023-07-04 23:44:05 +0800
-categories: spring proxy
-tags: spring proxy
+categories: [spring, proxy]
+tags: [spring, proxy]
 ---
 
 使用spring AOP [`@Async`](https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-annotation-support-async)来实现异步，看起来会更优雅一些，因为使用`ExecutorService#submit(callable)`做任务的提交比较模板化，使用spring aop可以直接隐藏这些细节。另外如果需要使用回调函数异步处理异常（线程池线程），也会比较方便。

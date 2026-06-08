@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot MVC"
 date: 2022-12-03 02:54:20 +0800
-categories: spring springboot mvc
-tags: spring springboot mvc
+categories: [spring, springboot, mvc]
+tags: [spring, springboot, mvc]
 ---
 
 在介绍[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})的时候说过，springboot反转了调用关系，翻身做主人了。**springboot启动内嵌的servlet容器，内嵌的servlet容器还和之前调用SpringMVC的方式一样，只不过这次调用的是springboot的组件，不再是SpringMVC了**。

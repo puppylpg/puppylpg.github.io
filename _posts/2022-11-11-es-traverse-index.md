@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：遍历索引"
 date: 2022-11-11 02:03:58 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 今天干了一件蠢事：遍历索引，一时偷懒，索引的条目也还在可接受范围内，所以使用page翻页遍历所有数据，结果翻车了~

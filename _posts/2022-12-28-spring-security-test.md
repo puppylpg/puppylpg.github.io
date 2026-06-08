@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - Test"
 date: 2022-12-28 23:24:25 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 spring security test是spring security的最后一部分了。其实从spring test和springboot test，能发现掌握test能极大加深对框架本身的理解。同理，通过spring security test，能对spring security的理解上升一个档次。

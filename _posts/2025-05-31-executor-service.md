@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "线程执行服务：ExecutorService"
 date: 2025-05-31 14:50:41 +0800
-categories: java executor
-tags: java executor
+categories: [java, executor]
+tags: [java, executor]
 ---
 
 有了线程执行器`Executor`，为什么还要有`ExecutorService`？

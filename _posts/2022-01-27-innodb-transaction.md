@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb - 有关事务的一切"
 date: 2022-01-27 00:45:20 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: [mysql, innodb]
+tags: [mysql, innodb]
 ---
 
 终于开始聊事务了。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot - run"
 date: 2022-07-21 21:40:28 +0800
-categories: springboot
-tags: springboot
+categories: [springboot]
+tags: [springboot]
 ---
 
 为了写springboot的test case，把springboot test的文档看了一遍。看完之后感觉需要把springboot的整体流程看一下，于是跟着Spring Boot 1.0.2从入口debug走了一遍，发现超乎想象得流畅——

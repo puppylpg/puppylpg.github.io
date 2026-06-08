@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "锁性能比较"
 date: 2019-12-11 22:14:21 +0800
-categories: java lock concurrency
-tags: java lock concurrency
+categories: [java, lock, concurrency]
+tags: [java, lock, concurrency]
 ---
 
 之前在[锁]({% post_url 2019-12-10-lock %})和[CAS vs. 锁]({% post_url 2019-12-09-cas-vs-lock %})中，对Java中提供的各种锁以及CAS进行了比较。这里通过一个具体的例子，来简单验证一下之前的分析，加深一下对这些锁的理解。

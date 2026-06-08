@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Linux - OOM killer & dmesg"
 date: 2021-11-28 14:59:37 +0800
-categories: linux
-tags: linux
+categories: [linux]
+tags: [linux]
 ---
 
 系统内存不足，防止耗尽，直接杀掉占内存最大的进程。详见：`linux/mm/oom_kill.c`。

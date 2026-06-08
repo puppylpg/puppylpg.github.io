@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Test - Spring TestContext Framework"
 date: 2022-11-25 20:44:59 +0800
-categories: spring test
-tags: spring test
+categories: [spring, test]
+tags: [spring, test]
 ---
 
 快半年了，从第一次看spring test到现在，中间兜兜转转又做了一大堆事，补充了一大堆知识，现在回头再看，一切终于豁然开朗了！

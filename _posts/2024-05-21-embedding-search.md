@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "向量搜索"
 date: 2024-05-21 01:08:48 +0800
-categories: elasticsearch milvus
-tags: elasticsearch milvus
+categories: [elasticsearch, milvus]
+tags: [elasticsearch, milvus]
 ---
 
 把文本编码成向量，用向量搜索向量。

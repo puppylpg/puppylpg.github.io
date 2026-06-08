@@ -1,5 +1,4 @@
 ---
-layout: post
 title: Refresh - 滑动窗口
 date: 2024-05-06 00:08:53 +0800
 render_with_liquid: false

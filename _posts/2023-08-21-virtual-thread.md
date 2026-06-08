@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Virtual Thread"
 date: 2023-08-21 00:07:01 +0800
-categories: java
-tags: java
+categories: [java]
+tags: [java]
 ---
 
 [JDK 21](https://openjdk.org/projects/jdk/21/)下个月就要发布了，[Virtual Threads](https://openjdk.org/jeps/444)也正式成为发布特性。虚线程的引入，大概从此会改变Java项目的架构。

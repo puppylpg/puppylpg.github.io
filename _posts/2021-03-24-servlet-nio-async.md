@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Servlet - NIO & Async"
 date: 2021-03-24 01:34:06 +0800
-categories: nio servlet
-tags: nio servlet
+categories: [nio, servlet]
+tags: [nio, servlet]
 ---
 
 servlet在“前”端基于jdk NIO实现了servlet nio，解绑了long connection与thread。同时在“后”端使用async servlet，解绑了long request与thread。二者都使得thread得到了解放，更适合高并发场景。

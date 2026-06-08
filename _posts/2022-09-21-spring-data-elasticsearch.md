@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Data - Elasticsearch"
 date: 2022-09-21 00:08:57 +0800
-categories: elasticsearch spring-data spring-data-elasticsearch
-tags: elasticsearch spring-data spring-data-elasticsearch
+categories: [elasticsearch, spring-data, spring-data-elasticsearch]
+tags: [elasticsearch, spring-data, spring-data-elasticsearch]
 ---
 
 [spring data](https://spring.io/projects/spring-data)是一个对开发者非常友好的工程，旨在帮开发者解脱数据访问相关的繁杂工作。至少从我的使用经验来说，简单的增删改查简直就是利器！~~太复杂的话可能没那么好使了（或者我太菜了，不会使用。但我会慢慢学的，等会了我再来把这句话删掉）。~~

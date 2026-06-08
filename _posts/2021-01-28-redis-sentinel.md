@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - Sentinel"
 date: 2021-01-28 23:05:44 +0800
-categories: redis
-tags: redis
+categories: [redis]
+tags: [redis]
 ---
 
 Sentinel要解决的问题是高可用性（Highly Availability，HA），即：一个redis倒下去，千万个redis站起来，不至于系统没有redis可用了。也就是常说的主备。当master宕机的时候，要有slave站出来扛起大旗。

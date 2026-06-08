@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - 架构"
 date: 2022-12-25 00:51:13 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 spring有webmvc和webflux，这里只介绍基于servlet的spring webmvc相关的spring security。

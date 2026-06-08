@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：default index template"
 date: 2022-05-05 16:10:07 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 从实际遇到的问题，介绍一下索引的模板和默认模板。

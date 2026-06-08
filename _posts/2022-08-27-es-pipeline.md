@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：pipeline"
 date: 2022-08-27 01:02:21 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 最近对Elasticsearch的pipeline研究的比较多一些，主要是做一些数据类任务：如果只是进行离线处理的话，需要先查es，再处理数据，最后写回es。除了有查询的开销之外，最大的问题就是无法做到在数据一开始写入es时进行实时处理。而ingest pipeline则解决了这个问题，在数据ingest的时候，就对其进行处理。**不仅能实时处理数据，还把处理数据的开销分摊到了每一次数据写入上**。

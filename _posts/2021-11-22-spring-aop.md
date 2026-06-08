@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - AOP"
 date: 2021-11-22 01:14:49 +0800
-categories: spring aop
-tags: spring aop
+categories: [spring, aop]
+tags: [spring, aop]
 ---
 
 `AOP`，Aspect Oriented Programing，面向切面编程。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "MySQL的时间类型和时区"
 date: 2022-03-05 02:55:03 +0800
-categories: mysql
-tags: mysql
+categories: [mysql]
+tags: [mysql]
 ---
 
 最近set timestamp的值，栽了一波跟头┓( ´∀` )┏

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：alias、reindex、task"
 date: 2022-05-02 02:33:31 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 在es里，索引的功能一般都是随需求逐步增加的。而因为es是不可变的，这些变动大都需要重建索引。

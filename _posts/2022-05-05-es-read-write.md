@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：分片读写"
 date: 2022-05-05 02:06:38 +0800
-categories: elasticsearch pagecache
-tags: elasticsearch pagecache
+categories: [elasticsearch, pagecache]
+tags: [elasticsearch, pagecache]
 ---
 
 集群和分片内部细节。

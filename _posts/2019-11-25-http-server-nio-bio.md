@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Http Server线程模型：NIO vs. BIO"
 date: 2019-11-25 00:20:43 +0800
-categories: nio
-tags: nio
+categories: [nio]
+tags: [nio]
 ---
 
 如果想写个web服务，处理比如Http请求，首先要决定自己的server选用什么线程模型。不同的线程模型对系统的吞吐有极大的影响。最基本的两种模型有两种：基于线程（thread-based）的模型，事件驱动（event-driven）的模型。

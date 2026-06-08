@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Virtual Thread benchmark"
 date: 2023-09-25 23:34:11 +0800
-categories: java jmh jmeter
-tags: java jmh jmeter
+categories: [java, jmh, jmeter]
+tags: [java, jmh, jmeter]
 ---
 
 JDK21如期发布，[Virtual Thread]({% post_url 2023-08-21-virtual-thread %})的benckmark来了！

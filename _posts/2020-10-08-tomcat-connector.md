@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（三）How Tomcat Works - Tomcat连接器Connector"
 date: 2020-10-08 00:09:40 +0800
-categories: tomcat http web servlet
-tags: tomcat http web servlet
+categories: [tomcat, http, web, servlet]
+tags: [tomcat, http, web, servlet]
 ---
 
 显然，servlet容器承担了两部分的职责：作为web server处理http请求；作为servlet容器处理servlet相关的内容。Tomcat在实现时按照这两部分，可以被归类为两个主要模块：

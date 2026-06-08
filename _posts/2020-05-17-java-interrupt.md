@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Java中断 - 处理InterruptedException"
 date: 2020-05-17 00:00:16 +0800
-categories: java interrupt
-tags: java interrupt
+categories: [java, interrupt]
+tags: [java, interrupt]
 ---
 
 在Java中，一个线程是不能终止另一个线程的，除非那个线程自己想退出，或者JVM退出了。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Git - staging area"
 date: 2023-02-08 23:21:20 +0800
-categories: git
-tags: git
+categories: [git]
+tags: [git]
 ---
 
 虽然git早就玩的比较熟练了，但是一直对[暂存区（staging area）](https://git-scm.com/book/zh/v2/Git-%E5%9F%BA%E7%A1%80-%E8%AE%B0%E5%BD%95%E6%AF%8F%E6%AC%A1%E6%9B%B4%E6%96%B0%E5%88%B0%E4%BB%93%E5%BA%93)的存在不甚理解。最近教我弟git，才发现不太能说明白暂存区有什么用。再好好看看暂存区，思来想去，全是intellij idea害的:D 被它的GUI坑了。

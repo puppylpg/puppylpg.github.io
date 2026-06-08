@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "汇总：锁"
 date: 2021-04-08 01:24:09 +0800
-categories: java concurrency
-tags: java concurrency
+categories: [java, concurrency]
+tags: [java, concurrency]
 ---
 
 汇总一下总结过的锁相关文章。

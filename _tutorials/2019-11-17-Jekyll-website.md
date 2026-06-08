@@ -1,9 +1,9 @@
 ---
-layout: post
-title: "Jekyll：minima结构"
+title: "Jekyll：minima 结构"
 date: 2019-11-17 01:44:39 +0800
-categories: jekyll
-tags: jekyll
+categories: [jekyll]
+tags: [jekyll, minima]
+description: "以 minima 为例解析 Jekyll 主题结构：_layouts、_includes、_sass 的分层机制与覆盖规则。"
 ---
 
 使用Jekyll搭建静态网站是一件容易上手，非常优雅且令人愉悦的事情，甚至让我这个服务端程序猿产生了能搞一搞前端的错觉:D
@@ -23,7 +23,7 @@ tags: jekyll
 
 遵循上面的思路，简单探索一下minima-2.5.1的结构。
 
-首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[Jekyll 博客的 Ruby 环境]({% post_url 2019-11-16-ruby-bundler-jekyll %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
+首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[Jekyll 博客的 Ruby 环境]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
 ```bash
 » bundle show minima
 /home/win-pichu/Codes/Java/puppylpg.github.io/vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
@@ -227,7 +227,6 @@ layout: default
 ```yaml
 {% raw %}
 ---
-layout: post
 title:  "Welcome to Jekyll!"
 date:   2019-11-16 02:08:37 +0800
 categories: jekyll update
@@ -253,7 +252,7 @@ blabla...
 感觉最重要的就是`_layouts`和`_includes`两个文件夹，其他还有`assets`，`_sass`等，用来控制样式，放置一些静态资源如图片，有兴趣可以了解一下。
 
 # 目录结构
-在[Ruby 环境与 Bundler 套娃]({% post_url 2019-11-16-ruby-bundler-jekyll %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
+在[Ruby 环境与 Bundler 套娃]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
 ```bash
 .
 ├── 404.html
@@ -282,7 +281,6 @@ blabla...
 ```html
 {% raw %}
 ---
-layout: post
 title:  "Welcome to Jekyll!"
 date:   2019-11-16 02:08:37 +0800
 categories: jekyll update
@@ -424,7 +422,7 @@ config文件可以配置很多东西，比如：
 - https://bundler.io/v1.7/rationale.html#checking-your-code-into-version-control
 
 # minima主题自定义
-minima是Jekyll默认且最基本的主题，如果想增加更多的定制，可以参阅[minima主题自定义]({% post_url 2019-11-23-minima-customize %})
+minima是Jekyll默认且最基本的主题，如果想增加更多的定制，可以参阅[minima主题自定义]({% link _tutorials/2019-11-23-minima-customize.md %})
 
 # 总结
 折腾了两天之后，不得不感叹前端的东西果然是丰富多彩。比如想给网站添加sidebar，里面放文章的目录内容。虽然sidebar大差不差勉强算是搞定了，但是很多细节还需要去处理，尤其是toc在这里并不能生成目录，还得想办法去解决。

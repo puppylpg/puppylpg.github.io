@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：client"
 date: 2022-11-06 20:11:32 +0800
-categories: elasticsearch spring-data-elasticsearch
-tags: elasticsearch spring-data-elasticsearch
+categories: [elasticsearch, spring-data-elasticsearch]
+tags: [elasticsearch, spring-data-elasticsearch]
 ---
 
 elasticsearch有很多Java client，底层的、上层的，废弃的、现存的，需要好好梳理一下，不然编程的时候一脸懵逼，尤其是使用spring boot自动配置client的时候。

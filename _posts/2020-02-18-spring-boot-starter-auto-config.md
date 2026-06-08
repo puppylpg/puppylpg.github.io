@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "SpringBoot - 自动配置"
 date: 2020-02-18 16:25:52 +0800
-categories: java springboot
-tags: java springboot
+categories: [java, springboot]
+tags: [java, springboot]
 ---
 
 spring boot的功能主要有四方面：

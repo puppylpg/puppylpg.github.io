@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "数据链路层"
 date: 2021-12-19 20:43:58 +0800
-categories: network
-tags: network
+categories: [network]
+tags: [network]
 ---
 
 [计算机网络]({% post_url 2021-12-19-network %})整体梳理了比较宏观的只是，但是在一些问题上还是让人有很多问号。比如为什么数据链路层要使用广播发消息、为什么最小报文得是64Byte。

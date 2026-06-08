@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "序列化 - Json多态的序列化"
 date: 2020-07-30 22:33:06 +0800
-categories: java serialization jackson json
-tags: java serialization jackson json
+categories: [java, serialization, jackson, json]
+tags: [java, serialization, jackson, json]
 ---
 
 使用json序列化对象是一个很常见的方式，和其他字节方式序列化框架protobuf、avro、Java自带序列化相比，使用json的一个显而易见的好处就是可读性。

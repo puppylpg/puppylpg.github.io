@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（一）How Tomcat Works - 原始Web服务器"
 date: 2020-10-07 22:13:39 +0800
-categories: tomcat http web
-tags: tomcat http web
+categories: [tomcat, http, web]
+tags: [tomcat, http, web]
 ---
 
 Tomcat是一个Servlet容器，Servlet首先是一个web服务器。先来看一下最基础的web服务器怎么构造的。

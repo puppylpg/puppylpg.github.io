@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb - 行"
 date: 2022-01-13 00:43:36 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: [mysql, innodb]
+tags: [mysql, innodb]
 ---
 
 Innodb给使用者的抽象，大致就是表，每个表有很多行，每个行可能有很多列。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "序列化 - 泛型TypeReference"
 date: 2021-10-23 16:42:02 +0800
-categories: java serialization jackson json
-tags: java serialization jackson json
+categories: [java, serialization, jackson, json]
+tags: [java, serialization, jackson, json]
 ---
 
 在使用Jackson反序列化json的时候，需要两个基本条件：

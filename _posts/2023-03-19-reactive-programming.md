@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Reactive Programming"
 date: 2023-03-19 21:33:11 +0800
-categories: reactive
-tags: reactive
+categories: [reactive]
+tags: [reactive]
 ---
 
 webflux，之前留下的未尽事宜，终于又碰上了。Reactive Programming，RP，震惊我100年。

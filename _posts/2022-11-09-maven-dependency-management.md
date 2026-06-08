@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Maven - dependencyManagement"
 date: 2022-11-09 02:39:24 +0800
-categories: maven elasticsearch
-tags: maven elasticsearch
+categories: [maven, elasticsearch]
+tags: [maven, elasticsearch]
 ---
 
 今天被maven的transitive依赖搞懵逼了，一下午未果。晚上又查了查，突然意识到自己对`dependencyManagement`的理解不太完整，果然是栽到这个上面了……

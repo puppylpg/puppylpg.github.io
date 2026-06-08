@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：performance"
 date: 2022-05-08 20:42:06 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 调优永远是比较困难的话题，调优就意味着已经超越了普通的使用场景：

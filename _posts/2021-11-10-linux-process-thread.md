@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Linux - 进程与线程"
 date: 2021-11-10 20:47:42 +0800
-categories: linux
-tags: linux
+categories: [linux]
+tags: [linux]
 ---
 
 关于进程和线程。

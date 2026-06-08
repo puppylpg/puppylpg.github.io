@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spark Learning Overview"
 date: 2020-07-06 14:17:30 +0800
-categories: spark
-tags: spark
+categories: [spark]
+tags: [spark]
 ---
 
 Spark学习可以看一些书获取一些基本知识。不过spark官网已经提供了足量的涵盖各个方面的学习资料，更重要的是这些内容都非常新，这一点是书本没法比的。大致汇总、概述一下官网上要看的资料，方便学习：

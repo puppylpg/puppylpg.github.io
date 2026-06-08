@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spark Tuning & Configuration"
 date: 2020-07-25 21:13:27 +0800
-categories: spark
-tags: spark
+categories: [spark]
+tags: [spark]
 ---
 
 Spark调优主要是调整spark的配置和调整spark代码的执行逻辑，不过主要还是调配置，所以这里将配置和调优放在一起。当然由于spark过于庞大（hadoop、kafka也都这样）一次性梳理配置是很让人懵逼的一件事，况且一开始显然也不能理解spark的所有配置。根据平时的需求，将需要用到的学到的配置总结在这里，长期更新。

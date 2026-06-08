@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - misc"
 date: 2021-01-31 18:48:32 +0800
-categories: redis
-tags: redis
+categories: [redis]
+tags: [redis]
 ---
 
 redis其他值得一提的小功能。

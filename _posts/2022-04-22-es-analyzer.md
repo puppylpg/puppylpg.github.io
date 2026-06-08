@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：analyzer"
 date: 2022-04-22 00:16:18 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 Elasticsearch的[搜索]({% post_url 2022-04-22-es-search %})，仅仅创建倒排索引是不够的。比如搜索时如果想忽略大小写，一个单纯的倒排并不能做到这一点，必须在倒排之前，对数据进行处理，全部转为小写。进行这些数据处理的，就是analyzer。

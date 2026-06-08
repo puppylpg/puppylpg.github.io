@@ -1,19 +1,19 @@
 ---
-layout: post
 title: "jekyll-theme-chirpy"
 date: 2023-10-29 23:36:57 +0800
-categories: jekyll
-tags: jekyll
+categories: [jekyll]
+tags: [jekyll, chirpy]
+description: "迁移到 Chirpy 主题的记录：collection 配置、utterances 评论、站内引用踩坑与 post_url 失效排查。"
 ---
 
-[docsy-jekyll]({% post_url 2020-08-29-docsy-jekyll %})使用三年有余，又厌倦了 :D
+[docsy-jekyll]({% link _tutorials/2020-08-29-docsy-jekyll.md %})使用三年有余，又厌倦了 :D
 
 > 始乱终弃+1。也不完全算始乱终弃吧，毕竟中间也帮忙修过bug。
 
-- [Jekyll 博客的 Ruby 环境]({% post_url 2019-11-16-ruby-bundler-jekyll %})：Bundler 套娃、gem 管理与 GitHub Pages 部署；
-- [Jekyll：minima结构]({% post_url 2019-11-17-Jekyll-website %})：minima网站架构；
-- [Jekyll：minima主题自定义]({% post_url 2019-11-23-minima-customize %})：各种自定义元素，以minima为例；
-- [docsy-jekyll]({% post_url 2020-08-29-docsy-jekyll %})：collection定义、default layout；
+- [Jekyll 博客的 Ruby 环境]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})：Bundler 套娃、gem 管理与 GitHub Pages 部署；
+- [Jekyll：minima结构]({% link _tutorials/2019-11-17-Jekyll-website.md %})：minima网站架构；
+- [Jekyll：minima主题自定义]({% link _tutorials/2019-11-23-minima-customize.md %})：各种自定义元素，以minima为例；
+- [docsy-jekyll]({% link _tutorials/2020-08-29-docsy-jekyll.md %})：collection定义、default layout；
 
 1. Table of Contents, ordered                    
 {:toc}

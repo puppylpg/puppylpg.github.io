@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "（八）How Tomcat Works - Tomcat Authentication"
 date: 2020-10-08 20:52:58 +0800
-categories: tomcat http web session
-tags: tomcat http web session
+categories: [tomcat, http, web, session]
+tags: [tomcat, http, web, session]
 ---
 
 session可以让Tomcat识别多个请求来自于同一个用户，既然涉及到用户，就涉及到权限。比如有的servlet只有管理员才能访问，其他的普通用户也可以访问。

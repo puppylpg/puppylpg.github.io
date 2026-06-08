@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - 对象及底层数据结构实现"
 date: 2021-01-10 23:28:51 +0800
-categories: redis
-tags: redis
+categories: [redis]
+tags: [redis]
 ---
 
 redis存储的kv都是object。object有五种，k永远都是string，v是string/list/set/zset/hash，其实就是string和list、set、map再加个sorted set。

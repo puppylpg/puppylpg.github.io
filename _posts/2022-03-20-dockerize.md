@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Docker - 容器化"
 date: 2022-03-20 03:13:15 +0800
-categories: docker
-tags: docker
+categories: [docker]
+tags: [docker]
 ---
 
 **三月是被docker打动的一个月。**

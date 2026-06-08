@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Docker - dind"
 date: 2022-10-09 23:54:39 +0800
-categories: docker gitlab
-tags: docker gitlab
+categories: [docker, gitlab]
+tags: [docker, gitlab]
 ---
 
 使用docker in docker在容器内构建docker镜像。主要是为了集成到gitlab ci里。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spark Cluster & Deploying"
 date: 2020-07-06 16:31:30 +0800
-categories: spark cluster deploy
-tags: spark cluster deploy
+categories: [spark, cluster, deploy]
+tags: [spark, cluster, deploy]
 ---
 
 关于spark跑任务使用的集群以及任务的提交方式。

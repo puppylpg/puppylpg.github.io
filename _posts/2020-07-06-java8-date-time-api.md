@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Java8 Date-Time API"
 date: 2020-07-07 01:42:14 +0800
-categories: java time
-tags: java time
+categories: [java, time]
+tags: [java, time]
 ---
 
 Java 8的Date Time API（java.time包下）定义了新的关于时间相关的类，包括人类时间、机器时间，本地时间、带时区的全球唯一时间等，供不同的场景选用不同的类。另外还有基本的Temporal支持，对计算时间的加减等操作提供了很强大的支持。

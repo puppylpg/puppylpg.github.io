@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - bean的容器"
 date: 2021-11-21 21:07:58 +0800
-categories: spring
-tags: spring
+categories: [spring]
+tags: [spring]
 ---
 
 [Spring - bean的生命周期]({% post_url 2021-11-16-spring-bean-lifecycle %})介绍了spring bean的生命周期需要经过哪些步骤，但是这些只是一半的工作。bean之所以有这些步骤可做，是因为bean的容器在配合它：虽然已经定义了各种操作bean的接口，比如BeanPostProcessor等，如果容器不去响应他们，也就没法完成这些所谓的回调。只有bean和容器协同使用这些接口，才能实现完整的spring框架功能。

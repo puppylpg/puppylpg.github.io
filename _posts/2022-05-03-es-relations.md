@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：关系型文档"
 date: 2022-05-03 21:31:21 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 es是非关系型数据库，但是现实世界中的数据往往又是关系型的，比如用户和用户所发表过的博客就是一对多的关系。**而程序是对现实的抽象**，所以即便使用es也会不可避免要处理关系型数据。

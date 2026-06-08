@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - CSRF"
 date: 2022-12-28 22:42:14 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 spring security的另一个功能是[保护一些常用的恶意攻击](https://docs.spring.io/spring-security/reference/features/exploits/index.html)，且默认开启。主要防护的是CSRF，Cross Site Request Forgery，跨站请求伪造。

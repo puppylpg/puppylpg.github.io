@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Testcontainers - Elasticsearch"
 date: 2022-11-08 00:43:46 +0800
-categories: docker testcontainers elasticsearch
-tags: docker testcontainers elasticsearch
+categories: [docker, testcontainers, elasticsearch]
+tags: [docker, testcontainers, elasticsearch]
 ---
 
 第一次接触testcontainers，是改spring-data-elasticsearch的代码，当时就被testcontainers的集成测试惊艳到了。后来第二次再碰到testcontainers，是研究elasticsearch client时看别人用testcontainers测试client，第二次见面就感觉熟悉多了。小小研究之后，真的感觉相见恨晚，集成测试的问题从此解决了！再也不用配置h2模拟mysql了，再也不用写spring复杂的集成测试了。毕竟这是一个真服务，只要把它接入测试就行了，大大降低了写集成测试代码的难度。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - 密码"
 date: 2022-12-24 18:56:34 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 开发这么多年，spring security其实一直用的比较少。毕竟大部分情况下都是在搞定特定功能，security属于另一套东西，一般不需要，大都是涉及到前后端的时候才加上。这也是security这一功能的本质：一套呼之即来挥之即去的东西。spring security很好地诠释了这一点，给服务集成security功能还是比较优雅的。spring security的功能虽然不一定经常用，但设计理念还是不错的，看一看很受用。

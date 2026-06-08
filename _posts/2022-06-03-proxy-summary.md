@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "汇总：代理"
 date: 2022-06-03 19:17:25 +0800
-categories: network 
-tags: network
+categories: [network]
+tags: [network]
 ---
 
 代理——从入门到装逼：

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "线程池异常处理"
 date: 2021-11-28 18:24:42 +0800
-categories: java executor
-tags: java executor
+categories: [java, executor]
+tags: [java, executor]
 ---
 
 前一段碰到一个很迷惑的问题，大致模型为：

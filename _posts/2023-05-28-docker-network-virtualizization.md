@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Docker - 虚拟化网络设备"
 date: 2023-05-28 19:39:30 +0800
-categories: docker
-tags: docker
+categories: [docker]
+tags: [docker]
 ---
 
 在docker中，容器的网络隔离不仅用到了iptables对数据包的转发规则进行干预，还离不开网络设备的虚拟化技术，毕竟容器需要配上虚拟化的网络设备才能组成完整的虚拟网络。

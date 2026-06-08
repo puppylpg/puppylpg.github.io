@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Data"
 date: 2023-12-20 01:15:42 +0800
-categories: spring-data spring-data-elasticsearch
-tags: spring-data spring-data-elasticsearch
+categories: [spring-data, spring-data-elasticsearch]
+tags: [spring-data, spring-data-elasticsearch]
 ---
 
 最近给spring data elasticsearch提交了一些PR（[#2793](https://github.com/spring-projects/spring-data-elasticsearch/pull/2793)、[#2802](https://github.com/spring-projects/spring-data-elasticsearch/pull/2802)），趁此机会系统看一下[spring data commons](https://docs.spring.io/spring-data/commons/reference/)的文档，顺便填一下之前说的[spring data elasticsearch](https://docs.spring.io/spring-data/elasticsearch/reference/)文档的坑。而且二者正好一个是抽象规范，一个是落地实现，结合起来看会好理解很多。实际上，后者也从前者复用了不少文档。

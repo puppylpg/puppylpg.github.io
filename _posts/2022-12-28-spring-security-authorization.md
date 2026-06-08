@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Security - Authorization"
 date: 2022-12-28 00:50:33 +0800
-categories: spring security
-tags: spring security
+categories: [spring, security]
+tags: [spring, security]
 ---
 
 spring security主要解决三个问题：

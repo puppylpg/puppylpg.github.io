@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Data Elasticsearch 5.x"
 date: 2023-12-08 22:32:04 +0800
-categories: elasticsearch spring-data-elasticsearch
-tags: elasticsearch spring-data-elasticsearch
+categories: [elasticsearch, spring-data-elasticsearch]
+tags: [elasticsearch, spring-data-elasticsearch]
 ---
 
 elasticsearch已经废弃了hlrc（[Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})），使用新的elasticsearch-java客户端：

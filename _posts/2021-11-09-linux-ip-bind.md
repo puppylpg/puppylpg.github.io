@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Linux - ip绑定"
 date: 2021-11-09 16:38:28 +0800
-categories: linux ip network
-tags: linux ip network
+categories: [linux, ip, network]
+tags: [linux, ip, network]
 ---
 
 部署一个springboot服务，绑定8122端口。通过netstat查看，发现只有ipv6地址被绑定了：

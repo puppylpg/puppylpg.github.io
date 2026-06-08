@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：排序和聚合"
 date: 2022-04-22 23:45:54 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 上一篇讲了搜索，这一篇说说排序和聚合。

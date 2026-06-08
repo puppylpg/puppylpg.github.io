@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Elasticsearch：集群配置"
 date: 2022-05-09 02:06:38 +0800
-categories: elasticsearch
-tags: elasticsearch
+categories: [elasticsearch]
+tags: [elasticsearch]
 ---
 
 集群的配置和部署相关信息。

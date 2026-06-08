@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - run"
 date: 2022-07-21 21:41:28 +0800
-categories: spring
-tags: spring
+categories: [spring]
+tags: [spring]
 ---
 
 springboot既然都走一遭了，spring也走一遭吧。

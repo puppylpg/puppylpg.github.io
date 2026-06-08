@@ -219,7 +219,7 @@ defaults:
       path: _tutorials
       type: tutorials
     values:
-      layout: page
+      layout: post
       comments: true
       toc: true
       math: true

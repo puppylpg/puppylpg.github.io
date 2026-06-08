@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "avro-tools"
 date: 2020-07-25 22:22:30 +0800
-categories: avro
-tags: avro
+categories: [avro]
+tags: [avro]
 ---
 
 使用avro提供的工具，可以通过命令行直接查看avro文件、查看avro schema、avro和json互转等。

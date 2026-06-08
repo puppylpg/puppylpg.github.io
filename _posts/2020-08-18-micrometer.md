@@ -1,9 +1,8 @@
 ---
-layout: post
 title: Micrometer
 date: 2020-08-18 15:50:48 +0800
-categories: micrometer
-tags: micrometer
+categories: [micrometer]
+tags: [micrometer]
 ---
 
 在Java程序中，一般需要统计的量被称为metric。比如请求个数、请求到来的速率、请求处理的时间分布quantile（.50/.95/.99等）。

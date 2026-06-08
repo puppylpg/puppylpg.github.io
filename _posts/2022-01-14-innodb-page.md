@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Innodb - 页"
 date: 2022-01-14 00:01:01 +0800
-categories: mysql innodb
-tags: mysql innodb
+categories: [mysql, innodb]
+tags: [mysql, innodb]
 ---
 
 之前介绍了[Innodb - 行]({% post_url 2022-01-13-innodb-row %})，行是一种紧凑存放列值的结构，而行是放在页page里的。

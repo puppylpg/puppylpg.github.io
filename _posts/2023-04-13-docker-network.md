@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Docker - network"
 date: 2023-04-13 23:42:17 +0800
-categories: docker
-tags: docker
+categories: [docker]
+tags: [docker]
 ---
 
 没想到docker的网络竟然用到了iptables。

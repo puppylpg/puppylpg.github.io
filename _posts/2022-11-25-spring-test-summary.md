@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "汇总：Spring Test with Jupiter"
 date: 2022-11-25 18:44:59 +0800
-categories: spring springboot test
-tags: spring springboot test
+categories: [spring, springboot, test]
+tags: [spring, springboot, test]
 ---
 
 1. Table of Contents, ordered

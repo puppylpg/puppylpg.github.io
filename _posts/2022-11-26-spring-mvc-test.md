@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring Mvc Test - MockMvc"
 date: 2022-11-26 22:17:46 +0800
-categories: spring test
-tags: spring test
+categories: [spring, test]
+tags: [spring, test]
 ---
 
 [`MockMvc`](https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#spring-mvc-test-framework)提供了对spring mvc层的测试能力。它能够模拟server的运行过程（实际上并没有真的server在运行），处理mock的请求和响应。说白了就是：**client和server本来应该是多进程的行为，现在不仅都放在一个进程里，甚至都放在了同一个线程里执行**！通过`MockMvc`，直接在一个线程里执行servlet！

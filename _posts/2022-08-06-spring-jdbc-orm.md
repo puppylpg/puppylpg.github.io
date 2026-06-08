@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spring - JDBC & ORM"
 date: 2022-08-06 20:46:31 +0800
-categories: spring jdbc orm hibernate mybatis
-tags: spring jdbc orm hibernate mybatis
+categories: [spring, jdbc, orm, hibernate, mybatis]
+tags: [spring, jdbc, orm, hibernate, mybatis]
 ---
 
 [Spring - Data Access & Transaction]({% post_url 2022-08-01-spring-dao-transaction %})主要从设计理念和关键实现原理上介绍了spring aop对spring jdbc和整合其他orm框架的支持。本文介绍一下具体的实现。

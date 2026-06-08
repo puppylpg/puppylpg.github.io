@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - 分布式锁 vs. zookeeper"
 date: 2021-02-06 22:24:36 +0800
-categories: redis zookeeper lock
-tags: redis zookeeper lock
+categories: [redis, zookeeper, lock]
+tags: [redis, zookeeper, lock]
 ---
 
 redis常被用来实现分布式锁。分布式锁和并发编程理念一致，唯一的区别就是前者是多个进程之间的协同，后者是同一个进程里多个线程之间的协同。

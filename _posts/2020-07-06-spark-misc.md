@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Spark MISC"
 date: 2020-07-06 16:35:30 +0800
-categories: spark
-tags: spark
+categories: [spark]
+tags: [spark]
 ---
 
 在能独立成章之前，把一些其他关于spark需要记录的东西先写在这里。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Redis - Client & Server"
 date: 2021-01-15 01:10:27 +0800
-categories: redis inode fd
-tags: redis inode fd
+categories: [redis, inode, fd]
+tags: [redis, inode, fd]
 ---
 
 之前总结了server的模型架构，采取nio进行IO多路复用，主要用一个主线程不断进行loop来完成所有的请求处理。那么处理client和server是如何交互的？

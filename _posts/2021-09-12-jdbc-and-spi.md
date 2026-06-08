@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "JDBC与SPI"
 date: 2021-09-12 23:35:02 +0800
-categories: java jdbc spi
-tags: java jdbc spi
+categories: [java, jdbc, spi]
+tags: [java, jdbc, spi]
 ---
 
 JDBC（Java Database Connectivity）是一套Java访问数据库的标准。想了解标准，主要看一下JDBC定义的一套接口，以及这套接口是怎么和具体实现绑定起来的。

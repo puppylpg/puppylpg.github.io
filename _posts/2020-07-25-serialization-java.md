@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "序列化 - Java"
 date: 2020-07-25 22:50:06 +0800
-categories: java serialization
-tags: java serialization
+categories: [java, serialization]
+tags: [java, serialization]
 ---
 
 Java序列化框架是一种Java专有的非通用的序列化方案，这是和protobuf、avro、json等通用序列化框架的根本区别。除此之外，Java的序列化更慢、序列化后的体积更大，所以即使是在Java里，应用也没以上通用序列化框架广泛。

@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "Java - classloader"
 date: 2020-09-17 00:06:04 +0800
-categories: java classloader
-tags: java classloader
+categories: [java, classloader]
+tags: [java, classloader]
 ---
 
 看到Tomcat自定义的classloader有感而发，总结一下Java里的classloader。

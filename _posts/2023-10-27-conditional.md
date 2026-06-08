@@ -1,9 +1,8 @@
 ---
-layout: post
 title: "@Conditional"
 date: 2023-10-27 16:53:23 +0800
-categories: spring springboot
-tags: spring springboot
+categories: [spring, springboot]
+tags: [spring, springboot]
 ---
 
 关于springboot，已经写了很丑的两篇：
