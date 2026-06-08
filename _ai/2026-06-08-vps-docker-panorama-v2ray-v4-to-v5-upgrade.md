@@ -66,6 +66,205 @@ flowchart LR
 | `v2ray` | `v2fly/v2fly-core:v4.23.4` | 10087 | 代理服务（v4 稳定版） |
 | `v2ray-new` | `v2fly/v2fly-core:latest` | 10087 | 代理服务（v5 测试版） |
 
+## Docker 网络实际状况
+
+这台 VPS 上所有容器都接在默认的 `bridge` 网络上，子网为 `172.17.0.0/16`，网关 `172.17.0.1`。只有 `nginx-proxy` 将端口映射到宿主机（`-p 80:80 -p 443:443`），其余容器均只暴露内部端口，完全依赖 Docker 内部网络通信：
+
+| 容器名 | 实际 IP | 暴露端口 | 外部映射 |
+|--------|---------|----------|----------|
+| `nginx-proxy` | `172.17.0.4` | 80, 443 | `0.0.0.0:80→80`, `0.0.0.0:443→443` |
+| `nginx-proxy-acme` | `172.17.0.2` | — | 无 |
+| `ttq` | `172.17.0.3` | 80 | 无 |
+| `memos` | `172.17.0.5` | 5230 | 无 |
+| `v2ray` | `172.17.0.6` | 10087 | 无 |
+| `netdata` | `172.17.0.7` | 19999 | 无 |
+| `dailytxt` | `172.17.0.8` | 80 | 无 |
+| `wedding` | `172.17.0.9` | 80 | 无 |
+| `portainer` | `172.17.0.10` | 9443 | 无 |
+| `v2ray-new` | `172.17.0.11` | 10087 | 无 |
+
+所有容器处于同一二层网络，彼此可直接通过 IP 或容器名通信。外部流量必须经由 `nginx-proxy` 的 80/443 入口进入，再由其按规则分发。
+
+```mermaid
+flowchart TB
+    subgraph bridge["Docker bridge 网络 (172.17.0.0/16)"]
+        direction TB
+        proxy["nginx-proxy<br/>172.17.0.4:80/443"]
+        acme["acme<br/>172.17.0.2"]
+        ttq_node["ttq<br/>172.17.0.3:80"]
+        memos_node["memos<br/>172.17.0.5:5230"]
+        v2ray_node["v2ray<br/>172.17.0.6:10087"]
+        v2raynew_node["v2ray-new<br/>172.17.0.11:10087"]
+        portainer_node["portainer<br/>172.17.0.10:9443"]
+        netdata_node["netdata<br/>172.17.0.7:19999"]
+        dailytxt_node["dailytxt<br/>172.17.0.8:80"]
+        wedding_node["wedding<br/>172.17.0.9:80"]
+    end
+
+    users["外部用户"] -->|"HTTP 80 / HTTPS 443"| proxy
+    proxy -->|"proxy_pass"| ttq_node
+    proxy -->|"proxy_pass"| memos_node
+    proxy -->|"proxy_pass"| portainer_node
+    proxy -->|"proxy_pass"| netdata_node
+    proxy -->|"proxy_pass"| dailytxt_node
+    proxy -->|"proxy_pass"| wedding_node
+    proxy -->|"WebSocket<br/>/v2ray"| v2ray_node
+    proxy -->|"WebSocket<br/>/v2ray5"| v2raynew_node
+
+    classDef user fill:#fff7cc,stroke:#d6a500,color:#222;
+    classDef gateway fill:#dff1ff,stroke:#4a90c2,color:#0f2f44;
+    classDef app fill:#ffe5ec,stroke:#d85a7f,color:#3b1723;
+    class users user;
+    class proxy gateway;
+    class acme,ttq_node,memos_node,v2ray_node,v2raynew_node,portainer_node,netdata_node,dailytxt_node,wedding_node app;
+```
+
+## nginx-proxy 自动发现与转发原理
+
+`nginx-proxy` 并非手动编写配置文件，而是通过挂载宿主机的 `/var/run/docker.sock`，实时监听容器创建、销毁、环境变量变更等事件。任何带有 `VIRTUAL_HOST` 环境变量的容器，都会被自动注册为 nginx 的 upstream。
+
+### 各容器声明的环境变量
+
+| 容器名 | `VIRTUAL_HOST` | `VIRTUAL_PORT` | `VIRTUAL_PROTO` | `VIRTUAL_PATH` | `LETSENCRYPT_HOST` |
+|--------|---------------|----------------|-----------------|----------------|-------------------|
+| `wedding` | `wedding.puppylpg.top` | — | — | — | `wedding.puppylpg.top` |
+| `ttq` | `ttq.puppylpg.top` | — | — | — | `ttq.puppylpg.top` |
+| `memos` | `memos.puppylpg.top` | `5230` | — | — | `memos.puppylpg.top` |
+| `portainer` | `portainer.puppylpg.top` | `9443` | `https` | — | `portainer.puppylpg.top` |
+| `netdata` | `netdata.puppylpg.top` | `19999` | — | — | `netdata.puppylpg.top` |
+| `dailytxt` | `memory.puppylpg.top` | — | — | — | `memory.puppylpg.top` |
+| `v2ray` | `puppylpg.top` | `10087` | — | `/v2ray` | `puppylpg.top` |
+| `v2ray-new` | `puppylpg.top` | `10087` | — | `/v2ray5` | `puppylpg.top` |
+
+- `VIRTUAL_HOST`：告诉 nginx-proxy 这个容器响应哪个域名。
+- `VIRTUAL_PORT`：当容器内部不是 80 端口时指定（如 memos 的 5230）。
+- `VIRTUAL_PROTO=https`：告诉 nginx-proxy 使用 `proxy_pass https://` 而非 `http://`（portainer 需要）。
+- `VIRTUAL_PATH`：当多个容器共享同一个域名时，按路径区分（v2ray 和 v2ray-new）。
+- `LETSENCRYPT_HOST`：告诉 acme-companion 为这个域名申请 SSL 证书。
+
+### 自动生成的 nginx 配置
+
+基于上述环境变量，nginx-proxy 在容器内自动生成 `/etc/nginx/conf.d/default.conf`。以下是这台 VPS 上的**实际配置片段**。
+
+**域名级转发（以 ttq 为例）：**
+```nginx
+upstream ttq.puppylpg.top {
+    # Container: ttq
+    #     IP address: 172.17.0.3
+    #     using port: 80
+    server 172.17.0.3:80;
+}
+
+server {
+    server_name ttq.puppylpg.top;
+    listen 80;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    server_name ttq.puppylpg.top;
+    listen 443 ssl http2;
+    ssl_certificate /etc/nginx/certs/ttq.puppylpg.top.crt;
+    ssl_certificate_key /etc/nginx/certs/ttq.puppylpg.top.key;
+
+    location / {
+        proxy_pass http://ttq.puppylpg.top;
+    }
+}
+```
+
+**端口非 80（以 memos 为例）：**
+```nginx
+upstream memos.puppylpg.top {
+    # Container: memos
+    #     IP address: 172.17.0.5
+    #     using port: 5230
+    server 172.17.0.5:5230;
+}
+# ... server 块内 proxy_pass http://memos.puppylpg.top;
+```
+
+**HTTPS 后端（以 portainer 为例）：**
+```nginx
+upstream portainer.puppylpg.top {
+    # Container: portainer
+    #     IP address: 172.17.0.10
+    #     using port: 9443
+    server 172.17.0.10:9443;
+}
+# ... server 块内 proxy_pass https://portainer.puppylpg.top;
+```
+
+**路径级转发（v2ray / v2ray-new）：**
+```nginx
+upstream puppylpg.top-e4ef5e7590321020fdf18aca8812df0c6d8539ac {
+    # Container: v2ray
+    #     IP address: 172.17.0.6
+    #     using port: 10087
+    server 172.17.0.6:10087;
+}
+
+upstream puppylpg.top-94f75cc1d9f955dec986d7c5c366e3c221ab679d {
+    # Container: v2ray-new
+    #     IP address: 172.17.0.11
+    #     using port: 10087
+    server 172.17.0.11:10087;
+}
+
+server {
+    server_name puppylpg.top;
+    listen 443 ssl http2;
+
+    location /v2ray {
+        proxy_pass http://puppylpg.top-e4ef5e759...;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $proxy_connection;
+    }
+
+    location /v2ray5 {
+        proxy_pass http://puppylpg.top-94f75cc1d...;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $proxy_connection;
+    }
+}
+```
+
+### 转发流程总结
+
+当用户访问 `https://ttq.puppylpg.top` 时：
+
+1. DNS 解析域名到 VPS 公网 IP；
+2. 请求到达 `nginx-proxy` 监听的 443 端口；
+3. nginx 读取 HTTP Header 中的 `Host: ttq.puppylpg.top`，匹配到对应的 `server` 块；
+4. `proxy_pass` 将请求转发到 `upstream ttq.puppylpg.top`，即 `172.17.0.3:80`；
+5. `ttq` 容器处理请求并原路返回。
+
+对于 v2ray，同一个域名 `puppylpg.top` 按 `location /v2ray` 和 `location /v2ray5` 拆分到两个不同的 upstream，分别打到 `172.17.0.6:10087` 和 `172.17.0.11:10087`。
+
+```mermaid
+flowchart LR
+    user["用户浏览器 / v2ray 客户端"]
+    dns["DNS 解析<br/>→ VPS 公网 IP"]
+    nginx["nginx-proxy<br/>监听 80/443"]
+    match["匹配<br/>server_name + location"]
+    upstream["upstream<br/>容器内网 IP:端口"]
+    container["业务容器"]
+
+    user --> dns --> nginx
+    nginx --> match --> upstream --> container
+
+    classDef user fill:#fff7cc,stroke:#d6a500,color:#222;
+    classDef net fill:#e3f7e7,stroke:#4b9b63,color:#183b22;
+    classDef gateway fill:#dff1ff,stroke:#4a90c2,color:#0f2f44;
+    classDef target fill:#ffe5ec,stroke:#d85a7f,color:#3b1723;
+    class user user;
+    class dns net;
+    class nginx gateway;
+    class match,upstream,container target;
+```
+
 ## 各容器连接方式
 
 ### 1. nginx-proxy（反向代理网关）
@@ -293,7 +492,7 @@ flowchart LR
     class legacy warn;
 ```
 
-v2ray 使用 WebSocket 传输层，nginx-proxy 负责处理 WebSocket 的 `Upgrade` 和 `Connection` header 转发。
+v2ray 使用 WebSocket 传输层，nginx-proxy 负责处理 WebSocket 的 `Upgrade` 和 `Connection` header 转发。由于容器声明了 `VIRTUAL_PATH=/v2ray`，nginx-proxy 自动生成 `location /v2ray` 块，将匹配到该路径的请求转发到 `172.17.0.6:10087`。
 
 ### 9. v2ray-new（代理服务 v5 测试）
 
@@ -323,7 +522,7 @@ flowchart LR
     class aead ok;
 ```
 
-v2ray-new 与 v2ray 的唯一外部差异是 WebSocket 路径不同（`/v2ray5` vs `/v2ray`），内部差异是 alterId（0 vs 64）和版本（v5 vs v4）。
+v2ray-new 与 v2ray 的唯一外部差异是 WebSocket 路径不同（`/v2ray5` vs `/v2ray`），内部差异是 alterId（0 vs 64）和版本（v5 vs v4）。nginx-proxy 自动生成 `location /v2ray5` 块，将请求转发到 `172.17.0.11:10087`。
 
 # V2Ray v4→v5 升级分析
 
@@ -389,7 +588,7 @@ v5 移除了对非零 `alterId` 的支持。如果强行在 v5 配置里写 `alt
 2. 通知所有用户把客户端配置里的 `alterId: 64` 改成 `0`，其他参数不变。
 3. 确认大部分用户迁移后，再关闭 v4。
 
-另一个细节是内部端口：v4 和 v5 容器内部都使用 `10087`，但由于 Docker 网络隔离（各自独立的 IP 地址），不会冲突。对外暴露的差异仅体现在 nginx-proxy 的 path 路由上（`/v2ray` vs `/v2ray5`）。
+另一个细节是内部端口：v4 和 v5 容器内部都使用 `10087`，但由于 Docker 网络隔离（`172.17.0.6` 与 `172.17.0.11`），不会冲突。对外暴露的差异仅体现在 nginx-proxy 的 path 路由上——`location /v2ray` 转发到 `172.17.0.6:10087`，`location /v2ray5` 转发到 `172.17.0.11:10087`。
 
 # 核心结论
 
