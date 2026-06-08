@@ -144,6 +144,12 @@ bundle exec htmlproofer _site --disable-external --no-enforce-https
 
 **每个覆盖文件 = 未来每次升级要手动合并一次**。能删掉或缩小覆盖范围，就应该优先这样做。
 
+#### 血泪教训：`assets/css/jekyll-theme-chirpy.scss`
+
+这个文件是 gem 的 SCSS **入口文件**，包含 Liquid 条件逻辑——开发环境用 `main`（Bootstrap 通过 CDN 加载），生产环境用 `main.bundle`（Bootstrap 内联打包）。如果为了加自定义样式而覆盖它，升级后入口逻辑不同步就会导致**生产环境 Bootstrap 完全丢失**，页面严重错位。
+
+**正确做法**：不覆盖 gem 的 SCSS 入口。自定义样式放 `assets/css/custom.scss`，通过 `_includes/metadata-hook.html`（gem 提供的空 placeholder）在 `<head>` 末尾加载。这样 gem 入口文件由 gem 自己管理，升级零成本。
+
 ### 本仓库的覆盖文件清单
 
 | 文件 | 覆盖原因 | 升级处理方式 |
@@ -152,6 +158,8 @@ bundle exec htmlproofer _site --disable-external --no-enforce-https
 | `_layouts/open-layout.html` | `_open` 集合自定义列表页 | 必须保留；注意 include 名称变更（v7 用 `post-summary.html`）|
 | `_layouts/custom-collection.html` | 通用集合列表 | 同上 |
 | `_includes/js-selector.html` | 注入 `custom-toc.js` | v7 起完整替换为 v7 内容 + 注入行 |
+| `_includes/metadata-hook.html` | 加载 `custom.css` | gem 提供空 placeholder，不存在同步问题 |
+| `assets/css/custom.scss` | post-badge、TOC 层级样式 | 纯追加样式，不覆盖 gem 入口，升级安全 |
 | `assets/js/custom-toc.js` | h1 加入 TOC | v7 需改用 `tocbot.refresh()`（见下）|
 
 ### `_includes/js-selector.html`：跟踪上游内容
