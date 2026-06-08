@@ -76,10 +76,7 @@ refactor: true
             </h1>
 
             <div class="card-text content mt-0 mb-3">
-              <p>
-                {% include no-linenos.html content=post.content %}
-                {{ content | markdownify | strip_html | truncate: 200 | escape }}
-              </p>
+              <p>{% include post-summary.html %}</p>
             </div>
 
             <div class="post-meta flex-grow-1 d-flex align-items-end">
