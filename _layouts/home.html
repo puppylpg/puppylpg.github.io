@@ -5,7 +5,7 @@ refactor: true
 
 {% include lang.html %}
 
-<!-- Build merged list: site.posts + site.ai, sorted by date desc -->
+<!-- Build merged list: all collections sorted by date desc -->
 {% assign all_items = '' | split: '' %}
 
 {% for post in site.posts %}
@@ -17,6 +17,26 @@ refactor: true
 
 {% for doc in site.ai %}
   {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::ai::{{ forloop.index0 }}{% endcapture %}
+  {% assign all_items = all_items | push: elem %}
+{% endfor %}
+
+{% for doc in site.open %}
+  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::open::{{ forloop.index0 }}{% endcapture %}
+  {% assign all_items = all_items | push: elem %}
+{% endfor %}
+
+{% for doc in site.tutorials %}
+  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::tutorials::{{ forloop.index0 }}{% endcapture %}
+  {% assign all_items = all_items | push: elem %}
+{% endfor %}
+
+{% for doc in site.books %}
+  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::books::{{ forloop.index0 }}{% endcapture %}
+  {% assign all_items = all_items | push: elem %}
+{% endfor %}
+
+{% for doc in site.life %}
+  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::life::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
@@ -37,10 +57,26 @@ refactor: true
       {% assign post = site.posts[index] %}
       {% assign badge_class = 'post-badge--tech' %}
       {% assign badge_text = 'Tech' %}
-    {% else %}
+    {% elsif col == 'ai' %}
       {% assign post = site.ai[index] %}
       {% assign badge_class = 'post-badge--ai' %}
       {% assign badge_text = 'AI' %}
+    {% elsif col == 'open' %}
+      {% assign post = site.open[index] %}
+      {% assign badge_class = 'post-badge--open' %}
+      {% assign badge_text = 'Open' %}
+    {% elsif col == 'tutorials' %}
+      {% assign post = site.tutorials[index] %}
+      {% assign badge_class = 'post-badge--tutorial' %}
+      {% assign badge_text = 'Tutorial' %}
+    {% elsif col == 'books' %}
+      {% assign post = site.books[index] %}
+      {% assign badge_class = 'post-badge--book' %}
+      {% assign badge_text = 'Book' %}
+    {% elsif col == 'life' %}
+      {% assign post = site.life[index] %}
+      {% assign badge_class = 'post-badge--life' %}
+      {% assign badge_text = 'Life' %}
     {% endif %}
 
     <article class="card-wrapper card">

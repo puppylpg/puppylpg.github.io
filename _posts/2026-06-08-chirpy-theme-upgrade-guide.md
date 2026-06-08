@@ -133,12 +133,10 @@ gem 提供了两个安全的扩展点：
 
 | 文件 | 覆盖原因 | 升级风险 |
 |------|---------|---------|
-| `_layouts/home.html` | 合并 `site.posts` + `site.ai`，显示 Tech/AI 徽章 | **高**：每次升级必须与上游 diff 合并 |
-| `_layouts/open-layout.html` | `_open` 集合自定义列表页 | **高**：注意 include 名称变更 |
-| `_layouts/custom-collection.html` | 通用集合列表 | **高**：同上 |
+| `_layouts/home.html` | 合并所有集合（Tech/AI/Open/Tutorial/Book/Life），显示彩色徽章 | **高**：每次升级必须与上游 diff 合并 |
+| `_layouts/custom-collection.html` | 通用集合列表（支持按 date 或 order 排序） | **高**：同上 |
 | `_includes/js-selector.html` | 注入 `custom-toc.js` | **中**：整体替换上游版本 + 加一行 |
 | `_includes/metadata-hook.html` | 加载 `custom.css` | **无**：gem 提供空 placeholder |
-| `_includes/update-list.html` | 禁用右侧"最近更新"面板 | **无**：置空即可 |
 | `assets/css/custom.scss` | post-badge、TOC 层级样式 | **无**：纯追加样式，不覆盖 gem 入口 |
 | `assets/js/custom-toc.js` | h1 加入 TOC | **低**：独立脚本，只需注意 API 变化 |
 

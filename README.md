@@ -69,7 +69,7 @@ tags: 标签名
 | 集合 | 目录 | 侧边栏 Tab | 列表布局 |
 |------|------|------------|----------|
 | `ai` | `_ai/` | `_tabs/ai.md` | 列表 `custom-collection`；文章 `layout: post`（与主博客一致） |
-| `open` | `_open/` | `_tabs/open.md` | `open-layout`（按 `order` 排序的卡片列表） |
+| `open` | `_open/` | `_tabs/open.md` | `custom-collection`（按 `order` 排序） |
 | `books` | `_books/` | `_tabs/books.md` | `custom-collection` |
 | `life` | `_life/` | `_tabs/life.md` | `custom-collection` |
 | `tutorials` | `_tutorials/` | `_tabs/tutorials.md` | `custom-collection` |
@@ -155,9 +155,8 @@ JEKYLL_ENV=production bundle exec jekyll build
 |------|------|
 | `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
 | `_plugins/collection-archives.rb` | 让自定义集合的 categories/tags 也参与归档页生成 |
-| `_layouts/home.html` | 首页，合并 `_posts` 与 `_ai` 并按日期倒序分页展示 |
-| `_layouts/custom-collection.html` | 自定义集合的按年归档列表 |
-| `_layouts/open-layout.html` | `open` 集合的卡片式列表 |
+| `_layouts/home.html` | 首页，合并所有集合并按日期倒序分页展示 |
+| `_layouts/custom-collection.html` | 自定义集合的按年归档列表（支持按 order 排序） |
 | `bin/jekyll-dev.sh` | macOS 本地 `start` / `stop` / `restart` / `status` |
 
 站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。

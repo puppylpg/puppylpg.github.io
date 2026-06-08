@@ -12,14 +12,34 @@
   letter-spacing: 0.03em;
 }
 
-.post-badge--ai {
-  color: var(--link-color);
-  border: 1px solid var(--link-color);
+.post-badge--tech {
+  color: #1565c0;
+  border: 1px solid #1565c0;
 }
 
-.post-badge--tech {
-  color: var(--text-muted-color);
-  border: 1px solid var(--text-muted-color);
+.post-badge--ai {
+  color: #c62828;
+  border: 1px solid #c62828;
+}
+
+.post-badge--open {
+  color: #2e7d32;
+  border: 1px solid #2e7d32;
+}
+
+.post-badge--tutorial {
+  color: #e65100;
+  border: 1px solid #e65100;
+}
+
+.post-badge--book {
+  color: #6a1b9a;
+  border: 1px solid #6a1b9a;
+}
+
+.post-badge--life {
+  color: #00838f;
+  border: 1px solid #00838f;
 }
 
 /* TOC level styles: distinguish h1 / h2 / h3 */
