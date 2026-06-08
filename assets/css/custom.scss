@@ -42,6 +42,11 @@
   border: 1px solid #00838f;
 }
 
+.post-badge--viewed {
+  color: #757575;
+  border: 1px solid #757575;
+}
+
 /* TOC level styles: distinguish h1 / h2 / h3 */
 #toc-wrapper #toc {
   > ul > li > a {

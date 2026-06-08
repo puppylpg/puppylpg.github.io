@@ -52,14 +52,14 @@ description: "一句话摘要，用于 SEO 和 feed"
 
 各集合默认值不完全相同：
 
-- `_posts`、`_ai`、`_open`、`_tutorials`：`comments: true`、`toc: true`、`math: true`、`mermaid: true`。
+- `_posts`、`_ai`、`_open`、`_tutorials`、`_viewed`：`comments: true`、`toc: true`、`math: true`、`mermaid: true`。
 - `_books`、`_life`：`comments: true`、`toc: true`；没有默认 `math` / `mermaid`。
 
 只有需要覆盖默认行为时才显式写开关，例如 `toc: false`、`comments: false`、`math: false`、`mermaid: false`。
 
 ## Collections 关键约束
 
-`_config.yml` 定义了 5 个自定义集合：`ai`、`open`、`books`、`life`、`tutorials`。集合概述和列表布局见 `README.md`，这里只记硬约束：
+`_config.yml` 定义了 6 个自定义集合：`ai`、`open`、`books`、`life`、`viewed`、`tutorials`。集合概述和列表布局见 `README.md`，这里只记硬约束：
 
 - **`_tabs/<name>.md` 的 basename 必须和 collection label 一致。** 自定义列表 layout 会拿 tab 文件名和 `collection.label` 比较；只改一边会导致页面静默变空。
 - 除 `open` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
@@ -80,6 +80,17 @@ description: "一句话摘要，用于 SEO 和 feed"
 - **层次清晰**：`flowchart` 用子图 `subgraph` 划分阶段；`classDiagram` 用 `<<interface>>` 标注接口
 - **依赖/包含关系突出**：`classDiagram` 用 `--|>` 表示继承、`--` 表示组合；`flowchart` 用箭头方向表示依赖
 - **不滥用**：纯文字能说清楚的不要画图；一张图专注一个关注点，避免信息过载
+
+## 本地覆盖 gem 主题的文件
+
+gem-based 主题机制：本地同路径文件优先于 gem 内文件。以下是本仓库对 `jekyll-theme-chirpy` 的覆盖清单：
+
+| 本地文件 | 覆盖原因 |
+|---------|---------|
+| `_includes/update-list.html` | 原版只遍历 `site.posts`，覆盖后让右侧栏"最近更新"涵盖所有集合（ai、open、tutorials、books、life） |
+| `_layouts/home.html` | 首页合并所有集合按日期倒序展示，而非仅 `_posts` |
+
+**规则：任何时候新增或删除对 gem 主题的覆盖文件，必须同步更新此表。** 每个覆盖文件都是升级主题时的手动合并债务。
 
 ## 构建坑点
 

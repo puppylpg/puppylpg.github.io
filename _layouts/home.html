@@ -40,6 +40,11 @@ refactor: true
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
+{% for doc in site.viewed %}
+  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::viewed::{{ forloop.index0 }}{% endcapture %}
+  {% assign all_items = all_items | push: elem %}
+{% endfor %}
+
 {% assign all_items = all_items | sort | reverse %}
 
 <!-- Manual pagination using paginator's page info -->
@@ -77,6 +82,10 @@ refactor: true
       {% assign post = site.life[index] %}
       {% assign badge_class = 'post-badge--life' %}
       {% assign badge_text = 'Life' %}
+    {% elsif col == 'viewed' %}
+      {% assign post = site.viewed[index] %}
+      {% assign badge_class = 'post-badge--viewed' %}
+      {% assign badge_text = 'Viewed' %}
     {% endif %}
 
     <article class="card-wrapper card">

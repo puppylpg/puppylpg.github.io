@@ -1,7 +1,7 @@
 ---
 title: "Windows 与 WSL 免密登录差异排查及 Git Bash 原理澄清"
 date: 2026-06-05 13:52:39 +0800
-categories: [ai, tools]
+categories: [tools]
 tags: [ssh, wsl, git-bash, msys2, raspberry-pi, passphrase, ssh-keygen, kimi-cli, skill]
 description: "排查 Windows 可免密 SSH 树莓派但 WSL 需输入密码的问题，发现同一对密钥私钥加密状态不同；同时深入澄清了 Git Bash 与 WSL 的本质区别、wsl 命令的路径解析陷阱等。"
 ---

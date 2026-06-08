@@ -148,6 +148,9 @@ collections:
   life:
     output: true
     permalink: /:collection/:year/:month/:day/:title/
+  viewed:
+    output: true
+    permalink: /:collection/:year/:month/:day/:title/
   tutorials:
     output: true
     permalink: /:collection/:year/:month/:day/:title/
@@ -215,6 +218,15 @@ defaults:
       layout: page
       comments: true
       toc: true
+  - scope:
+      path: _viewed
+      type: viewed
+    values:
+      layout: post
+      comments: true
+      toc: true
+      math: true
+      mermaid: true
   - scope:
       path: _tutorials
       type: tutorials

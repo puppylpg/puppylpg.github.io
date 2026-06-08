@@ -1,0 +1,94 @@
+<!-- Get 5 last posted/updated items across all collections -->
+
+{% assign MAX_SIZE = 5 %}
+
+{% assign all_list = '' | split: '' %}
+
+{% for post in site.posts %}
+  {% assign datetime = post.last_modified_at | default: post.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::posts::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% for doc in site.ai %}
+  {% assign datetime = doc.last_modified_at | default: doc.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::ai::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% for doc in site.open %}
+  {% assign datetime = doc.last_modified_at | default: doc.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::open::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% for doc in site.tutorials %}
+  {% assign datetime = doc.last_modified_at | default: doc.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::tutorials::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% for doc in site.books %}
+  {% assign datetime = doc.last_modified_at | default: doc.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::books::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% for doc in site.life %}
+  {% assign datetime = doc.last_modified_at | default: doc.date %}
+  {% capture elem %}
+    {{- datetime | date: "%Y%m%d%H%M%S" -}}::life::{{- forloop.index0 -}}
+  {% endcapture %}
+  {% assign all_list = all_list | push: elem %}
+{% endfor %}
+
+{% assign all_list = all_list | sort | reverse %}
+
+{% assign update_list = '' | split: '' %}
+
+{% for entry in all_list limit: MAX_SIZE %}
+  {% assign update_list = update_list | push: entry %}
+{% endfor %}
+
+{% if update_list.size > 0 %}
+  <section id="access-lastmod">
+    <h2 class="panel-heading">{{- site.data.locales[include.lang].panel.lastmod -}}</h2>
+    <ul class="content list-unstyled ps-0 pb-1 ms-1 mt-2">
+      {% for item in update_list %}
+        {% assign parts = item | split: '::' %}
+        {% assign col = parts[1] %}
+        {% assign index = parts[2] | plus: 0 %}
+
+        {% if col == 'posts' %}
+          {% assign post = site.posts[index] %}
+        {% elsif col == 'ai' %}
+          {% assign post = site.ai[index] %}
+        {% elsif col == 'open' %}
+          {% assign post = site.open[index] %}
+        {% elsif col == 'tutorials' %}
+          {% assign post = site.tutorials[index] %}
+        {% elsif col == 'books' %}
+          {% assign post = site.books[index] %}
+        {% elsif col == 'life' %}
+          {% assign post = site.life[index] %}
+        {% endif %}
+
+        {% assign url = post.url | relative_url %}
+        <li class="text-truncate lh-lg">
+          <a href="{{ url }}">{{ post.title }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+  <!-- #access-lastmod -->
+{% endif %}
