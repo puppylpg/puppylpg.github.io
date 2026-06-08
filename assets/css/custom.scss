@@ -1,15 +1,6 @@
 ---
 ---
 
-/* prettier-ignore */
-@use 'main
-{%- if jekyll.environment == 'production' -%}
-  .bundle
-{%- endif -%}
-';
-
-/* append your custom style below */
-
 .post-badge {
   display: inline-block;
   font-size: 0.7rem;
