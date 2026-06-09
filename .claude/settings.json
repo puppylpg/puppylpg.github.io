@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/check_frontmatter.py",
+            "statusMessage": "检查 front matter..."
+          }
+        ]
+      }
+    ]
+  }
+}
