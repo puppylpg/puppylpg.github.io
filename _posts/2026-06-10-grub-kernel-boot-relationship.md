@@ -25,23 +25,11 @@ description: "通过一台 Debian 机器的 /dev/sda 分区布局，梳理 GRUB 
 
 # 主要步骤
 
-## 步骤一：先区分 GRUB 的 `/` 和 Linux 的 `/`
+## 步骤一：先看完整启动流程
 
-最容易混淆的地方在于：GRUB 启动阶段看到的根目录，和 Linux 启动完成后看到的根目录，不是同一个视角。
+先不要急着看某一行配置，先把整体链路串起来。启动过程大致分成两个阶段：前半段由 GRUB 负责找到内核和 initrd，后半段由 Linux 内核接管，挂载真正的根分区并启动系统。
 
-在 GRUB 眼里，`/dev/sda1` 被当成自己的根，因此内核文件路径是：
-
-```text
-/vmlinuz-6.1.0-49-amd64
-/initrd.img-6.1.0-49-amd64
-```
-
-但在 Linux 系统运行起来之后，`/dev/sda2` 被挂载成 `/`，`/dev/sda1` 又被挂载到 `/boot`，所以同样的文件在 Linux 里看到的是：
-
-```text
-/boot/vmlinuz-6.1.0-49-amd64
-/boot/initrd.img-6.1.0-49-amd64
-```
+在这台机器上，GRUB 先从 `/dev/sda1` 读取 `/boot` 里的启动文件；内核启动后，再把 `/dev/sda2` 挂载成 Linux 系统真正的 `/`。
 
 ```mermaid
 flowchart TD
@@ -64,9 +52,12 @@ flowchart TD
     style remountBoot fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
 ```
 
-这也是为什么这个布局初看起来有点绕：启动早期，GRUB 把 `/dev/sda1` 当作自己的 `/`；系统启动完成后，Linux 又把同一个 `/dev/sda1` 挂载到自己的 `/boot` 目录下。这里并不是 `/boot` 和 `/` 互相嵌套，而是 GRUB 阶段和 Linux 阶段对同一块分区使用了不同的路径视角。
+这个流程里有两个关键点：
 
-## 步骤二：看懂 grub.cfg 里的启动行
+1. GRUB 的任务是加载内核文件 `vmlinuz` 和初始内存根文件系统 `initrd.img`。
+2. Linux 内核启动后，才会根据 `root=UUID=...` 找到真正的根分区 `/dev/sda2`。
+
+## 步骤二：从 grub.cfg 看路径差异
 
 这台机器的 GRUB 配置在：
 
@@ -83,6 +74,43 @@ linux /vmlinuz-6.1.0-49-amd64 root=UUID=2277e8c4-09d7-4c4d-bd96-237e417ff3be ro 
 
 initrd /initrd.img-6.1.0-49-amd64
 ```
+
+最值得注意的是这里写的是：
+
+```grub
+linux /vmlinuz-6.1.0-49-amd64
+initrd /initrd.img-6.1.0-49-amd64
+```
+
+而不是：
+
+```grub
+linux /boot/vmlinuz-6.1.0-49-amd64
+initrd /boot/initrd.img-6.1.0-49-amd64
+```
+
+原因在于：`set root='hd0,msdos1'` 已经告诉 GRUB，把 `/dev/sda1` 当作它自己的根目录。对 GRUB 来说，`/dev/sda1` 的顶层就是 `/`，所以内核文件路径自然是：
+
+```text
+/vmlinuz-6.1.0-49-amd64
+/initrd.img-6.1.0-49-amd64
+```
+
+等 Linux 系统启动完成后，情况才变成：
+
+```text
+/dev/sda2  挂载为 /
+/dev/sda1  挂载为 /boot
+```
+
+这时同样的文件，在 Linux 里看到的路径才是：
+
+```text
+/boot/vmlinuz-6.1.0-49-amd64
+/boot/initrd.img-6.1.0-49-amd64
+```
+
+所以这里并不是 `/boot` 和 `/` 互相嵌套，而是 GRUB 阶段和 Linux 阶段对同一块分区使用了不同的路径视角。
 
 这里有两个“root”：
 
