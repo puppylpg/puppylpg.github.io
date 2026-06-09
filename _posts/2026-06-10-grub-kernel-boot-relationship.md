@@ -64,7 +64,7 @@ flowchart TD
     style remountBoot fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
 ```
 
-这个“套娃感”的本质不是递归挂载，而是启动前后根目录视角发生了切换。
+这也是为什么这个布局初看起来有点绕：启动早期，GRUB 把 `/dev/sda1` 当作自己的 `/`；系统启动完成后，Linux 又把同一个 `/dev/sda1` 挂载到自己的 `/boot` 目录下。这里并不是 `/boot` 和 `/` 互相嵌套，而是 GRUB 阶段和 Linux 阶段对同一块分区使用了不同的路径视角。
 
 ## 步骤二：看懂 grub.cfg 里的启动行
 
