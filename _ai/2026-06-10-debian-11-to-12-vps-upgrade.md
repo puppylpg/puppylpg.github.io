@@ -55,23 +55,24 @@ sudo apt clean
 2. 这台机器上 Docker 服务很多，稳定性优先于追最新版本。
 3. Debian 12 仍有足够维护窗口，可以先在 12 上观察一段时间。
 
-升级前也检查了当前 apt 源。Docker 实际使用的是 Debian 自带的 `docker.io/containerd`，但机器里还保留了 Docker 官方 bullseye 源。因此切换源时一并把 Docker 源从 bullseye 改成 bookworm，避免升级后源混杂。
+升级前也检查了当前 apt 源。Docker 实际使用的是 Debian 自带的 `docker.io/containerd`，但机器里还保留了 Docker 官方 bullseye 源。升级时先把这个源从 bullseye 调整为 bookworm，避免升级过程出现发行版混杂；升级完成后进一步确认当前 Docker 包并没有使用 Docker 官方源，因此最终删除了这个额外源，只保留 Debian 官方 Docker 包。
 
 ## 后续计划：暂缓升级到 Debian 13
 
 Debian 12 升级完成并清理残留后，又重新评估了一次是否继续升级到 Debian 13 trixie。结论是：Debian 13 已经是 stable，从官方路径上看可以从 Debian 12 升级，但这台机器暂时不急着做。
 
-这个判断不是因为 Debian 13 本身不稳定，而是因为这台 VPS 的主要风险点集中在 Docker 服务连续性上。当前所有对外服务基本都跑在 Docker 容器里，80/443 也由 `nginx-proxy` 和 `nginx-proxy-acme` 接管。系统升级一旦影响 Docker daemon、containerd、iptables/nftables 或 compose 行为，表面上是系统升级，实际影响的是整台机器的业务入口。
+这个判断不是因为 Debian 13 本身不稳定，而是因为这台 VPS 的主要风险点集中在 Docker 服务连续性上。当前所有对外服务基本都跑在 Docker 容器里，80/443 也由 `nginx-proxy` 和 `nginx-proxy-acme` 接管。系统升级一旦影响 Docker daemon、containerd、iptables/nftables 或容器自启动，表面上是系统升级，实际影响的是整台机器的业务入口。
 
 继续升 Debian 13 时需要特别注意这些变化：
 
 1. Debian 13 会把 Debian 源里的 `docker.io` 从 20.10 系列升级到 26.x 系列，这是 Docker daemon 的大版本变化。
-2. `docker-compose` 会从 1.29 系列进入 Compose v2 体系，命令、插件形态和部分兼容性都要重新验证。
-3. 机器里仍有 Docker 官方 apt 源，当前指向 bookworm。升级 Debian 13 前必须先处理这个源，避免 trixie 系统混入 bookworm 的 Docker 包。
-4. Debian 13 升级也会涉及新内核、systemd、libc、OpenSSL、nftables 等底层组件，任何一个环节都可能影响容器网络或服务自启动。
-5. 这台机器只有 1GB 内存，升级时的解包、触发器、initramfs 和 Docker 重启都需要留足空间和时间窗口。
+2. 当前运行中的容器没有 `com.docker.compose.*` label，说明它们不是由 `docker-compose` 或 `docker compose` 创建的。因此 Compose v1 到 v2 的变化不是当前业务容器的核心风险。
+3. 机器上确实存在一些历史 compose 文件，例如 `netdata`、`daily-txt`、`monica`、`youtubedl-material` 等目录下的 `docker-compose.yml`。如果未来重新用这些文件启动服务，再单独验证 Compose v2 兼容性即可。
+4. Docker 官方 apt 源已经在后续清理中删除，当前只保留 Debian 官方的 `docker.io`、`containerd`、`runc`、`docker-compose`，因此未来升级 Debian 13 时少了一个混源风险点。
+5. Debian 13 升级也会涉及新内核、systemd、libc、OpenSSL、nftables 等底层组件，任何一个环节都可能影响容器网络或服务自启动。
+6. 这台机器只有 1GB 内存，升级时的解包、触发器、initramfs 和 Docker 重启都需要留足空间和时间窗口。
 
-如果未来要升 Debian 13，比较稳的做法是先做 `apt full-upgrade -s` 模拟，确认不会移除 Docker、SSH、网络和基础包；再临时处理第三方源；正式升级后立刻验证 SSH、Docker daemon、全部容器、80/443 入口和 Netdata。也就是说，Debian 13 可以作为后续计划，但不应该因为 `11 -> 12` 顺利就连续执行。
+如果未来要升 Debian 13，比较稳的做法是先做 `apt full-upgrade -s` 模拟，确认不会移除 Docker、SSH、网络和基础包；正式升级后立刻验证 SSH、Docker daemon、全部容器、80/443 入口和 Netdata。也就是说，Debian 13 可以作为后续计划；在 Docker 官方源已经删除、当前业务又不依赖 Compose 的前提下，风险比最初评估略低，但仍不应该因为 `11 -> 12` 顺利就连续执行。
 
 ## 步骤四：切换 apt 源并分两段升级
 
@@ -90,11 +91,13 @@ deb http://deb.debian.org/debian-security bookworm-security main
 deb http://deb.debian.org/debian bookworm-updates main
 ```
 
-Docker 源也切到 bookworm：
+升级过程中，Docker 官方源曾从 bullseye 调整为 bookworm，避免升级时引用旧发行版源：
 
 ```text
 deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bookworm stable
 ```
+
+后续确认当前实际安装的是 Debian 官方 `docker.io`、`containerd`、`runc`、`docker-compose`，并未安装 Docker 官方源里的 `docker-ce`、`containerd.io` 或 `docker-compose-plugin`，因此这个 Docker 官方源已经删除。
 
 升级采用两段式：
 
@@ -168,6 +171,6 @@ nginx-proxy-acme
 
 - Debian 源：`bookworm`、`bookworm-security`、`bookworm-updates`
 - Docker 包：Debian `docker.io`、`containerd`、`runc`、`docker-compose`
-- Debian 13：`trixie` stable，后续升级需重点验证 Docker 26.x 和 Compose v2
+- Debian 13：`trixie` stable，后续升级需重点验证 Docker 26.x、containerd/runc、容器网络和自启动；当前业务容器未使用 Compose
 - 关键命令：`apt-get update`、`apt-get upgrade --without-new-pkgs`、`apt-get full-upgrade`、`systemctl --failed`、`docker ps`
 - 升级后版本：Debian 12.14、Linux `6.1.0-49-amd64`、Docker `20.10.24+dfsg1`
