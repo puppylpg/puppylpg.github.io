@@ -1,2 +1,9 @@
 <!-- Custom stylesheet (loaded after theme CSS, avoids overriding gem SCSS entry) -->
 <link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+<!-- 赛博皮肤：与 /world/ 3D 页风格统一的全站样式与星空背景 -->
+<link rel="stylesheet" href="{{ '/assets/css/cyber-skin.css' | relative_url }}">
+<script defer src="{{ '/assets/js/starfield.js' | relative_url }}"></script>
+<script defer src="{{ '/assets/js/cyber-depth.js' | relative_url }}"></script>
+{% if page.layout == 'tags' %}
+  <script defer src="{{ '/assets/js/tag-sphere.js' | relative_url }}"></script>
+{% endif %}

@@ -1,0 +1,19 @@
+---
+layout: page
+title: "404: Page not found"
+permalink: /404.html
+---
+
+{% include lang.html %}
+
+<div class="cosmic-404">
+  <div class="num">4<span class="planet" aria-hidden="true"><span class="ring"></span></span>4</div>
+  <p class="lead">{{ site.data.locales[lang].not_found.statement }}</p>
+  <div class="drift" aria-hidden="true">
+    <span>🧑‍🚀</span><span>📚</span><span>🛰️</span>
+  </div>
+  <div class="actions">
+    <a href="{{ '/' | relative_url }}">↩ 回到首页</a>
+    <a href="{{ '/world/' | relative_url }}">🧊 去 3D 世界找路</a>
+  </div>
+</div>

@@ -1,0 +1,618 @@
+---
+---
+
+/*
+  赛博皮肤：让 Chirpy 主题与 /world/ 3D 页风格统一。
+  深空底色 + 星空 + 霓虹渐变 + 玻璃拟态，只在暗色模式下生效（站点已固定 theme_mode: dark）。
+  调色板与 assets/js/3d-world.js 一致：#7dd3fc / #c4b5fd / #f0abfc，底色 #05070d。
+*/
+
+html[data-mode="dark"] {
+  /* Framework */
+  --main-bg: transparent;
+  --main-border-color: rgb(125 211 252 / 12%);
+
+  /* Common */
+  --text-color: #c2cbe0;
+  --text-muted-color: #8fa3c8;
+  --text-muted-highlight-color: #b7c4de;
+  --heading-color: #e6edfb;
+  --label-color: #9fb0cf;
+  --blockquote-border-color: rgb(125 211 252 / 45%);
+  --blockquote-text-color: #93a5c6;
+  --link-color: #7dd3fc;
+  --link-underline-color: rgb(125 211 252 / 40%);
+  --button-bg: rgb(13 18 32 / 70%);
+  --btn-border-color: rgb(125 211 252 / 25%);
+  --btn-backtotop-color: #7dd3fc;
+  --btn-backtotop-border-color: rgb(125 211 252 / 30%);
+  --card-header-bg: rgb(20 27 46 / 85%);
+
+  /* Sidebar */
+  --site-title-color: #dfe6f3;
+  --site-subtitle-color: #8fa3c8;
+  --sidebar-bg: rgb(10 14 24 / 78%);
+  --sidebar-border-color: rgb(125 211 252 / 14%);
+  --sidebar-muted-color: #8fa3c8;
+  --sidebar-active-color: #eef3fc;
+  --sidebar-hover-bg: rgb(125 211 252 / 10%);
+  --sidebar-btn-bg: rgb(20 27 46 / 80%);
+  --sidebar-btn-color: #9fb0cf;
+  --avatar-border-color: rgb(125 211 252 / 75%);
+
+  /* Topbar */
+  --topbar-bg: rgb(5 7 13 / 64%);
+  --topbar-text-color: #c2cbe0;
+  --search-border-color: rgb(125 211 252 / 22%);
+  --search-icon-color: #8fa3c8;
+  --input-focus-border-color: rgb(125 211 252 / 60%);
+
+  /* Home */
+  --post-list-text-color: #aab8d4;
+  --btn-paginator-hover-color: rgb(125 211 252 / 12%);
+
+  /* Posts */
+  --toc-highlight: #7dd3fc;
+  --toc-popup-border-color: rgb(125 211 252 / 25%);
+  --tag-hover: rgb(125 211 252 / 14%);
+  --tb-odd-bg: rgb(16 22 38 / 80%);
+  --tb-even-bg: rgb(11 15 27 / 80%);
+  --tb-border-color: rgb(125 211 252 / 14%);
+  --card-bg: rgb(13 18 32 / 66%);
+  --card-hover-bg: rgb(24 33 56 / 80%);
+  --card-shadow: rgb(0 0 0 / 45%) 0 6px 20px 0, rgb(125 211 252 / 10%) 0 0 0 1px;
+  --prompt-text-color: rgb(216 220 235 / 80%);
+}
+
+/* ---------- 背景：纯深空，星空画在 starfield.js 的固定 canvas 上 ---------- */
+html[data-mode="dark"] {
+  background: #05070d;
+
+  body {
+    background:
+      radial-gradient(ellipse 60% 40% at 18% 8%, rgb(125 211 252 / 7%), transparent 70%),
+      radial-gradient(ellipse 50% 35% at 85% 25%, rgb(196 181 253 / 6%), transparent 70%),
+      radial-gradient(ellipse 55% 45% at 60% 95%, rgb(240 171 252 / 4%), transparent 70%),
+      #05070d;
+  }
+
+  #starfield {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* ---------- 侧边栏：玻璃拟态 + 渐变站名 + 头像光环 ---------- */
+  #sidebar {
+    backdrop-filter: blur(10px);
+
+    a.site-title {
+      background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f0abfc);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: 0.08em;
+    }
+
+    #avatar {
+      box-shadow: 0 0 0 2px rgb(125 211 252 / 55%), 0 0 18px rgb(125 211 252 / 45%);
+      transition: box-shadow 0.3s;
+
+      &:hover {
+        box-shadow: 0 0 0 2px rgb(196 181 253 / 75%), 0 0 26px rgb(196 181 253 / 65%);
+      }
+    }
+
+    .nav-link:hover {
+      text-shadow: 0 0 12px rgb(125 211 252 / 65%);
+    }
+  }
+
+  /* ---------- 顶栏：毛玻璃 ---------- */
+  #topbar-wrapper {
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgb(125 211 252 / 10%);
+  }
+
+  /* ---------- 首页/列表卡片：玻璃卡 + 霓虹悬停 ---------- */
+  .card {
+    border: 1px solid rgb(125 211 252 / 12%);
+    backdrop-filter: blur(6px);
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+
+    &:hover {
+      border-color: rgb(125 211 252 / 45%);
+      box-shadow: 0 8px 28px rgb(0 0 0 / 50%), 0 0 18px rgb(125 211 252 / 25%);
+      transform: translateY(-3px);
+    }
+  }
+
+  /* ---------- 正文 ---------- */
+  main {
+    h1, h2 {
+      background: linear-gradient(90deg, #e6edfb, #b9d8f5);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    h2 {
+      padding-left: 0.6rem;
+      border-left: 3px solid rgb(125 211 252 / 65%);
+    }
+  }
+
+  blockquote {
+    background: rgb(125 211 252 / 6%);
+    border-radius: 0 6px 6px 0;
+  }
+
+  /* 行内代码与代码块加一圈微光描边 */
+  .highlight,
+  div[class^="language-"] {
+    border: 1px solid rgb(125 211 252 / 10%);
+    border-radius: 8px;
+  }
+
+  /* 标签、分类胶囊 */
+  .post-tag,
+  .categories .card-header,
+  #access-lastmod {
+    transition: box-shadow 0.2s;
+  }
+
+  .post-tag:hover {
+    box-shadow: 0 0 10px rgb(125 211 252 / 35%);
+  }
+
+  /* 回到顶部按钮 */
+  #back-to-top:hover {
+    box-shadow: 0 0 14px rgb(125 211 252 / 50%);
+  }
+
+  /* 搜索框 */
+  #search input:focus {
+    box-shadow: 0 0 10px rgb(125 211 252 / 30%);
+  }
+
+  /* ---------- 集合徽章：与 3D 世界书架同色 ---------- */
+  .post-badge--tech { color: #4fc3f7; border-color: #4fc3f7; }
+  .post-badge--ai { color: #b388ff; border-color: #b388ff; }
+  .post-badge--open { color: #69f0ae; border-color: #69f0ae; }
+  .post-badge--tutorial { color: #ffab40; border-color: #ffab40; }
+  .post-badge--book { color: #ffd54f; border-color: #ffd54f; }
+  .post-badge--life { color: #ff8a80; border-color: #ff8a80; }
+  .post-badge--viewed { color: #80deea; border-color: #80deea; }
+
+  .post-badge {
+    background: rgb(13 18 32 / 60%);
+  }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    border-top: 1px solid rgb(125 211 252 / 10%);
+  }
+}
+
+/* ---------- 3D 纵深交互（cyber-depth.js 给 html 加 depth-on 后生效） ---------- */
+html[data-mode="dark"].depth-on {
+  /* 卡片倾斜：transform 由 JS 内联设置，这里负责过渡与眩光 */
+  .tilt-card {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease-out, border-color 0.25s, box-shadow 0.25s;
+    will-change: transform;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        circle at var(--gx, 50%) var(--gy, 50%),
+        rgb(255 255 255 / 9%),
+        transparent 55%
+      );
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  /* 滚动入场：从深处带透视旋转浮现 */
+  .reveal-init {
+    opacity: 0;
+    transform: perspective(900px) translateY(28px) rotateX(8deg);
+  }
+
+  .reveal-in {
+    opacity: 1;
+    transform: perspective(900px) translateY(0) rotateX(0);
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  /* 头像轻盈悬浮 */
+  #sidebar #avatar {
+    animation: avatar-float 6s ease-in-out infinite;
+  }
+
+  /* ---------- 文章页：悬浮全息阅读面板（仅桌面精确指针） ---------- */
+  @media (min-width: 1200px) and (pointer: fine) {
+    main > article {
+      position: relative;
+      background: rgb(13 18 32 / 62%);
+      border: 1px solid rgb(125 211 252 / 16%);
+      border-radius: 14px;
+      padding: 2rem 2.4rem !important;
+      backdrop-filter: blur(8px);
+      box-shadow:
+        0 36px 70px -24px rgb(0 0 0 / 75%),
+        0 0 28px rgb(125 211 252 / 8%),
+        inset 0 1px 0 rgb(255 255 255 / 6%);
+      transform: perspective(1600px)
+        rotateY(calc(var(--tx, 0) * 1deg))
+        rotateX(calc(var(--ty, 0) * 1deg));
+      transform-style: preserve-3d;
+      animation: panel-enter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+
+      /* 全息扫描线 */
+      &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(
+          180deg,
+          transparent,
+          rgb(125 211 252 / 6%) 50%,
+          transparent
+        );
+        background-size: 100% 240px;
+        background-repeat: no-repeat;
+        animation: holo-scan 8s linear infinite;
+        pointer-events: none;
+      }
+
+      h1 {
+        filter: drop-shadow(0 6px 16px rgb(125 211 252 / 30%));
+      }
+    }
+
+    /* 右侧 TOC / 信息面板：斜立的全息侧板，悬停转正 */
+    #panel-wrapper .access,
+    #panel-wrapper #toc-wrapper {
+      background: rgb(13 18 32 / 55%);
+      border: 1px solid rgb(125 211 252 / 14%);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      backdrop-filter: blur(6px);
+      transform: perspective(900px) rotateY(-9deg);
+      transform-origin: right center;
+      transition: transform 0.35s ease, border-color 0.35s;
+      animation: side-enter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both 0.15s;
+
+      &:hover {
+        transform: perspective(900px) rotateY(0deg);
+        border-color: rgb(125 211 252 / 40%);
+      }
+    }
+
+    /* 左侧边栏：驾驶舱式微倾，悬停转正 */
+    #sidebar {
+      transform: perspective(1400px) rotateY(2.5deg);
+      transform-origin: left center;
+      transition: transform 0.4s ease;
+
+      &:hover {
+        transform: perspective(1400px) rotateY(0deg);
+      }
+    }
+  }
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: perspective(1600px) rotateY(-16deg) translateZ(-140px) translateX(-30px);
+  }
+}
+
+@keyframes side-enter {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-35deg) translateX(40px);
+  }
+}
+
+@keyframes holo-scan {
+  from { background-position: 0 -240px; }
+  to { background-position: 0 calc(100% + 240px); }
+}
+
+@keyframes avatar-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* 阅读进度光束 */
+#reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  z-index: 2000;
+  background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f0abfc);
+  box-shadow: 0 0 8px rgb(125 211 252 / 70%);
+  pointer-events: none;
+}
+
+/* ---------- 全站 3D 翻页过渡（View Transitions，浏览器不支持时自动退化为普通跳转） ---------- */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: vt-leave 0.32s ease-in both;
+}
+
+::view-transition-new(root) {
+  animation: vt-arrive 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 浏览器不支持跨页 View Transitions 时，cyber-depth.js 用这两个类做同款效果 */
+html[data-mode="dark"].depth-on {
+  body.page-arrive {
+    animation: vt-arrive 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  body.page-leave {
+    animation: vt-leave 0.3s ease-in both;
+  }
+}
+
+@keyframes vt-leave {
+  to {
+    opacity: 0;
+    transform: perspective(1200px) translateZ(-420px) rotateY(18deg);
+  }
+}
+
+@keyframes vt-arrive {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) translateZ(-420px) rotateY(-18deg);
+  }
+}
+
+/* ---------- 标签页：3D 标签星球（tag-sphere.js 注入） ---------- */
+#tag-sphere {
+  position: relative;
+  height: 460px;
+  margin: 0 0 1.5rem;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  a.tag {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    white-space: nowrap;
+    background: transparent;
+    border: none;
+    color: #aab8d4;
+    text-decoration: none;
+    will-change: transform, opacity;
+
+    &:hover {
+      color: #7dd3fc;
+      text-shadow: 0 0 14px rgb(125 211 252 / 80%);
+    }
+
+    span {
+      font-size: 0.68em;
+      opacity: 0.6;
+      margin-left: 2px;
+    }
+  }
+}
+
+#tag-sphere-hint {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #8fa3c8;
+  letter-spacing: 0.1em;
+  margin-bottom: 2rem;
+}
+
+/* ---------- 404：迷失太空 ---------- */
+.cosmic-404 {
+  text-align: center;
+  padding: 2.5rem 0 1rem;
+
+  .num {
+    font-size: clamp(5rem, 16vw, 9rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f0abfc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 24px rgb(125 211 252 / 35%));
+    animation: glitch-404 4s infinite;
+  }
+
+  /* 纯 CSS 星球充当中间的 0，避免依赖 emoji 字体 */
+  .planet {
+    display: inline-block;
+    position: relative;
+    width: 0.78em;
+    height: 0.78em;
+    margin: 0 0.06em;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #c4b5fd, #7c3aed 55%, #2e1065);
+    box-shadow:
+      inset -0.1em -0.1em 0.3em rgb(0 0 0 / 55%),
+      0 0 0.35em rgb(196 181 253 / 50%);
+    vertical-align: baseline;
+    animation: drift-404 6s ease-in-out infinite;
+
+    .ring {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      width: 150%;
+      height: 38%;
+      border: 0.045em solid rgb(125 211 252 / 75%);
+      border-radius: 50%;
+      transform: translate(-50%, -50%) rotate(-16deg);
+      box-shadow: 0 0 0.3em rgb(125 211 252 / 45%);
+    }
+  }
+
+  .lead {
+    color: #8fa3c8;
+    margin: 1rem 0 2rem;
+  }
+
+  .drift span {
+    display: inline-block;
+    font-size: 2rem;
+    margin: 0 1.2rem;
+
+    &:nth-child(1) { animation: drift-404 7s ease-in-out infinite; }
+    &:nth-child(2) { animation: drift-404 9s ease-in-out infinite 1.2s; }
+    &:nth-child(3) { animation: drift-404 8s ease-in-out infinite 0.6s; }
+  }
+
+  .actions {
+    margin-top: 2.5rem;
+
+    a {
+      display: inline-block;
+      margin: 0 0.5rem 0.8rem;
+      padding: 8px 22px;
+      border: 1px solid rgb(125 211 252 / 45%);
+      border-radius: 999px;
+      color: #dfe6f3;
+      text-decoration: none;
+      background: rgb(13 18 32 / 60%);
+      transition: box-shadow 0.25s, border-color 0.25s;
+
+      &:hover {
+        border-color: #7dd3fc;
+        box-shadow: 0 0 18px rgb(125 211 252 / 45%);
+      }
+    }
+  }
+}
+
+@keyframes glitch-404 {
+  0%, 94%, 100% { transform: none; opacity: 1; }
+  95% { transform: translate(-3px, 1px) skewX(4deg); opacity: 0.8; }
+  96% { transform: translate(3px, -1px) skewX(-4deg); }
+  97% { transform: translate(-2px, 0); opacity: 0.9; }
+}
+
+@keyframes drift-404 {
+  0%, 100% { transform: translate(0, 0) rotate(-6deg); }
+  50% { transform: translate(8px, -18px) rotate(8deg); }
+}
+
+/* ---------- 回到顶部：火箭发射 ---------- */
+html[data-mode="dark"] #back-to-top.launching {
+  animation: rocket-launch 0.85s cubic-bezier(0.5, -0.3, 0.8, 1) both;
+  pointer-events: none;
+
+  i {
+    animation: rocket-shake 0.1s linear 4;
+  }
+}
+
+@keyframes rocket-launch {
+  20% { transform: translateY(6px) scale(0.95); }
+  100% { transform: translateY(-110vh) scale(0.7); }
+}
+
+@keyframes rocket-shake {
+  25% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
+}
+
+/* ---------- 悬浮 3D 魔方传送门（通往 /world/） ---------- */
+#world-portal {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 6.5rem;
+  width: 44px;
+  height: 44px;
+  z-index: 100;
+  perspective: 300px;
+  opacity: 0.85;
+  transition: opacity 0.25s, transform 0.25s;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+
+  .cube {
+    position: absolute;
+    inset: 7px;
+    transform-style: preserve-3d;
+    animation: portal-spin 14s linear infinite;
+
+    i {
+      position: absolute;
+      inset: 0;
+      background: rgb(125 211 252 / 10%);
+      border: 1px solid rgb(125 211 252 / 70%);
+      box-shadow: inset 0 0 12px rgb(125 211 252 / 35%);
+    }
+
+    i:nth-child(1) { transform: translateZ(15px); }
+    i:nth-child(2) { transform: rotateY(180deg) translateZ(15px); }
+    i:nth-child(3) { transform: rotateY(90deg) translateZ(15px); }
+    i:nth-child(4) { transform: rotateY(-90deg) translateZ(15px); }
+    i:nth-child(5) { transform: rotateX(90deg) translateZ(15px); }
+    i:nth-child(6) { transform: rotateX(-90deg) translateZ(15px); }
+  }
+}
+
+@keyframes portal-spin {
+  from { transform: rotateX(-20deg) rotateY(0); }
+  to { transform: rotateX(-20deg) rotateY(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-mode="dark"] .card {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+
+  .cosmic-404 .num,
+  .cosmic-404 .planet,
+  .cosmic-404 .drift span,
+  #world-portal .cube {
+    animation: none;
+  }
+}

@@ -67,7 +67,8 @@ analytics:
 #     light  - Use the light color scheme
 #     dark   - Use the dark color scheme
 #
-theme_mode: # [light|dark]
+# 固定暗色：与 /world/ 3D 页的赛博皮肤（assets/css/cyber-skin.css）保持全站统一
+theme_mode: dark # [light|dark]
 
 # The CDN endpoint for images.
 # Notice that once it is assigned, the CDN url

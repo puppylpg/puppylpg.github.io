@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <meta name="description" content="{{ site.title }} 的 3D 知识图书馆：每个分类是一座书架，每篇文章是一本书。">
+  <link rel="icon" href="{{ site.avatar | relative_url }}">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #05070d; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #dfe6f3; }
+    #world-canvas { position: fixed; inset: 0; display: block; }
+
+    .hud { position: fixed; z-index: 10; pointer-events: none; }
+    .hud a, .hud button { pointer-events: auto; }
+
+    #hud-brand { top: 18px; left: 22px; }
+    #hud-brand h1 {
+      margin: 0; font-size: 1.5rem; letter-spacing: .12em;
+      background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f0abfc);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    #hud-brand p { margin: 2px 0 10px; font-size: .8rem; color: #8fa3c8; letter-spacing: .08em; }
+    #hud-brand a {
+      font-size: .78rem; color: #9fb6e0; text-decoration: none;
+      border: 1px solid rgba(159, 182, 224, .35); border-radius: 999px; padding: 4px 12px;
+      background: rgba(13, 18, 32, .55); backdrop-filter: blur(6px);
+    }
+    #hud-brand a:hover { color: #e3ecff; border-color: rgba(199, 215, 245, .7); }
+
+    #hud-nav { top: 18px; right: 18px; display: flex; flex-direction: column; gap: 7px; align-items: flex-end; max-width: 46vw; }
+    #hud-nav button {
+      font-size: .8rem; color: #dfe6f3; cursor: pointer;
+      border: 1px solid var(--c, #4fc3f7); border-radius: 999px; padding: 5px 14px;
+      background: rgba(13, 18, 32, .55); backdrop-filter: blur(6px);
+      transition: background .2s, box-shadow .2s;
+    }
+    #hud-nav button:hover { background: rgba(30, 40, 66, .85); box-shadow: 0 0 14px var(--c, #4fc3f7); }
+    #hud-nav button .cnt { color: #8fa3c8; font-size: .72rem; margin-left: 6px; }
+
+    #hud-hint {
+      bottom: 18px; left: 50%; transform: translateX(-50%);
+      font-size: .78rem; color: #8fa3c8; letter-spacing: .06em; text-align: center;
+      background: rgba(13, 18, 32, .55); backdrop-filter: blur(6px);
+      border: 1px solid rgba(143, 163, 200, .25); border-radius: 999px; padding: 6px 18px;
+      white-space: nowrap;
+    }
+
+    #tooltip {
+      position: fixed; z-index: 20; pointer-events: none; display: none; max-width: 320px;
+      background: rgba(10, 14, 26, .92); border: 1px solid var(--c, #4fc3f7); border-radius: 10px;
+      padding: 9px 13px; box-shadow: 0 4px 24px rgba(0, 0, 0, .55), 0 0 12px var(--c, #4fc3f7);
+    }
+    #tooltip .tt-title { font-size: .88rem; line-height: 1.45; color: #eef3fc; }
+    #tooltip .tt-meta { font-size: .72rem; color: #8fa3c8; margin-top: 4px; }
+
+    #overlay {
+      position: fixed; inset: 0; z-index: 30; background: #05070d; opacity: 0; pointer-events: none;
+      transition: opacity .7s ease;
+    }
+    #overlay.show { opacity: 1; pointer-events: auto; }
+
+    #loader {
+      position: fixed; inset: 0; z-index: 40; background: #05070d;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      transition: opacity .8s ease;
+    }
+    #loader.hide { opacity: 0; pointer-events: none; }
+    #loader .ring {
+      width: 54px; height: 54px; border-radius: 50%;
+      border: 3px solid rgba(125, 211, 252, .15); border-top-color: #7dd3fc;
+      animation: spin 1s linear infinite;
+    }
+    #loader p { color: #8fa3c8; font-size: .85rem; letter-spacing: .25em; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 720px) {
+      #hud-nav { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; max-width: 60vw; }
+      #hud-nav button { font-size: .7rem; padding: 4px 10px; }
+      #hud-nav button .cnt { display: none; }
+      #hud-brand h1 { font-size: 1.15rem; }
+      #hud-hint { display: none; }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  {% assign ai_items = site.ai | sort: "date" | reverse %}
+  {% assign open_items = site.open | sort: "order" %}
+  {% assign books_items = site.books | sort: "date" | reverse %}
+  {% assign life_items = site.life | sort: "date" | reverse %}
+  {% assign viewed_items = site.viewed | sort: "date" | reverse %}
+  {% assign tutorials_items = site.tutorials | sort: "date" | reverse %}
+  <script type="application/json" id="world-data">
+    {
+      "site": { "title": {{ site.title | jsonify }}, "tagline": {{ site.tagline | jsonify }}, "home": {{ "/" | relative_url | jsonify }} },
+      "collections": [
+        { "label": "tech", "name": "Tech", "color": "#4fc3f7", "items": {% include world-items.html items=site.posts %} },
+        { "label": "ai", "name": "AI", "color": "#b388ff", "items": {% include world-items.html items=ai_items %} },
+        { "label": "tutorials", "name": "Tutorials", "color": "#ffab40", "items": {% include world-items.html items=tutorials_items %} },
+        { "label": "books", "name": "Books", "color": "#ffd54f", "items": {% include world-items.html items=books_items %} },
+        { "label": "life", "name": "Life", "color": "#ff8a80", "items": {% include world-items.html items=life_items %} },
+        { "label": "open", "name": "Open", "color": "#69f0ae", "items": {% include world-items.html items=open_items %} },
+        { "label": "viewed", "name": "Viewed", "color": "#80deea", "items": {% include world-items.html items=viewed_items %} }
+      ]
+    }
+  </script>
+
+  <canvas id="world-canvas"></canvas>
+
+  <div class="hud" id="hud-brand">
+    <h1>{{ site.title | upcase }}</h1>
+    <p>{{ site.tagline }}</p>
+    <a href="{{ '/' | relative_url }}">↩ 返回经典版</a>
+  </div>
+  <div class="hud" id="hud-nav"></div>
+  <div class="hud" id="hud-hint">拖动旋转 · 滚轮缩放 · 点击右上分类传送 · 点击书本阅读文章</div>
+
+  <div id="tooltip"><div class="tt-title"></div><div class="tt-meta"></div></div>
+  <div id="overlay"></div>
+  <div id="loader"><div class="ring"></div><p>BUILDING WORLD</p></div>
+
+  <script type="module" src="{{ '/assets/js/3d-world.js' | relative_url }}"></script>
+</body>
+</html>
