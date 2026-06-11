@@ -217,3 +217,90 @@ docker --version
 | 检查 Git Bash PATH | `echo $PATH \| tr ':' '\n'` |
 | 为 Git Bash 补 Docker PATH | `echo 'export PATH="/c/Program Files/Docker/Docker/resources/bin:$PATH"' >> ~/.bashrc` |
 | 保护 wsl 命令不被外层 shell 解析 | `wsl bash -c "..."` |
+
+---
+
+## 拓展阅读：Git Bash、WSL1 与 WSL2 的实现原理
+
+上文将 WSL 作为一个整体与 Git Bash 对比，但在实际使用中，WSL 经历了两代截然不同的技术实现。如果把 Git Bash 也纳入进来，三者走的是完全不同的路线。
+
+### Git Bash：Windows 假扮 Linux
+
+Git Bash 的本质上文已经说得很清楚——它是 **MSYS2 的精简子集**，所有工具都被重新编译成了 Windows `.exe`，直接调用 Win32 API。它没有 Linux 内核，也没有系统调用翻译，只是一个"长得像 Linux"的 Windows 环境。
+
+```mermaid
+flowchart TD
+    A["用户输入 `ls -la`"] --> B["Git Bash (bash.exe)"]
+    B --> C["调用 ls.exe"]
+    C --> D["Win32 API"]
+    D --> E["Windows NT 内核"]
+
+    style A fill:#e3f2fd
+    style E fill:#e8f5e9
+```
+
+### WSL1：Windows 学 Linux 说话
+
+WSL1 与 Git Bash 的表面相似之处在于**都不需要 Linux 内核，也不跑虚拟机**。但 WSL1 的底层完全不同——它使用了 Windows NT 的 **Pico Process** 机制，实现了一层 **系统调用翻译层（syscall translation layer）**。Linux ELF 二进制文件发起的 `open()`、`fork()` 等系统调用，会被翻译成对应的 Windows NT 内核调用。
+
+```mermaid
+flowchart TD
+    A["用户输入 `ls -la`"] --> B["WSL1 bash (ELF)"]
+    B --> C["调用 ls (ELF)"]
+    C --> D["Linux syscall"]
+    D --> E["WSL1 Syscall Translation"]
+    E --> F["Windows NT 内核"]
+
+    style A fill:#e3f2fd
+    style D fill:#fff3bf
+    style F fill:#e8f5e9
+```
+
+**关键区别**：WSL1 运行的是**真正的 Linux ELF 二进制文件**，而 Git Bash 运行的是重新编译的 Windows `.exe`。WSL1 可以运行为 Linux 编译的原生软件包，Git Bash 则不行。
+
+### WSL2：真 Linux 住进轻量公寓
+
+WSL2 彻底换了路线——它**直接跑了一个真正的 Linux 内核**，但通过微软魔改过的**轻量级虚拟化技术**，让它不像传统虚拟机那样笨重。
+
+WSL2 基于 Hyper-V，但**没有模拟完整硬件**（不虚拟显卡、不虚拟 BIOS），启动的是一个 "Utility VM" 精简环境：启动时间秒级、内存动态分配、没有传统 VM 的"开关机"概念。Linux 文件系统放在 **ext4 格式的 VHDX 虚拟磁盘** 中，因此 WSL2 内部访问自己的文件时性能极高；而访问 Windows 文件（`/mnt/c/...`）则需要跨 VM 边界，通过 9P/Plan9 协议挂载，速度明显更慢。
+
+```mermaid
+flowchart TD
+    subgraph Win["Windows 主机"]
+        F["NTFS (C:/Users/...)"]
+    end
+
+    subgraph VM["Utility VM (Hyper-V)"]
+        subgraph Linux["Linux 内核"]
+            B["bash (ELF)"]
+            C["ls (ELF)"]
+        end
+        E["ext4 VHDX"]
+    end
+
+    B --> C
+    C --> E
+    C -. "9P / Plan9 协议" .-> F
+
+    style Win fill:#e3f2fd
+    style VM fill:#e8f5e9
+    style Linux fill:#fff3bf
+```
+
+### 三者对比
+
+| 特性 | Git Bash | WSL1 | WSL2 |
+|------|----------|------|------|
+| **内核** | 无，直接跑 Win32 | 无，syscall 翻译到 NT | **真正的 Linux 内核** |
+| **虚拟化** | 无 | 无 | **轻量 Utility VM** |
+| **二进制格式** | Windows PE (`.exe`) | Linux ELF | Linux ELF |
+| **兼容性** | 仅限 MSYS2 工具 | 大部分 Linux 程序，内核特性受限 | **几乎完整 Linux 兼容** |
+| **文件系统性能** | 原生 NTFS | 原生 NTFS | 内部 ext4 极快，跨系统访问慢 |
+| **启动速度** | 即时 | 即时 | 秒级（首次）/ 近乎即时（后续） |
+| **能否运行 Docker** | 否 | 否 | **能** |
+
+### 一句话概括
+
+> **Git Bash 是 Windows 假扮 Linux；WSL1 是 Windows 学 Linux 说话；WSL2 是真 Linux 住进了一个微软造的超轻量公寓里。**
+
+这也是为什么 WSL2 能轻松跑 Docker、systemd、甚至带 GUI 的 Linux 应用，而 WSL1 和 Git Bash 都做不到——后两者本质上都不是 Linux。
