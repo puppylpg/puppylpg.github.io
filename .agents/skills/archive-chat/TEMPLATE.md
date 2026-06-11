@@ -14,7 +14,8 @@ description: "一句话摘要"
 
 - `categories` 固定 `[ai]`，有更细分领域可追加如 `[ai, tools]`
 - `tags` 从关键词中提取 3-8 个
-- frontmatter 其他规则遵循仓库 CLAUDE.md「内容规则」
+- 不写 `layout:` 或 `last_modified_at`
+- `categories` 和 `tags` 必须小写
 
 ## 正文组织原则
 

@@ -14,8 +14,8 @@
 
 —— 第一步：抓取原文 ——
 - 本地路径 → `Read`。
-- 外部 URL → 优先用 `WebFetch`；如果返回内容为空或明显不完整，fallback 到 playwright MCP（`browser_navigate` → `browser_snapshot` → `browser_close`）。
-- 微信公众号（mp.weixin.qq.com）→ WebFetch 必定失败，直接用 playwright，不要先试 WebFetch 浪费时间。
+- 外部 URL → 优先用当前环境的网页抓取工具（如 `WebFetch`、`FetchURL` 等）；如果返回内容为空或明显不完整，fallback 到浏览器自动化工具（如 Playwright MCP）。
+- 微信公众号（mp.weixin.qq.com）→ 常规抓取工具通常失败，直接用浏览器自动化工具，不要先试探浪费时间。
 
 —— 第二步：写总结 ——
 - 精炼但完整：核心流程、关键逻辑、关键概念、关键示例全部保留，不是 TL;DR。
@@ -73,8 +73,8 @@ description: "一句话摘要"
 - [ ] **frontmatter**：title 是否自己总结的？品牌前缀是否正确？`categories`/`tags` 是否小写？有没有多余的 `layout:` 或 `last_modified_at`？
 
 —— 第五步：落盘 ——
-路径：`_ai/YYYY-MM-DD-<slug>.md`（slug 规则见 CLAUDE.md「文章发布流程」）
-用 `Write` 写到 `/Users/puppylpg/Codes/github/puppylpg.github.io/_ai/YYYY-MM-DD-<slug>.md`。
+路径：`_ai/YYYY-MM-DD-<slug>.md`（slug 规则：小写英文、数字、连字符，中文主题用拼音或英文关键词缩写）
+用 `Write` 写到项目根目录下的 `_ai/YYYY-MM-DD-<slug>.md`。
 
 —— 第六步：返回 ——
 只返回这三行：
