@@ -1,0 +1,13 @@
+.git/
+.github/
+.idea/
+docs/
+*.gem
+*.gemspec
+node_modules/
+package*.json
+rollup.config.js
+README.md
+LICENSE
+CHANGELOG.md
+CLAUDE.md

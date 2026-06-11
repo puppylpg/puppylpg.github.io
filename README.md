@@ -40,7 +40,9 @@
 │
 ├── assets/              # 静态资源（css/img/js + chirpy-static-assets 子模块）
 ├── pics/                # 头像等图片
-├── bin/                 # 辅助脚本
+├── bin/                 # 辅助脚本（原生 + Docker）
+├── Dockerfile           # Docker 多阶段构建
+├── docker-compose.yml   # Docker 服务编排
 └── .github/workflows/   # CI / CD
 ```
 
@@ -124,6 +126,64 @@ bin/jekyll-dev.sh status
 可选环境变量：`JEKYLL_PORT`（端口，默认 4000）。
 
 首次 `bundle install` 时 `sass-embedded` 会从 GitHub 下载 dart-sass；超时请检查网络/代理后重试。
+
+### Docker 开发环境（跨平台，推荐 Windows）
+
+本项目已提供完整的 Docker 开发环境，**无需本地安装 Ruby**，Windows、macOS、Linux 均可使用。
+
+#### 环境要求
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+#### 快速启动
+
+```console
+# 构建镜像并启动服务（首次约 1 分 30 秒）
+docker compose up --build -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose down
+```
+
+浏览器访问 **http://localhost:4000**。本地修改 Markdown 后，Jekyll 会自动重建并刷新浏览器。
+
+#### 管理脚本
+
+```powershell
+# Windows
+.\bin\jekyll-docker.ps1 start
+.\bin\jekyll-docker.ps1 stop
+.\bin\jekyll-docker.ps1 restart
+.\bin\jekyll-docker.ps1 logs
+```
+
+```bash
+# Linux / macOS（Docker 方式）
+./bin/jekyll-docker.sh start
+./bin/jekyll-docker.sh stop
+./bin/jekyll-docker.sh restart
+./bin/jekyll-docker.sh logs
+```
+
+#### 修改 Gemfile 后
+
+```console
+docker compose up --build -d
+```
+
+#### 关键文件
+
+| 文件 | 说明 |
+|------|------|
+| `Dockerfile` | 多阶段构建，镜像体积 348MB |
+| `docker-compose.yml` | 服务编排，端口映射 + Volume 挂载 |
+| `bin/jekyll-docker.sh` | Linux/macOS Docker 启动脚本 |
+| `bin/jekyll-docker.ps1` | Windows Docker 启动脚本 |
+
+Docker 环境详解可参考 `_tutorials/2026-06-11-docker-jekyll-dev-environment.md`。
 
 ### 已安装 Ruby 时
 
