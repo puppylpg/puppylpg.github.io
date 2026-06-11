@@ -98,6 +98,17 @@ bin/jekyll-dev.sh stop
 
 新增文章时在对应目录下创建 `YYYY-MM-DD-title.md`，设置 `title`、`date` 等 front matter 即可。
 
+## 项目演进
+
+以下教程记录了本项目的关键技术改造过程：
+
+| 文章 | 核心内容 |
+|------|---------|
+| [Jekyll 博客的 Ruby 环境](https://puppylpg.github.io/tutorials/2019/11/16/ruby-bundler-jekyll/) | 从 Python/Java 视角理解 Ruby 包管理机制，Bundler 的两层套娃结构，以及 GitHub Pages 两种部署模式的区别 |
+| [Chirpy 主题升级指南](https://puppylpg.github.io/tutorials/2026/06/08/chirpy-theme-upgrade-guide/) | 主题从 v6 升级到 v7 的完整记录：breaking changes、本地覆盖文件的正确维护方式、升级后踩的坑及解决方案 |
+| [把 Jekyll 博客全站 3D 化](https://puppylpg.github.io/tutorials/2026/06/10/jekyll-blog-3d-cyber-theme/) | Three.js 环形书架图书馆、全站玻璃拟态皮肤、全息阅读面板、3D 翻页过渡、可拖拽标签星球等 12 个文件的深度改造 |
+| [Docker 开发环境搭建](https://puppylpg.github.io/tutorials/2026/06/11/docker-jekyll-dev-environment/) | 解决 Jekyll 在 Windows 上的跨平台问题，多阶段构建将镜像体积从 817MB 压缩到 348MB |
+
 ## 部署
 
 推送到 `master` 分支自动触发 GitHub Actions 构建并部署至 GitHub Pages。
