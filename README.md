@@ -2,225 +2,106 @@
 
 个人技术博客与知识库，基于 [Jekyll](https://jekyllrb.com/) 与 [Chirpy](https://github.com/cotes2020/jekyll-theme-chirpy) 主题构建，通过 GitHub Actions 部署至 [GitHub Pages](https://puppylpg.github.io)。
 
-本仓库由 [Chirpy Starter](https://github.com/cotes2020/chirpy-starter) 演进而来：在主题 gem 之外，保留了站点级配置、导航 Tab、插件与部署流程，并扩展了多个自定义内容集合。
-
 ## 技术栈
 
 | 项目 | 说明 |
 |------|------|
-| 静态站点 | Jekyll |
-| 主题 | `jekyll-theme-chirpy` ~6.2 |
+| 静态站点 | Jekyll 4.x |
+| 主题 | `jekyll-theme-chirpy` ~7.5 |
 | 语言 / 时区 | `zh-CN` / `Asia/Shanghai` |
-| 评论 | [Utterances](https://utteranc.es/)（GitHub Issues） |
+| 评论 | [Utterances](https://utteranc.es/) |
 | 部署 | GitHub Actions → GitHub Pages |
-| 链接检查 | `html-proofer`（CI 构建阶段；`_tutorials` 因 Chirpy 模板残留断链而豁免） |
-
-主题的大部分布局、样式与脚本来自 Ruby gem；仓库内主要存放**站点配置**、**文章内容**与**少量定制**。
 
 ## 目录结构
 
 ```
 .
 ├── _config.yml          # 站点总配置
-├── index.html           # 首页（自定义 home 布局，合并 _posts 与 _ai）
-├── Gemfile              # Ruby 依赖
-├── Gemfile.lock         # 依赖版本锁定（与 CI 一致）
-│
-├── _posts/              # 主博客文章，Tech
+├── Gemfile / Gemfile.lock
+├── _posts/              # 主博客文章（Tech）
 ├── _ai/                 # AI 专题
+├── _tutorials/          # 教程
 ├── _open/               # 开源相关
 ├── _books/              # 读书 / 学者系列
 ├── _life/               # 生活随笔
-├── _tutorials/          # 教程
-│
-├── _tabs/               # 侧边栏导航页（含内置 Tab 和自定义集合 Tab）
+├── _tabs/               # 侧边栏导航页
 ├── _layouts/            # 自定义布局
 ├── _plugins/            # Jekyll 插件
-├── _data/               # 站点数据（contact、share、locales 等）
-│
-├── assets/              # 静态资源（css/img/js + chirpy-static-assets 子模块）
-├── pics/                # 头像等图片
-├── bin/                 # 辅助脚本（原生 + Docker）
+├── assets/              # 静态资源
+├── bin/                 # 启动脚本
 ├── Dockerfile           # Docker 多阶段构建
 ├── docker-compose.yml   # Docker 服务编排
 └── .github/workflows/   # CI / CD
 ```
 
-## 内容组织
-
-### 主文章（`_posts/`）
-
-标准 Jekyll 博文，文件名格式为 `YYYY-MM-DD-title.md`。Front matter 示例：
-
-```yaml
----
-layout: post
-title: "文章标题"
-date: 2020-01-01 12:00:00 +0800
-categories: 分类名
-tags: 标签名
----
-```
-
-`_config.yml` 中为 `posts` 配置了默认选项：评论、目录（TOC）、数学公式（MathJax）、Mermaid 图表等。
-
-### 自定义集合（Collections）
-
-除主博客外，站点通过 Jekyll Collections 划分专题栏目。集合定义见 `_config.yml` 的 `collections` 段，内容与 `_tabs/` 中的导航页一一对应：
-
-| 集合 | 目录 | 侧边栏 Tab | 列表布局 |
-|------|------|------------|----------|
-| `ai` | `_ai/` | `_tabs/ai.md` | 列表 `custom-collection`；文章 `layout: post`（与主博客一致） |
-| `open` | `_open/` | `_tabs/open.md` | `custom-collection`（按 `order` 排序） |
-| `books` | `_books/` | `_tabs/books.md` | `custom-collection` |
-| `life` | `_life/` | `_tabs/life.md` | `custom-collection` |
-| `tutorials` | `_tutorials/` | `_tabs/tutorials.md` | `custom-collection` |
-
-此外还有 Chirpy 内置 Tab：`about`、`archives`、`categories`、`tags` 等，以及 `_posts` 对应的 `tech` Tab。
-
-新增一篇集合文章时，在对应 `_<collection>/` 目录下创建 Markdown 文件，并在 front matter 中设置 `title`、`date` 等字段；`open` 集合还可使用 `order` 控制展示顺序。
-
-### 分类与标签
-
-启用 `jekyll-archives` 生成分类、标签归档页。源文件中 `categories` / `tags` 已统一小写，无需额外脚本处理。
-
 ## 本地开发
 
-### 环境要求
+### 方式一：Docker（推荐，跨平台）
 
-- [Ruby](https://www.ruby-lang.org/)（建议与 CI 一致，当前为 4.0）
-- [Bundler](https://bundler.io/)
-- [Git](https://git-scm.com/)
+需要 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。
 
-安装步骤可参考 [Jekyll 官方文档](https://jekyllrb.com/docs/installation/)。仓库已提交 `Gemfile.lock`，`bundle install` 将安装与 CI 一致的 gem 版本。
-
-### 克隆与子模块
-
-```console
-git clone https://github.com/puppylpg/puppylpg.github.io.git
-cd puppylpg.github.io
-bundle install
-```
-
-若启用 `_config.yml` 中的 `assets.self_host.enabled`，还需初始化静态资源子模块：
-
-```console
-git submodule update --init --recursive
-```
-
-### 本地快速启动（macOS，推荐）
-
-仓库根目录直接：
-
-```console
-bin/jekyll-dev.sh start      # 后台起 jekyll serve，按需 bundle install
-bin/jekyll-dev.sh restart
-bin/jekyll-dev.sh stop
-bin/jekyll-dev.sh status
-```
-
-浏览器访问 **http://127.0.0.1:4000**（默认端口 `4000`）。日志：`/tmp/puppylpg-jekyll.log`。
-
-脚本会优先使用 Homebrew 的 Ruby（`/opt/homebrew/opt/ruby/bin` 或 `/usr/local/opt/ruby/bin`），因为 macOS 系统 Ruby 2.6 自带的 bundler 1.17 与 `Gemfile.lock` 锁定的 2.x 不兼容。如果还没装：`brew install ruby`。
-
-可选环境变量：`JEKYLL_PORT`（端口，默认 4000）。
-
-首次 `bundle install` 时 `sass-embedded` 会从 GitHub 下载 dart-sass；超时请检查网络/代理后重试。
-
-### Docker 开发环境（跨平台，推荐 Windows）
-
-本项目已提供完整的 Docker 开发环境，**无需本地安装 Ruby**，Windows、macOS、Linux 均可使用。
-
-#### 环境要求
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-#### 快速启动
-
-```console
-# 构建镜像并启动服务（首次约 1 分 30 秒）
+```bash
+# 构建并启动（首次约 1 分 30 秒）
 docker compose up --build -d
 
-# 查看日志
+# 查看日志 / 停止
 docker compose logs -f
-
-# 停止服务
 docker compose down
 ```
 
-浏览器访问 **http://localhost:4000**。本地修改 Markdown 后，Jekyll 会自动重建并刷新浏览器。
-
-#### 管理脚本
-
-```powershell
-# Windows
-.\bin\jekyll-docker.ps1 start
-.\bin\jekyll-docker.ps1 stop
-.\bin\jekyll-docker.ps1 restart
-.\bin\jekyll-docker.ps1 logs
-```
+或使用脚本：
 
 ```bash
-# Linux / macOS（Docker 方式）
+# Windows
+.\bin\jekyll-docker.ps1 start
+
+# Linux / macOS
 ./bin/jekyll-docker.sh start
-./bin/jekyll-docker.sh stop
-./bin/jekyll-docker.sh restart
-./bin/jekyll-docker.sh logs
 ```
 
-#### 修改 Gemfile 后
+访问 **http://localhost:4000**。本地修改 Markdown 后，Jekyll 自动重建并刷新浏览器。
 
-```console
+修改 `Gemfile` 后需重新构建镜像：
+
+```bash
 docker compose up --build -d
 ```
 
-#### 关键文件
+### 方式二：原生 Ruby
 
-| 文件 | 说明 |
-|------|------|
-| `Dockerfile` | 多阶段构建，镜像体积 348MB |
-| `docker-compose.yml` | 服务编排，端口映射 + Volume 挂载 |
-| `bin/jekyll-docker.sh` | Linux/macOS Docker 启动脚本 |
-| `bin/jekyll-docker.ps1` | Windows Docker 启动脚本 |
+需要 Ruby 3.x + Bundler。
 
-Docker 环境详解可参考 `_tutorials/2026-06-11-docker-jekyll-dev-environment.md`。
-
-### 已安装 Ruby 时
-
-```console
+```bash
 bundle install
 bundle exec jekyll serve
 ```
 
-本地开发与 CI 行为一致。
+macOS 用户也可使用辅助脚本：
 
-## 构建与部署
-
-推送到 `main` 或 `master` 分支时，`.github/workflows/pages-deploy.yml` 会自动：
-
-1. 安装 Ruby 依赖（`bundle`）
-2. `bundle exec jekyll build` 生成静态站点
-3. `html-proofer` 校验站内链接
-4. 部署至 GitHub Pages
-
-本地模拟生产构建：
-
-```console
-JEKYLL_ENV=production bundle exec jekyll build
+```bash
+bin/jekyll-dev.sh start   # 后台启动
+bin/jekyll-dev.sh stop
 ```
 
-## 定制说明
+## 内容集合
 
-| 路径 | 作用 |
-|------|------|
-| `_plugins/posts-lastmod-hook.rb` | 根据 Git 历史为 `_posts` 与各内容集合写入 `last_modified_at` |
-| `_plugins/collection-archives.rb` | 让自定义集合的 categories/tags 也参与归档页生成 |
-| `_layouts/home.html` | 首页，合并所有集合并按日期倒序分页展示 |
-| `_layouts/custom-collection.html` | 自定义集合的按年归档列表（支持按 order 排序） |
-| `bin/jekyll-dev.sh` | macOS 本地 `start` / `stop` / `restart` / `status` |
+站点通过 Jekyll Collections 划分专题栏目：
 
-站点外观、评论、PWA、分页等全局选项在 `_config.yml` 中配置。主题详细用法见 [Chirpy 文档](https://github.com/cotes2020/jekyll-theme-chirpy#documentation)。
+| 集合 | 目录 | 说明 |
+|------|------|------|
+| `_posts` | `_posts/` | 主博客，Tech 分类 |
+| `ai` | `_ai/` | AI 专题 |
+| `tutorials` | `_tutorials/` | 教程 |
+| `open` | `_open/` | 开源相关 |
+| `books` | `_books/` | 读书 / 学者系列 |
+| `life` | `_life/` | 生活随笔 |
+
+新增文章时在对应目录下创建 `YYYY-MM-DD-title.md`，设置 `title`、`date` 等 front matter 即可。
+
+## 部署
+
+推送到 `master` 分支自动触发 GitHub Actions 构建并部署至 GitHub Pages。
 
 ## 许可
 
-本项目基于 [MIT](LICENSE) 许可发布。Chirpy 主题遵循其上游许可，详见 [jekyll-theme-chirpy](https://github.com/cotes2020/jekyll-theme-chirpy)。
+[MIT](LICENSE)
