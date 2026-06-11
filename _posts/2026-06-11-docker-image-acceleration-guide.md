@@ -2,8 +2,8 @@
 title: "Docker 镜像加速完全指南：从命名原理到缓存机制"
 date: 2026-06-11 01:45:37 +0800
 categories: [docker, infrastructure]
-tags: [docker, mirror, registry, daocloud, docker-hub]
-description: "在中国大陆使用 Docker 时，Docker Hub 被墙导致镜像拉取失败。本文从 Docker 镜像命名原理讲起，系统梳理 registry-mirrors 配置、非 Docker Hub 镜像的处理方式，以及 DaoCloud 镜像加速的底层缓存机制。"
+tags: [docker, mirror, registry, daocloud, docker-hub, proxy, v2ray]
+description: "在中国大陆使用 Docker 时，Docker Hub 被墙导致镜像拉取失败。本文从 Docker 镜像命名原理讲起，系统梳理 registry-mirrors 配置、代理与镜像加速器的冲突、非 Docker Hub 镜像的处理方式，以及 DaoCloud 镜像加速的底层缓存机制。"
 ---
 
 ## 前言
@@ -285,11 +285,11 @@ docker info | grep -A 5 "Registry Mirrors"
 
 ---
 
-## 镜像推送（push）的注意事项
+## 镜像推送（push）与代理的冲突
 
 以上讨论的全都是**拉取（pull）**镜像的场景。如果你需要**推送（push）镜像到 Docker Hub**，情况完全不同。
 
-### push 不会走镜像加速
+### push 不走镜像加速，但代理会覆盖镜像加速
 
 | 操作 | 是否走 `registry-mirrors` | 说明 |
 |-----|------------------------|------|
@@ -298,24 +298,65 @@ docker info | grep -A 5 "Registry Mirrors"
 
 国内的镜像加速服务（DaoCloud、阿里云等）本质上是**只读缓存**，不支持写入。当你执行 `docker push` 时，Docker 会直接连接 `docker.io` 的推送接口，和国内镜像源毫无关系。
 
-### 在中国大陆 push 到 Docker Hub 的解决方案
+但这里有一个极易踩坑的点：**`daemon.json` 中的 `proxies` 配置是全局开关**。一旦开启，Docker daemon 的所有出站 HTTP/HTTPS 流量（包括 `docker pull`）都会强制走代理，**完全绕过 `registry-mirrors`**。
 
-Docker Hub 的 push 接口同样受网络限制，直接推很可能会超时。常见方案：
-
-**方案 1：配置代理**
-
-在 `daemon.json` 中添加代理配置：
+也就是说，如果你同时配置了：
 
 ```json
 {
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io"
+  ],
   "proxies": {
-    "http-proxy": "http://你的代理地址:端口",
-    "https-proxy": "http://你的代理地址:端口"
+    "http-proxy": "http://host.docker.internal:10809",
+    "https-proxy": "http://host.docker.internal:10809"
   }
 }
 ```
 
-**方案 2：推送到国内 Registry**
+那么 `docker pull` 时，Docker 不会去问 daoCloud 要镜像，而是先把请求扔给 `host.docker.internal:10809` 的代理软件。如果代理本身很慢、节点绕路、或者根本没开，你的 pull 速度会比直连还慢，国内镜像加速器形同虚设。
+
+### 冲突根因：`host.docker.internal:10809` 是什么？
+
+- **`host.docker.internal`**：Docker 保留的特殊域名，指向你的 Windows 宿主机
+- **`10809`**：V2RayN 的默认 HTTP 代理端口（Clash 通常是 7890）
+
+这个配置通常是为了让 Docker daemon 能翻墙访问 Docker Hub 的 push 接口，或者拉取 GCR/GHCR 等国外镜像。但它对 `docker pull` 的副作用是致命的——它把原本应该走国内 CDN 的请求，硬生生拐到了代理软件。
+
+### 按需切换：pull 用镜像加速，push 用代理
+
+既然代理和镜像加速器互斥，最佳实践就是**按需切换**，不要同时开着。
+
+**平时（日常 pull）**：
+
+`daemon.json` 只保留 `registry-mirrors`，删除 `proxies`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://mirror.ccs.tencentyun.com"
+  ]
+}
+```
+
+这样 pull Docker Hub 镜像时直连国内 CDN，速度快。
+
+**需要 push 到 Docker Hub 时**：
+
+打开 Docker Desktop → **Settings → Resources → Proxies** → 勾选 **Manual proxy configuration**，填入：
+- Web Server: `http://host.docker.internal:10809`
+- Secure Web Server: `http://host.docker.internal:10809`
+
+点击 **Apply & Restart**，push 完成后**关掉代理**，恢复 pull 速度。
+
+如果你习惯改配置文件，也可以临时在 `daemon.json` 中加回 `proxies`，push 完再删掉，但 GUI 方式更省事。
+
+### 其他 push 方案
+
+除了临时开代理，还有两种规避网络限制的 push 方案：
+
+**推送到国内 Registry**
 
 使用阿里云容器镜像服务（ACR）、腾讯云容器镜像服务（TCR）等国内平台：
 
@@ -327,7 +368,7 @@ docker push registry.cn-hangzhou.aliyuncs.com/命名空间/myimage:tag
 
 这些平台通常提供与 Docker Hub 的同步功能。
 
-**方案 3：在境外环境 push**
+**在境外环境 push**
 
 在境外服务器、GitHub Actions、CI/CD 流水线中构建并推送，完全不受网络限制。
 
@@ -335,10 +376,11 @@ docker push registry.cn-hangzhou.aliyuncs.com/命名空间/myimage:tag
 
 ## 总结
 
-在中国大陆使用 Docker，核心要理解三个层次：
+在中国大陆使用 Docker，核心要理解四个层次：
 
 1. **命名层**：`docker pull redis` 本质是 `docker pull docker.io/library/redis`，只有 `docker.io` 享受自动省略和 `registry-mirrors` 加速
-2. **配置层**：在 `daemon.json` 中配置 `registry-mirrors` 后，Docker Hub 镜像无需改命令、不会变名；非 Docker Hub 镜像必须手动加前缀；push 操作不走镜像加速
-3. **原理层**：DaoCloud 等加速服务是“透传缓存”，第一次慢、后续快，缓存有 30 天保留期和限流策略
+2. **配置层**：在 `daemon.json` 中配置 `registry-mirrors` 后，Docker Hub 镜像无需改命令、不会变名；非 Docker Hub 镜像必须手动加前缀
+3. **代理冲突层**：`daemon.json` 中的 `proxies` 是全局开关，一旦开启会覆盖 `registry-mirrors`，导致 pull 变慢。日常 pull 只配镜像加速器，需要 push 到 Docker Hub 时再临时开代理
+4. **原理层**：DaoCloud 等加速服务是“透传缓存”，第一次慢、后续快，缓存有 30 天保留期和限流策略
 
 掌握这套逻辑后，无论是拉取官方镜像、第三方镜像，还是推送自己的镜像，都能快速判断该用哪种方式。
