@@ -29,10 +29,28 @@
 ├── _plugins/            # Jekyll 插件
 ├── assets/              # 静态资源
 ├── bin/                 # 启动脚本
+├── AGENTS.md            # 面向 coding agent 的统一协作规则
+├── CLAUDE.md            # Claude Code 兼容入口
+├── .agents/             # 项目内 agent skills
+├── .claude/             # Claude Code 私有配置
 ├── Dockerfile           # Docker 多阶段构建
 ├── docker-compose.yml   # Docker 服务编排
 └── .github/workflows/   # CI / CD
 ```
+
+## 协作文档
+
+本仓库同时保留人类文档和 agent 文档，职责分开维护：
+
+| 文件 | 读者 | 用途 |
+|------|------|------|
+| `README.md` | 人类开发者 | 项目介绍、本地开发、内容集合、部署方式 |
+| `AGENTS.md` | 所有 coding agent | 发文流程、front matter、构建检查、提交约定、项目内 skills |
+| `CLAUDE.md` | Claude Code | 兼容入口，指向 `AGENTS.md`，只补充 Claude 专属配置 |
+
+通用项目规范优先维护在 `AGENTS.md`，避免在不同 agent 的私有文件里复制多份规则。
+
+项目内 skill 的真实来源是 `.agents/skills/`；`.claude/skills/` 只保留薄代理文件，让 Claude Code 能自动发现同一批 skill。
 
 ## 本地开发
 
