@@ -1,7 +1,7 @@
 ---
 title: "统一 Agent 文档与 Skill 维护入口"
 date: 2026-06-12 18:33:50 +0800
-categories: [ai, tools]
+categories: [tech, tools]
 tags: [agents, codex, claude, skills, documentation]
 description: "一次将 README、AGENTS.md、CLAUDE.md 与项目内 skills 重新分层的实践记录。"
 ---
