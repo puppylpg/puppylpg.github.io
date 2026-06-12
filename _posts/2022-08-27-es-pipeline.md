@@ -474,7 +474,7 @@ PUT _ingest/pipeline/branding
 完美。
 
 整个数据处理的流程如图：
-![media_enrich](/pics/Elasticsearch/pipeline/media_enrich.png)
+![media_enrich](/pics/elasticsearch/pipeline/media-enrich.png)
 
 # 使用pipeline
 使用pipeline还挺麻烦：

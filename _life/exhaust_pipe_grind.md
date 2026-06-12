@@ -77,11 +77,11 @@ date: 2023-03-06 00:13:02 +0800
 
 后来看了一下录的视频，发现身体和车并不是真同倾，而是有点儿外倾了，身体的角度并没有达到车子的角度，估计还是心里害怕。身体都下不去，车肯定不可能再往下压了。所以再接着练的时候刻意注意了一下身体。想到车的极限挺高的，我又怕什么，刻意让自己不要因为害怕而产生无意识的抗拒，结果奇迹就在注意完油门和姿势之后发生了！在做右侧同倾的时候，时隔一年我又再次听到了磨排气管的声音！上一次是纯运气，这一次磨排气来自于对自己bug的纠正，真就带着实力的意味了。
 
-![exhust_pipe_grind](/pics/motocycle/myself/20230306/exhust_pipe_grind.jpg)
+![exhust_pipe_grind](/pics/motocycle/myself/20230306/exhust-pipe-grind.jpg)
 
 这一下我立刻来了兴致，接着来，又磨到了！果然，知道哪儿有问题才好纠正，一个个bug纠正完了，预想的结果就来了！再往后，基本可以小半圈一直磨了，但是还没有达到随心所欲想磨就磨的水平。不过我感觉不远了，就在下次了。
 
-![back_right_lean](/pics/motocycle/myself/20230306/back_right_lean.jpg)
+![back_right_lean](/pics/motocycle/myself/20230306/back-right-lean.jpg)
 
 ![back](/pics/motocycle/myself/20230306/back.jpg)
 
@@ -91,7 +91,7 @@ date: 2023-03-06 00:13:02 +0800
 
 后来整个人就转太多圈，开始头晕了……看看轮胎，右侧基本吃满了，还差只有一点点白色。左侧要稍微差点儿，估计是今天左侧做的没右侧多。毕竟左侧没反馈，自然就没右侧快乐，快乐让人多做了好多圈。
 
-![back_tire_right](/pics/motocycle/myself/20230306/back_tire_right.jpg)
+![back_tire_right](/pics/motocycle/myself/20230306/back-tire-right.jpg)
 
 回来量了一下，磨排气的时候压得都有46°了！！！惊呆我了！这个角度肯定是可以磨膝了。只不过把屁股挂出去又是另一个要练习的东西了，下次再说吧，今天我已经震撼我自己100年了。看来小丙说的一小时练会是真的，前提是能找到自己的bug并成功debug。
 
