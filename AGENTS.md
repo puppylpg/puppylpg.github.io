@@ -25,7 +25,11 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 
 ## 文章发布通用流程
 
-任何将文章写入 `_ai/`、`_posts/` 或 `_tutorials/` 的 skill/agent，落盘后都应遵循以下流程：
+任何将文章写入 `_ai/`、`_posts/` 或 `_tutorials/` 的 skill/agent，开始修改前应先确认工作区干净，并执行 `git pull --rebase` 同步远端 `master`。本项目可能由多个环境同时维护，不要基于落后的本地 `master` 工作。
+
+如果开始时已经存在未提交修改，不要直接 `git pull`；应先说明当前状态，并根据情况提交后 rebase，或在用户确认后 stash / 处理冲突。
+
+落盘后遵循以下流程：
 
 1. 本地预览。
 2. 等用户确认。
