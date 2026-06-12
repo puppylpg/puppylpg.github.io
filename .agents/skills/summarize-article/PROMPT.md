@@ -1,6 +1,6 @@
 # 子 Agent Prompt
 
-下面是派给子 agent 的 prompt 模板。主 agent 需要先 `date '+%Y-%m-%d %H:%M:%S'` 拿到实际时间再填入。
+下面是派给子 agent 的 prompt 模板。主 agent 需要先 `date '+%Y-%m-%d %H:%M:%S %z'` 拿到实际时间再填入。
 
 ---
 
@@ -9,8 +9,9 @@
 
 输入：
 - 原文来源：<URL / 本地路径 / 正文>
-- 今天日期：<YYYY-MM-DD>
-- 当前时刻：<HH:MM:SS>
+- 发布时间：<YYYY-MM-DD HH:MM:SS +0800>
+- 目标目录：<目标目录，如 _ai/、_posts/、_tutorials/>
+- 默认分类：<如 [ai]、[tech]、[tutorial]>
 
 —— 第一步：抓取原文 ——
 - 本地路径 → `Read`。
@@ -53,7 +54,7 @@
 ---
 title: "中文简洁标题"
 date: YYYY-MM-DD HH:MM:SS +0800
-categories: [ai, 子分类]
+categories: <默认分类，可追加子分类>
 tags: [tag1, tag2, tag3]
 description: "一句话摘要"
 ---
@@ -63,6 +64,7 @@ description: "一句话摘要"
 - 若原文来自主流 AI 大厂官方域名（anthropic.com、openai.com、deepmind.google、blog.google、moonshot.cn/kimi 等），在 title 前加品牌前缀，格式为 `【Anthropic】`、`【OpenAI】`、`【Google】`、`【Kimi】` 等，首字母大写，使用中文全角中括号。其他来源不加品牌前缀
 - 不写 `layout:` 或 `last_modified_at`
 - categories 和 tags 必须小写
+- categories 使用主 agent 传入的「默认分类」，若原文明显属于更细分领域可追加一个子分类，例如 `[ai, tools]`、`[tech, security]`、`[tutorial, docker]`
 
 —— 第四步：自审 ——
 写完正文后，逐项检查以下清单，每项不通过就当场修改：
@@ -70,16 +72,16 @@ description: "一句话摘要"
 - [ ] **标题重想**：每个 `##` 标题是中文自然表达还是英文直译？英文原文常用比喻/俏皮话做标题，必须按中文习惯重想。如 "Avoid Railroading Claude" → "不要把指令写得太死"，而非 "避免导轨 Claude"。
 - [ ] **术语标注**：英文术语标注是否遗漏或多余？按第二步的判断标准逐个检查。
 - [ ] **空话检查**：有没有"本文将介绍""综上所述""首先...其次...最后"等套话？删掉。
-- [ ] **frontmatter**：title 是否自己总结的？品牌前缀是否正确？`categories`/`tags` 是否小写？有没有多余的 `layout:` 或 `last_modified_at`？
+- [ ] **frontmatter**：title 是否自己总结的？品牌前缀是否正确？`categories`/`tags` 是否小写？有没有多余的 `layout:` 或 `last_modified_at`？categories 是否使用了传入的默认分类？
 
 —— 第五步：落盘 ——
-路径：`_ai/YYYY-MM-DD-<slug>.md`（slug 规则：小写英文、数字、连字符，中文主题用拼音或英文关键词缩写）
-用 `Write` 写到项目根目录下的 `_ai/YYYY-MM-DD-<slug>.md`。
+路径：`<目标目录>YYYY-MM-DD-<slug>.md`（slug 规则：小写英文、数字、连字符，中文主题用拼音或英文关键词缩写）
+用 `Write` 写到项目根目录下的 `<目标目录>YYYY-MM-DD-<slug>.md`。
 
 —— 第六步：返回 ——
 只返回这三行：
 
-PATH: _ai/YYYY-MM-DD-<slug>.md
+PATH: <目标目录>YYYY-MM-DD-<slug>.md
 TITLE: <中文标题>
 COMMIT_DESC: <一句话描述>
 ```

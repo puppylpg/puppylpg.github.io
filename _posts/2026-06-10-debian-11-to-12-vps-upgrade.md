@@ -1,7 +1,7 @@
 ---
 title: "一次 Debian 11 升级到 Debian 12 的 VPS 实战记录"
 date: 2026-06-10 03:14:36 +0800
-categories: [ai]
+categories: [tech]
 tags: [debian, vps, docker, system-upgrade, linux, apt, operations]
 description: "记录一台运行 Docker 服务的 VPS 从 Debian 11 升级到 Debian 12 的评估、执行、重启验证与风险处理过程。"
 ---

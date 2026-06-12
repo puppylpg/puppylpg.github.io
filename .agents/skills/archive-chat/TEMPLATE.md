@@ -12,7 +12,11 @@ description: "一句话摘要"
 ---
 ```
 
-- `categories` 固定 `[ai]`，有更细分领域可追加如 `[ai, tools]`
+- `categories` 根据发布目标选择：
+  - 默认 `_ai/` → `[ai]`
+  - `_posts/`（tech）→ `[tech]`
+  - `_tutorials/` → `[tutorial]`
+  - 有更细分领域可追加，例如 `[ai, tools]`、`[tech, tools]`、`[tutorial, docker]`
 - `tags` 从关键词中提取 3-8 个
 - 不写 `layout:` 或 `last_modified_at`
 - `categories` 和 `tags` 必须小写
