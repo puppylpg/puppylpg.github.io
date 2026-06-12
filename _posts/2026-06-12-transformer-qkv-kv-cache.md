@@ -891,37 +891,68 @@ $$
 用代码看，这个结构通常长这样：
 
 ```python
-class MultiHeadAttention(nn.Module):  # 定义一个 PyTorch 模块，用来实现 Multi-Head Attention
-    def __init__(self, d_model, num_heads):  # 初始化模块；d_model 是总隐藏维度，num_heads 是 head 数量
-        super().__init__()  # 调用 nn.Module 的初始化逻辑，让这个类具备 PyTorch 模块能力
-        assert d_model % num_heads == 0  # 要求总维度能被 head 数整除，否则每个 head 无法平均分到相同维度
-        self.d_model = d_model  # 保存总隐藏维度，例如 512
-        self.num_heads = num_heads  # 保存 head 数量，例如 8
-        self.d_k = d_model // num_heads  # 计算每个 head 的维度，例如 512 / 8 = 64
-        self.W_q = nn.Linear(d_model, d_model)  # 定义 Q 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^Q
-        self.W_k = nn.Linear(d_model, d_model)  # 定义 K 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^K
-        self.W_v = nn.Linear(d_model, d_model)  # 定义 V 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^V
-        self.W_o = nn.Linear(d_model, d_model)  # 定义输出投影层：把 concat 后的多头结果再融合回 d_model 维
-    def split_heads(self, x):  # 把一个形状为 [batch, seq, d_model] 的张量拆成多个 head
-        batch_size, seq_length, _ = x.size()  # 取出 batch 大小和序列长度；最后一维应当是 d_model
-        x = x.view(batch_size, seq_length, self.num_heads, self.d_k)  # 改形状为 [batch, seq, heads, head_dim]
-        return x.transpose(1, 2)  # 交换 seq 和 heads 维度，得到 [batch, heads, seq, head_dim]，方便每个 head 独立 attention
-    def combine_heads(self, x):  # 把多个 head 的结果合并回一个 d_model 维张量
-        batch_size, num_heads, seq_length, d_k = x.size()  # 读取当前形状：[batch, heads, seq, head_dim]
-        x = x.transpose(1, 2).contiguous()  # 把形状变回 [batch, seq, heads, head_dim]，contiguous 确保内存连续便于 view
-        return x.view(batch_size, seq_length, self.d_model)  # 把 heads 和 head_dim 拼回 d_model，得到 [batch, seq, d_model]
-    def scaled_dot_product_attention(self, Q, K, V, mask=None):  # 对已经拆好 head 的 Q/K/V 执行缩放点积注意力
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)  # 计算 QK^T / sqrt(d_k)，形状为 [batch, heads, seq_q, seq_k]
-        if mask is not None:  # 如果提供了 mask，例如 causal mask 或 padding mask，就进入屏蔽逻辑
-            scores = scores.masked_fill(mask == 0, -1e9)  # 把不允许关注的位置设成极小值，使 softmax 后权重接近 0
-        probs = torch.softmax(scores, dim=-1)  # 对最后一维 seq_k 做 softmax，把原始分数变成注意力权重
-        return torch.matmul(probs, V)  # 用注意力权重加权求和 V，得到每个 head 的上下文输出
-    def forward(self, Q, K, V, mask=None):  # 前向传播；这里的 Q/K/V 参数通常都来自同一个 X，也可以来自不同序列
-        Q = self.split_heads(self.W_q(Q))  # 先用 W_q 得到大 Q，再拆成 [batch, heads, seq_q, head_dim]
-        K = self.split_heads(self.W_k(K))  # 先用 W_k 得到大 K，再拆成 [batch, heads, seq_k, head_dim]
-        V = self.split_heads(self.W_v(V))  # 先用 W_v 得到大 V，再拆成 [batch, heads, seq_v, head_dim]
-        attn_output = self.scaled_dot_product_attention(Q, K, V, mask)  # 在每个 head 内独立计算 attention，得到 [batch, heads, seq, head_dim]
-        return self.W_o(self.combine_heads(attn_output))  # 合并所有 head，再通过 W_o 做最终融合，输出 [batch, seq, d_model]
+# 定义一个 PyTorch 模块，用来实现 Multi-Head Attention
+class MultiHeadAttention(nn.Module):
+    # 初始化模块；d_model 是总隐藏维度，num_heads 是 head 数量
+    def __init__(self, d_model, num_heads):
+        # 调用 nn.Module 的初始化逻辑，让这个类具备 PyTorch 模块能力
+        super().__init__()
+        # 要求总维度能被 head 数整除，否则每个 head 无法平均分到相同维度
+        assert d_model % num_heads == 0
+        # 保存总隐藏维度，例如 512
+        self.d_model = d_model
+        # 保存 head 数量，例如 8
+        self.num_heads = num_heads
+        # 计算每个 head 的维度，例如 512 / 8 = 64
+        self.d_k = d_model // num_heads
+        # 定义 Q 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^Q
+        self.W_q = nn.Linear(d_model, d_model)
+        # 定义 K 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^K
+        self.W_k = nn.Linear(d_model, d_model)
+        # 定义 V 投影层：把输入从 d_model 映射到 d_model，内部等价于一个大 W^V
+        self.W_v = nn.Linear(d_model, d_model)
+        # 定义输出投影层：把 concat 后的多头结果再融合回 d_model 维
+        self.W_o = nn.Linear(d_model, d_model)
+    # 把一个形状为 [batch, seq, d_model] 的张量拆成多个 head
+    def split_heads(self, x):
+        # 取出 batch 大小和序列长度；最后一维应当是 d_model
+        batch_size, seq_length, _ = x.size()
+        # 改形状为 [batch, seq, heads, head_dim]
+        x = x.view(batch_size, seq_length, self.num_heads, self.d_k)
+        # 交换 seq 和 heads 维度，得到 [batch, heads, seq, head_dim]，方便每个 head 独立 attention
+        return x.transpose(1, 2)
+    # 把多个 head 的结果合并回一个 d_model 维张量
+    def combine_heads(self, x):
+        # 读取当前形状：[batch, heads, seq, head_dim]
+        batch_size, num_heads, seq_length, d_k = x.size()
+        # 把形状变回 [batch, seq, heads, head_dim]，contiguous 确保内存连续便于 view
+        x = x.transpose(1, 2).contiguous()
+        # 把 heads 和 head_dim 拼回 d_model，得到 [batch, seq, d_model]
+        return x.view(batch_size, seq_length, self.d_model)
+    # 对已经拆好 head 的 Q/K/V 执行缩放点积注意力
+    def scaled_dot_product_attention(self, Q, K, V, mask=None):
+        # 计算 QK^T / sqrt(d_k)，形状为 [batch, heads, seq_q, seq_k]
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
+        # 如果提供了 mask，例如 causal mask 或 padding mask，就进入屏蔽逻辑
+        if mask is not None:
+            # 把不允许关注的位置设成极小值，使 softmax 后权重接近 0
+            scores = scores.masked_fill(mask == 0, -1e9)
+        # 对最后一维 seq_k 做 softmax，把原始分数变成注意力权重
+        probs = torch.softmax(scores, dim=-1)
+        # 用注意力权重加权求和 V，得到每个 head 的上下文输出
+        return torch.matmul(probs, V)
+    # 前向传播；这里的 Q/K/V 参数通常都来自同一个 X，也可以来自不同序列
+    def forward(self, Q, K, V, mask=None):
+        # 先用 W_q 得到大 Q，再拆成 [batch, heads, seq_q, head_dim]
+        Q = self.split_heads(self.W_q(Q))
+        # 先用 W_k 得到大 K，再拆成 [batch, heads, seq_k, head_dim]
+        K = self.split_heads(self.W_k(K))
+        # 先用 W_v 得到大 V，再拆成 [batch, heads, seq_v, head_dim]
+        V = self.split_heads(self.W_v(V))
+        # 在每个 head 内独立计算 attention，得到 [batch, heads, seq, head_dim]
+        attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+        # 合并所有 head，再通过 W_o 做最终融合，输出 [batch, seq, d_model]
+        return self.W_o(self.combine_heads(attn_output))
 ```
 
 这里 `nn.Linear(d_model, d_model)` 看起来是一整个大矩阵，但 `split_heads` 之后，attention 是在 `num_heads` 维度上并行且相互隔离地完成的。这才是 Multi-Head 的关键。
