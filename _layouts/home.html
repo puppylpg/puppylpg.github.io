@@ -10,38 +10,66 @@ refactor: true
 
 {% for post in site.posts %}
   {% unless post.hidden %}
-    {% capture elem %}{{ post.date | date: "%Y%m%d%H%M%S" }}::posts::{{ forloop.index0 }}{% endcapture %}
+    {% assign pin_rank = 0 %}
+    {% if post.pin %}
+      {% assign pin_rank = 1 %}
+    {% endif %}
+    {% capture elem %}{{ pin_rank }}::{{ post.date | date: "%Y%m%d%H%M%S" }}::posts::{{ forloop.index0 }}{% endcapture %}
     {% assign all_items = all_items | push: elem %}
   {% endunless %}
 {% endfor %}
 
 {% for doc in site.ai %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::ai::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::ai::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
 {% for doc in site.open %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::open::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::open::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
 {% for doc in site.tutorials %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::tutorials::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::tutorials::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
 {% for doc in site.books %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::books::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::books::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
 {% for doc in site.life %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::life::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::life::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
 {% for doc in site.viewed %}
-  {% capture elem %}{{ doc.date | date: "%Y%m%d%H%M%S" }}::viewed::{{ forloop.index0 }}{% endcapture %}
+  {% assign pin_rank = 0 %}
+  {% if doc.pin %}
+    {% assign pin_rank = 1 %}
+  {% endif %}
+  {% capture elem %}{{ pin_rank }}::{{ doc.date | date: "%Y%m%d%H%M%S" }}::viewed::{{ forloop.index0 }}{% endcapture %}
   {% assign all_items = all_items | push: elem %}
 {% endfor %}
 
@@ -55,8 +83,8 @@ refactor: true
 <div id="post-list" class="flex-grow-1 px-xl-1">
   {% for item in all_items limit: per_page offset: skip %}
     {% assign parts = item | split: '::' %}
-    {% assign col = parts[1] %}
-    {% assign index = parts[2] | plus: 0 %}
+    {% assign col = parts[2] %}
+    {% assign index = parts[3] | plus: 0 %}
 
     {% if col == 'posts' %}
       {% assign post = site.posts[index] %}
