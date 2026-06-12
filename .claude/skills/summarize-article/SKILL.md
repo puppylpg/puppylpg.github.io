@@ -13,4 +13,4 @@ description: "把用户给的文章 URL 总结成博客 post。默认发布到 _
 .agents/skills/summarize-article/SKILL.md
 ```
 
-使用本 skill 时，必须读取并遵循上述真实文件；如果真实文件引用同目录资源，例如 `PROMPT.md`，也从 `.agents/skills/summarize-article/` 读取。
+使用本 skill 时，必须读取并遵循上述真实文件；如果真实文件引用资源，例如 `assets/PROMPT.md`，也从 `.agents/skills/summarize-article/` 读取。

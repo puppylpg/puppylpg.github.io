@@ -36,7 +36,7 @@ description: "把用户给的文章 URL 总结成博客 post。默认发布到 _
 
 派 agent 前先执行 `date '+%Y-%m-%d %H:%M:%S %z'` 拿到实际日期和时间。**不得硬写时间**。
 
-使用当前环境支持的子 agent / 子任务机制执行，prompt 使用同目录下 `PROMPT.md` 中的模板。
+使用当前环境支持的子 agent / 子任务机制执行，prompt 使用 `assets/PROMPT.md` 中的模板。
 
 派子 agent 时必须传入：
 

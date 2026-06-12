@@ -50,7 +50,7 @@ description: "将当前对话整理成结构化总结，发布到博客。默认
 文件保存到对应目录：`_<target>/YYYY-MM-DD-<slug>.md`。
 
 - slug 规则见 `AGENTS.md`。
-- 正文格式和结构要求见 `TEMPLATE.md`。
+- 正文格式和结构要求见 `assets/TEMPLATE.md`。
 
 ### 5. 预览与发布
 
@@ -68,7 +68,7 @@ description: "将当前对话整理成结构化总结，发布到博客。默认
 
 ## 正文与可视化要求
 
-正文格式和结构要求见 `TEMPLATE.md`。补充一点：
+正文格式和结构要求见 `assets/TEMPLATE.md`。补充一点：
 
 引用外部资料时，必须使用 Markdown 内联链接，把链接嵌入到有意义的文字中，例如 `[OpenAI Codex 的 AGENTS.md 文档](https://developers.openai.com/codex/guides/agents-md)`。不要把裸 URL 单独贴在正文里。需要增强可信度时，应优先引用官方文档或项目主页，并在正文中解释来源支持了哪个判断。
 
