@@ -51,6 +51,10 @@
 
 {% include jsdelivr-combine.html urls=urls %}
 
+{% if page.mermaid %}
+  <script defer src="{{ '/assets/js/custom-mermaid.js' | relative_url }}"></script>
+{% endif %}
+
 {% case page.layout %}
   {% when 'home', 'categories', 'post', 'page' %}
     {% assign js = page.layout %}

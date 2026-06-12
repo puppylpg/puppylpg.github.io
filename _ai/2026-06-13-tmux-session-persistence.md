@@ -1,0 +1,135 @@
+---
+title: "用 tmux-resurrect 和 tmux-continuum 持久化 Tmux 工作区"
+date: 2026-06-13 00:38:44 +0800
+categories: [ai, tools]
+tags: [tmux, terminal, persistence, productivity, systemd]
+description: "一次围绕 Tmux 重启后如何恢复 session 结构的实践记录：理解边界、安装插件、配置自动保存，并明确恢复流程。"
+---
+
+1. Table of Contents, ordered
+{:toc}
+
+## 问题：重启后还能 attach 吗
+
+Tmux 的 session 存在于 tmux server 进程里。机器重启后，tmux server、session、window、pane 以及其中运行的进程都会消失，所以原来的 session 不能再通过 `tmux attach` 找回来。
+
+`tmux attach` 只能连接仍然存在的 session。如果重启后执行：
+
+```bash
+tmux ls
+```
+
+看到 `no server running`，就说明原来的 tmux server 已经没了。这时能做的不是 attach，而是重新创建工作区，或者依赖提前配置好的持久化插件恢复工作区结构。
+
+## 可恢复的不是进程，而是工作区结构
+
+这次选择的方案是 [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect) 加 [tmux-continuum](https://github.com/tmux-plugins/tmux-continuum)。
+
+它们能恢复的核心对象是：
+
+- session 名称
+- window 名称和顺序
+- pane 布局
+- 每个 pane 的当前目录
+- 一部分可安全重启的命令
+
+它们不能恢复真正的进程内存状态，例如 SSH 连接、REPL 里的临时变量、正在跑到一半的任务、没有写入文件的输出。更准确地说，这套方案恢复的是“工作台”，不是“虚拟机快照”。
+
+```mermaid
+flowchart TD
+  A[机器重启] --> B[tmux server 消失]
+  B --> C{是否有持久化快照}
+  C -->|没有| D[重新创建<br/>session]
+  C -->|有| E[恢复 session<br/>window / pane / cwd]
+  E --> F[手动重启<br/>必要命令]
+
+  style A fill:#ffe3e3
+  style B fill:#ffe3e3
+  style C fill:#fff3bf
+  style E fill:#e3f2fd
+  style F fill:#e8f5e9
+```
+
+## 已安装的插件与配置
+
+本机已经安装了 Tmux Plugin Manager：
+
+```bash
+~/.tmux/plugins/tpm
+```
+
+并通过它安装了：
+
+- `tmux-resurrect`
+- `tmux-continuum`
+
+当前 `~/.tmux.conf` 末尾追加了如下配置：
+
+```tmux
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+
+set -g @continuum-save-interval '15'
+set -g @continuum-restore 'on'
+
+set -g @resurrect-processes 'vim nvim less man tail'
+
+run '~/.tmux/plugins/tpm/tpm'
+```
+
+这里的关键点有三个：
+
+- `@continuum-save-interval '15'`：每 15 分钟自动保存一次 tmux 工作区。
+- `@continuum-restore 'on'`：tmux server 启动时自动恢复最近一次保存的工作区。
+- `@resurrect-processes`：只保守恢复 `vim`、`nvim`、`less`、`man`、`tail` 这类程序，避免把复杂服务误当成可随意恢复的进程。
+
+快照实际保存目录是：
+
+```bash
+~/.local/share/tmux/resurrect/
+```
+
+其中 `last` 会指向最近一次保存的快照文件。
+
+## 重启后怎么恢复
+
+重启后，通常直接启动 tmux 即可：
+
+```bash
+tmux
+```
+
+因为已经启用了 `@continuum-restore 'on'`，第一次启动 tmux server 时会尝试自动恢复最近一次保存的工作区。
+
+如果没有自动恢复，进入 tmux 后手动执行恢复快捷键：
+
+```text
+Ctrl-b  Ctrl-r
+```
+
+手动保存当前状态则是：
+
+```text
+Ctrl-b  Ctrl-s
+```
+
+如果恢复后想确认有哪些 session：
+
+```bash
+tmux ls
+```
+
+再按需 attach：
+
+```bash
+tmux attach -t <session-name>
+```
+
+## 和 systemd 的边界
+
+Tmux 持久化适合恢复开发环境的布局，例如一个项目里固定有 editor、server、git、notes 几个窗口。它让人重启后快速回到熟悉的工作区。
+
+但长期运行服务不应该依赖 tmux 恢复。比如博客预览、后台 worker、数据库、监控脚本等，更适合交给 `systemd` 或专门的进程管理器。Tmux 负责“工作区”，`systemd` 负责“服务”。
+
+最终的实践原则是：把 tmux 当成工作台快照，把重要任务写成可重入脚本，日志落盘，真正的后台服务交给服务管理器。这样即使机器重启，也能以最小成本恢复工作现场。

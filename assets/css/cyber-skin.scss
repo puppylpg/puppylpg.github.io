@@ -148,6 +148,32 @@ html[data-mode="dark"] {
     border-radius: 0 6px 6px 0;
   }
 
+  /* Mermaid flowcharts can underestimate Chinese/mixed-label width. */
+  pre.mermaid,
+  .mermaid {
+    overflow: visible;
+  }
+
+  .mermaid svg {
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .mermaid foreignObject,
+  .mermaid .label {
+    overflow: visible;
+  }
+
+  .mermaid .label,
+  .mermaid .nodeLabel,
+  .mermaid .edgeLabel {
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   /* 行内代码与代码块加一圈微光描边 */
   .highlight,
   div[class^="language-"] {
