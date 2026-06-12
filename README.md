@@ -93,9 +93,6 @@ DEBIAN_SECURITY_MIRROR=security.debian.org \
 GEM_SOURCE=https://rubygems.org/ \
 docker compose up --build -d
 ```
-
-若本机只有旧版 Compose，也可以用 `docker-compose up --build -d`；项目脚本会自动兼容 `docker compose` 和 `docker-compose`。
-
 ### 方式二：原生 Ruby
 
 需要 Ruby 3.x + Bundler。
