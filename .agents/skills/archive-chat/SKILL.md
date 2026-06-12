@@ -70,6 +70,8 @@ description: "将当前对话整理成结构化总结，发布到博客。默认
 
 正文格式和结构要求见 `TEMPLATE.md`。补充一点：
 
+引用外部资料时，必须使用 Markdown 内联链接，把链接嵌入到有意义的文字中，例如 `[OpenAI Codex 的 AGENTS.md 文档](https://developers.openai.com/codex/guides/agents-md)`。不要把裸 URL 单独贴在正文里。需要增强可信度时，应优先引用官方文档或项目主页，并在正文中解释来源支持了哪个判断。
+
 当对话内容涉及流程、层级、对比、时序等结构时，**优先使用 Mermaid 图**（`mermaid` 代码块）替代 ASCII 示意图或纯文本层级图。博客主题已原生支持 Mermaid 渲染。
 
 常用场景与图表类型：
