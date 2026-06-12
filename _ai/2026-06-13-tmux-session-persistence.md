@@ -43,11 +43,11 @@ flowchart TD
   C -->|有| E[恢复 session<br/>window / pane / cwd]
   E --> F[手动重启<br/>必要命令]
 
-  style A fill:#ffe3e3
-  style B fill:#ffe3e3
-  style C fill:#fff3bf
-  style E fill:#e3f2fd
-  style F fill:#e8f5e9
+  style A fill:#ffe3e3,color:#1f2937
+  style B fill:#ffe3e3,color:#1f2937
+  style C fill:#fff3bf,color:#1f2937
+  style E fill:#e3f2fd,color:#1f2937
+  style F fill:#e8f5e9,color:#1f2937
 ```
 
 ## 已安装的插件与配置

@@ -148,32 +148,6 @@ html[data-mode="dark"] {
     border-radius: 0 6px 6px 0;
   }
 
-  /* Mermaid flowcharts can underestimate Chinese/mixed-label width. */
-  pre.mermaid,
-  .mermaid {
-    overflow: visible;
-  }
-
-  .mermaid svg {
-    max-width: 100%;
-    height: auto;
-    overflow: visible;
-  }
-
-  .mermaid foreignObject,
-  .mermaid .label {
-    overflow: visible;
-  }
-
-  .mermaid .label,
-  .mermaid .nodeLabel,
-  .mermaid .edgeLabel {
-    line-height: 1.35;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
   /* 行内代码与代码块加一圈微光描边 */
   .highlight,
   div[class^="language-"] {
@@ -279,10 +253,6 @@ html[data-mode="dark"].depth-on {
         0 36px 70px -24px rgb(0 0 0 / 75%),
         0 0 28px rgb(125 211 252 / 8%),
         inset 0 1px 0 rgb(255 255 255 / 6%);
-      transform: perspective(1600px)
-        rotateY(calc(var(--tx, 0) * 1deg))
-        rotateX(calc(var(--ty, 0) * 1deg));
-      transform-style: preserve-3d;
       animation: panel-enter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 
       /* 全息扫描线 */
@@ -362,6 +332,11 @@ html[data-mode="dark"].depth-on {
 @keyframes avatar-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
+}
+
+/* ---------- Mermaid：label 偶有 1-2px 测宽误差，别让 foreignObject 裁掉 ---------- */
+.mermaid foreignObject {
+  overflow: visible;
 }
 
 /* 阅读进度光束 */

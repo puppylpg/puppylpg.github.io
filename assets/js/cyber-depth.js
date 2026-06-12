@@ -63,30 +63,6 @@
     });
   }
 
-  /* ---------- 文章面板：随鼠标整体 3D 转动 ---------- */
-  var panel = document.querySelector('main > article');
-  if (
-    panel &&
-    window.matchMedia('(pointer: fine)').matches &&
-    window.matchMedia('(min-width: 1200px)').matches
-  ) {
-    var tx = 0;
-    var ty = 0;
-    var targetTx = 0;
-    var targetTy = 0;
-    window.addEventListener('pointermove', function (e) {
-      targetTx = (e.clientX / window.innerWidth - 0.5) * 2 * 2.6;
-      targetTy = (e.clientY / window.innerHeight - 0.5) * -2 * 1.8;
-    }, { passive: true });
-    (function tiltLoop() {
-      tx += (targetTx - tx) * 0.06;
-      ty += (targetTy - ty) * 0.06;
-      panel.style.setProperty('--tx', tx.toFixed(3));
-      panel.style.setProperty('--ty', ty.toFixed(3));
-      requestAnimationFrame(tiltLoop);
-    })();
-  }
-
   /* ---------- 3D 翻页过渡兜底：浏览器不支持跨页 View Transitions 时用 JS 模拟 ---------- */
   if (!('PageRevealEvent' in window)) {
     document.body.classList.add('page-arrive');
