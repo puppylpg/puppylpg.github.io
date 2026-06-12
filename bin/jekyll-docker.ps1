@@ -25,9 +25,30 @@ function Show-Usage {
     Write-Host "usage: $PSCommandPath {start|stop|restart|logs}"
 }
 
+function Invoke-Compose {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$ComposeArgs
+    )
+
+    docker compose version *> $null
+    if ($LASTEXITCODE -eq 0) {
+        docker compose @ComposeArgs
+        return
+    }
+
+    $dockerCompose = Get-Command docker-compose -ErrorAction SilentlyContinue
+    if ($dockerCompose) {
+        docker-compose @ComposeArgs
+        return
+    }
+
+    throw "docker compose or docker-compose is required"
+}
+
 function Start-Server {
     Write-Host "Starting at http://127.0.0.1:${port}/"
-    docker compose up --build -d
+    Invoke-Compose up --build -d
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Server is running in background."
         Write-Host "View logs: $PSCommandPath logs"
@@ -36,14 +57,14 @@ function Start-Server {
 }
 
 function Stop-Server {
-    docker compose down
+    Invoke-Compose down
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Stopped"
     }
 }
 
 function Show-Logs {
-    docker compose logs -f
+    Invoke-Compose logs -f
 }
 
 switch ($Action) {

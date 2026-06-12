@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
+        GEM_SOURCE: ${GEM_SOURCE:-https://gems.ruby-china.com/}
     ports:
       - "${JEKYLL_PORT:-4000}:4000"
       - "35729:35729"

@@ -12,21 +12,32 @@ usage() {
   echo "usage: $0 {start|stop|restart|logs}"
 }
 
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+  else
+    echo "Error: docker compose or docker-compose is required" >&2
+    exit 1
+  fi
+}
+
 start() {
   echo "Starting at http://127.0.0.1:${PORT}/"
-  docker compose up --build -d
+  compose up --build -d
   echo "Server is running in background."
   echo "View logs: $0 logs"
   echo "Open site: http://127.0.0.1:${PORT}/"
 }
 
 stop() {
-  docker compose down
+  compose down
   echo "Stopped"
 }
 
 logs() {
-  docker compose logs -f
+  compose logs -f
 }
 
 case "${1:-}" in

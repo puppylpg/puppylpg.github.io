@@ -85,6 +85,17 @@ docker compose down
 docker compose up --build -d
 ```
 
+Dockerfile 默认使用清华 Debian 镜像和 Ruby China gem 源，适合 Windows / 中国大陆环境。海外环境可在构建时覆盖源：
+
+```bash
+DEBIAN_MIRROR=deb.debian.org \
+DEBIAN_SECURITY_MIRROR=security.debian.org \
+GEM_SOURCE=https://rubygems.org/ \
+docker compose up --build -d
+```
+
+若本机只有旧版 Compose，也可以用 `docker-compose up --build -d`；项目脚本会自动兼容 `docker compose` 和 `docker-compose`。
+
 ### 方式二：原生 Ruby
 
 需要 Ruby 3.x + Bundler。
