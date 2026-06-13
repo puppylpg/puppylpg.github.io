@@ -60,6 +60,8 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 
 预览后向用户提供文章链接，等待用户确认。
 
+本地发布预览的验收标准是站点能成功启动，并且目标文章页面能在浏览器中访问。不要在日常本地预览阶段强制复刻远端 GitHub Actions 的完整校验；尤其不要把 `htmlproofer` 作为写文章后的必跑步骤。`htmlproofer` 主要用于 CI 或用户明确要求的链接检查。
+
 常见 URL：
 
 - `_ai`：`/ai/YYYY/MM/DD/<slug>/`
@@ -204,6 +206,8 @@ JEKYLL_ENV=production bundle exec jekyll build
 # 本地链接检查
 bundle exec htmlproofer _site --disable-external --no-enforce-https
 ```
+
+本地写作和预览不需要默认执行完整 CI 校验。发布前本地只需确认 Jekyll 预览服务能跑起来、目标页面可访问；`htmlproofer` 属于远端 CI 或用户明确要求时再跑的检查。
 
 构建坑点：
 
