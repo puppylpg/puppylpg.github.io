@@ -197,32 +197,6 @@ html[data-mode="dark"] {
 
 /* ---------- 3D 纵深交互（cyber-depth.js 给 html 加 depth-on 后生效） ---------- */
 html[data-mode="dark"].depth-on {
-  /* 卡片倾斜：transform 由 JS 内联设置，这里负责过渡与眩光 */
-  .tilt-card {
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.18s ease-out, border-color 0.25s, box-shadow 0.25s;
-    will-change: transform;
-
-    &::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(
-        circle at var(--gx, 50%) var(--gy, 50%),
-        rgb(255 255 255 / 9%),
-        transparent 55%
-      );
-      opacity: 0;
-      transition: opacity 0.25s;
-      pointer-events: none;
-    }
-
-    &:hover::after {
-      opacity: 1;
-    }
-  }
-
   /* 滚动入场：从深处带透视旋转浮现 */
   .reveal-init {
     opacity: 0;
@@ -255,30 +229,12 @@ html[data-mode="dark"].depth-on {
         inset 0 1px 0 rgb(255 255 255 / 6%);
       animation: panel-enter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 
-      /* 全息扫描线 */
-      &::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background: linear-gradient(
-          180deg,
-          transparent,
-          rgb(125 211 252 / 6%) 50%,
-          transparent
-        );
-        background-size: 100% 240px;
-        background-repeat: no-repeat;
-        animation: holo-scan 8s linear infinite;
-        pointer-events: none;
-      }
-
       h1 {
         filter: drop-shadow(0 6px 16px rgb(125 211 252 / 30%));
       }
     }
 
-    /* 右侧 TOC / 信息面板：斜立的全息侧板，悬停转正 */
+    /* 右侧 TOC / 信息面板：全息侧板（入场动画后保持正向，不再随鼠标转） */
     #panel-wrapper .access,
     #panel-wrapper #toc-wrapper {
       background: rgb(13 18 32 / 55%);
@@ -286,25 +242,11 @@ html[data-mode="dark"].depth-on {
       border-radius: 12px;
       padding: 0.9rem 1rem;
       backdrop-filter: blur(6px);
-      transform: perspective(900px) rotateY(-9deg);
-      transform-origin: right center;
-      transition: transform 0.35s ease, border-color 0.35s;
+      transition: border-color 0.35s;
       animation: side-enter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both 0.15s;
 
       &:hover {
-        transform: perspective(900px) rotateY(0deg);
         border-color: rgb(125 211 252 / 40%);
-      }
-    }
-
-    /* 左侧边栏：驾驶舱式微倾，悬停转正 */
-    #sidebar {
-      transform: perspective(1400px) rotateY(2.5deg);
-      transform-origin: left center;
-      transition: transform 0.4s ease;
-
-      &:hover {
-        transform: perspective(1400px) rotateY(0deg);
       }
     }
   }
@@ -324,11 +266,6 @@ html[data-mode="dark"].depth-on {
   }
 }
 
-@keyframes holo-scan {
-  from { background-position: 0 -240px; }
-  to { background-position: 0 calc(100% + 240px); }
-}
-
 @keyframes avatar-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
@@ -337,19 +274,6 @@ html[data-mode="dark"].depth-on {
 /* ---------- Mermaid：label 偶有 1-2px 测宽误差，别让 foreignObject 裁掉 ---------- */
 .mermaid foreignObject {
   overflow: visible;
-}
-
-/* 阅读进度光束 */
-#reading-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 2px;
-  width: 0;
-  z-index: 2000;
-  background: linear-gradient(90deg, #7dd3fc, #c4b5fd, #f0abfc);
-  box-shadow: 0 0 8px rgb(125 211 252 / 70%);
-  pointer-events: none;
 }
 
 /* ---------- 全站 3D 翻页过渡（View Transitions，浏览器不支持时自动退化为普通跳转） ---------- */

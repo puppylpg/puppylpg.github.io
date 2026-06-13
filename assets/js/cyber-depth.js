@@ -1,9 +1,9 @@
 /**
  * 经典页面的 3D 纵深交互（与 cyber-skin.scss 的 html.depth-on 规则配套）：
- * - 卡片随鼠标 3D 倾斜 + 眩光（仅精确指针设备）
  * - 文章元素滚动入场：从深处带透视旋转浮现
- * - 文章页顶部阅读进度光束
+ * - 3D 翻页过渡兜底、回到顶部火箭、魔方传送门
  * 尊重 prefers-reduced-motion：完全退化为静态页面。
+ * （已移除：随鼠标的卡片倾斜+眩光、阅读进度光束。）
  */
 (function () {
   'use strict';
@@ -13,27 +13,6 @@
 
   var html = document.documentElement;
   html.classList.add('depth-on');
-
-  /* ---------- 卡片 3D 倾斜 + 眩光 ---------- */
-  if (window.matchMedia('(pointer: fine)').matches) {
-    var MAX_TILT = 5;
-    document.querySelectorAll('.card').forEach(function (card) {
-      card.classList.add('tilt-card');
-      card.addEventListener('pointermove', function (e) {
-        var rect = card.getBoundingClientRect();
-        var nx = (e.clientX - rect.left) / rect.width - 0.5;
-        var ny = (e.clientY - rect.top) / rect.height - 0.5;
-        card.style.transform =
-          'perspective(900px) rotateX(' + (-ny * MAX_TILT).toFixed(2) + 'deg)' +
-          ' rotateY(' + (nx * MAX_TILT).toFixed(2) + 'deg) translateY(-3px)';
-        card.style.setProperty('--gx', ((nx + 0.5) * 100).toFixed(1) + '%');
-        card.style.setProperty('--gy', ((ny + 0.5) * 100).toFixed(1) + '%');
-      });
-      card.addEventListener('pointerleave', function () {
-        card.style.transform = '';
-      });
-    });
-  }
 
   /* ---------- 滚动入场 ---------- */
   var targets = document.querySelectorAll(
@@ -111,26 +90,5 @@
     portal.setAttribute('aria-label', '进入 3D 知识图书馆');
     portal.innerHTML = '<span class="cube"><i></i><i></i><i></i><i></i><i></i><i></i></span>';
     document.body.appendChild(portal);
-  }
-
-  /* ---------- 阅读进度光束 ---------- */
-  if (document.querySelector('main article')) {
-    var bar = document.createElement('div');
-    bar.id = 'reading-progress';
-    bar.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(bar);
-    var ticking = false;
-    function updateBar() {
-      ticking = false;
-      var max = document.documentElement.scrollHeight - window.innerHeight;
-      bar.style.width = (max > 0 ? (window.scrollY / max) * 100 : 0) + '%';
-    }
-    window.addEventListener('scroll', function () {
-      if (!ticking) {
-        ticking = true;
-        requestAnimationFrame(updateBar);
-      }
-    }, { passive: true });
-    updateBar();
   }
 })();
