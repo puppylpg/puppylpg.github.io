@@ -69,6 +69,35 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 - `_tutorials`：`/tutorials/YYYY/MM/DD/<slug>/`
 - `_open`：`/open/<slug>/`
 
+### Windows Bash 环境注意事项
+
+Windows Docker 脚本 `bin/jekyll-docker.ps1` 是 PowerShell 脚本。如果 agent 从 Git Bash（例如 Kimi CLI 的 Bash 工具）里直接调用：
+
+```bash
+powershell.exe -File bin/jekyll-docker.ps1 start
+```
+
+可能会报错找不到 `docker`。原因是这些 Bash 会话通常是**非登录、非交互式 shell**，不会加载 `~/.bashrc` / `~/.bash_profile`；即使用户在 `~/.bashrc` 里加了 Docker 路径，在该环境下也不会生效。
+
+处理方式（按推荐程度）：
+
+1. 用登录 shell 执行（让 `.bashrc` / `.bash_profile` 生效）：
+   ```bash
+   bash -l -c 'powershell.exe -ExecutionPolicy Bypass -File bin/jekyll-docker.ps1 start'
+   ```
+
+2. 命令开头先 source 用户配置：
+   ```bash
+   source ~/.bashrc && powershell.exe -File bin/jekyll-docker.ps1 start
+   ```
+
+3. 直接用 `docker.exe` 的绝对路径绕过 PATH 问题：
+   ```bash
+   "/c/Program Files/Docker/Docker/resources/bin/docker.exe" compose up --build -d
+   ```
+
+另外，第一次 `docker compose up --build` 需要编译镜像、安装依赖，启动较慢；镜像和层缓存建好后，日常启动可以去掉 `--build`。
+
 ### Git 发布与清理
 
 - 用户确认文章无误后，先询问是否执行 `git commit` 和 `git push`。
