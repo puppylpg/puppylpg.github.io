@@ -1,5 +1,5 @@
 ---
-title: "从 QKV 到 KV Cache：理解 Transformer 注意力与推理加速"
+title: "从 Attention 到 KV Cache：理解 Transformer 的注意力机制与推理加速"
 date: 2026-06-12 23:44:32 +0800
 categories: [tech, ai]
 tags: [transformer, attention, qkv, kv-cache, llm]

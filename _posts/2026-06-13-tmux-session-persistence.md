@@ -1,7 +1,7 @@
 ---
 title: "用 tmux-resurrect 和 tmux-continuum 持久化 Tmux 工作区"
 date: 2026-06-13 00:38:44 +0800
-categories: [ai, tools]
+categories: [tech, tools]
 tags: [tmux, terminal, persistence, productivity, systemd]
 description: "一次围绕 Tmux 重启后如何恢复 session 结构的实践记录：理解边界、安装插件、配置自动保存，并明确恢复流程。"
 ---
