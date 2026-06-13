@@ -13,12 +13,7 @@ layout: page
   {% for collection in site.collections %}
     {% assign basename = page.name | split: '.' | first %}
     {% if basename == collection.label %}
-      {% assign first_doc = collection.docs | first %}
-      {% if first_doc.order %}
-        {% assign sorted = collection.docs | sort: 'order' %}
-      {% else %}
-        {% assign sorted = collection.docs | sort: 'date' | reverse %}
-      {% endif %}
+      {% assign sorted = collection.docs | sort: 'date' | reverse %}
       {% for collect_doc in sorted %}
         {% assign cur_year = collect_doc.date | date: '%Y' %}
 
