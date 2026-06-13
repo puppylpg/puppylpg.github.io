@@ -131,6 +131,15 @@ TOC 固定使用：
 - 中文正文中的引号必须用中文弯引号，左引号 `“`（U+201C）和右引号 `”`（U+201D）必须配对。
 - 生成中文内容后检查不要把左引号也写成右引号，例如错误的 `”为什么”`。
 
+## 正文格式与可视化
+
+- 不要大段纯文本平铺；对关键概念、核心结论、易错点适当加粗，对代码/SQL 关键字用行内代码，保持整篇强调风格一致。
+- 引用外部资料时使用 Markdown 内联链接，嵌入有意义文字中；不要贴裸 URL。
+- 流程、层级、时序、继承等结构优先用 Mermaid 图表达；站点固定暗色模式，浅色节点文字一般由 `assets/js/custom-mermaid.js` 自动处理，通常无需手动指定 `color`。
+- 函数、公式或参数变化优先画图辅助：单变量函数画曲线标关键点；向量到分布画概率分布/热力图；参数影响画多组对比。图放在对应概念第一次深入解释的位置。
+- 数学公式用 LaTeX，先直觉解释再给出公式，并定义关键符号与维度。
+- 教学代码加足够注释；关键演示代码可逐行解释，注释放在被解释代码上一行，避免行尾 inline comment。
+
 ## Collections 关键约束
 
 `_config.yml` 定义了 6 个自定义集合：`ai`、`open`、`books`、`life`、`viewed`、`tutorials`。
@@ -138,15 +147,6 @@ TOC 固定使用：
 - `_tabs/<name>.md` 的 basename 必须和 collection label 一致。自定义列表 layout 会拿 tab 文件名和 `collection.label` 比较；只改一边会导致页面静默变空。
 - 除 `open` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
 - `open` 使用 `/:collection/:title/`。
-
-## Mermaid 图规则
-
-博客已支持 Mermaid（`_posts`、`_ai`、`_open`、`_tutorials` 默认开启）。写技术文章时，适合用图表达的场景（继承体系、流程、时序）应主动插入 Mermaid 图。
-
-项目特有注意点：
-
-- 站点固定暗色模式。`assets/js/custom-mermaid.js` 会在渲染后自动给浅色填充节点换深色文字，写图时无需手动指定 `color`；如需精确控制可显式写 `style A fill:#fff9c4,color:#1f2937`。
-- 纯文字能说清楚的不要画图；一张图专注一个关注点。
 
 ## 本地覆盖 gem 主题的文件
 
