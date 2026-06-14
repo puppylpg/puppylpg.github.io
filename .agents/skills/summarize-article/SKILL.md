@@ -1,6 +1,6 @@
 ---
 name: summarize-article
-description: "把用户给的文章 URL 总结成博客 post。"
+description: "把用户给的文章 URL 总结成博客 post。默认发布到 _ai/，也可按用户要求发布到 _posts/（tech）或 _tutorials/。"
 ---
 
 # 总结文章到博客 post
@@ -11,7 +11,7 @@ description: "把用户给的文章 URL 总结成博客 post。"
 
 ```
 主 agent
-  ├── 确定发布目标（按 AGENTS.md 规则）
+  ├── 确定发布目标（默认 _ai/，用户可指定 tech/post/tutorial）
   ├── 执行 date 获取时间
   ├── spawn 子 agent: 抓原文 + 写总结 + Write 到 _<target>/
   │       │
@@ -26,7 +26,11 @@ description: "把用户给的文章 URL 总结成博客 post。"
 
 ### 1. 确定发布目标
 
-按 `AGENTS.md` 中的「目标目录与默认分类」确定发布目标，不要自行推断默认值。
+按 `AGENTS.md` 中的「目标目录与默认分类」执行：
+
+- 默认 → `_ai/`，默认分类 `[ai]`
+- tech / post → `_posts/`，默认分类 `[tech]`
+- tutorial → `_tutorials/`，默认分类 `[tutorial]`
 
 ### 2. 派子 agent 抓取 + 总结 + 写文件
 
@@ -38,8 +42,8 @@ description: "把用户给的文章 URL 总结成博客 post。"
 
 - 原文来源 URL
 - 当前日期时间
-- **目标目录**（按 AGENTS.md 规则确定）
-- **默认分类**（按 AGENTS.md 规则确定）
+- **目标目录**（`_ai/`、`_posts/` 或 `_tutorials/`）
+- **默认分类**（`[ai]`、`[tech]` 或 `[tutorial]`）
 
 ### 3. 预览与发布
 
@@ -55,4 +59,4 @@ description: "把用户给的文章 URL 总结成博客 post。"
 - ❌ 文件名用中文
 - ❌ title 照搬原文标题
 - ❌ 英文文章的晦涩专业术语首次出现时不附英文原词
-- ❌ 默认发布到错误目录（未说明时应按 AGENTS.md 默认规则执行）
+- ❌ 默认发布到错误目录（未说明时应发到 `_ai/`）
