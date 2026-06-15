@@ -410,6 +410,7 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let pointerOnScreen = false;
 let hovered = null;
+let hoverTween = null;
 let opening = false;
 const tooltip = document.getElementById('tooltip');
 const ttTitle = tooltip.querySelector('.tt-title');
@@ -430,12 +431,13 @@ function setHover(mesh) {
   if (hovered === mesh) return;
   if (hovered) {
     const h = hovered;
+    if (hoverTween) { tweens.delete(hoverTween); hoverTween = null; }
     tween({ dur: 350, onUpdate: (k) => { h.position.z = THREE.MathUtils.lerp(h.position.z, h.userData.baseZ, k); } });
     h.userData.spineMat.emissiveIntensity = 0;
   }
   hovered = mesh;
   if (mesh) {
-    tween({ dur: 350, onUpdate: (k) => { mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, mesh.userData.baseZ + 0.34, k); } });
+    hoverTween = tween({ dur: 350, onUpdate: (k) => { mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, mesh.userData.baseZ + 0.34, k); } });
     mesh.userData.spineMat.emissiveIntensity = 0.55;
     ttTitle.textContent = mesh.userData.title;
     ttMeta.textContent = mesh.userData.date || '';
@@ -464,6 +466,8 @@ function openBook(mesh) {
   controls.enabled = false;
   tooltip.style.display = 'none';
   const m = mesh;
+  if (hoverTween) { tweens.delete(hoverTween); hoverTween = null; }
+  m.position.z = m.userData.baseZ + 0.34;
   const z0 = m.position.z;
   tween({
     dur: 650, ease: easeInOutCubic,

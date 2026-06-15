@@ -76,6 +76,7 @@
     dragging = false;
   });
 
+  var rafId = null;
   function frame() {
     if (!dragging) {
       vy += (0.005 - vy) * 0.02;
@@ -102,7 +103,14 @@
       p.el.style.opacity = (0.2 + k * 0.8).toFixed(3);
       p.el.style.zIndex = Math.round(z2 * 100) + 100;
     }
-    requestAnimationFrame(frame);
+    rafId = requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    } else if (!rafId) {
+      rafId = requestAnimationFrame(frame);
+    }
+  });
+  rafId = requestAnimationFrame(frame);
 })();

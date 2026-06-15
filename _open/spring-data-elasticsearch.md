@@ -1,7 +1,6 @@
 ---
 title: spring-data-elasticsearch
 date: 2023-12-27 18:11:25 +0800
-order: 1
 ---
 
 - [my issue](https://github.com/spring-projects/spring-data-elasticsearch/issues?q=is%3Aissue+author%3A%40me+)

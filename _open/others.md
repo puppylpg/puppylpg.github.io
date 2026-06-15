@@ -1,7 +1,6 @@
 ---
 title: 其他
 date: 2023-12-28 16:57:50 +0800
-order: 1000
 ---
 
 1. Table of Contents, ordered

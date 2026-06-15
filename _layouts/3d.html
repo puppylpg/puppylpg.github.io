@@ -93,7 +93,7 @@
 </head>
 <body>
   {% assign ai_items = site.ai | sort: "date" | reverse %}
-  {% assign open_items = site.open | sort: "order" %}
+  {% assign open_items = site.open | sort: "date" | reverse %}
   {% assign books_items = site.books | sort: "date" | reverse %}
   {% assign life_items = site.life | sort: "date" | reverse %}
   {% assign viewed_items = site.viewed | sort: "date" | reverse %}

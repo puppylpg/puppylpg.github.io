@@ -41,7 +41,11 @@
   %}
 {% endif %}
 
-{% if page.content contains '<h2' or page.content contains '<h3' and site.toc and page.toc %}
+{% assign _has_heading = false %}
+{% if page.content contains '<h2' or page.content contains '<h3' %}
+  {% assign _has_heading = true %}
+{% endif %}
+{% if _has_heading and site.toc and page.toc %}
   {% assign urls = urls | append: ',' | append: site.data.origin[type].toc.js %}
 {% endif %}
 
