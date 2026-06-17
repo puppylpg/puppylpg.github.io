@@ -133,3 +133,81 @@ Tmux 持久化适合恢复开发环境的布局，例如一个项目里固定有
 但长期运行服务不应该依赖 tmux 恢复。比如博客预览、后台 worker、数据库、监控脚本等，更适合交给 `systemd` 或专门的进程管理器。Tmux 负责“工作区”，`systemd` 负责“服务”。
 
 最终的实践原则是：把 tmux 当成工作台快照，把重要任务写成可重入脚本，日志落盘，真正的后台服务交给服务管理器。这样即使机器重启，也能以最小成本恢复工作现场。
+
+## 完整 `~/.tmux.conf` 配置
+
+以下是本机当前使用的完整 tmux 配置，每行都加了注释说明用途。
+
+```bash
+# 设置 prefix 键为 Ctrl-b（tmux 默认值，保持不变）
+set -g prefix C-b
+
+# prefix + r：重载配置文件，并在状态栏弹出提示
+bind r source-file ~/.tmux.conf \; display "Configuration Reloaded!"
+
+# prefix + h/j/k/l：仿 vim 方向键在 pane 之间移动（同时保留原有的方向键支持）
+bind-key h select-pane -L
+bind-key j select-pane -D
+bind-key k select-pane -U
+bind-key l select-pane -R
+
+# prefix + Ctrl-l：快速切换到上一个 window
+bind-key C-l select-window -l
+
+# 根据当前运行的命令自动更新 window 名称
+set-window-option -g automatic-rename on
+# 同步更新终端标题栏（让 terminal emulator 的标题也跟着变）
+set-option -g set-titles on
+
+# copy-mode 下使用 vi 风格按键（j/k 翻行、/ 搜索等）
+setw -g mode-keys vi
+# 启用鼠标支持：可点击切换 pane/window，滚轮可翻页
+set -g mouse on
+
+# prefix + v：左右分割当前 pane（vertical split）
+bind-key v split-window -h
+# prefix + s：上下分割当前 pane（horizontal split）
+bind-key s split-window -v
+
+# prefix + "：上下分割，继承当前 pane 的工作目录
+bind '"' split-window -c "#{pane_current_path}"
+# prefix + %：左右分割，继承当前 pane 的工作目录
+bind % split-window -h -c "#{pane_current_path}"
+# prefix + c：新建 window，继承当前 pane 的工作目录
+bind c new-window -c "#{pane_current_path}"
+
+# 状态栏背景色
+set -g status-bg black
+# 状态栏文字颜色
+set -g status-fg yellow
+# 以下三行已注释，若需要高亮当前 window 标签可按需启用
+#set -g window-status-current-bg white
+#set -g window-status-current-fg black
+#set -g window-status-current-attr bold
+# 状态栏刷新间隔（秒）
+set -g status-interval 60
+# 状态栏左侧最大显示宽度
+set -g status-left-length 60
+# 状态栏左侧：红色显示 session 名，后跟当前用户名
+set -g status-left '#[fg=red](#S) #(whoami)'
+# 状态栏右侧：黄色显示系统 1/5/15 分钟负载均值，绿色显示当前时间
+set -g status-right '#[fg=yellow]#(cut -d " " -f 1-3 /proc/loadavg)#[default] #[fg=green]%H:%M#[default]'
+
+# 加载 TPM（Tmux Plugin Manager）本身
+set -g @plugin 'tmux-plugins/tpm'
+# 加载 tmux-resurrect：提供手动保存（prefix + Ctrl-s）和恢复（prefix + Ctrl-r）
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+# 加载 tmux-continuum：在 resurrect 基础上增加自动定时保存
+set -g @plugin 'tmux-plugins/tmux-continuum'
+
+# 每 15 分钟自动保存一次工作区快照到 ~/.local/share/tmux/resurrect/
+set -g @continuum-save-interval '15'
+# tmux server 启动时自动恢复最近一次保存的工作区
+set -g @continuum-restore 'on'
+
+# 恢复时只重启这几个安全的轻量命令；复杂服务应显式重启，不靠 resurrect 代劳
+set -g @resurrect-processes 'vim nvim less man tail'
+
+# 必须放在最后一行：引导 TPM 初始化并加载所有已声明的插件
+run '~/.tmux/plugins/tpm/tpm'
+```
