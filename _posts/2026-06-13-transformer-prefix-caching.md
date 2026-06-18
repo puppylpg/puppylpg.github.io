@@ -353,6 +353,99 @@ flowchart LR
 
 block 里存的仍然是每层、每个 KV head 的 K/V 向量，只是分配单位从“整个请求的一大段连续空间”变成了“若干个固定大小的小块”。
 
+## KV Cache 的形状和显存估算
+
+最后把 KV Cache 的结构和大小连起来看。换成结构图，一条请求的 KV Cache 大致长这样：
+
+```mermaid
+flowchart TB
+  Req["batch 里的某条请求"] --> L1["Layer 1 KV Cache"]
+  Req --> L2["Layer 2 KV Cache"]
+  Req --> Ln["..."]
+
+  L1 --> K1["K 表"]
+  L1 --> V1["V 表"]
+
+  K1 --> KH0["KV head 0<br/>token 1..seq<br/>每格是 head_dim 向量"]
+  K1 --> KH1["KV head 1<br/>token 1..seq<br/>每格是 head_dim 向量"]
+  K1 --> KHn["..."]
+
+  V1 --> VH0["KV head 0<br/>token 1..seq<br/>每格是 head_dim 向量"]
+  V1 --> VH1["KV head 1<br/>token 1..seq<br/>每格是 head_dim 向量"]
+  V1 --> VHn["..."]
+
+  style Req fill:#e3f2fd
+  style L1 fill:#fff3bf
+  style L2 fill:#fff3bf
+  style Ln fill:#fff3bf
+  style K1 fill:#e8f5e9
+  style V1 fill:#e8f5e9
+```
+
+如果更偏“架构/布局”地看，同一份 KV Cache 也可以理解成一组按维度展开的块：
+
+```mermaid
+block-beta
+  columns 1
+  batch["batch 中的一条请求"]
+  block:layers
+    columns 3
+    l1["Layer 1"]
+    l2["Layer 2"]
+    ln["... Layer L"]
+  end
+  block:kv
+    columns 2
+    k["K Cache"]
+    v["V Cache"]
+  end
+  block:heads
+    columns 4
+    h0["KV head 0"]
+    h1["KV head 1"]
+    hdots["..."]
+    hk["KV head H_kv-1"]
+  end
+  block:tokens
+    columns 4
+    t1["token 1"]
+    t2["token 2"]
+    tdots["..."]
+    ts["token S"]
+  end
+  dh["每个 token/head 位置是一条 head_dim 维向量"]
+```
+
+所以 KV Cache 的大小可以直接从这些维度乘出来：
+
+$$
+\text{KV Cache bytes}
+= B \times L \times S \times H_{kv} \times D_h \times 2 \times N_{\text{bytes}}
+$$
+
+其中：
+
+| 符号 | 含义 |
+| --- | --- |
+| $$B$$ | batch size，或者同时缓存的请求条数 |
+| $$L$$ | Transformer 层数 |
+| $$S$$ | 每条请求已经缓存的 token 数，也就是实际上下文长度 |
+| $$H_{kv}$$ | KV head 数量 |
+| $$D_h$$ | 每个 head 的维度，也就是 `head_dim` |
+| $$2$$ | K 和 V 两份缓存 |
+| $$N_{\text{bytes}}$$ | 每个数占多少字节，例如 `FP16/BF16` 是 2 bytes，`FP8` 是 1 byte |
+
+举个更有观感的数。假设一类常见 8B GQA 模型有 32 层、8 个 KV head、`head_dim = 128`，单条请求上下文长度是 8192 token，KV Cache 用 `FP16/BF16` 保存：
+
+$$
+1 \times 32 \times 8192 \times 8 \times 128 \times 2 \times 2
+= 1{,}073{,}741{,}824\ \text{bytes}
+$$
+
+这正好约等于 **1 GiB**。
+
+也就是说，**一条 8K 上下文请求的 KV Cache 就可能吃掉约 1 GiB 显存**。如果并发里同时有 16 条这种请求，光 KV Cache 就接近 16 GiB；如果上下文翻到 32K，单条请求就接近 4 GiB。这个数字还没算模型权重、临时 workspace、显存碎片和推理框架自己的管理开销。
+
 把这一节压缩成一句话：
 
 > KV Cache 逻辑上是一摞“按层、按 KV head、按 token 排列的 K 表和 V 表”；物理上通常放在 GPU 显存里，现代系统会把它切成 block，再用映射表把逻辑序列和物理 block 连起来。
