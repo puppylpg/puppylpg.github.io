@@ -1,6 +1,6 @@
 ---
 name: archive-chat
-description: "将当前对话整理成结构化总结，发布到博客。默认发布到 _ai/，也可按用户要求发布到 _posts/（tech）或 _tutorials/。"
+description: "当用户要求“总结对话”、归档当前对话、或整理成博客文章时使用。将当前对话重写为结构化文章并发布到博客；默认发布到 _ai/，也可按用户要求发布到 _posts/（tech）或 _tutorials/。"
 ---
 
 # 对话总结与发布
