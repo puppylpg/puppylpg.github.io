@@ -705,7 +705,10 @@ IPO 后仅两天，中国网络安全审查办公室对滴滴启动审查：
 
 **参考资料**
 
-- DiDi Global Inc. 2025 Q4 and Full Year 2025 Earnings Release
-- Yahoo Finance, Morningstar, Robinhood DIDIY quote data
-- SEC Filing: DiDi Global Inc. F-1 (IPO Prospectus)
-- 公开新闻报道：滴滴自动驾驶 R2 交付、北京/广州路测牌照、港股上市传闻
+- [DiDi Global Inc. Fourth Quarter and Full Year 2025 Earnings Release](https://ir.didiglobal.com/static-files/893cd576-17a8-4e80-b158-0f2b44e131a2)
+- [DiDi Global Inc. SEC Filings](https://ir.didiglobal.com/financials/sec-filings)
+- [DiDi Global Inc. F-1 Registration Statement (IPO Prospectus, June 2021)](https://ir.didiglobal.com/static-files/65f45071-6c27-40ea-9825-bfc9b2f7f3f6)
+- [Yahoo Finance: DIDIY Quote](https://sg.finance.yahoo.com/quote/DIDIY/)
+- [财新：滴滴被罚 80.26 亿元及监管时间线](https://www.caixin.com/2024-05-19/102197978.html)
+- [财新：滴滴 2022 年年报与退市后财务数据](https://www.caixin.com/2023-04-29/102041478.html)
+- [中国新闻网：国家网信办对滴滴处以 80.26 亿元罚款及 16 项违法事实](https://www.chinanews.com/cj/2022/07-21/9808616.shtml)
