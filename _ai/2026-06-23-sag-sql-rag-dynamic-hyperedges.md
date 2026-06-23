@@ -102,9 +102,16 @@ flowchart LR
 
 ## 查询时扩展：SQL join 实现多跳
 
-从 $E_R$ 出发，SAG 用反向 SQL join 提取这些事件关联的实体，形成**实体前沿（entity frontier）**——也就是新连接到种子事件、但还没被探索的实体；再用这些前沿实体作为桥接点，发现新事件，逐跳扩展候选池。
+从 $E_R$ 出发，SAG 用**反向 SQL join** 提取这些事件关联的实体，形成**实体前沿（entity frontier）**——也就是新连接到种子事件、但还没被探索的实体；再用这些前沿实体作为桥接点，发现新事件，逐跳扩展候选池。
 
-继续前面的例子：从种子事件 “Company A 收购 Company B” 可以反向提取出实体 “Company A”；从 “CTO 某人加入 Project C” 可以提取出 “Project C” 和 “某人”。这些新实体构成实体前沿。默认扩展跳数 $H = 1$（$H$ 表示 hops，即扩展跳数），用前沿实体再做一次 SQL join，可能发现 “Company A 的 CTO 是某人” 这类中间事件，把原本分散在多个文档里的证据串起来。
+这里的“反向”是相对于种子召回的查询方向而言的。SAG 在 MySQL 里只维护一张事件-实体的多对多关联表：
+
+- **正向 join**：手里是实体，查有哪些事件包含它。种子召回阶段的 SQL 大致是 `SELECT event_id FROM event_entity WHERE entity_id IN (...)`。
+- **反向 join**：手里是事件，查它包含哪些实体。查询时扩展阶段的 SQL 大致是 `SELECT entity_id FROM event_entity WHERE event_id IN (...)`。
+
+两次查询用的是同一张表，只是从两端往里查。
+
+继续前面的例子：从种子事件 “Company A 收购 Company B” 可以反向提取出实体 “Company A”；从 “CTO 某人加入 Project C” 可以提取出 “Project C” 和 “某人”。这些新实体构成实体前沿。默认扩展跳数 $H = 1$（$H$ 表示 hops，即扩展跳数），用前沿实体再做一次正向 SQL join，可能发现 “Company A 的 CTO 是某人” 这类中间事件，把原本分散在多个文档里的证据串起来。
 
 扩展只做 SQL join，不做 PageRank，也不做图推理。每轮只引入未见过的新实体和新事件。扩展得到的新事件集合记为 $E_E$（第二个下标 $E$ 表示 expansion 扩展），与 $E_R$ 合并成完整候选池：
 
