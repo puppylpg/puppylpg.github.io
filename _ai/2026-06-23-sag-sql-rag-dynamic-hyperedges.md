@@ -170,7 +170,7 @@ flowchart LR
 
 论文在 HotpotQA、2WikiMultiHopQA、MuSiQue 三个多跳问答基准上评测。三个数据集难度递增：HotpotQA 以 2 跳桥接/比较问题为主；2WikiMultiHopQA 覆盖桥接、比较、推理，需要同时定位中间段落和答案段落；MuSiQue 通过反事实过滤保证每一步都不可跳过，是检验多跳机制最严的试金石。
 
-论文选择 **HippoRAG 2** 作为主对比基线，是因为它代表了开头“离线建图”这一路线的最新实现：先用 LLM 抽取实体关系建知识图，查询时通过 Personalized PageRank 做多跳图检索。因此 SAG vs HippoRAG 2 的对比，本质上就是“查询时动态结构化”与“离线静态图”这两条路线的机制对比。GraphRAG、StructRAG、SiReRAG 等其他图 RAG 方法在论文里只被文献引用，没有同配置跑分。
+论文选择 **HippoRAG 2** 作为主对比基线，并不是说 GraphRAG 不是这一路线的代表——GraphRAG 确实是“离线建图 + 全局图排序”范式的开创性工作之一。但论文作者认为 HippoRAG 2 是该范式在 HotpotQA、2WikiMultiHopQA、MuSiQue 这三个基准上的**领先实现（leading implementation）**：它同样先离线抽实体关系建知识图，查询时用 Personalized PageRank 做多跳图检索，与 SAG 的“查询时动态结构化”形成最直接的机制对比，并且论文把它重新跑在与 SAG 统一的 embedding 和 LLM 配置下，排除了底层模型差异的干扰。GraphRAG、StructRAG、SiReRAG 等其他图 RAG 方法在论文里只被文献引用，没有同配置跑分。
 
 主实验用统一配置：BGE-Large-EN-v1.5 做 embed，Qwen3.6-Flash 做抽取和重排。SAG 在 9 个 Recall@K 指标里拿下 8 个最佳，平均 Recall@2/5 达到 79.3%/88.2%，比 HippoRAG 2 高出 11.1/4.9 个百分点。
 
