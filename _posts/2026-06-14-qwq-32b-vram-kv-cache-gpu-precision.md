@@ -142,11 +142,11 @@ $$
 
 这里的上下文长度是 prompt token 和已生成 token 的总和。比如 prompt 是 28K，又生成了 4K，峰值就是 32K；如果 prompt 只有 2K，又生成了 2K，那只按约 4K 算。
 
-把公式完整写出来就是：
+把公式拆成两步会更清楚：**先算一个 token 的 KV Cache，再乘以实际 active tokens 数量**。
 
 $$
-\text{KV Cache}
-= L \times H_{kv} \times D_{head} \times 2 \times \text{bytes} \times S \times B
+\text{KV Cache per token}
+= L \times H_{kv} \times D_{head} \times 2 \times \text{bytes}
 $$
 
 其中：
@@ -155,23 +155,45 @@ $$
 - $$H_{kv}$$：KV heads 数；
 - $$D_{head}$$：每个 head 的维度；
 - $$2$$：同时存 Key 和 Value；
-- $$\text{bytes}$$：每个数占多少字节，`FP8` 是 1 byte，`FP16/BF16` 是 2 byte；
-- $$S$$：当前实际上下文 token 数；
-- $$B$$：batch size，或者说同时放在这组 KV Cache 里的序列条数。
+- $$\text{bytes}$$：每个数占多少字节，`FP8` 是 1 byte，`FP16/BF16` 是 2 byte。
 
-代入 QwQ-32B 的配置：
+先代入 QwQ-32B + `FP8` KV Cache 的配置：
 
 - $$L = 64$$；
 - $$H_{kv} = 8$$；
 - $$D_{head} = 128$$；
-- `FP8` 所以 $$\text{bytes} = 1$$；
-- 单条请求跑到 32K，所以 $$S = 32768$$；
-- 先按单条序列算，所以 $$B = 1$$。
+- `FP8` 所以 $$\text{bytes} = 1$$。
 
-于是：
+一个 token 的 KV Cache 是：
 
 $$
-64 \times 8 \times 128 \times 2 \times 1 \times 32768 \times 1
+64 \times 8 \times 128 \times 2 \times 1
+= 131{,}072\ \text{bytes/token}
+$$
+
+也就是：
+
+$$
+131{,}072\ \text{bytes}
+= 128\ \text{KiB}
+$$
+
+再算 32K token。完整公式是：
+
+$$
+\text{KV Cache}
+= \text{KV Cache per token} \times S \times B
+$$
+
+其中：
+
+- $$S$$：当前实际上下文 token 数；
+- $$B$$：batch size，或者说同时放在这组 KV Cache 里的序列条数。
+
+单条请求跑到 32K 时，$$S = 32768$$，$$B = 1$$，所以：
+
+$$
+131{,}072 \times 32768 \times 1
 = 4{,}294{,}967{,}296\ \text{bytes}
 $$
 
