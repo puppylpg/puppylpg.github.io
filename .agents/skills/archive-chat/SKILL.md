@@ -95,6 +95,8 @@ description: "当用户要求“总结对话”、归档当前对话、或整理
 
 按 `AGENTS.md` 中的「文章发布通用流程」执行：本地预览 → 用户确认 → 询问后 git commit/push → 或清理/重写。
 
+`git commit` 时按 `AGENTS.md` 中的「Commit 签名」规则附加 `Co-Authored-By` trailer：Claude 用 `Claude <noreply@anthropic.com>`，Codex 用 `Codex <codex@openai.com>`，Kimi 用 `Kimi <noreply@moonshot.ai>`。
+
 ## 常见错误
 
 - ❌ 写文件前停下来确认 title / tags / description

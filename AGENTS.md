@@ -78,7 +78,15 @@ bash -l -c 'powershell.exe -ExecutionPolicy Bypass -File bin/jekyll-docker.ps1 s
 
 ## Commit 签名
 
-Commit message 附加参与本次改动的 agent 的 `Co-Authored-By` trailer，格式如 `Co-Authored-By: Claude <noreply@anthropic.com>`。不确定邮箱时先问用户。
+Commit message 附加参与本次改动的 agent 的 `Co-Authored-By` trailer。不同 agent 使用各自对应的邮箱：
+
+| Agent | Co-Authored-By 格式 | 说明 |
+|-------|---------------------|------|
+| Claude | `Co-Authored-By: Claude <noreply@anthropic.com>` | Anthropic 官方常用格式 |
+| Codex | `Co-Authored-By: Codex <codex@openai.com>` | OpenAI 已创建 `github.com/codex` 账户并验证该邮箱 |
+| Kimi | `Co-Authored-By: Kimi <noreply@moonshot.ai>` | 社区常用格式，Moonshot 尚未官方确认统一邮箱；若后续官方有变，以官方为准 |
+
+当前环境是 Kimi Code，所以本次提交使用 `Co-Authored-By: Kimi <noreply@moonshot.ai>`。
 
 ## 通用 Frontmatter 约定
 
