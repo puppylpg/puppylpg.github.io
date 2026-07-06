@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "Windows 系统代理不等于全局代理：v2ray 与 Zero Omega 的正确配置"
 date: 2026-06-11 02:53:30 +0800
-categories: [tech]
+categories: [life, windows, v2ray, proxy, network]
 tags: [v2ray, proxy, zero-omega, git, windows, network]
 description: "Windows 系统代理不等于全局代理，大多数命令行工具根本不认它。本文厘清代理分层机制，给出 v2ray + Zero Omega 的正确配置方案。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

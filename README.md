@@ -18,12 +18,12 @@
 .
 ├── _config.yml          # 站点总配置
 ├── Gemfile / Gemfile.lock
-├── _posts/              # 主博客文章（Tech）
+├── _posts/              # 主博客文章（Tech：技术原理 / 框架 / 机制）
 ├── _ai/                 # AI 专题
 ├── _tutorials/          # 教程
 ├── _open/               # 开源相关
 ├── _books/              # 读书 / 学者系列
-├── _life/               # 生活随笔
+├── _life/               # 生活随笔 / 日常折腾记录
 ├── _tabs/               # 侧边栏导航页
 ├── _layouts/            # 自定义布局
 ├── _plugins/            # Jekyll 插件
@@ -115,12 +115,12 @@ bin/jekyll-dev.sh stop
 
 | 集合 | 目录 | 说明 |
 |------|------|------|
-| `_posts` | `_posts/` | 主博客，Tech 分类 |
+| `_posts` | `_posts/` | 主博客，Tech：技术原理 / 框架 / 机制 |
 | `ai` | `_ai/` | AI 专题 |
 | `tutorials` | `_tutorials/` | 教程 |
 | `open` | `_open/` | 开源相关 |
 | `books` | `_books/` | 读书 / 学者系列 |
-| `life` | `_life/` | 生活随笔 |
+| `life` | `_life/` | 生活随笔 / 日常折腾记录 |
 
 新增文章时在对应目录下创建 `YYYY-MM-DD-title.md`，设置 `title`、`date` 等 front matter 即可。
 

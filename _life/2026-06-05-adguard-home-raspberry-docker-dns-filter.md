@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "【树莓派】AdGuard Home 部署与 DNS 过滤配置：解决 GitHub 被墙导致的规则下载失败"
 date: 2026-06-05 23:24:00 +0800
-categories: [tech]
+categories: [life, raspberry-pi, docker, dns, network]
 tags: [adguard, dns, docker, raspberry-pi, github, cdn, network]
 description: "在树莓派上通过 Docker 部署 AdGuard Home，解决 adguardteam.github.io 被墙导致的 DNS 过滤规则下载失败，并配置设备使用自定义 DNS 实现广告拦截。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

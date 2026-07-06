@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "v2rayN Windows 浏览器访问慢排查与修复"
 date: 2026-06-11 02:31:16 +0800
-categories: [tech]
+categories: [life, windows, v2ray, proxy]
 tags: [v2ray, v2rayn, xray, proxy, dns, mux, websocket, tls]
 description: "排查 Windows 上 v2rayN 代理浏览器访问慢的问题，修复 DNS、Mux 和路由策略后速度恢复正常。"
+math: true
+mermaid: true
 ---
 
 ## 问题现象

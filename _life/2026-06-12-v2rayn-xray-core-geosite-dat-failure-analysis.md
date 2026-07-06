@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "V2RayN Xray Core 启动失败：geosite.dat 错位与端口保留的排查实录"
 date: 2026-06-12 00:47:10 +0800
-categories: [tech, ai]
+categories: [life, windows, v2ray, proxy, network]
 tags: [v2rayn, xray, proxy, windows, geosite, network, hyper-v]
 description: "一次 V2RayN 突然无法使用的排查过程，涉及 geosite.dat 文件错位、Windows 端口保留、V2RayN 多核心架构设计缺陷的深层分析。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

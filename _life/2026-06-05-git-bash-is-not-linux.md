@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "Git Bash 不是 Linux：Windows 开发者的环境边界与常见陷阱"
 date: 2026-06-05 13:52:39 +0800
-categories: [tools, infrastructure]
+categories: [life, windows, tools, infrastructure]
 tags: [ssh, wsl, git-bash, msys2, raspberry-pi, passphrase, ssh-keygen, docker, path, bashrc]
 description: "排查 Windows 可免密 SSH 树莓派但 WSL 需输入密码的问题；同时澄清 Git Bash 的本质、PATH 继承陷阱、~/.bashrc 的适用范围，以及 wsl 命令的路径解析层次。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

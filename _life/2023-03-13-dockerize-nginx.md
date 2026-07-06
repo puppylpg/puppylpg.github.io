@@ -1,10 +1,11 @@
 ---
-
+layout: post
 title: "Docker - 容器化nginx"  
 date: 2023-03-13 01:20:41 +0800  
-categories: [docker, nginx, websocket]
+categories: [life, vps, docker, nginx, websocket]
 tags: [docker, nginx, websocket]
-
+math: true
+mermaid: true
 ---
 
 终于找到一个容器化nginx的好方法！
@@ -16,7 +17,7 @@ tags: [docker, nginx, websocket]
 {:toc}
 
 # 容器化nginx
-去年给vps上的服务做了容器化[Docker - 容器化]({% post_url 2022-03-20-dockerize %})。最后想容器化nginx，没成功：
+去年给vps上的服务做了容器化[Docker - 容器化](/life/2022/03/20/dockerize/)。最后想容器化nginx，没成功：
 
 > 这么多应用都搬到docker里了，自然想把nginx也搬到docker里。其实维护nginx最主要的部分，是反向代理配置文件：
 >
@@ -274,7 +275,7 @@ docker run --detach --name portainer \
 portainer/portainer-ce:latest
 ```
 
-portainer比较特殊，在[Docker - 容器化]({% post_url 2022-03-20-dockerize %})里可以看到，它只开启了https访问，没有开启http，所以反向代理必须设置为https。另外，portainer的UI在[9443](https://docs.portainer.io/start/install-ce/server/docker/linux)端口，所以这里我们要手动指定。
+portainer比较特殊，在[Docker - 容器化](/life/2022/03/20/dockerize/)里可以看到，它只开启了https访问，没有开启http，所以反向代理必须设置为https。另外，portainer的UI在[9443](https://docs.portainer.io/start/install-ce/server/docker/linux)端口，所以这里我们要手动指定。
 
 nginx-proxy支持通过设置`VIRTUAL_PROTO=https`指定使用https协议进行反向代理。
 
@@ -1040,4 +1041,3 @@ acme-companion提供了[不少文档](https://github.com/nginx-proxy/acme-compan
 
 # 感想
 这个世界，越强越轻松。
-

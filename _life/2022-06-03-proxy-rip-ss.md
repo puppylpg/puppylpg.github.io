@@ -1,11 +1,14 @@
 ---
+layout: post
 title: "RIP shadowsocks"
 date: 2022-06-03 19:10:35 +0800
-categories: [network, v2ray, shadowsocks]
+categories: [life, network, v2ray, shadowsocks]
 tags: [network, v2ray, shadowsocks]
+math: true
+mermaid: true
 ---
 
-上次搞[代理 - v2ray]({% post_url 2022-01-03-proxy-v2ray %})，正好是在半年前。现在整个人看曼岛TT，看csgo赛事，Twitter关注这些选手，ins看夺冠照片，YouTube看精彩集锦，搞得妹子也眼馋。然而Mac、iPhone和iPad这种封闭的东西，我从来没碰过。但是看妹子还有一些查论文搜资料的需求也要用Google，所以还是准备花心思搞一搞，有代理同享。
+上次搞[代理 - v2ray](/life/2022/01/03/proxy-v2ray/)，正好是在半年前。现在整个人看曼岛TT，看csgo赛事，Twitter关注这些选手，ins看夺冠照片，YouTube看精彩集锦，搞得妹子也眼馋。然而Mac、iPhone和iPad这种封闭的东西，我从来没碰过。但是看妹子还有一些查论文搜资料的需求也要用Google，所以还是准备花心思搞一搞，有代理同享。
 
 > 当然代理服务器最重要的对我来说还是查资料，学技术，不然代码实在敲不下去啊……
 

@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "树莓派 Docker 搭建自动电影下载站：Radarr + Jackett + qBittorrent + Bazarr"
 date: 2026-06-17 01:29:07 +0800
-categories: [tech, docker]
+categories: [life, raspberry-pi, docker, homelab]
 tags: [docker, raspberry-pi, radarr, jackett, qbittorrent, bazarr, chinesesubfinder, homelab]
 description: "在树莓派上用 Docker 部署 Radarr、Jackett、qBittorrent、Bazarr 和 ChineseSubFinder，实现指定电影自动下载到 Samba 共享目录，并自动下载中英双语字幕。"
+math: true
+mermaid: true
 ---
 
 > **⚠️ 安全警告**：本文会公开本实验环境的登录地址、账号、密码和 API Key。这些凭证在发布后即视为已泄露，**请勿直接用于生产环境或长期暴露的服务**。建议读者在复现时替换为自己的强密码，并在公网访问时加 VPN/反向代理 + HTTPS。

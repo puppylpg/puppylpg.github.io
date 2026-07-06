@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "Debian 11 到 Debian 13：一台 Docker VPS 的渐进升级记录"
 date: 2026-06-10 03:14:36 +0800
-categories: [tech]
+categories: [life, vps, linux, docker]
 tags: [debian, vps, docker, system-upgrade, linux, apt, operations]
 description: "记录一台运行 Docker 服务的 VPS 如何从 Debian 11 渐进升级到 Debian 13，并在升级后验证 Docker、Compose v2、容器自启动和 80/443 入口。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

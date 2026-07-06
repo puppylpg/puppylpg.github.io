@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "树莓派 + Hermes Agent + 微信 + Radarr：一句话远程下载电影"
 date: 2026-07-04 00:56:32 +0800
-categories: [tech, docker]
+categories: [life, raspberry-pi, docker, homelab]
 tags: [hermes, radarr, docker, raspberry-pi, wechat, ai-agent, homelab]
 description: "在树莓派上部署 Hermes Agent，接入个人微信，并通过 Radarr API 实现'一句话远程触发电影下载'。"
+math: true
+mermaid: true
 ---
 
 上一篇文章搭好了树莓派上的自动下载站：Radarr + Jackett + qBittorrent + Bazarr + ChineseSubFinder。它能自动搜索、下载、整理、刮削字幕，但触发动作仍然依赖打开 Radarr WebUI。

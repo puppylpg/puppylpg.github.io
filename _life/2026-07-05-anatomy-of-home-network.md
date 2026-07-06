@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "解剖家庭网络：MAC、BSSID、子网、NAT 与 Mesh 路由"
 date: 2026-07-05 18:26:16 +0800
-categories: [tech]
+categories: [life, network, homelab]
 tags: [network, mesh, nat, raspberry-pi, bssid, subnet]
 description: "顺着‘设备如何被识别、网络如何分层、数据如何流动’的主线，把家庭网络里的 MAC、BSSID、子网、NAT 和 Mesh 路由串成一幅完整图景。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

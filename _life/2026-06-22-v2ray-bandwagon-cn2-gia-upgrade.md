@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "从 28% 丢包到 0%：一次 v2ray 卡顿排查与搬瓦工 CN2 GIA 升级实录"
 date: 2026-06-22 01:34:33 +0800
-categories: [tech]
+categories: [life, vps, v2ray, network]
 tags: [v2ray, xray, bandwagon, cn2-gia, vps, networking]
 description: "记录一次 v2ray 卡顿问题的完整排查过程，从 28% 丢包定位到搬瓦工普通线路拥堵，最终升级到 CN2 GIA ECOMMERCE 的全过程与前后 benchmark 对比。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

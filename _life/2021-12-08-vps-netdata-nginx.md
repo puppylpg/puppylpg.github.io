@@ -1,8 +1,11 @@
 ---
+layout: post
 title: "折腾小服务器 - netdata与nginx"
 date: 2021-12-08 01:46:47 +0800
-categories: [linux, nginx, socket, curl, network]
+categories: [life, vps, linux, nginx, socket, curl, network]
 tags: [linux, nginx, socket, curl, network]
+math: true
+mermaid: true
 ---
 
 给服务器装个监控。
@@ -409,7 +412,7 @@ from curl tutorial：
 事实上，无论是使用wireshark抓包还是使用浏览器的控制台查看请求，都能看到base64的用户名和密码。所以https是必须的！
 
 ### 配置https
-http-over-tls，说来话长，新写了一篇[折腾小服务器 - nginx与https]({% post_url 2021-12-11-vps-nginx-https %})
+http-over-tls，说来话长，新写了一篇[折腾小服务器 - nginx与https](/life/2021/12/11/vps-nginx-https/)
 
 ### http转https
 - 没配https之前，https://netdata.puppylpg.xyz是无法访问的，因为nginx没有监听443端口；

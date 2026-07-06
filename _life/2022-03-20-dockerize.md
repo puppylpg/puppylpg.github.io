@@ -1,8 +1,11 @@
 ---
+layout: post
 title: "Docker - 容器化"
 date: 2022-03-20 03:13:15 +0800
-categories: [docker]
+categories: [life, vps, docker]
 tags: [docker]
+math: true
+mermaid: true
 ---
 
 **三月是被docker打动的一个月。**
@@ -249,10 +252,10 @@ docker run -d --name v2ray --restart=always -v /etc/v2ray:/etc/v2ray -p 127.0.0.
 还意外地发现，protainer能统计container累计的网络总使用量！这样一来，甚至不用去搬瓦工查看累计流量使用情况了~
 
 # nginx
-参考[Docker - 容器化Nginx]({% post_url 2023-03-13-dockerize-nginx %})。
+参考[Docker - 容器化Nginx](/life/2023/03/13/dockerize-nginx/)。
 
 # netdata
-参考[折腾小服务器 - netdata与nginx]({% post_url 2021-12-08-vps-netdata-nginx %})。
+参考[折腾小服务器 - netdata与nginx](/life/2021/12/08/vps-netdata-nginx/)。
 
 和portainer类似的是，既然想监控宿主机的数据，那就需要把宿主机的相应文件挂载到container里：
 ```nginx

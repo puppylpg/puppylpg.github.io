@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "通过 MTP 同步小米手机文件到电脑"
 date: 2026-06-08 23:35:08 +0800
-categories: [tech]
+categories: [life, windows, file-sync]
 tags: [powershell, mtp, xiaomi, windows, file-sync]
 description: "使用 PowerShell Shell.Application COM 接口通过 MTP 协议将小米手机文件同步到 Windows 电脑，记录过程中遇到的枚举不完整、编码陷阱和年份匹配误报问题及修复方法。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

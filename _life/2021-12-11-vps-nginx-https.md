@@ -1,11 +1,14 @@
 ---
+layout: post
 title: "折腾小服务器 - nginx与https"
 date: 2021-12-11 04:51:37 +0800
-categories: [linux, nginx, network, https]
+categories: [life, vps, linux, nginx, network, https]
 tags: [linux, nginx, network, https]
+math: true
+mermaid: true
 ---
 
-之前[折腾小服务器 - netdata与nginx]({% post_url 2021-12-08-vps-netdata-nginx %})使用nginx代理netdata服务，用nginx配置了简单的basic认证。但http是明文传输的，所以很容易就能在http header里发现用户名和密码，这就不太能接受了。因此配置https势在必行。
+之前[折腾小服务器 - netdata与nginx](/life/2021/12/08/vps-netdata-nginx/)使用nginx代理netdata服务，用nginx配置了简单的basic认证。但http是明文传输的，所以很容易就能在http header里发现用户名和密码，这就不太能接受了。因此配置https势在必行。
 
 1. Table of Contents, ordered
 {:toc}

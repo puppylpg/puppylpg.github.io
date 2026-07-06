@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "Git 加速：为 SSH 和 HTTPS 配置本地代理"
 date: 2026-06-11 02:13:18 +0800
-categories: [tech, tools]
+categories: [life, git, proxy, network, tools]
 tags: [git, ssh, proxy, github, network]
 description: "通过配置 SSH ProxyCommand 和 Git HTTP/HTTPS 全局代理，让 git clone 和 git push 在国内网络环境下也能高速访问远程仓库。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

@@ -79,7 +79,7 @@ debian:app (master*) $ docker volume inspect todo-db
 
 > Volumes are useful for backups, restores, and migrations. Use the `--volumes-from` flag to create a new container that mounts that volume.
 
-> 在[Docker - 容器化nginx]({% post_url 2023-03-13-dockerize-nginx %})里，acme-companion就用到了`--volumes-from`挂载和nginx-proxy相同的volume。
+> 在[Docker - 容器化nginx](/life/2023/03/13/dockerize-nginx/)里，acme-companion就用到了`--volumes-from`挂载和nginx-proxy相同的volume。
 
 假设某个container挂载了一个匿名volume到/dbdata：
 ```bash
@@ -104,7 +104,7 @@ docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /db
 虽然docker文档说，如果文件/夹不存在，会自动在host上创建，但这仅限于使用`--volume`，使用`--mount`不行。
 > The file or directory does not need to exist on the Docker host already. It is created on demand if it does not yet exist.
 
-> 在[Docker - 容器化nginx]({% post_url 2023-03-13-dockerize-nginx %})里，YoutubeDL-Material挂载host上当前文件夹（docker-compose文件所在的文件夹）下的audio/video等目录到容器，因为默认不存在，所以会自己创建。
+> 在[Docker - 容器化nginx](/life/2023/03/13/dockerize-nginx/)里，YoutubeDL-Material挂载host上当前文件夹（docker-compose文件所在的文件夹）下的audio/video等目录到容器，因为默认不存在，所以会自己创建。
 
 ## 挂载指令
 和挂载volume一样，bind mount时用`--volume`和`--mount`也都可以。

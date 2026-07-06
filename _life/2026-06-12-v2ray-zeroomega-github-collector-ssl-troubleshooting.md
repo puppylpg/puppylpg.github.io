@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "V2Ray + ZeroOmega 反复弹窗要求代理 *.collector.github.com 的排查实录"
 date: 2026-06-12 01:23:29 +0800
-categories: [tech, tools]
+categories: [life, v2ray, proxy, network, tools]
 tags: [v2ray, v2rayn, zeroomega, proxy, github, ssl, troubleshooting, network, dns]
 description: "一次由 ZeroOmega 弹窗引发的代理排查，最终发现根本不是代理配置问题，而是 GitHub 遥测服务本身从中国大陆访问返回 503。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered

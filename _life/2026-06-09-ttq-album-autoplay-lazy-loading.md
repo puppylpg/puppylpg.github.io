@@ -1,9 +1,12 @@
 ---
+layout: post
 title: "TTQ 相册自动播放与懒加载排障"
 date: 2026-06-09 00:34:46 +0800
-categories: [tech]
+categories: [life, docker, nginx, album]
 tags: [ttq, album, autoplay, lazy-loading, audio, docker, nginx, playwright]
 description: "记录 TTQ 相册从资源加载、音乐自动播放到进度条跳转的一次完整排障和验证过程。"
+math: true
+mermaid: true
 ---
 
 1. Table of Contents, ordered
