@@ -86,8 +86,6 @@ Commit message 附加参与本次改动的 agent 的 `Co-Authored-By` trailer。
 | Codex | `Co-Authored-By: Codex <codex@openai.com>` | OpenAI 已创建 `github.com/codex` 账户并验证该邮箱 |
 | Kimi | `Co-Authored-By: Kimi <noreply@moonshot.ai>` | 社区常用格式，Moonshot 尚未官方确认统一邮箱；若后续官方有变，以官方为准 |
 
-当前环境是 Kimi Code，所以本次提交使用 `Co-Authored-By: Kimi <noreply@moonshot.ai>`。
-
 ## 通用 Frontmatter 约定
 
 - `date` 通过执行 `date '+%Y-%m-%d %H:%M:%S %z'` 获取，不得硬写时间。
