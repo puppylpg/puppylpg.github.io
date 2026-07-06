@@ -1,9 +1,9 @@
 ---
-title: "从 Attention 到 KV Cache：理解 Transformer 的注意力机制与推理加速"
+title: "Transformer 推理系列（一）：从 Attention 到 KV Cache"
 date: 2026-06-12 23:44:32 +0800
 categories: [tech, ai]
 tags: [transformer, attention, qkv, kv-cache, llm]
-description: "从 Q/K/V 的投影含义、多头注意力的独立 softmax，到 KV Cache 与 KV Pool 的推理加速原理，系统梳理 Transformer 注意力机制。"
+description: "从 Q/K/V 的投影含义、多头注意力的独立 softmax，到 GQA/MQA、Decoding KV Cache 与输出稳定性，系统梳理 Transformer 注意力机制。"
 pin: true
 ---
 
@@ -23,6 +23,7 @@ pin: true
 | Attention 输出 | 加权求和得到的是不是自己的 V？ | 不是，是所有 V 按注意力权重混合后的上下文表示 |
 | 参数共享 | 所有 token 共用一套 W 会不会乱？ | 不会。W 是共享规则，输入 $$X$$ 不同，输出 Q/K/V 也不同 |
 | Multi-Head | 多头是不是只是一个大矩阵切开？ | 线性投影可等价成大矩阵，关键在 split 后独立 attention |
+| GQA/MQA | Query head 和 KV head 数量必须一样吗？ | 不一定。多个 Query head 可以共享较少的 K/V head |
 | KV Cache | 推理时到底缓存什么？ | 缓存历史 K/V 中间结果，不缓存 W 矩阵，也不缓存最终答案 |
 | 采样分叉 | 生成路径变了 cache 还能复用吗？ | 公共前缀可复用，分叉后的 KV 必须各自维护 |
 
@@ -957,6 +958,83 @@ class MultiHeadAttention(nn.Module):
 
 这里 `nn.Linear(d_model, d_model)` 看起来是一整个大矩阵，但 `split_heads` 之后，attention 是在 `num_heads` 维度上并行且相互隔离地完成的。这才是 Multi-Head 的关键。
 
+# Query head 和 KV head 可以不一样
+
+上面为了说明 Multi-Head Attention，用的是最标准的 MHA 视角：Query head、Key head、Value head 数量相同，一个 Query head 对应一套 K/V。
+
+但很多现代 LLM 会使用 GQA 或 MQA。这时 **Query head 的数量可以多于 KV head 的数量**：
+
+```text
+Q head 0 ┐
+Q head 1 ├──> K/V head 0
+Q head 2 ┘
+
+Q head 3 ┐
+Q head 4 ├──> K/V head 1
+Q head 5 ┘
+```
+
+注意，这里不同的是 **head 数量**，不是一次点积里 Q 和 K 的向量维度可以乱配。某个 Query head 真正去匹配某个 KV head 时，$$q_i$$ 和 $$k_j$$ 的 `head_dim` 仍然必须相同，否则点积算不了。
+
+GQA 的直觉是：当前 token 仍然可以保留很多 Query head，从多个角度发问；但历史 token 不必为每个 Query head 都保存一份独立 K/V，而是让一组 Query head 共享同一份 K/V。
+
+```mermaid
+flowchart LR
+  Q0["Q head 0"] --> KV0["K/V head 0"]
+  Q1["Q head 1"] --> KV0
+  Q2["Q head 2"] --> KV0
+  Q3["Q head 3"] --> KV1["K/V head 1"]
+  Q4["Q head 4"] --> KV1
+  Q5["Q head 5"] --> KV1
+
+  style KV0 fill:#e8f5e9
+  style KV1 fill:#e8f5e9
+  style Q0 fill:#e3f2fd
+  style Q1 fill:#e3f2fd
+  style Q2 fill:#e3f2fd
+  style Q3 fill:#fff3bf
+  style Q4 fill:#fff3bf
+  style Q5 fill:#fff3bf
+```
+
+## 多个 KV head 在 cache 里怎么堆起来
+
+实际每一层会有多个 KV head。比如第 1 层有 2 个 KV head，那么这一层的缓存大概长这样：
+
+| Layer 1 | KV head 0 | KV head 1 |
+| --- | --- | --- |
+| K cache | `seq_len × head_dim` | `seq_len × head_dim` |
+| V cache | `seq_len × head_dim` | `seq_len × head_dim` |
+
+也就是说，同一层里，每个 KV head 都有自己的一套 K 表和 V 表；每张表的行对应 token，列对应这个 head 内的向量维度。
+
+可以把它想成一摞表：
+
+```mermaid
+flowchart TD
+  L1["Layer 1 KV Cache"] --> H10["KV head 0<br/>K: token x dim<br/>V: token x dim"]
+  L1 --> H11["KV head 1<br/>K: token x dim<br/>V: token x dim"]
+  L2["Layer 2 KV Cache"] --> H20["KV head 0<br/>K: token x dim<br/>V: token x dim"]
+  L2 --> H21["KV head 1<br/>K: token x dim<br/>V: token x dim"]
+
+  style L1 fill:#e3f2fd
+  style L2 fill:#fff3bf
+  style H10 fill:#e8f5e9
+  style H11 fill:#e8f5e9
+  style H20 fill:#ffe3e3
+  style H21 fill:#ffe3e3
+```
+
+这件事对 KV Cache 很关键，因为 KV Cache 只保存历史 K/V，不保存历史 Q。减少 KV head 数量，就能直接减少 KV Cache 体积。
+
+| 方案 | Query head | KV head | KV Cache 相对大小 |
+| --- | --- | --- | --- |
+| MHA | 32 | 32 | 1x |
+| GQA | 32 | 8 | 1/4x |
+| MQA | 32 | 1 | 1/32x |
+
+所以后面估算 KV Cache 时，应该看 `num_key_value_heads`，而不是简单拿全部 attention heads 或 hidden size 粗暴代替。
+
 # KV Cache 缓存的不是权重矩阵
 
 推理阶段经常说“缓存 KV”，这里缓存的不是 $$W^K$$ 和 $$W^V$$ 权重矩阵。
@@ -972,6 +1050,8 @@ class MultiHeadAttention(nn.Module):
 | 最终生成的 token | 已经交付的成品 | 否，它由 logits 和解码策略决定 |
 
 权重矩阵当然也会常驻显存，但那是模型参数加载，不是 KV Cache。
+
+这里先把一个边界说清楚：本文讨论的 KV Cache，主要是 **单次请求内部的 Decoding KV Cache**。它是推理时放在 GPU 显存里的运行时张量结构，用来服务当前这条自回归生成链路。后面的 [Transformer 推理系列（三）：从 PagedAttention 到 Prefix Caching]({% post_url 2026-06-13-transformer-inference-03-paged-prefix-cache %}) 讲的是跨请求复用 prompt 前缀的系统优化，两者底层都可能存 K/V，但生命周期不同。
 
 对自回归生成模型来说，每次只生成一个新 token。假设已经有前缀：
 
@@ -1012,6 +1092,16 @@ sequenceDiagram
   Attn->>Out: 得到 logits
 ```
 
+注意这里的“当前 token”既可以是 prefill 阶段 prompt 里的 token，也可以是 decode 阶段刚刚生成出来、准备继续参与下一步预测的 token。也就是说，在一次请求内部：
+
+1. prefill 会把 prompt token 的 K/V 写入 KV Cache。
+2. decode 每生成一个新 token，也会计算这个新 token 的 K/V，并追加到同一条序列的 KV Cache 里。
+3. 下一步生成时，新的 Q 会读取“prompt K/V + 已生成 token K/V”这整段历史。
+
+所以，如果一个请求先处理了 2048 个 prompt token，又生成了 2048 个 token，那么在这次请求还活着的时候，它的 Decoding KV Cache 逻辑上会增长到约 4096 个 token 的上下文状态。
+
+这份缓存是当前请求的运行时状态。请求结束后，它通常就可以释放；它不会因为刚刚生成过某段 response，就自动变成下一次请求可命中的跨请求缓存。跨请求能不能复用，要看那段 token 是否作为后续请求的 prompt/input 前缀被系统的 Prefix Cache 命中。
+
 ## 为什么不缓存 Q
 
 因为 Q 是“当前查询”。过去 token 的 Q 已经用过了，后续新 token 不会再用过去的 Q 查询。后续真正会被反复访问的是历史 K/V：
@@ -1029,7 +1119,7 @@ sequenceDiagram
 KV Cache 本质上是一组张量缓冲区，常见形状可以写成：
 
 ```text
-[num_layers, 2, batch_size, max_seq_len, num_heads, head_dim]
+[num_layers, 2, batch_size, max_seq_len, num_key_value_heads, head_dim]
 ```
 
 其中：
@@ -1040,8 +1130,38 @@ KV Cache 本质上是一组张量缓冲区，常见形状可以写成：
 | `2` | 分别表示 K 和 V |
 | `batch_size` | 当前批次里的请求数 |
 | `max_seq_len` | 缓存的最大序列长度 |
-| `num_heads` | 多头注意力的 head 数 |
+| `num_key_value_heads` | K/V head 数量，GQA/MQA 下可能小于 Query head 数量 |
 | `head_dim` | 每个 head 的维度 |
+
+如果把这几个维度乘起来，就能估算 KV Cache 的显存：
+
+$$
+\text{KV Cache bytes}
+= B \times L \times S \times H_{kv} \times D_h \times 2 \times N_{\text{bytes}}
+$$
+
+其中：
+
+| 符号 | 含义 |
+| --- | --- |
+| $$B$$ | batch size，或者同时缓存的请求条数 |
+| $$L$$ | Transformer 层数 |
+| $$S$$ | 每条请求已经缓存的 token 数，也就是实际上下文长度 |
+| $$H_{kv}$$ | KV head 数量 |
+| $$D_h$$ | 每个 head 的维度，也就是 `head_dim` |
+| $$2$$ | K 和 V 两份缓存 |
+| $$N_{\text{bytes}}$$ | 每个数占多少字节，例如 `FP16/BF16` 是 2 bytes，`FP8` 是 1 byte |
+
+举个更有观感的数。假设一类常见 8B GQA 模型有 32 层、8 个 KV head、`head_dim = 128`，单条请求上下文长度是 8192 token，KV Cache 用 `FP16/BF16` 保存：
+
+$$
+1 \times 32 \times 8192 \times 8 \times 128 \times 2 \times 2
+= 1{,}073{,}741{,}824\ \text{bytes}
+$$
+
+这正好约等于 **1 GiB**。
+
+也就是说，**一条 8K 上下文请求的 KV Cache 就可能吃掉约 1 GiB 显存**。如果并发里同时有 16 条这种请求，光 KV Cache 就接近 16 GiB；如果上下文翻到 32K，单条请求就接近 4 GiB。这个数字还没算模型权重、临时 workspace、显存碎片和推理框架自己的管理开销。
 
 KV Cache 用显存换时间。它不会消除当前 token 和历史 token 的注意力计算，但能避免反复重算历史 token 的 K/V。
 
@@ -1090,6 +1210,8 @@ flowchart LR
 
 > KV Cache 缓存的是素材，不是答案。
 
+更严格地说，KV Cache 是性能优化，不是生成语义的一部分。在输入 token、位置、模型权重和推理配置相同的前提下，用不用 KV Cache，理论上应该得到同一组 logits。它只是把“已经算过的历史 K/V”读出来，避免重算，而不是把上一次的答案拿出来复用。
+
 缓存里的 K/V 固定，表示历史信息库固定。但每一轮新 token 都会产生新的 Q：
 
 $$
@@ -1116,6 +1238,8 @@ $$
 因此，KV Cache 不会直接把输出固定成某个后缀。它只是避免重复计算历史 K/V。
 
 可以把 KV Cache 想成一个固定档案库。历史 K/V 是档案本身；当前 token 的 Q 是新来的查询问题。档案没变，不代表每次查询问题都一样；查询问题变了，attention 权重和最终汇总结果也会变。
+
+即使查询问题也一样，KV Cache 复用的仍然是中间张量，不是 response 文本。是否直接返回一段已有答案，是应用层 Response Cache 要解决的问题，不是 KV Cache 要解决的问题。
 
 如果两次输入 token 完全相同、位置完全相同、模型权重完全相同，那么模型算出来的 logits 通常是固定的：
 
@@ -1222,7 +1346,10 @@ Q/K/V 这套机制可以压缩成一句话：
 - 原始词向量不会被简单替换，而是通过残差连接和多层堆叠逐步演化。
 - 同一层内 $$W^Q$$、$$W^K$$、$$W^V$$ 被所有 token 共享，这是泛化能力的来源。
 - Multi-Head 的关键不是大矩阵乘法，而是拆分后每个 head 独立做 attention 和 softmax。
+- GQA/MQA 让多个 Query head 共享更少的 K/V head，因此 KV Cache 公式里要用 `num_key_value_heads`。
 - KV Cache 缓存的是历史 token 的 K/V 中间结果，不是权重矩阵，也不是最终答案。
+- 单次请求内，prompt token 和已生成 token 的 K/V 都会追加进 Decoding KV Cache，供后续 token 继续查询。
+- KV Cache 是性能优化，不是生成语义；它不复用 response 文本，也不应该改变同一输入下的 logits。
 - KV Pool 和 PagedAttention 是把 KV Cache 当成系统资源进行分页、共享和复用。
 - 相同输入通常产生相同 logits，但最终 token 是否固定取决于解码策略和随机性。
 

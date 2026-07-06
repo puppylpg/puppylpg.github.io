@@ -1,5 +1,5 @@
 ---
-title: "从 KV Cache 到 Prefix Caching：LLM 推理为什么能复用前缀"
+title: "Transformer 推理系列（三）：从 PagedAttention 到 Prefix Caching"
 date: 2026-06-13 14:15:35 +0800
 categories: [tech, ai]
 tags: [transformer, attention, kv-cache, prefix-caching, paged-attention, llm-inference]
@@ -8,8 +8,8 @@ description: "接着 KV Cache、Prefill 和 Decode，继续理解 PagedAttention
 
 前两篇文章已经把 Transformer 推理里最核心的链路走了一遍：
 
-- [从 Attention 到 KV Cache：理解 Transformer 的注意力机制与推理加速]({% post_url 2026-06-12-transformer-qkv-kv-cache %}) 讲了 Q/K/V、Multi-Head Attention 和原生 KV Cache。
-- [从 Prefill 到 Decode：用两层 Transformer 走完一次 LLM 推理]({% post_url 2026-06-13-transformer-prefill-decode %}) 讲了 prefill 和 decode 为什么是两种不同的计算阶段。
+- [Transformer 推理系列（一）：从 Attention 到 KV Cache]({% post_url 2026-06-12-transformer-inference-01-attention-kv-cache %}) 讲了 Q/K/V、Multi-Head Attention、GQA/MQA 和原生 KV Cache。
+- [Transformer 推理系列（二）：从 Prefill 到 Decode]({% post_url 2026-06-13-transformer-inference-02-prefill-decode %}) 讲了 prefill 和 decode 为什么是两种不同的计算阶段。
 
 这篇文章继续往下走：既然 KV Cache 已经能让 decode 不重复计算历史 token 的 K/V，为什么还需要 PagedAttention 和 Prefix Caching？
 
@@ -20,55 +20,77 @@ description: "接着 KV Cache、Prefill 和 Decode，继续理解 PagedAttention
 1. Table of Contents, ordered
 {:toc}
 
-# 先回到原生 KV Cache
+# 前置知识只保留三件事
 
-在自回归生成里，每一步都会新来一个 token。这个 token 要生成下一步输出，就必须看历史上下文。
+这篇文章不再重新解释 Q/K/V、KV Cache 里存什么、prefill/decode 怎么分工。前两篇已经分别讲过：
 
-如果没有 KV Cache，模型在第 $$t$$ 步生成时，可能要反复为前面 $$1 \sim t-1$$ 个 token 重新计算 K/V。这样每一步都在重复处理历史，越生成越浪费。
-
-KV Cache 的核心很简单：
-
-1. prefill 阶段，把 prompt 里每个 token、每一层的 K/V 算出来并存下。
-2. decode 阶段，每来一个新 token，只为当前 token 算新的 $$q_t, k_t, v_t$$。
-3. 当前 token 的 $$q_t$$ 去 attend 历史 cache 里的 $$K_{1:t}$$ 和 $$V_{1:t}$$。
-4. 再把当前 token 的 $$k_t, v_t$$ 追加进 cache，给下一步用。
-
-所以 KV Cache 缓存的不是模型参数，也不是最终答案，而是每层每个历史 token 的 K/V 中间结果。
-
-```mermaid
-flowchart LR
-  Prompt["Prompt tokens"] --> Prefill["Prefill<br/>计算整段 prompt 的 K/V"]
-  Prefill --> Cache["KV Cache<br/>保存每层 K/V"]
-  NewToken["新 token"] --> Decode["Decode<br/>只算当前 token 的 Q/K/V"]
-  Cache --> Decode
-  Decode --> Append["追加当前 K/V"]
-  Append --> Cache
-  Decode --> Next["预测下一个 token"]
-
-  style Prefill fill:#e3f2fd
-  style Decode fill:#fff3bf
-  style Cache fill:#e8f5e9
-  style Append fill:#e8f5e9
-```
-
-它解决的是 decode 阶段的重复计算问题：
-
-| 没有 KV Cache | 有 KV Cache |
+| 前置问题 | 放在哪篇 |
 | --- | --- |
-| 每步都可能重新算历史 token 的 K/V | 历史 K/V 只算一次 |
-| decode 越往后重复越多 | 每步只新增当前 token 的 K/V |
-| 计算浪费严重 | 主要成本变成读取历史 K/V |
+| Q/K/V、GQA/MQA、Decoding KV Cache 的基本语义 | [Transformer 推理系列（一）：从 Attention 到 KV Cache]({% post_url 2026-06-12-transformer-inference-01-attention-kv-cache %}) |
+| prefill 如何写入 prompt K/V，decode 如何读取并追加新 token K/V | [Transformer 推理系列（二）：从 Prefill 到 Decode]({% post_url 2026-06-13-transformer-inference-02-prefill-decode %}) |
 
-但这还没有解决两个问题：
+本文只借用三个结论：
+
+1. KV Cache 缓存的是每层历史 token 的 K/V 中间结果，不是模型权重，也不是最终答案。
+2. 单次请求内，prompt token 和已生成 token 的 K/V 都会进入当前请求的 Decoding KV Cache。
+3. KV Cache 的逻辑形状取决于层数、序列长度、KV head 数量、head dim 和存储精度。
+
+在这个基础上，还剩两个系统层问题：
 
 - KV Cache 在显存里怎么放，才不浪费空间？
 - 如果两个请求有相同 prompt 前缀，能不能不要重复做 prefill？
 
 这两个问题分别引出 PagedAttention 和 Prefix Caching。
 
-# KV Cache 存在哪里，长什么样
+# 先把两个 cache 分清楚
+
+这里容易混淆的是：文章里反复说 KV Cache，但后面又会说 Prefix Caching。它们底层都可能涉及 K/V tensors，但生命周期和系统语义不同。
+
+单次请求内 KV Cache 的基础机制，第一篇 [Transformer 推理系列（一）：从 Attention 到 KV Cache]({% post_url 2026-06-12-transformer-inference-01-attention-kv-cache %}) 已经讲过：prompt token 和已生成 token 的 K/V 都会进入当前请求的运行时 KV Cache。本文这里重点补上另一个边界：这份运行时 KV Cache 不等于跨请求的 Prefix Cache。
+
+为了避免混在一起，可以先给它们起两个更具体的名字：
+
+| 名字 | 作用范围 | 主要内容 | 什么时候用 |
+| --- | --- | --- | --- |
+| Decoding KV Cache | 单次请求内部 | 当前序列已经处理过的 prompt token 和已生成 token 的 K/V | decode 每一步生成下一个 token 时复用 |
+| Prefix Cache / Prompt Cache | 多个请求之间 | 曾经作为 prompt/input 前缀被 prefill 过的 K/V | 新请求进来时，复用相同前缀，减少 prefill |
+
+Decoding KV Cache 是自回归生成的运行时状态。比如一个请求先 prefill 了 2048 个 prompt token，接着又生成了 2048 个 token，那么在这次请求还活着的时候，当前解码链路里的 KV Cache 会随着生成继续追加，逻辑上可以增长到 4096 个 token 的上下文状态。
+
+这里的“追加进 KV Cache”，不是说另有一份神秘缓存。KV Cache 本身就是放在 GPU 显存里的 K/V 张量结构。生成 token 的 K/V 会留在这份运行时结构里，供后续 decode step 使用；请求结束后，这份运行时状态通常就可以释放。
+
+Prefix Cache 则是另一层系统优化。它关注的是：下一次请求的 prompt/input 前缀，是否和系统最近处理过的某段前缀完全一样。如果一样，就可以跳过这段前缀的重复 prefill。像 OpenAI API 暴露的 `cached_tokens`，统计的也是当前请求里有多少 prompt/input token 命中了 prompt cache，而不是上一次 response 有多少 token 被直接复用。
+
+这里还有一个重要原则：**Cache 是性能优化，不是生成语义的一部分**。在逻辑输入、模型和采样参数相同的前提下，用不用 Prefix Cache 不应该改变最终输出；它只是少算了一段已经算过的 request/prompt 前缀。换句话说，Prefix Cache 复用的是 request/input 的前缀 K/V，不是复用上一次 response 的文本或生成结果。response tokens 仍然会按当前请求继续自回归生成。
+
+所以，一个很实用的判断方式是：
+
+> 已生成 token 的 K/V 会进入本次请求的 Decoding KV Cache；但它不会因为“刚刚被生成过”，就自动变成下一次请求可命中的 Prefix Cache。
+
+```mermaid
+flowchart TD
+  Req["单次请求"] --> P["Prefill prompt<br/>生成 prompt K/V"]
+  P --> D["Decoding KV Cache<br/>当前请求运行时状态"]
+  D --> G1["生成 token 1<br/>追加 token 1 的 K/V"]
+  G1 --> G2["生成 token 2<br/>追加 token 2 的 K/V"]
+  G2 --> End["请求结束<br/>运行时状态可释放"]
+
+  P --> Maybe["系统策略<br/>可能保留 prompt 前缀 K/V"]
+  Maybe --> PC["Prefix Cache / Prompt Cache<br/>供后续请求按前缀命中"]
+
+  style D fill:#e8f5e9
+  style PC fill:#e3f2fd
+  style Maybe fill:#fff3bf
+  style End fill:#ffe3e3
+```
+
+# 从逻辑 KV 到物理 block
 
 LLM 推理时，KV Cache 通常放在 GPU 显存，也就是 HBM/VRAM 里。
+
+前文已经讲过 KV Cache 的基本语义。这里换一个系统实现视角：推理服务要管理的不是抽象公式里的 K/V，而是一批真实占用显存、需要分配、共享和回收的 K/V 张量块。
+
+这不是说“显存里的那份东西不是 KV Cache”。恰恰相反，KV Cache 通常就是显存里的运行时张量结构。区别只在于：它是单次请求内部的 Decoding KV Cache，还是被系统保留下来、供后续请求按前缀命中的 Prefix Cache。
 
 原因不是“别的地方不能存”，而是速度。decode 每一步都要读历史 K/V，如果把 KV Cache 放在 CPU 内存、硬盘或者远端存储，搬运成本很容易超过节省下来的计算成本。对在线推理来说，KV Cache 通常必须离 GPU 计算单元足够近。
 
@@ -149,131 +171,13 @@ flowchart LR
   style Out fill:#ffe3e3
 ```
 
-## 多个 head 怎么堆起来
+## KV head 细节在这里怎么用
 
-上面只看了一个 KV head。实际每一层会有多个 KV head。
+Query head 和 KV head 为什么可以不一样、GQA/MQA 为什么能减少 KV Cache 体积，第一篇已经讲过。本文只需要记住一个结论：
 
-如果第 1 层有 2 个 KV head，那么它大概长这样：
+> Prefix Caching 复用的是已经算好的前缀 K/V；不管底层是 MHA、GQA 还是 MQA，只要 token 前缀和相关推理条件一致，能复用的对象都是这些 K/V 中间结果。
 
-| Layer 1 | KV head 0 | KV head 1 |
-| --- | --- | --- |
-| K cache | 3 个 token × 4 维 | 3 个 token × 4 维 |
-| V cache | 3 个 token × 4 维 | 3 个 token × 4 维 |
-
-也就是说，同一层里，每个 KV head 都有自己的一套 K 表和 V 表。
-
-可以把它想成一摞表：
-
-```mermaid
-flowchart TD
-  L1["Layer 1 KV Cache"] --> H10["head 0<br/>K: token x dim<br/>V: token x dim"]
-  L1 --> H11["head 1<br/>K: token x dim<br/>V: token x dim"]
-  L2["Layer 2 KV Cache"] --> H20["head 0<br/>K: token x dim<br/>V: token x dim"]
-  L2 --> H21["head 1<br/>K: token x dim<br/>V: token x dim"]
-
-  style L1 fill:#e3f2fd
-  style L2 fill:#fff3bf
-  style H10 fill:#e8f5e9
-  style H11 fill:#e8f5e9
-  style H20 fill:#ffe3e3
-  style H21 fill:#ffe3e3
-```
-
-这里还有一个细节：KV head 不一定等于 Query head。
-
-先澄清一个容易混淆的点：这里说的不一样，主要是 **head 数量不一样**，不是说同一次 attention 里 Q 和 K 的向量维度可以乱配。
-
-因为 attention 分数要做点积：
-
-$$
-q_i \cdot k_j
-$$
-
-所以一个 Query head 在匹配某个 KV head 时，$$q_i$$ 和 $$k_j$$ 的 `head_dim` 必须相同。比如 $$q_i$$ 是 128 维，那么被它匹配的 $$k_j$$ 也必须是 128 维，否则点积没法算。
-
-真正可以不同的是 head 的数量：
-
-- Query 可以有很多组，比如 32 个 Query head。
-- KV 可以少一些，比如只有 8 个 KV head。
-- 这时通常是每 4 个 Query head 共享 1 组 K/V。
-
-这就是 GQA，也就是 Grouped Query Attention。
-
-## 为什么 Query head 和 KV head 可以不一样
-
-直觉上，Query head 是“我从哪些角度发问”，KV head 是“历史上下文以哪些角度被存下来”。
-
-普通 MHA 里，每个 Query head 都有自己对应的一套 K/V：
-
-```text
-Q head 0 -> K/V head 0
-Q head 1 -> K/V head 1
-Q head 2 -> K/V head 2
-Q head 3 -> K/V head 3
-```
-
-GQA 会让多个 Query head 共用一套 K/V：
-
-```text
-Q head 0 ┐
-Q head 1 ├──> K/V head 0
-Q head 2 ┘
-
-Q head 3 ┐
-Q head 4 ├──> K/V head 1
-Q head 5 ┘
-```
-
-也就是说，模型仍然可以保留很多 Query head，让当前 token 从多个角度“发问”；但历史 token 不必为每个 Query head 都存一份独立 K/V，而是让一组 Query head 共享同一份历史 K/V。
-
-```mermaid
-flowchart LR
-  Q0["Q head 0"] --> KV0["K/V head 0"]
-  Q1["Q head 1"] --> KV0
-  Q2["Q head 2"] --> KV0
-  Q3["Q head 3"] --> KV1["K/V head 1"]
-  Q4["Q head 4"] --> KV1
-  Q5["Q head 5"] --> KV1
-
-  style KV0 fill:#e8f5e9
-  style KV1 fill:#e8f5e9
-  style Q0 fill:#e3f2fd
-  style Q1 fill:#e3f2fd
-  style Q2 fill:#e3f2fd
-  style Q3 fill:#fff3bf
-  style Q4 fill:#fff3bf
-  style Q5 fill:#fff3bf
-```
-
-这件事对本文重要吗？对 Prefix Caching 的主逻辑不算关键，因为不管是 MHA、GQA 还是 MQA，Prefix Caching 复用的都是已经算好的前缀 K/V。
-
-但它对 KV Cache 的大小很重要。KV Cache 只存 K 和 V，不存 Q。Query 是当前 token 临时算出来的，用完就可以丢；历史 K/V 才会随着序列长度增长一直留在显存里。
-
-所以减少 KV head 数量，就能直接减少 KV Cache 体积。
-
-举个简化例子。假设：
-
-- 层数是 32。
-- 序列长度是 10000。
-- `head_dim = 128`。
-- 数据类型是 FP16，每个数 2 字节。
-- Query head 是 32 个。
-
-如果是普通 MHA，KV head 也是 32 个。单个请求的 KV Cache 大小大约正比于：
-
-$$
-32\ \mathrm{layers} \times 10000\ \mathrm{tokens} \times 32\ \mathrm{kv\_heads} \times 128\ \mathrm{dim} \times 2\ \mathrm{K/V} \times 2\ \mathrm{bytes}
-$$
-
-如果改成 GQA，KV head 只有 8 个，其他条件不变，那么 KV Cache 直接变成原来的四分之一。
-
-| 方案 | Query head | KV head | KV Cache 相对大小 |
-| --- | --- | --- | --- |
-| MHA | 32 | 32 | 1x |
-| GQA | 32 | 8 | 1/4x |
-| MQA | 32 | 1 | 1/32x |
-
-这也是为什么讨论 KV Cache 形状时，最好写 `kv_head`，而不是简单写 `num_heads`。
+所以后面讨论 block、hash、Radix Tree 和 eviction 时，真正被管理的不是 Query，也不是最终输出，而是按层、按 KV head、按 token 存下来的 K/V。
 
 ## 多层模型怎么堆起来
 
@@ -353,102 +257,11 @@ flowchart LR
 
 block 里存的仍然是每层、每个 KV head 的 K/V 向量，只是分配单位从“整个请求的一大段连续空间”变成了“若干个固定大小的小块”。
 
-## KV Cache 的形状和显存估算
+## 本文只关心物理 block 视角
 
-最后把 KV Cache 的结构和大小连起来看。换成结构图，一条请求的 KV Cache 大致长这样：
+KV Cache 的逻辑形状和显存公式，后面的 [Transformer 推理系列（四）：QwQ-32B 部署显存与低精度计算]({% post_url 2026-06-14-transformer-inference-04-qwq32b-vram-precision %}) 会专门使用；这篇不再展开算账。这里只抓住一个和 Prefix Caching 强相关的视角：
 
-```mermaid
-flowchart TB
-  Req["batch 里的某条请求"] --> L1["Layer 1 KV Cache"]
-  Req --> L2["Layer 2 KV Cache"]
-  Req --> Ln["..."]
-
-  L1 --> K1["K 表"]
-  L1 --> V1["V 表"]
-
-  K1 --> KH0["KV head 0<br/>token 1..seq<br/>每格是 head_dim 向量"]
-  K1 --> KH1["KV head 1<br/>token 1..seq<br/>每格是 head_dim 向量"]
-  K1 --> KHn["..."]
-
-  V1 --> VH0["KV head 0<br/>token 1..seq<br/>每格是 head_dim 向量"]
-  V1 --> VH1["KV head 1<br/>token 1..seq<br/>每格是 head_dim 向量"]
-  V1 --> VHn["..."]
-
-  style Req fill:#e3f2fd
-  style L1 fill:#fff3bf
-  style L2 fill:#fff3bf
-  style Ln fill:#fff3bf
-  style K1 fill:#e8f5e9
-  style V1 fill:#e8f5e9
-```
-
-如果更偏“架构/布局”地看，同一份 KV Cache 也可以理解成一组按维度展开的块：
-
-```mermaid
-block-beta
-  columns 1
-  batch["batch 中的一条请求"]
-  block:layers
-    columns 3
-    l1["Layer 1"]
-    l2["Layer 2"]
-    ln["... Layer L"]
-  end
-  block:kv
-    columns 2
-    k["K Cache"]
-    v["V Cache"]
-  end
-  block:heads
-    columns 4
-    h0["KV head 0"]
-    h1["KV head 1"]
-    hdots["..."]
-    hk["KV head H_kv-1"]
-  end
-  block:tokens
-    columns 4
-    t1["token 1"]
-    t2["token 2"]
-    tdots["..."]
-    ts["token S"]
-  end
-  dh["每个 token/head 位置是一条 head_dim 维向量"]
-```
-
-所以 KV Cache 的大小可以直接从这些维度乘出来：
-
-$$
-\text{KV Cache bytes}
-= B \times L \times S \times H_{kv} \times D_h \times 2 \times N_{\text{bytes}}
-$$
-
-其中：
-
-| 符号 | 含义 |
-| --- | --- |
-| $$B$$ | batch size，或者同时缓存的请求条数 |
-| $$L$$ | Transformer 层数 |
-| $$S$$ | 每条请求已经缓存的 token 数，也就是实际上下文长度 |
-| $$H_{kv}$$ | KV head 数量 |
-| $$D_h$$ | 每个 head 的维度，也就是 `head_dim` |
-| $$2$$ | K 和 V 两份缓存 |
-| $$N_{\text{bytes}}$$ | 每个数占多少字节，例如 `FP16/BF16` 是 2 bytes，`FP8` 是 1 byte |
-
-举个更有观感的数。假设一类常见 8B GQA 模型有 32 层、8 个 KV head、`head_dim = 128`，单条请求上下文长度是 8192 token，KV Cache 用 `FP16/BF16` 保存：
-
-$$
-1 \times 32 \times 8192 \times 8 \times 128 \times 2 \times 2
-= 1{,}073{,}741{,}824\ \text{bytes}
-$$
-
-这正好约等于 **1 GiB**。
-
-也就是说，**一条 8K 上下文请求的 KV Cache 就可能吃掉约 1 GiB 显存**。如果并发里同时有 16 条这种请求，光 KV Cache 就接近 16 GiB；如果上下文翻到 32K，单条请求就接近 4 GiB。这个数字还没算模型权重、临时 workspace、显存碎片和推理框架自己的管理开销。
-
-把这一节压缩成一句话：
-
-> KV Cache 逻辑上是一摞“按层、按 KV head、按 token 排列的 K 表和 V 表”；物理上通常放在 GPU 显存里，现代系统会把它切成 block，再用映射表把逻辑序列和物理 block 连起来。
+> KV Cache 逻辑上是一摞“按层、按 KV head、按 token 排列的 K 表和 V 表”；物理上通常会被推理系统切成 block，再用映射表把逻辑序列和物理 block 连起来。
 
 # 原生 KV Cache 没解决什么
 
@@ -640,7 +453,34 @@ flowchart TD
 
 通常答案是：生产系统里主要复用到 prompt 前缀，生成阶段一般各走各的自回归路径。
 
-原因有三个。
+更准确地说，这不是数学上完全做不到，而是系统通常不会把“上一次请求在 decode 阶段生成出来的运行时 KV”直接当成“下一次请求可命中的 prompt cache”。
+
+看一个具体例子：
+
+```text
+请求 A：
+input  = P 2048 tokens
+output = R 2048 tokens
+
+请求 B：
+input  = P + R 4096 tokens
+```
+
+请求 B 里的 `R` 虽然刚刚由请求 A 生成过，但在请求 A 里，`R` 的 K/V 属于 A 的 Decoding KV Cache。它服务的是 A 后续继续生成，而不是自动进入跨请求 Prefix Cache。
+
+所以请求 B 更合理的预期是：
+
+```text
+A: input P       -> 可能缓存 P 这段 prompt 前缀
+B: input P + R   -> 可能先命中 P；处理完后，系统才可能缓存 P + R
+C: input P + R   -> 如果路由、缓存生命周期等条件满足，才有机会命中完整 P + R
+```
+
+如果某段 `P + R` 已经真的作为某次请求的 prompt/input 被 prefill 过，那么后续请求当然可以把它当成普通前缀来命中。关键区别在于：**R 是不是已经以 prompt/input 前缀的身份被处理过**。
+
+这和一些商业 API 的语义也一致。例如 OpenAI 的 [Prompt caching 文档](https://developers.openai.com/api/docs/guides/prompt-caching) 里，`cached_tokens` 统计的是请求的 prompt/input tokens 里命中的数量；文档也说明 prompt caching 不改变输出 token 的生成，最终 response 仍会重新计算。
+
+为什么生产系统通常不直接复用别人生成阶段的 KV？原因有三个。
 
 ## 生成路径可能分叉
 

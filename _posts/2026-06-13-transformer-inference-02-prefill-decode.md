@@ -1,16 +1,14 @@
 ---
-title: "从 Prefill 到 Decode：用两层 Transformer 走完一次 LLM 推理"
+title: "Transformer 推理系列（二）：从 Prefill 到 Decode"
 date: 2026-06-13 12:15:36 +0800
 categories: [tech, ai]
 tags: [transformer, attention, qkv, kv-cache, prefill, decode, llm-inference]
-description: "以一个两层 Transformer 的例子完整拆解 LLM 推理中的 prefill 和 decode：每层如何计算 Q/K/V，KV Cache 存什么，为什么 prefill 是并行的，decode 为什么只算当前 token。"
+description: "以一个两层 Transformer 的例子完整拆解 LLM 推理中的 prefill 和 decode：每层如何写入和读取 KV Cache，为什么 prefill 是并行的，decode 为什么只算当前 token。"
 ---
 
-上一篇文章已经从 Attention、Q/K/V 一路讲到了 KV Cache：[从 Attention 到 KV Cache：理解 Transformer 的注意力机制与推理加速]({% post_url 2026-06-12-transformer-qkv-kv-cache %})。
+上一篇文章已经从 Attention、Q/K/V 一路讲到了 KV Cache：[Transformer 推理系列（一）：从 Attention 到 KV Cache]({% post_url 2026-06-12-transformer-inference-01-attention-kv-cache %})。
 
-那篇文章里有一个很基础的入口：如果有两个序列 $$X_1 \in \mathbb{R}^{n \times d}$$ 和 $$X_2 \in \mathbb{R}^{m \times d}$$，那么 $$X_1X_2^T$$ 会得到一个 $$n \times m$$ 的相关性矩阵；再经过 softmax 得到权重，最后乘以 $$X_2$$，就得到“$$X_1$$ 关注了 $$X_2$$ 之后的新表示”。
-
-这篇文章不再重复展开这个例子，而是接着往下看一个更贴近推理过程的问题：
+那篇文章已经解决“Q/K/V 是什么”“KV Cache 缓存什么”“为什么不缓存 Q”“命中 cache 会不会固定输出”这些基础问题。本文不再重复这些前置知识，而是接着往下看一个更贴近推理过程的问题：
 
 > LLM 在生成文本时，为什么要分成 prefill 和 decode？既然最终只需要预测下一个 token，prefill 为什么还要算整段 prompt 的注意力？decode 又为什么不重新算完整的 $$n \times n$$ 注意力矩阵？
 
