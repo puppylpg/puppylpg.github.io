@@ -124,6 +124,13 @@ bin/jekyll-dev.sh stop
 
 新增文章时在对应目录下创建 `YYYY-MM-DD-title.md`，设置 `title`、`date` 等 front matter 即可。
 
+内容归属按文章主语判断：
+
+- `Tech` 放技术原理、框架机制和可复用工程知识，例如 Java、Spring、Redis、Elasticsearch、Docker Engine、Docker network/storage、Linux/网络/SSH 原理、AI 推理机制等。
+- `Life` 放个人日常、生活记录和折腾实录。VPS、树莓派、家庭网络、家庭影院/影音下载、代理/V2Ray、Windows 环境排障、系统升级、网络加速等文章，默认归入 `_life/`。
+- 如果一篇 Life 文章用到了 Docker、VPS、Linux、network、proxy 等技术，目录仍归 `Life`，但在 `categories` / `tags` 里保留这些主题，例如 `categories: [life, vps, docker]`、`categories: [life, raspberry-pi, docker, homelab]`。
+- Docker 本身的原理、网络、存储、镜像机制属于 `Tech`；用 Docker 搭个人服务、升级 VPS、整理家庭影音环境属于 `Life`。
+
 ## 项目演进
 
 以下教程记录了本项目的关键技术改造过程：

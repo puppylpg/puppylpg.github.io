@@ -25,7 +25,7 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 
 ## 文章发布通用流程
 
-任何将文章写入 `_ai/`、`_posts/` 或 `_tutorials/` 的 skill/agent，开始修改前应先执行 `git pull --rebase --autostash` 同步远端 `master`。本项目可能由多个环境同时维护，该命令会自动 stash 未提交修改、拉取远端、rebase 后再 pop，一步完成。
+任何将文章写入 `_ai/`、`_posts/`、`_life/` 或 `_tutorials/` 的 skill/agent，开始修改前应先执行 `git pull --rebase --autostash` 同步远端 `master`。本项目可能由多个环境同时维护，该命令会自动 stash 未提交修改、拉取远端、rebase 后再 pop，一步完成。
 
 落盘后遵循以下流程：
 
@@ -41,9 +41,14 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 |---------|---------|----------------|
 | 未特别说明 / “发到 AI” / 默认 | `_ai/` | `[ai]` |
 | “发到 tech” / “发到 post” / “发到 _posts” | `_posts/` | `[tech]` |
+| “发到 life” / “发到生活” / VPS、树莓派、家庭网络、家庭影院、代理/V2Ray、Windows 排障、系统升级、网络加速等日常折腾 | `_life/` | `[life]` |
 | “发到 tutorial” / “发到 _tutorials” | `_tutorials/` | `[tutorial]` |
 
-- 若主题有更细分领域，可在默认分类后追加，例如 `[ai, tools]`、`[tech, tools]`、`[tutorial, docker]`。
+- 内容归属按文章主语判断，而不是按是否用到了某项技术判断。
+- `Tech` 放技术原理、框架机制和可复用工程知识，例如 Java、Spring、Redis、Elasticsearch、Docker Engine、Docker network/storage、Linux/网络/SSH 原理、AI 推理机制等。
+- `Life` 放个人日常、生活记录和折腾实录。VPS、树莓派、家庭网络、家庭影院/影音下载、代理/V2Ray、Windows 环境排障、系统升级、网络加速等文章，即使用到 Docker、Linux、Nginx、DNS、network 等技术，也默认写入 `_life/`。
+- 若主题有更细分领域，可在默认分类后追加，例如 `[ai, tools]`、`[tech, tools]`、`[tutorial, docker]`、`[life, vps, docker]`、`[life, raspberry-pi, docker, homelab]`。迁入 `_life/` 的折腾类文章不要只写 `[life]`，应保留 `docker`、`vps`、`network`、`proxy`、`windows` 等可检索主题分类；但不要继续保留 `tech` 分类。
+- Docker 本身的原理、网络、存储、镜像机制属于 `Tech`；用 Docker 搭个人服务、升级 VPS、整理家庭影音环境属于 `Life`。
 
 ### 本地预览命令
 
@@ -61,6 +66,7 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 
 - `_ai`：`/ai/YYYY/MM/DD/<slug>/`
 - `_posts`：`/posts/YYYY/MM/DD/<slug>/` 或主题生成的 post permalink
+- `_life`：`/life/YYYY/MM/DD/<slug>/`
 - `_tutorials`：`/tutorials/YYYY/MM/DD/<slug>/`
 - `_open`：`/open/<slug>/`
 
@@ -93,7 +99,7 @@ Commit message 附加参与本次改动的 agent 的 `Co-Authored-By` trailer。
 - 推荐补齐：`categories`、`tags`、`description`。
 - 日期带 `+0800`；站点时区是 `Asia/Shanghai`。
 - `categories` 和 `tags` 必须小写。
-- 新增集合文章时不要写 `layout:`，交给 `_config.yml` 的 defaults scope。
+- 新增集合文章时不要写 `layout:`，交给 `_config.yml` 的 defaults scope。例外：写入 `_life/` 的技术折腾类长文如果需要 post 页面的 categories/tags/TOC 展示，可显式写 `layout: post`。
 - 不要手写 `last_modified_at`，它由 `_plugins/posts-lastmod-hook.rb` 从 git 历史注入。
 
 最小 front matter 示例：
@@ -120,7 +126,7 @@ TOC 固定使用：
 - `_posts`、`_ai`、`_open`、`_tutorials`、`_viewed`：`comments: true`、`toc: true`、`math: true`、`mermaid: true`。
 - `_books`、`_life`：`comments: true`、`toc: true`；没有默认 `math` / `mermaid`。
 
-只有需要覆盖默认行为时才显式写开关，例如 `toc: false`、`comments: false`、`math: false`、`mermaid: false`。
+只有需要覆盖默认行为时才显式写开关，例如 `toc: false`、`comments: false`、`math: false`、`mermaid: false`。技术折腾类 Life 文章若包含公式或 Mermaid 图，应显式写 `math: true`、`mermaid: true`。
 
 ## 文件命名
 
@@ -132,7 +138,8 @@ TOC 固定使用：
 
 ## 内容规则
 
-- 博文放在 `_posts/YYYY-MM-DD-title.md`；Jekyll 要求文件名带日期。侧边栏 Tab 名为 `tech`，所以“发布到 tech”等同于放入 `_posts/`。
+- 技术原理、框架机制、可复用工程知识放在 `_posts/YYYY-MM-DD-title.md`。Jekyll 要求文件名带日期。侧边栏 Tab 名为 `tech`，所以“发布到 tech”等同于放入 `_posts/`。
+- VPS、树莓派、家庭网络、家庭影院/影音下载、代理/V2Ray、Windows 环境排障、系统升级、网络加速等日常折腾放在 `_life/YYYY-MM-DD-title.md`，默认 categories 以 `[life, ...]` 开头，并保留具体技术主题分类。
 - 集合文章放在 `_<collection>/<file>.md`。
 - 中文正文中的引号必须用中文弯引号，左引号 `“`（U+201C）和右引号 `”`（U+201D）必须配对。
 - 生成中文内容后检查不要把左引号也写成右引号，例如错误的 `”为什么”`。
