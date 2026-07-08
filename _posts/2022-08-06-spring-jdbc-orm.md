@@ -1,14 +1,37 @@
 ---
 title: "Spring - JDBC & ORM"
 date: 2022-08-06 20:46:31 +0800
-categories: [spring, jdbc, orm, hibernate, mybatis]
+categories: [tech, spring, jdbc, orm]
 tags: [spring, jdbc, orm, hibernate, mybatis]
+description: "用同一个 Blog 示例串起 Spring JDBC、Hibernate、MyBatis 以及它们在 Spring 事务体系下的配置差异。"
 ---
 
-[Spring - Data Access & Transaction]({% post_url 2022-08-01-spring-dao-transaction %})主要从设计理念和关键实现原理上介绍了spring aop对spring jdbc和整合其他orm框架的支持。本文介绍一下具体的实现。
+[Spring - Data Access & Transaction]({% post_url 2022-08-01-spring-dao-transaction %})从设计理念和关键实现原理上介绍了 Spring 对 JDBC、事务和 ORM 框架的抽象。本文换成同一个 `Blog` 示例，分别落到 Spring JDBC、Hibernate 和 MyBatis 的具体配置与调用方式上。
 
 1. Table of Contents, ordered
 {:toc}
+
+主线是：同样的增删改查和事务回滚需求，在 JDBC、Hibernate、MyBatis 下分别需要哪些 bean、哪些模板类、哪些事务管理器，以及 Spring 怎样把它们统一到 `@Transactional` 这一层。
+
+先把三套访问方式放在同一张图里看：差异主要在数据访问 API 和事务管理器，业务层最终都可以收敛到同一个事务注解。
+
+```mermaid
+flowchart TD
+    Service["BlogService<br/>业务接口"] --> Tx["@Transactional<br/>声明式事务边界"]
+    Tx --> JDBC["Spring JDBC<br/>JdbcTemplate + DataSourceTransactionManager"]
+    Tx --> Hibernate["Hibernate/JPA<br/>SessionFactory/EntityManager + JpaTransactionManager"]
+    Tx --> MyBatis["MyBatis<br/>SqlSessionTemplate + DataSourceTransactionManager"]
+    JDBC --> DB[(Database)]
+    Hibernate --> DB
+    MyBatis --> DB
+
+    classDef service fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef tx fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef impl fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    class Service service
+    class Tx tx
+    class JDBC,Hibernate,MyBatis,DB impl
+```
 
 # JDBC
 介绍实体类是blog：
@@ -28,7 +51,7 @@ public class Blog {
 }
 ```
 
-serivce类就是增删改查blog：
+service 类就是增删改查 blog：
 ```java
 /**
  * @author puppylpg on 2022/07/09
@@ -224,7 +247,7 @@ public class SpringJdbcWithTransactionMain {
         Blog blog = Blog.builder().id(1).title("fail").words(0).build();
 
         // 给bean织入事务增强，碰到异常会执行rollback（类似于在finally里），但是并不会处理异常，而是会把异常抛出来
-        // 如果spring不把异常抛出来，给吞了，估计会被程序猿喷死……
+        // 如果spring不把异常抛出来，给吞了，估计会被开发者喷死……
         // 所以异常还是要我们自己处理
         try {
             blogService.addOneFail(blog);
@@ -239,7 +262,7 @@ public class SpringJdbcWithTransactionMain {
 ```
 主要注意一点：事务支持只在发生异常的时候保证事务性，异常本身还是会被spring transaction抛出来的，**所以在代码层面还是要处理异常**，并不是连异常都不用处理了。
 
-> 事实上如果spring不把异常抛出来，给吞了，估计会被程序猿喷死……
+> 事实上如果spring不把异常抛出来，给吞了，估计会被开发者喷死……
 
 # ORM
 不同的orm框架，主要体现在DAO的写法不同。jdbc用sql，hibernate则已经有一些现成的save方法了，复杂的就写写hql。spring orm对他们提供了同样的事务管理抽象，**所有的细节都屏蔽在手动组装事务的factory bean里了**（比如jdbc的TransactionProxyFactoryBean）。**而如果使用@Transactional注解，连factory bean都不用写了**。
@@ -771,7 +794,6 @@ debug日志：
 - hibernate：全自动orm，用着简单，但是复杂操作不一定能玩明白，需要好好练；
 
 # 感想
-spring对事务的支持太强了！不再赘述。
+Spring 对事务的支持把三种访问方式压到了同一套声明式模型下：JDBC、Hibernate、MyBatis 的 DAO 写法不同，但进入 service 层之后，事务边界都可以用 `@Transactional` 表达。
 
-mybatis的@Mapper，mybatis-spring的@MapperScan、MapperScannerRegistrar，springboot对@Mapper的支持，真的是把框架的堆叠体现的淋漓尽致！框架就像知识的递进，和学习一样，也是需要一步一步踩过来的。断层了后面的就学不扎实了。
-
+MyBatis 的 `@Mapper`、mybatis-spring 的 `@MapperScan` / `MapperScannerRegistrar`、Spring Boot 对 `@Mapper` 的自动配置，也很能体现框架之间的层层复用。理解这些叠加关系之后，遇到自动配置“不生效”时才更容易判断是哪一层接管了扫描和注册。

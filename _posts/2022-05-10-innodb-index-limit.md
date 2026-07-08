@@ -3,12 +3,30 @@ title: "Innodb：索引的正确使用与拉胯的limit"
 date: 2022-05-10 00:43:13 +0800
 categories: [mysql, innodb]
 tags: [mysql, innodb]
+description: "用一次深分页优化复盘 explain type、覆盖索引、回表和 limit offset 的真实性能代价。"
 ---
 
 最近使用limit对数据库进行分页遍历查询，发现越来越慢。所以进行了一番优化探究，结果极其因吹斯听，深刻重新认识了一波索引。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Q1["Query1<br/>limit offset, size"] --> Scan1["扫过 offset + size 行"]
+    Scan1 --> Convert1["把很多被丢弃的行也转换成结果"]
+    Convert1 --> Slow["越翻越慢"]
+
+    Q2["Query2<br/>子查询找第 offset 个 ID"] --> Covering["可能扫更薄的覆盖索引"]
+    Covering --> StillN["还是要走过 offset 行<br/>复杂度没变"]
+
+    Q3["Query3<br/>where ID > last_id limit size"] --> Seek["按聚簇索引 range 定位"]
+    Seek --> Stable["每页成本稳定"]
+
+    style Q1 fill:#ffe3e3,stroke:#c62828
+    style Q2 fill:#fff3bf,stroke:#f59f00
+    style Q3 fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 查询分析
 表结构：
@@ -27,13 +45,13 @@ tags: [mysql, innodb]
     where ID >
     (select ID from TestTable limit 1000000, 1)
     limit 1000;
-    ```
+```
 3. Query3：
 ```sql
     select * from TestTable
     where ID > {LAST_FETCHED_ID}
     limit 1000;
-    ```
+```
 
 整篇分析依托于[Innodb - 索引]({% post_url 2022-01-15-innodb-index %})介绍的聚簇索引和二级索引。
 
@@ -114,7 +132,7 @@ MySQL [test_db]> explain select ID from TestTable order by ID limit 1000000, 1;
 ```
 USER_ID这个二级索引是按照USER_ID排序的，所以在这样的查询条件下没法使用。这时候只能退而求其次，聚簇索引是按照ID排序的，虽然数据量比二级索引大，但还是可以利用上索引的，所以查的是聚簇索引。
 
-- **这篇文章也解释了这个现象**：https://mariadb.com/resources/blog/innodb-primary-key-versus-secondary-index-an-interesting-lesson-from-explain/
+- **这篇 MariaDB 官方博客也解释了这个现象**：[InnoDB Primary Key versus Secondary Index](https://mariadb.com/resources/blog/innodb-primary-key-versus-secondary-index-an-interesting-lesson-from-explain/)。
 
 ## Query3 - O(1)
 真正的优化，应该是这样的：
@@ -180,7 +198,7 @@ MySQL [test_db]> explain select * from TestTable limit 1000000, 1000;
 所以像`select id from test`这种语句（id为主键），默认使用的是二级索引的遍历。
 
 Ref:
-- https://stackoverflow.com/a/72161700/7676237
+- [Stack Overflow 上关于 `EXPLAIN type=index` 的讨论](https://stackoverflow.com/a/72161700/7676237)
 
 # 拉胯的limit
 如果两个查询都走聚簇索引，他们应该是一样快的：
@@ -235,7 +253,7 @@ MySQL [test_db]> select ID from TestTable order by ID limit 1000000, 1;
 **最后终于发现被告知是[limit的实现](https://mp.weixin.qq.com/s/CM7a6XageZEZ4008Ha8bew)的锅**……limit并不是我们想象中的先找到第n条记录，再获取它的field。而是先把第一条数据转为结果，转完了发现不对，后面还有个limit条件，这行数据，不满足limit……然后丢掉这条数据，再去转第二条……直到转换到第n条……**这么多条转换的开销叠加起来，`select *`可不得比`select ID`慢一大截嘛**……
 
 Ref：
-- https://stackoverflow.com/a/72173942/7676237
+- [Stack Overflow 上关于深分页转换开销的讨论](https://stackoverflow.com/a/72173942/7676237)
 
 > Q：各位大佬，同样是遍历聚簇索引（通过强制使用主键排序达到该目的），为什么query1（500ms）要比query2（2000ms）快很多呢：
 > - select ID, URL from TABLE order by ID limit 1000000, 1
@@ -305,4 +323,3 @@ MySQL [test_db]> select URL           from TestTable limit 1000000, 1;
 一开始我以为是这个索引的查询速度太慢了……但第二次执行之后，我才意识到是这个索引没有被用过……第一次加载到buffer pool，显然慢。
 
 所以测试索引速度的时候，别忘了把这个因素考虑在内。
-

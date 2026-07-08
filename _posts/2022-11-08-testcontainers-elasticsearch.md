@@ -3,6 +3,7 @@ title: "Testcontainers - Elasticsearch"
 date: 2022-11-08 00:43:46 +0800
 categories: [docker, testcontainers, elasticsearch]
 tags: [docker, testcontainers, elasticsearch]
+description: "记录 Testcontainers 启动 Elasticsearch、动态端口映射、Spring Boot 属性注入和 JUnit 生命周期管理。"
 ---
 
 第一次接触testcontainers，是改spring-data-elasticsearch的代码，当时就被testcontainers的集成测试惊艳到了。后来第二次再碰到testcontainers，是研究elasticsearch client时看别人用testcontainers测试client，第二次见面就感觉熟悉多了。小小研究之后，真的感觉相见恨晚，集成测试的问题从此解决了！再也不用配置h2模拟mysql了，再也不用写spring复杂的集成测试了。毕竟这是一个真服务，只要把它接入测试就行了，大大降低了写集成测试代码的难度。
@@ -10,15 +11,41 @@ tags: [docker, testcontainers, elasticsearch]
 1. Table of Contents, ordered
 {:toc}
 
+# Testcontainers 生命周期
+
+Testcontainers 好用的原因是：测试代码不用再手写“起服务、等服务、找端口、关服务”这一坨。JUnit extension 会按注解管理容器生命周期，Ryuk 负责兜底清理资源。
+
+```mermaid
+sequenceDiagram
+    participant JUnit as JUnit Jupiter
+    participant Ext as TestcontainersExtension
+    participant Docker as Docker daemon
+    participant ES as Elasticsearch container
+    participant Spring as Spring TestContext
+    JUnit->>Ext: 扫描 @Testcontainers / @Container
+    Ext->>Docker: 创建 Ryuk 和 ES container
+    Docker->>ES: 启动并映射随机 host port
+    Ext->>Ext: wait strategy 等服务 ready
+    Spring->>Ext: @DynamicPropertySource 获取动态地址
+    Spring->>ES: client 访问 mapped port
+    JUnit->>Ext: 测试结束
+    Ext->>Docker: stop container<br/>或由 Ryuk 兜底清理
+```
+
 # 启动testcontainer elasticsearch
 ## 端口
 elasticsearch 7.x默认绑定两个端口：
 - 9200：http api连接；
 - 9300：集群内部使用该端口通信（leader选举等）；历史原因，一些jar library client也使用该端口；
 
+| 端口 | 用途 | Testcontainers 里怎么处理 |
+|---|---|---|
+| `9200` | HTTP API，Spring Data/RestClient 常用 | 用 `getHttpHostAddress()` 取随机映射端口 |
+| `9300` | transport port，历史 client/集群通信 | ES 8 后基本不用暴露给测试代码 |
+
 > 9300: Elasticsearch Default Transport port The TransportClient will be removed in Elasticsearch 8. No need to expose this port anymore in the future.
 
-- https://discuss.elastic.co/t/what-are-ports-9200-and-9300-used-for/238578?u=puppylpg
+参考 [Elastic forum 对 9200/9300 端口用途的解释](https://discuss.elastic.co/t/what-are-ports-9200-and-9300-used-for/238578?u=puppylpg)。
 
 这是container内部绑定的端口，**默认情况下，会把container内部绑定的两个端口都映射为本地端口**：
 ```java
@@ -40,11 +67,11 @@ CONTAINER ID   IMAGE                                                  COMMAND   
 **想要用elasticsearch client连接container，需要使用本地映射的端口，但本地映射的端口是动态的。**
 
 使用9200自然是连不上的：
-- https://stackoverflow.com/questions/70705117/connection-refused-with-elasticsearch-test-container-even-after-adding-wait
+参考 [Stack Overflow 上连接 Testcontainers Elasticsearch 失败的讨论](https://stackoverflow.com/questions/70705117/connection-refused-with-elasticsearch-test-container-even-after-adding-wait)。
 
 > 既然用的是docker，就要尊重docker的基本原理，使用本地映射的端口。
 
-在[testcontainer elasticsearch](https://www.testcontainers.org/modules/elasticsearch/)官方实例中，示范了 **获取本地动态映射端口的方法：`ElaticsearchContainer#getHttpHostAddress()`**
+在[testcontainer elasticsearch](https://www.testcontainers.org/modules/elasticsearch/)官方实例中，示范了 **获取本地动态映射端口的方法：`ElasticsearchContainer#getHttpHostAddress()`**
 
 比如手动构建client：
 ```java
@@ -74,7 +101,7 @@ client =
 ```
 实际上properties文件里的`spring.elasticsearch.uris`就不用设置了。
 
-- https://stackoverflow.com/a/71995586/7676237
+参考 [Stack Overflow 上 `@DynamicPropertySource` 配合 Testcontainers 的回答](https://stackoverflow.com/a/71995586/7676237)。
 
 ## 完整示例
 
@@ -102,7 +129,7 @@ public class ElasticsearchClientIntegrationTest {
 
     @DynamicPropertySource
     static void elasticProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.elasticsearch.uris", OVERSEAS::getHttpHostAddress);
+        registry.add("spring.elasticsearch.uris", CONTAINER::getHttpHostAddress);
     }
     
     // spring boot会根据properties自动配置好这些client
@@ -117,7 +144,7 @@ public class ElasticsearchClientIntegrationTest {
 ```
 
 # testcontainer jupiter
-```java
+```xml
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>junit-jupiter</artifactId>
@@ -157,21 +184,21 @@ public @interface Testcontainers {
 
 其实多个test class之前共用一个Elasticsearch container并没有什么问题，毕竟一般都是串行测试。testcontainers提供了[全局唯一singleton container的写法](https://www.testcontainers.org/test_framework_integration/manual_lifecycle_control/#singleton-containers)，不过这个就只能纯手工管理start/stop了。stop并不需要太操心：At the end of the test suite the Ryuk container that is started by Testcontainers core will take care of stopping the singleton container.
 
-- https://stackoverflow.com/a/62443261/7676237
+参考 [Stack Overflow 上 singleton container 的讨论](https://stackoverflow.com/a/62443261/7676237)。
 
 ## 会同时引入junit4 junit5
 `org.testcontainers:junit-jupiter`显然引入了`org.junit.jupiter:junit-jupiter`。它也依赖`org.testcontainers:testcontainers`，但是后者把junit4作为compile依赖，所以`org.testcontainers:junit-jupiter`相当于既引入了junit4又引入了junit5……
 
 [2018年的issue就提出了在2.0版本删掉junit4 compile依赖](https://github.com/testcontainers/testcontainers-java/issues/970)，四年过去了，目前testcontainers发的依然是1.x版本:D不过今年九月已经有关于[把junit4从core里移到单独module的pr](https://github.com/testcontainers/testcontainers-java/pull/5826)了，看来还是指日可待的。然后转头一看，[2.0 milestone](https://github.com/testcontainers/testcontainers-java/milestone/20)至今只完成了27%，而且no due date……
 
-- https://www.testcontainers.org/test_framework_integration/junit_5/
+参考 [Testcontainers JUnit 5 integration 文档](https://www.testcontainers.org/test_framework_integration/junit_5/)。
 
 # testcontainers-java
 在[testcontainers-java](https://github.com/testcontainers/testcontainers-java)中也有一些测试用例，可以看到这些testcontainer的用法：
-- https://github.com/testcontainers/testcontainers-java/blob/main/modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchContainerTest.java
+参考 [ElasticsearchContainerTest](https://github.com/testcontainers/testcontainers-java/blob/main/modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchContainerTest.java)。
 
 **在这里还有一个使用testcontainers做集成测试的完整的web工程示例**，使用了spring-data-jps/redis/web mvc：
-- https://github.com/testcontainers/testcontainers-java/tree/main/examples/spring-boot
+参考 [Testcontainers Spring Boot 示例工程](https://github.com/testcontainers/testcontainers-java/tree/main/examples/spring-boot)。
 
 > 以后工程的集成测试真是太舒服了！
 
@@ -194,9 +221,6 @@ GET -C elastic:pikachu http://localhost:3024/<index>/_search
 也可以打开tracer debug，查看spring data elasticsearch自动生成的http请求。
 
 # 致谢
-感谢[testcontainers](https://www.testcontainers.org/)：https://github.com/testcontainers/testcontainers-java，让代码测试又轻松了很多。
+感谢 [testcontainers](https://www.testcontainers.org/) 和 [testcontainers-java](https://github.com/testcontainers/testcontainers-java)，让代码测试又轻松了很多。
 
 [正好最近gitlab-ci全都使用docker runner了，直接在docker runner里起个dind service]({% post_url 2022-10-09-docker-dind %})，就可以跑testcontainer的测试了，衔接地非常丝滑！
-
-
-

@@ -3,6 +3,7 @@ title: "（三）How Tomcat Works - Tomcat连接器Connector"
 date: 2020-10-08 00:09:40 +0800
 categories: [tomcat, http, web, servlet]
 tags: [tomcat, http, web, servlet]
+description: "拆解早期 Tomcat Connector 如何监听 Socket、复用 HttpProcessor，并把请求交给 Container。"
 ---
 
 显然，servlet容器承担了两部分的职责：作为web server处理http请求；作为servlet容器处理servlet相关的内容。Tomcat在实现时按照这两部分，可以被归类为两个主要模块：
@@ -11,6 +12,26 @@ tags: [tomcat, http, web, servlet]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Connector["HttpConnector<br/>监听 ServerSocket"] --> Socket["accept() 得到 Socket"]
+    Socket --> Pool{"processor 栈里有空闲对象?"}
+    Pool -->|有| Reuse["复用 HttpProcessor"]
+    Pool -->|没有且未到 max| New["创建新 HttpProcessor"]
+    Pool -->|没有且已到 max| Drop["关闭 Socket<br/>丢弃请求"]
+    Reuse --> Assign["assign(socket)<br/>notify processor"]
+    New --> Assign
+    Assign --> Processor["HttpProcessor<br/>解析 HTTP Request/Response"]
+    Processor --> Container["Container.invoke(request, response)"]
+    Processor --> Recycle["处理完 recycle 回池"]
+    Recycle --> Pool
+
+    style Connector fill:#e3f2fd,stroke:#1976d2
+    style Pool fill:#fff3bf,stroke:#f59f00
+    style Drop fill:#ffe3e3,stroke:#c62828
+    style Container fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 朴素connector和processor
 从[（一）How Tomcat Works - 原始Web服务器]({% post_url 2020-10-07-tomcat-web-server %})得知，一个朴素的web服务器的处理流程：
@@ -438,5 +459,4 @@ ThreadPoolExecutor有一个阻塞队列，专门用来放置任务。`ThreadPool
 - [Executor - Thread Pool]({% post_url 2020-06-03-Executor-Thread-Pool %})：对ThreadPoolExecutor、RejectedExecutionHandler和blocking queue的介绍；
 
 > 至于池的底层表现，Tomcat用的是Stack，ThreadPoolExecutor用的是HashSet，这点倒没有特别大的区别。
-
 

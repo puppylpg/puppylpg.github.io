@@ -3,6 +3,7 @@ title: "Innodb - 页"
 date: 2022-01-14 00:01:01 +0800
 categories: [mysql, innodb]
 tags: [mysql, innodb]
+description: "从行记录进入 16KB 页，解释页内链表、页目录、slot 二分和页间链表如何一起支撑查询。"
 ---
 
 之前介绍了[Innodb - 行]({% post_url 2022-01-13-innodb-row %})，行是一种紧凑存放列值的结构，而行是放在页page里的。
@@ -11,6 +12,24 @@ tags: [mysql, innodb]
 {:toc}
 
 行组成页，**页是innodb管理存储空间的基本单位**。
+
+```mermaid
+flowchart TD
+    Page["16KB 索引页"] --> Header["File / Page Header<br/>页号、页类型、前后页指针"]
+    Page --> Records["User Records<br/>按插入顺序物理存放"]
+    Page --> Directory["Page Directory<br/>slot 数组"]
+    Page --> Trailer["File Trailer<br/>校验信息"]
+
+    Records --> Link["页内记录链表<br/>infimum -> ... -> supremum"]
+    Directory --> Binary["先在 slot 数组二分"]
+    Binary --> SmallScan["再到组内小范围遍历"]
+    Header --> PageList["页与页双向链表<br/>为 B+ 树继续铺路"]
+
+    style Page fill:#e3f2fd,stroke:#1976d2
+    style Directory fill:#fff3bf,stroke:#f59f00
+    style Link fill:#e8f5e9,stroke:#2e7d32
+    style PageList fill:#f3e5f5,stroke:#8e24aa
+```
 
 这一点非常好理解，和虚拟内存使用页式管理一模一样。当需要一条记录的时候，绝对不是只从磁盘读那一条数据！那样会非常浪费！
 
@@ -86,4 +105,3 @@ header存放了一些很重要的信息：
 没错，**页与页之间也组成了一个链表，就像行记录与行记录之间一样**！当行记录多到一页放不下的时候，就会放到临近的页里，临近的页也组成了链表。相邻的行记录主键大小并不相邻，只是通过链表达到了逻辑上的主键有序排列。页与页构成的链表同样如此，逻辑上不同页之间的行记录也是按主键有序排列的，但实际上页与页之间的物理位置可能隔着很多其他页，所以他们的物理页号未必相邻。
 
 > 等等！页内的行记录链表为了加快查询速度，使用了一个简单的跳表。**内层的行链表可以，外层的页链表岂不是也可以**？是的，它就是B+树索引！这就是下一个故事了~
-

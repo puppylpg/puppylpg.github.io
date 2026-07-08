@@ -3,6 +3,7 @@ title: "Innodb - 表"
 date: 2022-01-23 01:43:48 +0800
 categories: [mysql, innodb]
 tags: [mysql, innodb]
+description: "从页继续往上看 InnoDB 如何用区、段、碎片区和表空间组织一张表的物理存储。"
 ---
 
 [Innodb - 行]({% post_url 2022-01-13-innodb-row %})组成[Innodb - 页]({% post_url 2022-01-14-innodb-page %})，页组成了innodb的表。页是innodb管理存储空间的基本单位，但是表才是逻辑上对一堆相同结构的数据管理的基本单位。
@@ -11,6 +12,22 @@ tags: [mysql, innodb]
 {:toc}
 
 表可以认为是由一大堆页再加上一些metadata组成：当需要存储数据的时候，挑一个空闲页，把数据放进去。
+
+```mermaid
+flowchart TD
+    Row["行"] --> Page["页 page<br/>16KB，管理空间的基本单位"]
+    Page --> Extent["区 extent<br/>64 个连续页，约 1MB"]
+    Extent --> Segment["段 segment<br/>叶子节点段 / 非叶子节点段"]
+    Segment --> Index["一个索引<br/>至少叶子段 + 非叶子段"]
+    Index --> Table["表<br/>聚簇索引就是数据主体"]
+
+    Fragment["碎片区 fragment<br/>小表先按页混用"] -. "超过阈值后再按区分配" .-> Segment
+
+    style Page fill:#e3f2fd,stroke:#1976d2
+    style Extent fill:#e8f5e9,stroke:#2e7d32
+    style Segment fill:#fff3bf,stroke:#f59f00
+    style Fragment fill:#ffe3e3,stroke:#c62828
+```
 
 # 表遍历的性能问题
 表确实可以理解为直接由一大堆页组成，页和页之间组成双向链表，主键相邻的页在逻辑上也是挨着的。**但是实际上，两个页在磁盘上的物理位置可能相差很远**。此时，**如果有一个遍历数据的操作，或者按照range取数据的请求，因为要读的两个页不在连续的磁盘上，就会产生随机磁盘IO，而不是连续的IO**，这注定会影响innodb的性能。
@@ -616,4 +633,3 @@ MySQL [(none)]> show databases;
 +--------------------+
 4 rows in set (0.001 sec)
 ```
-

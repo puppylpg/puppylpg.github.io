@@ -3,6 +3,7 @@ title: "ForkJoinPool"
 date: 2025-06-02 00:55:55 +0800
 categories: [java, executor]
 tags: [java, executor]
+description: "对比 ThreadPoolExecutor，解释 ForkJoinPool 的分治任务模型、双端队列和工作窃取机制。"
 ---
 
 `ForkJoinPool`和`ThreadPoolExecutor`不仅都是`ExecutorService`接口的实现，还都是`AbstractExecutorService`的子类。
@@ -10,6 +11,23 @@ tags: [java, executor]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Root["大任务 RecursiveTask"] --> Split{"超过阈值?"}
+    Split -->|否| Compute["直接 compute"]
+    Split -->|是| Fork["fork 子任务<br/>push 到当前 worker 双端队列"]
+    Fork --> Local["当前 worker LIFO 处理本地任务"]
+    Fork --> Join["join 等待结果并合并"]
+    Other["其他空闲 worker"] --> Steal["从别人队列尾部偷任务<br/>work stealing"]
+    Steal --> Compute
+    Local --> Compute
+    Compute --> Join
+
+    style Fork fill:#e3f2fd,stroke:#1976d2
+    style Steal fill:#fff3bf,stroke:#f59f00
+    style Compute fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 先从逻辑上理解`ForkJoinPool`
 `ThreadPoolExecutor`和`ForkJoinPool`虽然都是用于并行执行任务的线程池，但它们的设计目标和适用场景有所不同。`ForkJoinPool`是Java 7引入的一种特殊线程池，主要解决**分治任务**的高效执行问题，特别是在处理递归分解的**计算密集型任务**时表现更为出色。

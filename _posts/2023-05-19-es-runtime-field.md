@@ -3,12 +3,25 @@ title: "Elasticsearch：runtime field"
 date: 2023-05-19 17:13:15 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "Elasticsearch runtime field 笔记：与 script field 的区别、mapping/query 两种定义方式、fields 返回和索引化 runtime field。"
 ---
 
 [runtime field](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime.html)是在查询时计算的field，是一种时间换空间的概念。虽然查询速度会比普通的field慢，但是非常灵活，适合做一些数据探索的工作。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart LR
+    A[已有字段 doc[] / _source] --> B[Painless script]
+    B --> C[emit(value)]
+    C --> D[runtime field]
+    D --> E[query / sort / agg / fields]
+    F[普通 indexed field] --> E
+
+    style B fill:#fff3bf,stroke:#f59f00
+    style D fill:#e3f2fd,stroke:#4dabf7
+```
 
 # vs. script field
 虽然runtime field和script field一样，也是用painless script来计算值，但是功能上却比后者要强大很多——
@@ -23,6 +36,12 @@ tags: [elasticsearch]
 
 # runtime field
 runtime field可以定义在mapping里，也可以定义在search请求里。
+
+| 定义位置 | 生命周期 | 适合场景 |
+| --- | --- | --- |
+| mapping 的 `runtime` | 索引级长期可用 | 多个查询反复使用的探索字段 |
+| search 请求的 `runtime_mappings` | 单次请求有效 | 临时分析、临时修正返回格式 |
+| indexed runtime field | 写入时计算并索引 | 字段逻辑稳定且查询频繁 |
 
 
 ## in mapping
@@ -150,7 +169,7 @@ GET <index>/_search
 > 关于[fields](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html)查询参数，可以参考：[Elasticsearch：_source store doc_values]({% post_url 2022-10-05-es-source-store-docvalues %})
 
 ## index runtime fields
-如果两列数据是关联的，比如上述a和b，天然就会产生a_b_ratio。最好的情况应该是在a、b两列数据摄入后就自动计算出二者的比值。因此可以一开始就在mapping里定义这样的runtime field，**相当于把runtime field进行了索引，之后每次查询不再需要实时计算**：
+如果两列数据是关联的，比如上述a和b，天然就会产生a_b_ratio。最好的情况应该是在a、b两列数据摄入后就自动计算出二者的比值。因此可以一开始就在mapping里定义带 `script` 的普通字段，**相当于把runtime field进行了索引，之后每次查询不再需要实时计算**：
 ```json
 PUT my-index-000001/
 {
@@ -188,5 +207,3 @@ PUT my-index-000001/
 
 # 总结
 总之，runtime field非常方便灵活，用于临时完成一些数据转换查询。这里还有一个[数据探索](https://www.elastic.co/guide/en/elasticsearch/reference/current/runtime-examples.html)的例子，用来从日志里获取ip等。
-
-

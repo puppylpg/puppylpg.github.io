@@ -3,7 +3,8 @@ layout: post
 title: "Docker - 容器化nginx"  
 date: 2023-03-13 01:20:41 +0800  
 categories: [life, vps, docker, nginx, websocket]
-tags: [docker, nginx, websocket]
+tags: [docker, nginx, nginx-proxy, acme, letsencrypt, websocket, compose]
+description: "用 nginx-proxy + acme-companion 容器化 VPS 入口层，自动生成反向代理配置和 HTTPS 证书，并处理 WebSocket、compose network 和静态资源部署。"
 math: true
 mermaid: true
 ---
@@ -21,8 +22,8 @@ mermaid: true
 
 > 这么多应用都搬到docker里了，自然想把nginx也搬到docker里。其实维护nginx最主要的部分，是反向代理配置文件：
 >
-> + 一个没找到合适答案的问答：[https://stackoverflow.com/questions/26921620/should-you-install-nginx-inside-docker](https://stackoverflow.com/questions/26921620/should-you-install-nginx-inside-docker)
-> + 一篇不错的文章，大致扫了一下：[https://nickjanetakis.com/blog/why-i-prefer-running-nginx-on-my-docker-host-instead-of-in-a-container](https://nickjanetakis.com/blog/why-i-prefer-running-nginx-on-my-docker-host-instead-of-in-a-container)
+> + 一个没找到合适答案的问答：[Should you install nginx inside Docker?](https://stackoverflow.com/questions/26921620/should-you-install-nginx-inside-docker)
+> + 一篇不错的文章，大致扫了一下：[Why I prefer running nginx on my Docker host instead of in a container](https://nickjanetakis.com/blog/why-i-prefer-running-nginx-on-my-docker-host-instead-of-in-a-container)
 >
 > 扫完第二篇文章，我也觉得将nginx搬到docker里没啥必要。它还提到一个点赞量很高的nginx-proxy项目，自动为一个nginx生成其他container的conf。但是个人感觉太麻烦了，而且想要开启ssl的话，对生成的cert的名称还有要求，和certbot的名称并不一致。所以还是算了。使用这个框架并引入一堆约定的代价并不太值得，到最后可能还是像文章作者说的，你还要自定义一大堆东西，这个难度还不如自己配置一个nginx的conf。
 >
@@ -39,6 +40,25 @@ mermaid: true
 > “太年轻了”：指太菜了，docker了解得太浅显。
 >
 
+这次的核心变化是：**不再手搓每个站点的 Nginx 配置，而是让容器通过环境变量声明自己想要的域名、端口、证书，然后由 nginx-proxy 自动生成配置**。
+
+```mermaid
+flowchart LR
+    App[业务容器<br/>VIRTUAL_HOST/VIRTUAL_PORT] --> DockerSock[/Docker socket/]
+    DockerSock --> NginxProxy[nginx-proxy]
+    DockerSock --> Acme[acme-companion]
+    Acme --> LE[Let's Encrypt]
+    LE --> Certs[(certs volume)]
+    NginxProxy --> Conf[/default.conf/]
+    Certs --> NginxProxy
+    User[公网用户] --> NginxProxy
+    NginxProxy --> App
+
+    style DockerSock fill:#fff3bf,stroke:#d9480f
+    style NginxProxy fill:#e3f2fd,stroke:#1971c2
+    style Acme fill:#e8f5e9,stroke:#2b8a3e
+```
+
 # nginx-proxy + acme-companion
 组合使用下面两个服务即可：
 
@@ -47,9 +67,9 @@ mermaid: true
 
 二者加起来，就是常配置的http[s]反向代理。此外还支持websocket、location等。
 
-nginx-proxy[主要通过go template](http://jasonwilder.com/blog/2014/03/25/automated-nginx-reverse-proxy-for-docker/)生成反向代理配置文件。
+nginx-proxy[主要通过 go template](http://jasonwilder.com/blog/2014/03/25/automated-nginx-reverse-proxy-for-docker/)生成反向代理配置文件。
 
-![](https://raw.githubusercontent.com/nginx-proxy/acme-companion/736b9302c170a386fdc051aa61df0b5d6a08b78c/schema.png)
+![nginx-proxy 与 acme-companion 的协作示意图](https://raw.githubusercontent.com/nginx-proxy/acme-companion/736b9302c170a386fdc051aa61df0b5d6a08b78c/schema.png)
 
 参考[acme-companion的readme](https://github.com/nginx-proxy/acme-companion)搭建两个服务。首先启动一个nginx-proxy：
 
@@ -142,10 +162,43 @@ nginxproxy/acme-companion:latest
 
 如果`VIRTUAL_HOST`的值（无论是显示设置的，还是默认使用的80）和container的访问端口不一致，将无法正确访问服务。
 
+环境变量到 Nginx 配置的映射可以这么看：
+
+```mermaid
+flowchart TD
+    Env[容器环境变量] --> Host[VIRTUAL_HOST]
+    Env --> Port[VIRTUAL_PORT]
+    Env --> Proto[VIRTUAL_PROTO]
+    Env --> Path[VIRTUAL_PATH]
+    Env --> LE[LETSENCRYPT_HOST]
+
+    Host --> ServerName[server_name]
+    Port --> Upstream[upstream server ip:port]
+    Proto --> ProxyPass[proxy_pass http/https]
+    Path --> Location[location 路径]
+    LE --> Cert[证书申请和挂载]
+
+    style Env fill:#fff3bf,stroke:#d9480f
+    style Cert fill:#e8f5e9,stroke:#2b8a3e
+```
+
 > **不同container完全可以使用同一个端口，不会冲突，因为大家有不同的ip。**
 >
 > 如果没有publish，在host上使用`netstat`看不到这些container的端口。
 >
+
+`VIRTUAL_PORT`最容易让人误会：它不是宿主机端口，而是 nginx-proxy 访问容器时要打到的**容器内服务端口**。
+
+```mermaid
+flowchart LR
+    User[用户] --> Nginx[Nginx Proxy: 443]
+    Nginx -->|server 172.17.0.3:8765| Container[业务容器]
+    Container --> App[应用监听 8765]
+    HostPort[宿主机端口发布] -. 可选，甚至不需要 .-> Container
+
+    style Nginx fill:#e3f2fd,stroke:#1971c2
+    style HostPort fill:#fff3bf,stroke:#d9480f
+```
 
 如果通过`-p`参数把容器的端口发布到host上，比如`-p 127.0.0.1:9999:8765`，nginx-proxy在生成upstream的时候会提示：**container的port被发布到了host上，client可以绕过nginx-proxy访问container服务**
 
@@ -393,6 +446,21 @@ http {
 >
 
 nginx-proxy[在2014年就已经支持websocket了](https://github.com/nginx-proxy/nginx-proxy/pull/46)。
+
+WebSocket 反代的关键是：客户端和 Nginx 之间升级了一次协议，Nginx 到后端服务之间也要把这个升级意图继续传下去。
+
+```mermaid
+sequenceDiagram
+    participant Client as V2Ray 客户端
+    participant Proxy as nginx-proxy
+    participant V2Ray as V2Ray 容器
+
+    Client->>Proxy: GET /v2ray + Upgrade: websocket
+    Proxy->>V2Ray: 转发 Upgrade/Connection header
+    V2Ray-->>Proxy: 101 Switching Protocols
+    Proxy-->>Client: 101 Switching Protocols
+    Client->>V2Ray: 后续 VMess 流量走 WebSocket 隧道
+```
 
 之前实体机nginx v2ray自己配过websocket，设置的只要`Upgrade: websocket`的流量，其他协议一概返回404：
 
@@ -707,6 +775,28 @@ docker network connect youtube-dl_default nginx-proxy
 
 此时nginx-proxy同时挂载到两个网络上（**相当于有两个网卡，分属于不同网段**）：
 
+```mermaid
+flowchart LR
+    subgraph Bridge[bridge: 172.17.0.0/16]
+        Proxy1[nginx-proxy<br/>172.17.0.4]
+        V2Ray[v2ray]
+        Netdata[netdata]
+    end
+
+    subgraph YTDL[youtube-dl_default: 192.168.96.0/20]
+        Proxy2[nginx-proxy<br/>192.168.96.4]
+        YTDLApp[ytdl_material<br/>192.168.96.3]
+        Mongo[mongo-db<br/>192.168.96.2]
+    end
+
+    Proxy1 --- Proxy2
+    Proxy2 --> YTDLApp
+    YTDLApp --> Mongo
+
+    style Proxy1 fill:#e3f2fd,stroke:#1971c2
+    style Proxy2 fill:#e3f2fd,stroke:#1971c2
+```
+
 | Network | IP Address | Gateway | MAC Address |
 | --- | --- | --- | --- |
 | bridge | 172.17.0.4 | 172.17.0.1 | 02:42:ac:11:00:04 |
@@ -761,8 +851,7 @@ upstream download.puppylpg.top {
 ## YoutubeDL-Material
 该工程的docker compose挂载了太多local directory，且为相对路径（相对于docker-compose的working directory。如果使用portainer，相对路径是`/data/compose`）。**mount current directory**[一般用于开发环境](https://docs.docker.com/compose/gettingstarted/#step-5-edit-the-compose-file-to-add-a-bind-mount)**，像python这种不需要编译的，改代码后根本不需要重新部署服务即可生效**。
 
-> bind mount参考[Docker - storage](  
-{% post_url 2023-03-20-docker-storage %})
+> bind mount参考[Docker - storage]({% post_url 2023-03-20-docker-storage %})
 >
 
 因此考虑改成volume：
@@ -1030,6 +1119,19 @@ docker run -d --name ttq \
 ```
 
 之后就可以通过`ttq.puppylpg.top`访问了。
+
+静态站点也容器化以后，玩法就和其他服务统一了：
+
+```mermaid
+flowchart LR
+    Dist[宿主机 dist 目录] --> Mount[挂载到 nginx:alpine<br/>/usr/share/nginx/html]
+    Mount --> StaticNginx[静态资源容器]
+    StaticNginx --> Env[VIRTUAL_HOST / LETSENCRYPT_HOST]
+    Env --> NginxProxy[nginx-proxy 自动反代]
+    User[用户] --> NginxProxy --> StaticNginx
+
+    style StaticNginx fill:#e8f5e9,stroke:#2b8a3e
+```
 
 ## 统一部署
 使用docker compose把所有的服务和nginx-proxy都放在一起

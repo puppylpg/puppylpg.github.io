@@ -3,11 +3,12 @@ title: "Linux - dig & DNS"
 date: 2021-12-03 00:42:06 +0800
 categories: [linux, dns]
 tags: [linux, dns]
+description: "用 dig +trace、NS、A、MX、TXT、CNAME 等记录理解 DNS 域名层级、递归查询和权威解析。"
 ---
 
-最近在`namesilo`用0.99刀淘了一个域名`puppylpg.xyz`，又配置了一下，感觉对域名的理解更深刻了。DNS是一般是解析域名对应的ip，但远不止这些。而dig则是查询DNS的工具，通过dig，可以更深刻理解DNS。而后再看Nigin的反向代理，会有一种融会贯通的感觉。
+最近在`namesilo`用0.99刀淘了一个域名`puppylpg.xyz`，又配置了一下，感觉对域名的理解更深刻了。DNS是一般是解析域名对应的ip，但远不止这些。而dig则是查询DNS的工具，通过dig，可以更深刻理解DNS。而后再看Nginx的反向代理，会有一种融会贯通的感觉。
 
-- 域名管理页面：https://www.namesilo.com/account_home.php
+- 域名管理页面：[NameSilo account home](https://www.namesilo.com/account_home.php)
 
 1. Table of Contents, ordered
 {:toc}
@@ -23,6 +24,20 @@ tags: [linux, dns]
 **域名是树状结构，每一个域名都有NS（Name Server）记录，记录该层级域名的域名服务器。域名服务器则知道它的下一层级的所有域名的所有信息记录（比如`.xyz`的name server知道关于`puppylpg.xyz`的所有A、AAAA、CNAME、MX、TXT记录等）。**
 
 当需要查询一个域名的ip的时候，就是从根域名查起，一层一层直到查到域名的ip。
+
+```mermaid
+flowchart TD
+    Root[".<br/>root"] --> TLD["xyz.<br/>TLD"]
+    TLD --> SLD["puppylpg.xyz.<br/>注册域名"]
+    SLD --> Host["netdata.puppylpg.xyz.<br/>主机/子域名"]
+
+    Root -. NS .-> RootNS["root NS"]
+    TLD -. NS .-> TLDNS["xyz NS"]
+    SLD -. NS .-> AuthNS["puppylpg.xyz 权威NS"]
+    Host -. A/CNAME/MX/TXT .-> Record["最终记录"]
+```
+
+域名树的关键是“谁负责回答下一层”。根不需要知道`netdata.puppylpg.xyz`的IP，它只要知道`.xyz`归谁管；`.xyz`也不需要知道`netdata`，它只要知道`puppylpg.xyz`归谁管。一路甩锅，但甩得很有秩序。
 
 # DNS服务器
 ## `dig +trace <domain>`
@@ -77,6 +92,23 @@ puppylpg.xyz.           172800  IN      NS      ns3.dnsowl.com.
 - 向这3个NS（次级域名的域名服务器）查主机名`netdata`的**A记录（查的就是它的ip，所以不再是NS记录了）**，`ns2.dnsowl.com`反应最快，给出了`netdata.puppylpg.xyz.`的CNAME，它没有A记录；
 
 > `ns[1-3].dnsowl.com.`是我买的域名的服务商自己的NS。所以我的域名的NS记录指向他们。
+
+```mermaid
+sequenceDiagram
+    participant Local as 本地域名服务器
+    participant Root as root NS
+    participant TLD as xyz NS
+    participant Auth as puppylpg.xyz NS
+
+    Local->>Root: netdata.puppylpg.xyz?
+    Root-->>Local: 去问 xyz NS
+    Local->>TLD: netdata.puppylpg.xyz?
+    TLD-->>Local: 去问 puppylpg.xyz NS
+    Local->>Auth: netdata.puppylpg.xyz?
+    Auth-->>Local: CNAME/A/其他记录
+```
+
+`+trace`看到的是迭代过程：每一级不替你跑完全程，只告诉你“下一站去哪儿”。平时浏览器查域名时，本地域名服务器会替你把这条路跑完，所以你只看到最终答案。
 
 如果dig的是`puppylpg.xyz`的ip：
 ```txt
@@ -334,7 +366,7 @@ youdaoads.com. 598 IN TXT "v=spf1 include:spf.163.com -all"
 
 
 Ref：
-- https://en.wikipedia.org/wiki/TXT_record
+- [Wikipedia: TXT record](https://en.wikipedia.org/wiki/TXT_record)
 
 ## `dig CNAME <domain>`
 CNAME是Canonical Name的缩写，指的是“真实名称”。一个比较易混的点：cname指的是右边的域名是真实名称，左边的是alias。比如：
@@ -408,7 +440,7 @@ location / {
 }
 ```
 
-- https://www.v2ex.com/t/634903
+- [V2EX 上关于 CNAME 和反向代理的一次讨论](https://www.v2ex.com/t/634903)
 
 ### 查询CNAME记录
 其实没必要，因为dig直接查domain，会把CNAME和A都显示出来。
@@ -468,7 +500,7 @@ ns1.dnsowl.com.
 ;; MSG SIZE  rcvd: 283
 ```
 
-- https://serverfault.com/questions/372066/force-dig-to-resolve-without-using-cache
+- [ServerFault: force dig to resolve without using cache](https://serverfault.com/questions/372066/force-dig-to-resolve-without-using-cache)
 
 # 本地域名服务器
 除了上述顶级域名服务器、权限域名服务器（只负责某个domain），还有一种并不属于域名服务器层次的NS：本地域名服务器local name server。
@@ -503,6 +535,4 @@ ns1.dnsowl.com.
 > 'TXT' record for puppylpg.xyz / spf.163.com added successfully
 
 Ref：
-- https://www.ruanyifeng.com/blog/2016/06/dns.html
-
-
+- [阮一峰：DNS 原理入门](https://www.ruanyifeng.com/blog/2016/06/dns.html)

@@ -3,6 +3,7 @@ title: "爬取网易buff CSGO饰品数据 - 优化篇"
 date: 2019-12-07 12:37:20 +0800
 categories: [python, csgo]
 tags: [python, csgo]
+description: "记录 BUFF CSGO 爬虫的优化过程：配置文件、价格分位数、服务端价格过滤、类别黑白名单和项目命名。"
 ---
 
 继上周末搞了csgo饰品的爬虫之后，最近一周一直在根据社区小伙伴的意见建议进行优化。不得不说，玩家才是最好的产品经理，很多提出来的建议都让人为之一振，这也直接优化了最终的程序效率、实现方式等，同时也增加了一些新的功能。在这里就以优化篇记录一下本周进行的优化流程吧。
@@ -40,12 +41,38 @@ tags: [python, csgo]
 
 后来经过社区老哥提醒，可以直接使用buff的价格筛选功能！buff是有数据库的，他们筛选起来肯定贼快，我们使用buff带加个筛选的api请求物品，这样只需要爬取这些物品就行了，不用每次都先把所有饰品爬取一遍，大大提升了程序效率。把buff当做工具人，成了！
 
+```mermaid
+flowchart LR
+    subgraph Before["旧方案：客户端筛选"]
+        All["请求所有饰品"]
+        LocalFilter["本地按价格过滤"]
+        AnalyzeA["分析候选饰品"]
+    end
+
+    subgraph After["新方案：服务端筛选"]
+        Query["请求时带 min_price / max_price"]
+        BuffFilter["BUFF 数据库先过滤"]
+        AnalyzeB["只分析候选饰品"]
+    end
+
+    All --> LocalFilter --> AnalyzeA
+    Query --> BuffFilter --> AnalyzeB
+
+    style All fill:#ffe3e3,stroke:#ff6b6b
+    style LocalFilter fill:#fff3bf,stroke:#f59f00
+    style Query fill:#e3f2fd,stroke:#4dabf7
+    style BuffFilter fill:#e8f5e9,stroke:#51cf66
+    style AnalyzeB fill:#e8f5e9,stroke:#51cf66
+```
+
+优化点不在 Python 写得多玄妙，而在**让更靠近数据的一方先干活**。BUFF 的数据库筛选一次，比我把所有数据慢慢爬下来再筛，显然靠谱得多。
+
 用了和之前同样的分析方法，发现加个筛选其实就是在之前请求物品的api上增加三个参数：
 - `sort_by`：取值如`price.desc`;
 - `min_price`
 - `max_price`
 
-不用多说，含义自明。这样请求所有100到200的饰品，只需要：`https://buff.163.com/api/market/goods?game=csgo&page_num=99999999&sort_by=price.desc&min_price=100&max_price=200`就行了。
+不用多说，含义自明。这样请求所有100到200的饰品，只需要给 goods API 带上`sort_by=price.desc&min_price=100&max_price=200`就行了。
 
 不过这里还是有个奇葩的地方，注意到上面url里的99999999了吗？不得不说buff的区间筛选API很是清奇，限定价格之后，返回的`page_num`和`page_size`竟然都是错的。也就是说返回的数据并不能告诉我们在这个价格区间内一共有多少页共计多少饰品。然鹅机智的我发现，如果将page number设定为超出实际页数的值，这两个数据就会变成正确值。
 
@@ -90,7 +117,7 @@ category_black_list = ["weapon_m4a1"]
 
 > 感觉再试下去，我要把buff所有对外接口的参数都试完了……
 
-那么现在想要筛选100-200之间的ak，只需要请求`https://buff.163.com/api/market/goods?game=csgo&page_num=99999999&sort_by=price.desc&min_price=100&max_price=200&category=weapon_ak47`就行了。
+那么现在想要筛选100-200之间的ak，只需要在 goods API 上同时带上`min_price=100&max_price=200&category=weapon_ak47`就行了。
 
 通过这个接口，我也得以将两种实现合二为一。有价格筛选的时候就带上价格的参数，有类别筛选的时候就带上类别的参数，一种实现就搞定了。
 
@@ -120,4 +147,3 @@ category_black_list = ["weapon_m4a1"]
 原来写代码真的可以有趣到一下班回家不顾疲惫就迫不及待开始完成前一天留下的TODO，可以为了在睡觉前（半夜十二点甚至更晚，所以是不是可以称之为“新的一天”）发布新的更新而不玩游戏。虽然这还不是什么大的工程，不是什么真正有意义的开源项目，但是这的确是我的兴趣所在，真的开心。
 
 如果没有其他什么特别的需求，该工程大概可以archive了。欢迎感兴趣的小伙伴github围观，star，fork，提出意见和建议，有趣的需求我会继续更新。
-

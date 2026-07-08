@@ -2,131 +2,205 @@
 title: Getting Started
 author: cotes
 date: 2019-08-09 20:55:00 +0800
-categories: [blogging, tutorial]
-tags: [getting started]
+categories: [tutorial, chirpy]
+tags: [getting-started, jekyll, chirpy, github-pages]
+description: "从零创建 Chirpy 博客：选择 starter 或 fork、安装依赖、配置站点、本地预览并部署到 GitHub Pages。"
 img_path: '/posts/20180809'
 ---
 
-## Prerequisites
+这篇是 Chirpy 博客的启动流程。目标不是把所有配置一次讲完，而是先把站点跑起来：能本地预览，能推到 GitHub Pages，后面再慢慢折腾主题细节。
 
-Follow the instructions in the [Jekyll Docs](https://jekyllrb.com/docs/installation/) to complete the installation of the basic environment. [Git](https://git-scm.com/) also needs to be installed.
+1. Table of Contents, ordered
+{:toc}
 
-## Installation
+# 前置环境
 
-### Creating a New Site
+先按 [Jekyll 安装文档](https://jekyllrb.com/docs/installation/) 配好 Ruby、RubyGems 和 Bundler。还需要安装 [Git](https://git-scm.com/)。
 
-There are two ways to create a new repository for this theme:
+推荐确认一下版本：
 
-- [**Using the Chirpy Starter**](#option-1-using-the-chirpy-starter) - Easy to upgrade, isolates irrelevant project files so you can focus on writing.
-- [**GitHub Fork**](#option-2-github-fork) - Convenient for custom development, but difficult to upgrade. Unless you are familiar with Jekyll and are determined to tweak or contribute to this project, this approach is not recommended.
+```console
+$ ruby -v
+$ bundle -v
+$ git --version
+```
 
-#### Option 1. Using the Chirpy Starter
+> 如果 `bundle` 不存在，通常是当前 Ruby 环境里还没装 Bundler，先执行 `gem install bundler`。
+{: .prompt-warning }
 
-Sign in to GitHub and browse to [**Chirpy Starter**][starter], click the button <kbd>Use this template</kbd> > <kbd>Create a new repository</kbd>, and name the new repository `USERNAME.github.io`, where `USERNAME` represents your GitHub username.
+# 选择创建方式
 
-#### Option 2. GitHub Fork
+Chirpy 有两条路：
 
-Sign in to GitHub to [fork **Chirpy**](https://github.com/cotes2020/jekyll-theme-chirpy/fork), and then rename it to `USERNAME.github.io` (`USERNAME` means your username).
+| 方式 | 适合谁 | 优点 | 代价 |
+|------|--------|------|------|
+| Chirpy Starter | 大多数博客作者 | 干净、易升级、少维护主题源码 | 深度改主题时要理解 gem 覆盖机制 |
+| Fork Chirpy | 想改主题源码的人 | 主题文件都在仓库里，方便魔改 | 后续升级更麻烦 |
 
-Next, clone your site to local machine. In order to build JavaScript files later, we need to install [Node.js][nodejs], and then run the tool:
+```mermaid
+flowchart TD
+    A["想快速写博客？"] -->|是| B["使用 Chirpy Starter"]
+    A -->|不是，想改主题源码| C["Fork jekyll-theme-chirpy"]
+    B --> D["安装依赖"]
+    C --> E["运行 tools/init"]
+    E --> D
+    D --> F["配置 _config.yml"]
+    F --> G["本地预览"]
+    G --> H["部署到 GitHub Pages"]
+
+    style B fill:#e8f5e9,stroke:#2b8a3e
+    style C fill:#fff3bf,stroke:#b08900
+    style G fill:#e3f2fd,stroke:#2f6f9f
+```
+
+# 创建站点
+
+## 方式一：Chirpy Starter
+
+登录 GitHub，打开 [Chirpy Starter][starter]，点击 <kbd>Use this template</kbd> → <kbd>Create a new repository</kbd>。
+
+如果要部署为个人主页，仓库名使用：
+
+```text
+USERNAME.github.io
+```
+
+其中 `USERNAME` 是 GitHub 用户名。
+
+## 方式二：Fork Chirpy
+
+如果确实想维护主题源码，可以 [fork Chirpy](https://github.com/cotes2020/jekyll-theme-chirpy/fork)，然后把仓库重命名为 `USERNAME.github.io`。
+
+接着 clone 到本地。Fork 模式还需要安装 [Node.js][nodejs]，再执行初始化：
 
 ```console
 $ bash tools/init
 ```
 
-> If you don't want to deploy your site on GitHub Pages, append option `--no-gh` at the end of the above command.
-{: .prompt-info }
+如果不打算部署到 GitHub Pages，可以加：
 
-The above command will:
+```console
+$ bash tools/init --no-gh
+```
 
-1. Check out the code to the [latest tag][latest-tag] (to ensure the stability of your site: as the code for the default branch is under development).
-2. Remove non-essential sample files and take care of GitHub-related files.
-3. Build JavaScript files and export to `assets/js/dist/`{: .filepath }, then make them tracked by Git.
-4. Automatically create a new commit to save the changes above.
+这个脚本会做几件事：
 
-### Installing Dependencies
+1. 切到最新 tag，避免默认分支的开发中代码影响站点稳定性。
+2. 删除非必要样例文件。
+3. 构建 JavaScript 文件到 `assets/js/dist/`{: .filepath} 并纳入 Git。
+4. 自动提交一次初始化结果。
 
-Before running local server for the first time, go to the root directory of your site and run:
+# 安装依赖
+
+进入站点根目录：
 
 ```console
 $ bundle
 ```
 
-## Usage
+这一步会根据 `Gemfile` / `Gemfile.lock` 安装 Jekyll、Chirpy 和相关 gem。
 
-### Configuration
+依赖关系可以理解成这样：
 
-Update the variables of `_config.yml`{: .filepath} as needed. Some of them are typical options:
+```mermaid
+flowchart LR
+    A["Gemfile"] --> B["Bundler"]
+    C["Gemfile.lock"] --> B
+    B --> D["Jekyll"]
+    B --> E["jekyll-theme-chirpy"]
+    D --> F["_site 静态页面"]
+    E --> F
+```
 
-- `url`
-- `avatar`
-- `timezone`
-- `lang`
+# 基础配置
 
-### Social Contact Options
+主要改 `_config.yml`{: .filepath}。先关注这几个变量：
 
-Social contact options are displayed at the bottom of the sidebar. You can turn on/off the specified contacts in file `_data/contact.yml`{: .filepath }.
+| 变量 | 作用 |
+|------|------|
+| `url` | 站点根域名，部署前必须正确 |
+| `baseurl` | 项目站点子路径，用户站点通常为空 |
+| `avatar` | 侧边栏头像 |
+| `timezone` | 日期显示时区 |
+| `lang` | 界面语言 |
 
-### Customizing Stylesheet
+社交联系方式显示在侧边栏底部，配置文件是 `_data/contact.yml`{: .filepath }。
 
-If you need to customize the stylesheet, copy the theme's `assets/css/jekyll-theme-chirpy.scss`{: .filepath} to the same path on your Jekyll site, and then add the custom style at the end of it.
+> 修改 `_config.yml` 后通常需要重启本地 Jekyll server。别盯着浏览器刷新半天，最后才发现服务根本没读到新配置。
+{: .prompt-warning }
 
-Starting with version `6.2.0`, if you want to overwrite the SASS variables defined in `_sass/addon/variables.scss`{: .filepath}, copy the main sass file `_sass/main.scss`{: .filepath} into the `_sass`{: .filepath} directory in your site's source, then create a new file `_sass/variables-hook.scss`{: .filepath} and assign new value.
+# 自定义样式与静态资源
 
-### Customing Static Assets
+如果要改样式，可以把主题里的 `assets/css/jekyll-theme-chirpy.scss`{: .filepath} 复制到站点同路径，然后在末尾追加自定义样式。
 
-Static assets configuration was introduced in version `5.1.0`. The CDN of the static assets is defined by file `_data/origin/cors.yml`{: .filepath }, and you can replace some of them according to the network conditions in the region where your website is published.
+Chirpy `6.2.0` 之后，如果想覆盖 `_sass/addon/variables.scss`{: .filepath} 里的 Sass 变量，可以：
 
-Also, if you'd like to self-host the static assets, please refer to the [_chirpy-static-assets_](https://github.com/cotes2020/chirpy-static-assets#readme).
+1. 把 `_sass/main.scss`{: .filepath} 复制到站点的 `_sass`{: .filepath} 目录。
+2. 创建 `_sass/variables-hook.scss`{: .filepath}。
+3. 在 hook 文件里覆盖变量。
 
-### Running Local Server
+静态资源 CDN 配置在 `_data/origin/cors.yml`{: .filepath}。如果所在地区访问默认 CDN 慢，可以替换其中部分资源；也可以参考 [_chirpy-static-assets_](https://github.com/cotes2020/chirpy-static-assets#readme) 自托管静态资源。
 
-You may want to preview the site contents before publishing, so just run it by:
+# 本地预览
+
+启动：
 
 ```console
 $ bundle exec jekyll s
 ```
 
-After a few seconds, the local service will be published at _<http://127.0.0.1:4000>_.
+几秒后打开 [本地预览地址](http://127.0.0.1:4000)。
 
-## Deployment
+验收时看四件事：
 
-Before the deployment begins, check out the file `_config.yml`{: .filepath} and make sure the `url` is configured correctly. Furthermore, if you prefer the [**project site**](https://help.github.com/en/github/working-with-github-pages/about-github-pages#types-of-github-pages-sites) and don't use a custom domain, or you want to visit your website with a base URL on a web server other than **GitHub Pages**, remember to change the `baseurl` to your project name that starts with a slash, e.g, `/project-name`.
+| 检查项 | 预期 |
+|--------|------|
+| 首页 | 能打开，侧边栏正常 |
+| 文章页 | 标题、目录、代码块正常 |
+| 搜索 | 输入关键词有响应 |
+| 控制台 | 没有明显资源加载失败 |
 
-Now you can choose _ONE_ of the following methods to deploy your Jekyll site.
+# 部署
 
-### Deploy by Using GitHub Actions
+部署前检查 `_config.yml`{: .filepath}：
 
-There are a few things to get ready for.
+- 个人站点 `USERNAME.github.io`：通常 `baseurl` 为空。
+- 项目站点：`baseurl` 要写成 `/project-name`。
+- 自定义域名：`url` 要写正式域名。
 
-- If you're on the GitHub Free plan, keep your site repository public.
-- If you have committed `Gemfile.lock`{: .filepath} to the repository, and your local machine is not running Linux, go the the root of your site and update the platform list of the lock-file:
+## GitHub Actions
 
-  ```console
-  $ bundle lock --add-platform x86_64-linux
-  ```
+推荐使用 GitHub Actions。
 
-Next, configure the _Pages_ service.
+1. 打开仓库的 _Settings_ → _Pages_。
+2. 在 _Build and deployment_ 的 _Source_ 中选择 [GitHub Actions][pages-workflow-src]。
 
-1. Browse to your repository on GitHub. Select the tab _Settings_, then click _Pages_ in the left navigation bar. Then, in the **Source** section (under _Build and deployment_), select [**GitHub Actions**][pages-workflow-src] from the dropdown menu.  
-![Build source](pages-source-light.png){: .light .border .normal w='375' h='140' }
-![Build source](pages-source-dark.png){: .dark .normal w='375' h='140' }
+推送代码后，在仓库的 _Actions_ 页面可以看到构建流程。成功后 GitHub Pages 会自动发布。
 
-2. Push any commits to GitHub to trigger the _Actions_ workflow. In the _Actions_ tab of your repository, you should see the workflow _Build and Deploy_ running. Once the build is complete and successful, the site will be deployed automatically.
+如果你提交了 `Gemfile.lock`{: .filepath}，且本机不是 Linux，建议补 Linux 平台：
 
-At this point, you can go to the URL indicated by GitHub to access your site.
+```console
+$ bundle lock --add-platform x86_64-linux
+```
 
-### Manually Build and Deploy
+## 手动构建
 
-On self-hosted servers, you cannot enjoy the convenience of **GitHub Actions**. Therefore, you should build the site on your local machine and then upload the site files to the server.
-
-Go to the root of the source project, and build your site as follows:
+如果部署到自己的服务器，可以本地构建后上传 `_site`{: .filepath}：
 
 ```console
 $ JEKYLL_ENV=production bundle exec jekyll b
 ```
 
-Unless you specified the output path, the generated site files will be placed in folder `_site`{: .filepath} of the project's root directory. Now you should upload those files to the target server.
+默认输出目录是项目根目录下的 `_site`{: .filepath}。
+
+# 常见坑
+
+| 现象 | 可能原因 | 处理 |
+|------|----------|------|
+| 本地能跑，GitHub Actions 失败 | Linux 平台没写入 lock | `bundle lock --add-platform x86_64-linux` |
+| 页面路径不对 | `url` / `baseurl` 配错 | 按站点类型重新配置 |
+| 修改配置没生效 | server 没重启 | 停掉再启动 |
+| 搜索或样式异常 | 静态资源没加载 | 看浏览器 Network 面板 |
 
 [nodejs]: https://nodejs.org/
 [starter]: https://github.com/cotes2020/chirpy-starter

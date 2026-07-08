@@ -3,6 +3,7 @@ title: "（十二）How Tomcat Works - Tomcat管理"
 date: 2020-10-17 22:48:28 +0800
 categories: [tomcat, http, web, jmx]
 tags: [tomcat, http, web, jmx]
+description: "从 manager web app 和 JMX 两条线理解 Tomcat 的人机管理界面与程序化管理接口。"
 ---
 
 一个应用想要受欢迎，除了强大的功能，还要有用户友好的可管理方式。这里介绍Tomcat的两种管理方式：
@@ -11,6 +12,24 @@ tags: [tomcat, http, web, jmx]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Admin["管理员 / 脚本"] --> ManagerApp["manager web app"]
+    ManagerApp --> Html["/html/*<br/>HTMLManagerServlet"]
+    ManagerApp --> Text["/text/*<br/>ManagerServlet"]
+    ManagerApp --> Status["/status/*<br/>StatusManagerServlet"]
+    ManagerApp --> JmxProxy["/jmxproxy/*<br/>JMXProxyServlet"]
+    Html --> RoleGui["manager-gui"]
+    Text --> RoleScript["manager-script"]
+    Status --> RoleStatus["manager-status"]
+    JmxProxy --> RoleJmx["manager-jmx"]
+    JmxProxy --> MBeans["Tomcat MBeans"]
+
+    style ManagerApp fill:#e3f2fd,stroke:#1976d2
+    style JmxProxy fill:#fff3bf,stroke:#f59f00
+    style MBeans fill:#e8f5e9,stroke:#2e7d32
+```
 
 # manager web app
 Tomcat可以让用户在webapps目录下部署web app，刚下载下来的Tomcat默认就部署了几个app。有docs、examples，可以帮助用户更好地了解Tomcat。还有一个manager，可以给用户呈现当前Tomcat的部署情况。

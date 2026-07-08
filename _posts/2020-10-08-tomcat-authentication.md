@@ -3,12 +3,33 @@ title: "（八）How Tomcat Works - Tomcat Authentication"
 date: 2020-10-08 20:52:58 +0800
 categories: [tomcat, http, web, session]
 tags: [tomcat, http, web, session]
+description: "梳理 Tomcat Realm、Authenticator、Pipeline Valve 与 HTTP Basic 认证如何协作完成权限控制。"
 ---
 
 session可以让Tomcat识别多个请求来自于同一个用户，既然涉及到用户，就涉及到权限。比如有的servlet只有管理员才能访问，其他的普通用户也可以访问。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant Auth as Authenticator Valve
+    participant Realm as Realm
+    participant Wrapper as Servlet Wrapper
+
+    Client->>Auth: 请求受保护资源
+    Auth-->>Client: 401 + WWW-Authenticate
+    Client->>Auth: Authorization: Basic base64(user:pass)
+    Auth->>Realm: authenticate(username, credentials)
+    Realm-->>Auth: Principal + roles / null
+    alt 认证成功
+        Auth->>Wrapper: 放行，继续 Pipeline
+        Wrapper-->>Client: Servlet response
+    else 认证失败
+        Auth-->>Client: 401/403，Pipeline 截断
+    end
+```
 
 # `org.apache.catalina.Realm`
 Tomcat使用Realm代表用户的认证信息，**可简单理解为Realm里存储着所有的用户名和密码**。
@@ -333,5 +354,4 @@ public class SimpleRealm implements Realm {
 其实就是web.xml里的`<security-constraint>`、`<web-resource-collection>`和`<login-config>`，**声明哪些资源只有哪些身份能访问**，声明用户如何认证role。
 
 > 正常应该解析`web.xml`获取。
-
 

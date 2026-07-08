@@ -65,13 +65,11 @@ jobs:
 
       # 检查生成的 HTML：链接有效性、图片存在等；失败则阻止部署
       # --disable-external: 跳过外链检查（太慢）
-      # --ignore-files "/tutorials/": tutorials 有残留坏链，清理前先跳过
       - name: Test site
         run: |
           bundle exec htmlproofer _site \
             \-\-disable-external \
             \-\-no-enforce-https \
-            \-\-ignore-files "/tutorials/" \
             \-\-ignore-urls "/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/"
 
       # 把 _site/ 打包上传为 artifact，供 deploy job 使用

@@ -3,12 +3,32 @@ title: "Innodb - 有关事务的一切"
 date: 2022-01-27 00:45:20 +0800
 categories: [mysql, innodb]
 tags: [mysql, innodb]
+description: "围绕 ACID，系统整理 InnoDB 的 undo、redo、checkpoint、MVCC、锁与事务隔离实现。"
 ---
 
 终于开始聊事务了。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Tx["一个事务"] --> Atomicity["原子性<br/>undo log 回滚半成品"]
+    Tx --> Durability["持久性<br/>redo log 保证提交后可恢复"]
+    Tx --> Isolation["隔离性<br/>锁 + MVCC 让事务互不乱入"]
+    Tx --> Consistency["一致性<br/>约束 + 程序逻辑共同保证"]
+
+    Durability --> BufferPool["Buffer Pool<br/>脏页可以晚点刷"]
+    Durability --> Checkpoint["Checkpoint<br/>确定恢复起点"]
+    Atomicity --> VersionChain["版本链<br/>roll_pointer 串起 undo"]
+    Isolation --> ReadView["ReadView<br/>决定能看到哪个版本"]
+
+    style Tx fill:#e3f2fd,stroke:#1976d2
+    style Atomicity fill:#fff3bf,stroke:#f59f00
+    style Durability fill:#e8f5e9,stroke:#2e7d32
+    style Isolation fill:#f3e5f5,stroke:#8e24aa
+    style Consistency fill:#ffe3e3,stroke:#c62828
+```
 
 # 所谓事务
 刚学数据库的时候，就知道事务。然而什么是事务，只能模模糊糊说出两个概念：要么不做，要么全做；ACID。说懂不很懂，说不懂又差不多懂。直到最近看到一句话：**数据库的操作变更和现实世界的实际情况并不总是一致的，我们只是想办法让数据库的操作符合现实世界的状态转换**。
@@ -45,7 +65,7 @@ tags: [mysql, innodb]
 数据写磁盘实际是先写到buffer pool，后续再写到磁盘。写了buffer pool如果崩了，等于没写。也就是说事务提交后产生的数据没有真正保存下来。
 
 为了让数据一定保存下来，MySQL使用了redo日志：
-1. 事物的修改操作，先写redo日志；
+1. 事务的修改操作，先写redo日志；
 2. 再把数据写入buffer pool；
 3. 最后提交事务；
 

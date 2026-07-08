@@ -1,8 +1,9 @@
 ---
 title: "Linux - 进程"
 date: 2021-11-11 15:32:41 +0800
-categories: [linux]
-tags: [linux]
+categories: [linux, process]
+tags: [linux, process, ps, tty]
+description: "通过 ps axj/axjf 观察 Linux 进程的 PID、PPID、PGID、SID、TTY、TPGID 和前后台进程。"
 ---
 
 通过ps仔细观察一下linux的进程。
@@ -12,7 +13,7 @@ tags: [linux]
 
 # ps
 - `a`: all;
-- `x`: 只显示有tty的process，一般和all连用;
+- `x`: 把没有控制tty的process也显示出来，一般和all连用;
 - `j`: `job`，相当于多显示几列信息，把sid，tty之类的都显示出来；
 - `f`: `forest`，层级显示。用这个去发现父进程、同一session下的进程，很形象。
 
@@ -39,6 +40,22 @@ tags: [linux]
 - SID：session id；
 - TPGID：tty process group id，`tty + PGID`；
 - TTY：teletypewriter，电传打字机；
+
+```mermaid
+flowchart TD
+    Yakuake["yakuake"] --> Zsh["zsh<br/>PID=SID=3564"]
+    Zsh --> BgPing["ping<br/>PID=5989 PGID=5989"]
+    Zsh --> BgGrep["grep<br/>PID=5990 PGID=5989"]
+    Zsh --> FgPing["ping<br/>PID=7887 PGID=7887"]
+    Zsh --> FgGrep["grep<br/>PID=7888 PGID=7887"]
+
+    TTY["pts/0<br/>TPGID=7887"] --> FgPing
+    TTY --> FgGrep
+    BgPing -. "PGID != TPGID<br/>后台" .-> TTY
+    BgGrep -. "PGID != TPGID<br/>后台" .-> TTY
+```
+
+这几个ID一多就很像报户口，但核心其实很简单：**PPID看父子关系，PGID看一条命令行里的作业组，SID看一个登录会话，TPGID看当前终端谁在前台**。先按这个顺序看，就不容易晕。
 
 # PPID - 判断进程fork关系
 无论是ping还是grep，**都是在zsh里执行的，所以他们的父进程都是zsh**（PID=3564），所以他们的PPID=3564。
@@ -385,12 +402,11 @@ PROCESS STATE CODES
 TODO：以上两个关于konsole的猜想需要验证一下。
 
 关于pid=0的进程：
-- https://unix.stackexchange.com/questions/83322/which-process-has-pid-0
+- [Unix StackExchange: which process has PID 0](https://unix.stackexchange.com/questions/83322/which-process-has-pid-0)
 
 关于init进程：
-- https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/installation_guide/s2-boot-init-shutdown-init
-- https://web.mit.edu/rhel-doc/3/rhel-rg-en-3/s1-boot-init-shutdown-process.html
+- [Red Hat: Booting, init, and shutdown](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/installation_guide/s2-boot-init-shutdown-init)
+- [MIT mirror: RHEL boot and init process](https://web.mit.edu/rhel-doc/3/rhel-rg-en-3/s1-boot-init-shutdown-process.html)
 
 Ref:
-- https://zhuanlan.zhihu.com/p/266720121
-
+- [一篇关于 Linux 进程关系的整理](https://zhuanlan.zhihu.com/p/266720121)

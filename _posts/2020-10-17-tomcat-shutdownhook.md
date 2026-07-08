@@ -3,12 +3,29 @@ title: "（十一）How Tomcat Works - Tomcat ShutdownHook"
 date: 2020-10-17 22:26:10 +0800
 categories: [tomcat, http, web, shutdownhook]
 tags: [tomcat, http, web, shutdownhook]
+description: "解释 Catalina 如何用 JVM shutdown hook 兜底执行 server.stop，并避免正常关闭时重复 stop。"
 ---
 
 Tomcat启动后应该使用`shutdown.sh`脚本，给Server发送"SHUTDOWN"进行关闭，完成Tomcat lifecycle的stop阶段。但是如果用户直接强制退出了，还能执行清理阶段吗？
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Start["Catalina start"] --> Register["注册 CatalinaShutdownHook"]
+    Register --> Await["server.await()<br/>等待 8005 SHUTDOWN"]
+    Await -->|收到 SHUTDOWN| Normal["正常关闭路径"]
+    Normal --> Remove["removeShutdownHook"]
+    Remove --> Stop["server.stop()"]
+    Register -->|Ctrl+C / JVM 退出| Hook["JVM 执行 shutdown hook"]
+    Hook --> Stop
+
+    style Register fill:#e3f2fd,stroke:#1976d2
+    style Remove fill:#fff3bf,stroke:#f59f00
+    style Hook fill:#ffe3e3,stroke:#c62828
+    style Stop fill:#e8f5e9,stroke:#2e7d32
+```
 
 # ShutdownHook
 Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ctrl+C、或者Windows直接叉掉窗口）时，会调用注册在jvm里的shutdown hook。所以只要把关闭Server的行为添加到shutdown hook里就行了。
@@ -129,4 +146,3 @@ Java有关闭机制。在jvm退出（只有守护线程、或者Linux命令行Ct
 启动Server后，start server，紧接着注册stop Server的shutdown hook。
 
 但是如果Server收到"SHUTDOWN"了（Server在8005端口阻塞接收消息，跟Connector在8080端口无关），`await`方法会结束while true循环。代码继续往后执行，这时候Server是正常结束的，要正常执行`server.stop()`。就不需要在stop Server的shutdown hook里再做一遍stop server操作了，所以**这里会把该shutdown hook删掉**。细致！
-

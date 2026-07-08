@@ -3,6 +3,7 @@ title: "Elasticsearch：performance"
 date: 2022-05-08 20:42:06 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "Elasticsearch 性能笔记：缓存、profile API、慢日志、SSD、深度分页、scroll、search_after 和 PIT。"
 ---
 
 调优永远是比较困难的话题，调优就意味着已经超越了普通的使用场景：
@@ -14,8 +15,8 @@ tags: [elasticsearch]
 
 # 可调之处
 es的可调之处有很多：
-1. 段合并相关：https://www.elastic.co/guide/cn/elasticsearch/guide/current/indexing-performance.html#segments-and-merging
-2. 分片数量设置：https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html
+1. [段合并相关](https://www.elastic.co/guide/cn/elasticsearch/guide/current/indexing-performance.html#segments-and-merging)
+2. [分片数量设置](https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html)
 3. translog大小/是否异步、refresh_interval：[Elasticsearch：分片读写]({% post_url 2022-05-05-es-read-write %})；
 4. 全局序数要不要预加载：[Elasticsearch：关系型文档]({% post_url 2022-05-03-es-relations %})；
 4. 存储限流：merge如果太猛，会拖慢index和query的速度。`indices.store.throttle.max_bytes_per_se`；
@@ -23,6 +24,13 @@ es的可调之处有很多：
 6. and more...
 
 不仅种类繁杂，调之前一定要想好，调的目的到底是什么。**es参数的调整很多时候都是索引速度和搜索速度之间的权衡，以xx换xx。比如refresh interval、flush interval、段合并条件等，如果让index速度变快了，query速度是会受影响的**。所以调之前一定要想清楚好处是什么，代价又是什么。
+
+| 调优方向 | 常见参数/手段 | 换来的好处 | 付出的代价 |
+| --- | --- | --- | --- |
+| 写入吞吐 | 增大 `refresh_interval`、降低 replica | bulk/reindex 更快 | 近实时性下降、容灾能力下降 |
+| 查询延迟 | 合理分片、filter cache、SSD、预热全局序数 | 单次搜索更快 | 写入/refresh 压力可能增加 |
+| 稳定性 | 慢日志、profile API、限流、减少深分页 | 更容易定位慢点 | 需要持续观测，不是一锤子买卖 |
+| 存储成本 | 关闭不必要的 `doc_values` / `index` | 磁盘省 | 后续想排序/聚合/搜索要重建索引 |
 
 # cache
 ## segment cache
@@ -252,3 +260,9 @@ PIT接口独立出来之后，已经可以和 **任意search请求组合使用**
 
 > reindex也和PIT有关，reindex的就是那一刻的snapshot数据。
 
+| 方式 | 是否适合深分页/遍历 | 是否稳定快照 | 主要坑 |
+| --- | --- | --- | --- |
+| `from + size` | 不适合 | 否 | 每个 shard 都要取前面所有页，越翻越慢 |
+| `scroll` | 适合批量遍历 | 是 | search context 绑定查询，占资源，长期持有影响段删除 |
+| `search_after` | 适合连续向后翻 | 否 | 必须有稳定唯一 sort，否则重漏 |
+| `search_after + PIT` | 更适合现代遍历 | 是 | PIT 也会保留旧 segment，记得控制 `keep_alive` |

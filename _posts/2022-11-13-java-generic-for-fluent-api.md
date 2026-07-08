@@ -3,12 +3,29 @@ title: "用泛型实现父子类的fluent api"
 date: 2022-11-13 21:29:29 +0800
 categories: [java]
 tags: [java]
+description: "借 AssertJ/FEST 的实现理解 Java 如何用递归泛型模拟 self type，让父类 fluent API 返回子类类型。"
 ---
 
 今天在看assertj的实现时，看到了一个很好玩的东西：用泛型实现父子类的fluent api。它引用的一篇文章，回答了我之前很多次看到这种泛型写法时的满头问号。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+classDiagram
+    class AbstractAssert~SELF, ACTUAL~ {
+      SELF myself
+      SELF isNotNull()
+      SELF isEqualTo(Object expected)
+    }
+    class AbstractStringAssert~SELF~ {
+      SELF startsWith(String prefix)
+    }
+    class StringAssert
+    AbstractAssert <|-- AbstractStringAssert
+    AbstractStringAssert <|-- StringAssert
+    StringAssert : SELF = StringAssert
+```
 
 # fluent api
 fluent api并不陌生，比如builder模式就是一种最常见的fluent api。
@@ -327,4 +344,3 @@ public class FileAssert extends AbstractFileAssert<FileAssert> {
 其实之前也不是没翻过开源代码，只是翻看开源代码比较少。没有这个习惯，也不太有这个能力。或者说因为没有这个能力，所以才没有养成这个习惯。但是今年不太一样，感觉像开窍了一般，所有学的东西都串起来了。从翻spring系列源码开始，看到什么比较有意思的东西就想翻翻看大概是怎么实现的。大概是因为能力变强了，所以不再满足于知其然了。但是又很难说难道不是因为老想知其所以然所以能力才变强了？这本就是一个互相促进的过程吧。
 
 今天随手翻翻assertj的源码，没想到就解决了之前经常看到的不知所云的自界泛型，还挺幸运的。果然流行的开源代码，都是精华。武林秘籍就摆在那儿，如果现代社会出了一个鸠摩智，他一定愿称这个时代是最好的时代吧。
-

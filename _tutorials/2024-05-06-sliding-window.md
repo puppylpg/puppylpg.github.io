@@ -1,257 +1,190 @@
 ---
 title: Refresh - 滑动窗口
 date: 2024-05-06 00:08:53 +0800
+categories: [tutorial, algorithm]
+tags: [sliding-window, string, hash-map, two-pointers]
+description: "滑动窗口复习：用左右指针动态维护子串，理解最大/最小窗口的收缩时机，并解析无重复字符、最小覆盖子串、串联所有单词。"
 render_with_liquid: false
 ---
 
-常用来处理字符串的子串问题，比如找出符合条件的max/min子串，一般通过一个窗口动态维护子串，动态的过程有滑动的意思，所以称为滑动窗口。
+滑动窗口常用来处理字符串子串问题，比如找符合条件的最大/最小子串。窗口用左右指针动态维护，动态过程像在数组或字符串上“滑动”。
 
 1. Table of Contents, ordered
 {:toc}
 
-# 滑动窗口
-[这个](https://www.51cto.com/article/689828.html)教程总结了滑动窗口的模板，**核心就是右边++增大窗口，判断是否满足条件；左边++减小窗口，判断是否满足条件**。
+# 核心规则
 
-**什么时候开始窗口缩小（left++）**？分两种：
-- **如果找的是最大的字符串，那么尽量加：在不满足条件的时候，才缩小**；
-- **如果找的是最小的字符串，那么尽量减：在满足条件的基础上，就缩小**；
+滑动窗口的核心动作只有两个：
 
-**什么时候记录结果呢**？同样分两种：
-- 如果找的是最大字符串，肯定是在扩窗口以后（同时满足条件）记录结果；
-- 如果找的是最小字符串，肯定是在缩窗口以后（同时满足条件）记录结果；
+1. 右指针右移，扩大窗口。
+2. 左指针右移，缩小窗口。
 
-```java
-int left =0，right = 0; 
-while (right < s.size()){ 
-
-  while (不能继续增大了？那就考虑缩小吧！) { 
-    //缩小窗口 
-    window.remove(s[left]); 
-    left++; 
-  } 
-  
-  //增大窗口
-  window.add(s[right]); 
-  right++; 
-} 
+```mermaid
+flowchart LR
+    A["left"] --> B["窗口内容"]
+    B --> C["right"]
+    C -->|"right++"| D["扩大窗口"]
+    A -->|"left++"| E["缩小窗口"]
 ```
 
-> right++也未必放在内层while前，放while后也可以，看情况。
+什么时候缩？看目标：
 
-之所以这个模板很好，是因为它把两种情况下的判断都放到了里面的while的条件里，这样写的话：
-- 右边++之后会立刻判断条件是否满足；
-- 左边++之后也会立刻判断条件是否满足；
+| 目标 | 策略 | 什么时候缩小窗口 | 什么时候记录答案 |
+|------|------|------------------|------------------|
+| 最大窗口 | 尽量加 | 不满足条件时缩 | 扩大后且满足时 |
+| 最小窗口 | 尽量减 | 满足条件时缩 | 缩小前/缩小过程中 |
 
-而我之前自己写了一个类似这样的：
+> 一句话：找最大，能扩就扩；找最小，能缩就缩。
+
+# 通用模板
+
+更清晰的模板是：外层负责 `right++`，内层负责根据条件 `left++`。
+
 ```java
-int left =0，right = 0; 
-while (right < s.size()){ 
+int left = 0, right = 0;
+while (right < s.length()) {
+    // 扩大窗口
+    add(s.charAt(right));
+    right++;
 
-  while (满足条件 && right < s.size()) {
-    //增大窗口 
-    window.add(s[right]); 
-    right++; 
-  }
-  
-  while (不满足条件 && left < s.size()){ 
-    //缩小窗口 
-    window.remove(s[left]); 
-    left++; 
-  } 
-} 
+    while (需要缩小窗口) {
+        // 缩小窗口
+        remove(s.charAt(left));
+        left++;
+    }
+
+    // 按题意记录结果
+}
 ```
-这样写就很麻烦，尤其是如果还需要记录满足条件的值，就会在里面的两个while后面分别记录，很麻烦。上面的模板只在一处判断，所以也只在一处记录就行了。
 
-[这个](https://leetcode.cn/problems/longest-substring-without-repeating-characters/solutions/3982/hua-dong-chuang-kou-by-powcai/)题解列出了一堆滑动窗口的题型：
+关键是把“窗口是否满足条件”的判断集中在一个地方。以前我写过两个 while：一个一直扩，一个一直缩，结果记录点散在两处，逻辑很乱。模板的意义就是减少这种自我折磨。
 
-滑动窗口的问题，**核心在于判断条件是否成立**。其他部分就按照框架滑就行了。
+# 无重复字符的最长子串
 
-以[无重复字符的最长子串](https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/)为例，由于是无重复，所以把当前窗口的字符都放到set里，判断下一个是否还能放。**由于找的是最长，所以条件是：在不重复的基础上，一直right++，直到下一个要重复了，才开始缩小窗口left++**。窗口**缩小到不会有字符和下一个字符重复了，再继续扩大窗口**。
+[无重复字符的最长子串](https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/)找的是最大窗口。
+
+条件：窗口内字符不重复。
+
+策略：右边尽量扩；如果下一个字符重复，就先缩到不重复。
+
+```mermaid
+flowchart TD
+    A["right 指向新字符 c"] --> B{"set 里已有 c？"}
+    B -->|是| C["remove s[left], left++"]
+    C --> B
+    B -->|否| D["add c, right++"]
+    D --> E["更新 max"]
+```
+
+代码：
+
 ```java
 class Solution {
-    // s = "ccabcabcbb"
     public int lengthOfLongestSubstring(String s) {
-
-        Set<Character> set = new HashSet<>();
-
+        Set<Character> window = new HashSet<>();
+        int left = 0, right = 0;
         int max = 0;
 
-        int left = 0, right = 0;
         while (right < s.length()) {
             char c = s.charAt(right);
 
-            // 下一个要往里加的是c，如果之前set里有过c了，就可以从左收缩窗口了
-            while (set.contains(c)) {
-                // 如果之前有两个c，那么这里移动一个left却remove了所有的c？
-                // 其实不是的，因为处理一开始的cc的时候，第二个c进来前，第一个c就会因为重复被删了，所以用set是可以的，这也是为什么会用set。**set对应的当前串，不会对应两个重复字符的情况**
-                set.remove(s.charAt(left++));
+            while (window.contains(c)) {
+                window.remove(s.charAt(left));
+                left++;
             }
 
-            set.add(c);
+            window.add(c);
             right++;
-
-            max = Math.max(max, set.size());
+            max = Math.max(max, right - left);
         }
 
         return max;
     }
-
 }
 ```
 
-[最小覆盖子串](https://leetcode.cn/problems/minimum-window-substring/description/)之所以是hard，就难在怎么判断条件是否成立了。题目要求的是s的子串包含t里的所有字符。首先想到的还是set，**但是t里的字符可能重复，所以s的子串除了要有相应字符，字符频次也得够。这样一来相当于要给set里的字符计数，很显然，应该用map：使用map的kv记录t里的所有字符和频次**。
+为什么 `Set` 可以？因为窗口始终维护“不重复”的状态。遇到重复字符时，会先把左边删到不重复，再把当前字符放进去。所以窗口里不会同时存在两个相同字符。
 
-**那么怎么判断是否包含了呢？滑动窗口在滑s的时候，给map里的对应字符做--就行了，类似于消消乐，如果map里所有的key对应的value都为0，就相当于当前窗口全包含t了**。然后再使用框架滑动。
+示例 `ccabcabcbb`：
 
-但是“map里所有的key对应的value都为0”，需要遍历整个map，能不能不遍历？可以！想想MySQL的表级的意向锁，就是为了不使用遍历判断是否有行锁，才搞得一个数据结构。**那这里也可以用一个标识符表示当前所有的key是否都为0。既然是消消乐，那消`t.length()`次后就都为0了，所以用一个int就行了。**
+| 步骤 | 新字符 | 缩小前窗口 | 操作 | 缩小后窗口 |
+|------|--------|------------|------|------------|
+| 1 | `c` | `""` | 加入 | `"c"` |
+| 2 | `c` | `"c"` | 删除左侧 `c` | `"c"` |
+| 3 | `a` | `"c"` | 加入 | `"ca"` |
+| 4 | `b` | `"ca"` | 加入 | `"cab"` |
+| 5 | `c` | `"cab"` | 删除到无重复 | `"abc"` |
 
-**最后梳理一下条件：由于找的是最小字符串，那不停缩小窗口的条件就是“消完了”。**
+# 最小覆盖子串
+
+[最小覆盖子串](https://leetcode.cn/problems/minimum-window-substring/description/)找的是最小窗口。
+
+条件：`s` 的当前窗口包含 `t` 的所有字符，且字符频次也要够。
+
+只用 set 不行，因为 `t` 里可能有重复字符。应该用 map 记录所需频次。
+
+直觉是“消消乐”：
+
+- 先统计 `tMap`：每个字符还需要几个。
+- 扩窗口遇到目标字符，就让需求减一。
+- 如果减掉的是一个仍然需要的字符，则 `stillLeft--`。
+- `stillLeft == 0` 表示当前窗口已经覆盖。
+- 覆盖后尽量缩小窗口。
+
+```mermaid
+flowchart TD
+    A["扩 right"] --> B["目标字符需求 -1"]
+    B --> C{"stillLeft == 0?"}
+    C -->|否| A
+    C -->|是| D["记录当前窗口"]
+    D --> E["缩 left"]
+    E --> F{"仍然覆盖？"}
+    F -->|是| D
+    F -->|否| A
+```
+
+为什么用 `stillLeft`？因为“map 里所有 key 的 value 都为 0”需要遍历 map。就像 MySQL 的表级意向锁是为了避免遍历所有行锁一样，这里也用一个整数表示“还差多少有效字符”。
 
 ```java
 class Solution {
     public String minWindow(String s, String t) {
-
-        // 一开始想仿照（3. 无重复字符的最长子串）用set判断滑动窗口弹出的左字符是否在t里，后来发现t可以有重复字符，所以还得记t里有几个字符
-        // https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/
-        // Set<Character> tSet = new HashSet<>();
-        // 所以用map了
-        Map<Character, Integer> tMap = new HashMap<>();
+        Map<Character, Integer> need = new HashMap<>();
         for (char c : t.toCharArray()) {
-            tMap.put(c, tMap.getOrDefault(c, 0) + 1);
+            need.put(c, need.getOrDefault(c, 0) + 1);
         }
 
-        int minLength = Integer.MAX_VALUE, minLeft = -1, minRight = -1;
-
-        // sMap不需要了，直接原地decrease tMap就行了，就像消消乐
-        // Map<Character, Integer> sMap = new HashMap<>();
-        // 什么时候全覆盖了？tMap所有key为0，但这个操作需要遍历，复杂度太高。可以找一个值单独记录t有没有被消完
-        int stillLeft = t.length();
         int left = 0, right = 0;
+        int stillLeft = t.length();
+        int minLength = Integer.MAX_VALUE;
+        int minLeft = -1, minRight = -1;
+
         while (right < s.length()) {
-            
             char rc = s.charAt(right);
-
-            if (!tMap.containsKey(rc)) {
-                right++;
-                continue;
+            if (need.containsKey(rc)) {
+                int old = need.get(rc);
+                if (old > 0) {
+                    stillLeft--;
+                }
+                need.put(rc, old - 1);
             }
-
-            int rcValue = tMap.get(rc);
-            if (rcValue > 0) {
-                // a valid decrease
-                stillLeft--;
-            }
-            tMap.put(rc, rcValue - 1);
-
             right++;
 
-            // 参考滑动窗口的模板，只用外内两个while就行了，能省不少代码，逻辑也清晰。
-            // 外层while是right++，内存while是left++，内层while的判断条件是：当前依旧符合题意（依旧能覆盖）
-            while (stillLeft <= 0) {
-
-                // record current result
-                if (minLength > right - left) {
+            while (stillLeft == 0) {
+                if (right - left < minLength) {
                     minLength = right - left;
                     minLeft = left;
                     minRight = right;
                 }
 
                 char lc = s.charAt(left);
-
-                if (!tMap.containsKey(lc)) {
-                    left++;
-                    continue;
+                if (need.containsKey(lc)) {
+                    int old = need.get(lc);
+                    if (old + 1 > 0) {
+                        stillLeft++;
+                    }
+                    need.put(lc, old + 1);
                 }
-
-                int lcValue = tMap.get(lc);
-                if (lcValue + 1 > 0) {
-                    // a valid increase
-                    stillLeft++;
-                }
-                tMap.put(lc, lcValue + 1);
-
                 left++;
-            }
-
-        }
-
-        return minLeft == -1 ? "" : s.substring(minLeft, minRight);
-    }
-}
-```
-
-再贴一个一开始不按照模板写的，就比较啰嗦：
-```java
-class Solution {
-    public String minWindow(String s, String t) {
-
-        Map<Character, Integer> tMap = new HashMap<>();
-        for (char c : t.toCharArray()) {
-            if (tMap.containsKey(c)) {
-                tMap.put(c, tMap.get(c) + 1);
-            } else {
-                tMap.put(c, 1);
-            }
-        }
-
-        int minLength = Integer.MAX_VALUE, minLeft = -1, minRight = -1;
-
-        int stillLeft = t.length();
-        int left = 0, right = 0;
-        while (right < s.length()) {
-            
-            while (stillLeft > 0 && right < s.length()) {
-                char c = s.charAt(right);
-
-                if (!tMap.containsKey(c)) {
-                    right++;
-                    continue;
-                }
-
-                int value = tMap.get(c);
-                if (value > 0) {
-                    // a valid decrease
-                    stillLeft--;
-                }
-                tMap.put(c, value - 1);
-
-                right++;
-            }
-
-            // record result
-            if (stillLeft <= 0) {
-                if (minLength > right - left) {
-                    minLength = right - left;
-                    minLeft = left;
-                    minRight = right;
-                }
-            }
-
-            while (stillLeft <= 0 && left < right) {
-                char c = s.charAt(left);
-
-                if (!tMap.containsKey(c)) {
-                    left++;
-                    continue;
-                }
-
-                int value = tMap.get(c);
-                if (value + 1 > 0) {
-                    // a valid increase
-                    stillLeft++;
-                }
-                tMap.put(c, value + 1);
-
-                left++;
-            }
-
-            // record result
-            if (stillLeft > 0) {
-                if (minLength > right - left - 1) {
-                    minLength = right - left - 1;
-                    minLeft = left - 1;
-                    minRight = right;
-                }
             }
         }
 
@@ -260,95 +193,63 @@ class Solution {
 }
 ```
 
-[30. 串联所有单词的子串](https://leetcode.cn/problems/substring-with-concatenation-of-all-words/description/)这个题很有意思：
-- **如果把滑动的单位看做word，那么它和[无重复字符的最长子串](https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/)的相似性就很明显了：一个在统计char，一个在统计string**。区别是本题的word要exactly相同（且包括词频），**所以用了map#equals来做判断**
-- 而我一开始傻傻地在滑动char，然后把当前字符串再切分成一个个string作比较，相比之下，慢了很多，也麻烦了很多
+状态解释：
 
-滑动char（**慢，但是和双重for循环切分字符串比起来，还是要快不少的，因为滑动完整个字符串是O(n)，但是双重for光遍历切分完整个字符串就是O(n^2)了**）：
-```java
-class Solution {
-    public List<Integer> findSubstring(String s, String[] words) {
-        int wordsNum = words.length;
-        int wordLen = words[0].length();
+| `need[c]` | 含义 |
+|-----------|------|
+| `> 0` | 还缺这个字符 |
+| `== 0` | 刚好满足 |
+| `< 0` | 窗口里这个字符多了 |
 
-        int targetLen = wordLen * wordsNum;
+找最小窗口时，答案要在 `while (stillLeft == 0)` 里记录。因为每缩一次，都可能得到更短的合法窗口。
 
-        if (s.length() < targetLen) {
-            return List.of();
-        }
+# 串联所有单词的子串
 
-        // 统计words词频
-        Map<String, Integer>  = new HashMap<>();
-        for (String word : words) {
-            map.put(word, map.getOrDefault(word, 0) + 1);
-        }
+[30. 串联所有单词的子串](https://leetcode.cn/problems/substring-with-concatenation-of-all-words/description/)很有意思。
 
-        List<Integer> result = new ArrayList<>();
+如果把滑动单位看成 word，它和“无重复字符的最长子串”很像：一个统计 `char`，一个统计 `String`。区别是本题要求 words 完全匹配，并且包括词频。
 
-        // 因为用的是substring，所以right就用来做开区间了，因此从1开始，而且可以为s.length()
-        int left = 0, right = 0;
-        while (right <= s.length()) {
-            int curLen = right - left;
+## 错误但有启发的思路：滑动 char
 
-            // 窗口开始滑动的条件就是长度符合条件了，不管match与否都要滑动，所以判断match与否不能写在这里
-            while (curLen == targetLen) {
-                // 只有match才记录结果，但就算不match也应该滑动
-                if (matchWithArray(s, left, right, new HashMap<>(map), wordsNum, wordLen)) {
-                    // record result
-                    result.add(left);
-                }
+一开始我傻傻地滑动 char，每次窗口长度够了，再把当前窗口切成 word 数组比较。
 
-                left++;
-                curLen = right - left;
-            }
-            right++;
-        }
-
-        return result;
-    }
-
-    private boolean matchWithArray(String s, int left, int right, Map<String, Integer> map, int wordsNum, int wordLen) {
-        while (left < right) {
-            String sub = s.substring(left, left + wordLen);
-            if (!map.containsKey(sub)) {
-                return false;
-            }
-
-            int value = map.get(sub);
-            if (value > 0) {
-                // a valid decrease
-                wordsNum--;
-            }
-
-            if (value - 1 < 0) {
-                return false;
-            }
-
-            map.put(sub, value - 1);
-
-            left += wordLen;
-        }
-
-        return wordsNum == 0;
-    }
-}
+```mermaid
+flowchart LR
+    A["滑动 1 个 char"] --> B["窗口长度到 targetLen"]
+    B --> C["重新切分成 words"]
+    C --> D["比较词频"]
+    D --> E["left++"]
 ```
-**和滑动word相比，慢在了每次比较的时候，都要给当前子串做切分成word数组的操作**。
 
-滑动word（**不用再遍历子串切分为word数组了**）。由于这个问题要求当前窗口的words正好是目标words的拼接，所以**当当前窗口的words和目标words个数相同，就可以进行判断了。不管是否满足匹配，都缩减窗口**。
+这比双重 for 好一些，但每次比较都要重新切分子串，还是慢。
+
+# 以 word 为单位滑动
+
+word 长度固定为 `wordLen`。要覆盖所有对齐方式，需要从 `0` 到 `wordLen - 1` 分别开一轮。
+
+```mermaid
+flowchart TD
+    A["wordLen = 3"] --> B["从 0 开始滑"]
+    A --> C["从 1 开始滑"]
+    A --> D["从 2 开始滑"]
+    B --> E["每次 right += wordLen"]
+    C --> E
+    D --> E
+```
+
+窗口内维护当前词频 `curWordsFreq`，目标词频是 `targetWordsFreq`。当窗口里的 word 数量等于目标数量，就检查是否相等；不管匹配与否，都左移一个 word。
+
 ```java
 class Solution {
     public List<Integer> findSubstring(String s, String[] words) {
         int wordsNum = words.length;
         int wordLen = words[0].length();
-
-        int targetLen = wordLen * wordsNum;
+        int targetLen = wordsNum * wordLen;
 
         if (s.length() < targetLen) {
             return List.of();
         }
 
-        // 统计words词频
         Map<String, Integer> targetWordsFreq = new HashMap<>();
         for (String word : words) {
             targetWordsFreq.put(word, targetWordsFreq.getOrDefault(word, 0) + 1);
@@ -356,39 +257,33 @@ class Solution {
 
         List<Integer> result = new ArrayList<>();
 
-        // 以word为单位滑动，那么要滑wordLen轮
-        for (int i = 0; i < wordLen; i++) {
-            // 每一轮的词频当前统计，直接用map#equals比较词频
+        for (int offset = 0; offset < wordLen; offset++) {
             Map<String, Integer> curWordsFreq = new HashMap<>();
-            // 同理，使用一个计数器而不是每次sum all values来计算word数是否够了
             int curWordsNum = 0;
 
-            // 因为用的是substring，所以right就用来做开区间了，因此从1开始，而且可以为s.length()
-            int left = i, right = i;
+            int left = offset, right = offset;
             while (right + wordLen <= s.length()) {
                 String curWord = s.substring(right, right + wordLen);
                 curWordsFreq.put(curWord, curWordsFreq.getOrDefault(curWord, 0) + 1);
                 curWordsNum++;
 
-                // 窗口开始滑动的条件就是长度符合条件了，不管match与否都要滑动，所以判断match与否不能写在这里
                 while (curWordsNum == wordsNum) {
-                    // 只有match才记录结果，但就算不match也应该滑动
                     if (curWordsFreq.equals(targetWordsFreq)) {
-                        // record result
                         result.add(left);
                     }
 
-                    left += wordLen;
-                    String removedWord = s.substring(left - wordLen, left);
+                    String removedWord = s.substring(left, left + wordLen);
                     int freq = curWordsFreq.get(removedWord);
-                    if (freq > 1) {
-                        curWordsFreq.put(removedWord, freq - 1);
-                    } else {
-                        // 如果为0了，要删掉这个entry，否则map#equals不会为true
+                    if (freq == 1) {
                         curWordsFreq.remove(removedWord);
+                    } else {
+                        curWordsFreq.put(removedWord, freq - 1);
                     }
+
+                    left += wordLen;
                     curWordsNum--;
                 }
+
                 right += wordLen;
             }
         }
@@ -397,3 +292,64 @@ class Solution {
     }
 }
 ```
+
+注意：当某个 word 频次变成 0，要从 map 里删掉，否则 `map.equals` 不会为 `true`。
+
+# 何时记录结果
+
+这个点很容易乱，单独拎出来：
+
+```mermaid
+flowchart TD
+    A["扩大窗口后"] --> B{"找最大？"}
+    B -->|是| C["若满足条件，记录答案"]
+    B -->|否| D{"找最小？"}
+    D -->|是| E["当满足条件时进入缩小循环"]
+    E --> F["每次缩小前/缩小中记录答案"]
+```
+
+示例：
+
+| 题目 | 找最大/最小 | 记录位置 |
+|------|-------------|----------|
+| 无重复字符最长子串 | 最大 | 加入新字符后 |
+| 最小覆盖子串 | 最小 | `while (覆盖)` 内 |
+| 串联所有单词 | 固定长度 | 窗口 word 数量达到目标时 |
+
+# 常见坑
+
+| 坑 | 表现 | 处理 |
+|----|------|------|
+| 不知道何时缩 | while 条件写反 | 先判断是最大还是最小 |
+| 结果记录点散乱 | 两个 while 后都记录 | 使用外扩内缩模板 |
+| set/map 选错 | 忽略重复字符频次 | 有频次就用 map |
+| 右边界含义混乱 | substring 少/多一位 | 统一使用 `[left, right)` |
+| map 为 0 不删除 | `equals` 永远 false | 频次归零就 remove |
+| 滑动单位错 | 每次重复切分 | 题目是 word 就滑 word |
+
+# 模板复盘
+
+最后把模板翻译成题目语言：
+
+1. 窗口里维护什么状态？
+2. 扩窗口时怎么更新状态？
+3. 什么条件下要缩窗口？
+4. 缩窗口时怎么恢复状态？
+5. 何时记录答案？
+
+```java
+while (right < n) {
+    add(right);
+    right++;
+
+    while (shouldShrink()) {
+        recordIfNeeded();
+        remove(left);
+        left++;
+    }
+
+    recordIfNeeded();
+}
+```
+
+真正难的通常不是左右指针，而是“窗口是否满足条件”怎么 O(1) 判断。这个条件想清楚，窗口自然就滑起来了。

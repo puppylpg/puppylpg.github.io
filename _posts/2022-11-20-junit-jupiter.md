@@ -3,12 +3,28 @@ title: "JUnit Jupiter"
 date: 2022-11-20 02:26:45 +0800
 categories: [junit, jupiter, testcontainers, maven]
 tags: [junit, jupiter, testcontainers, maven]
+description: "整理 JUnit Jupiter 的常用测试注解、参数化测试、生命周期和 @ExtendWith 扩展模型。"
 ---
 
 既然assertj看完了，既然testcontainers、spring、springboot几乎每个框架都接入了jupiter的@ExtendWith，那就好好看看早就想看的jupiter吧！
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+sequenceDiagram
+    participant Jupiter as JUnit Jupiter Engine
+    participant Extension as Extension(@ExtendWith)
+    participant TestClass as Test Class
+    participant TestMethod as Test Method
+
+    Jupiter->>Extension: beforeAll(ClassExtensionContext)
+    Jupiter->>TestClass: 创建/准备测试类
+    Jupiter->>Extension: beforeEach(MethodExtensionContext)
+    Jupiter->>TestMethod: 执行 @Test / @ParameterizedTest
+    Jupiter->>Extension: afterEach(MethodExtensionContext)
+    Jupiter->>Extension: afterAll(ClassExtensionContext)
+```
 
 # basic
 一些之前不太常用但看起来很好用的注解：
@@ -472,5 +488,4 @@ junit是测试框架，框架就意味着它有生命周期，需要在生命周
 第一次听说junit是大学老师让写单元测试测试自己的代码。但是当时对使用Java写程序尚不甚明了，更不能体会单元测试的意图了。写出来的单元测试也很敷衍，反正ide也支持，一点按钮就跑起来了。后来工作了，用Java写工程已经上道儿了，也体会到了单元测试的好处。但是junit用了那么久，却从来没有好好看过junit大概是个什么样的架构，也没看过它的官方文档，导致写出来的单元测试一直处于很低级的层面。终于今年被没有单元测试集成测试的代码的测试复杂度恶心到了，一定要给springboot工程加上单元测试和集成测试，发现想学习springboot的test，还是要先大致了解junit。从那一刻开始，看了springboot的源码，看了spring的源码，中间又用了docker，上了gitlab-ci，跑testcontainers，用assertj做断言，然后一切又连起来了：testcontainers要用docker，使用gitlab-ci docker runner的dind，有自己的jupiter @ExtendWith拓展，兜兜转转，回到了最初的起点。今天终于把junit jupiter的架构稍微看了看……
 
 下一步，终于又是springboot test了~
-
 

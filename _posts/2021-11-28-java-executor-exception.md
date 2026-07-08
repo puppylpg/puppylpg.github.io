@@ -3,6 +3,7 @@ title: "线程池异常处理"
 date: 2021-11-28 18:24:42 +0800
 categories: [java, executor]
 tags: [java, executor]
+description: "复盘线程池任务异常后 worker、Future、业务队列之间的真实行为，以及为什么看起来会全员 WAITING。"
 ---
 
 前一段碰到一个很迷惑的问题，大致模型为：
@@ -14,6 +15,23 @@ tags: [java, executor]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Producer["主线程<br/>向业务 ArrayBlockingQueue put"] --> BizQueue["业务队列"]
+    WorkerTask["线程池里的 40 个长期任务"] --> BizQueue
+    WorkerTask --> RuntimeException["某个任务抛 RuntimeException"]
+    RuntimeException --> FutureTask["FutureTask 捕获异常<br/>写入 outcome"]
+    FutureTask --> PoolWorker["ThreadPoolExecutor Worker 继续活着"]
+    PoolWorker --> PoolQueue["回到线程池 LinkedBlockingQueue take 任务"]
+    BizQueue -->|无人消费后变满| ProducerWaiting["主线程 WAITING: put"]
+    PoolQueue -->|没有新任务| WorkerWaiting["worker WAITING: take"]
+
+    style RuntimeException fill:#ffe3e3,stroke:#c62828
+    style FutureTask fill:#fff3bf,stroke:#f59f00
+    style ProducerWaiting fill:#e3f2fd,stroke:#1976d2
+    style WorkerWaiting fill:#e3f2fd,stroke:#1976d2
+```
 
 当时就感觉很纳闷，为什么两类线程，一个放不进去，一个取不出来呢？后来仔细观察才发现get和put针对的不是同一个blocking queue——
 
@@ -209,5 +227,4 @@ exception: java.lang.Exception: what happened
 以上算是一个比较标准的处理流程：
 1. catch住所有异常，不抛出去；
 2. 最好能单独响应InterruptedException，给无限重复任务增加一个退出的机制。参考：[java-interrupt]({% post_url 2020-05-17-java-interrupt %})；
-
 

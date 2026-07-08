@@ -3,6 +3,7 @@ title: "演进中的架构"
 date: 2023-02-22 23:56:34 +0800
 categories: [microservice, kubernetes, sidecar, filebeat]
 tags: [microservice, kubernetes, sidecar, filebeat]
+description: "沿着单体、原始分布式、微服务、云原生、Service Mesh 和 Serverless，理解架构为什么持续演进。"
 ---
 
 这是目前最震撼我的一篇总结。过于高屋建瓴，我就不指指点点了:D
@@ -13,6 +14,18 @@ tags: [microservice, kubernetes, sidecar, filebeat]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+timeline
+    title 架构不是被发明出来的，而是被需求逼出来的
+    原始分布式 : 算力不足，试图把多台机器拼成一个系统 : 服务发现/容错/一致性太难
+    单体 : 摩尔定律带来足够算力 : 进程内调用简单高效
+    大型单体 : 复杂度和隔离性成为问题 : 更新和故障影响面过大
+    微服务 : 用远程调用换自治与隔离 : 分布式复杂度回来了
+    云原生 : Kubernetes 虚拟化基础设施 : 把部分分布式问题下沉
+    Service Mesh : sidecar 处理流量治理 : 减少业务侵入
+    Serverless : 业务函数化、基础设施云化 : 花钱买简单
+```
 
 # 可靠的系统
 什么是可靠的系统？**系统可靠不在于每一部分都可靠，而在于不可靠的地方在出错崩溃之后能自动被取代**，以继续维持系统的整体稳定。这样**即使用不可靠的部件，依旧能构造出可靠的系统**。
@@ -137,4 +150,3 @@ serverless走的是一条非分布式路线，只不过它是云端的单体。
 架构不是被发明出来的，而是持续演进的结果。虽然很难想象以后架构会发展成什么样，但我们只需要选择当下合适的架构解决自己的问题就行了。
 
 Alan Turing：尽管目光所及之处，只是不远的前方，即使如此，依然可以看到那里有许多值得去完成的工作在等待我们（We can only see a short distance ahead, but we can see plenty there that needs to be done）。
-

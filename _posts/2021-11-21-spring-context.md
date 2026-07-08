@@ -1,14 +1,38 @@
 ---
 title: "Spring - bean的容器"
 date: 2021-11-21 21:07:58 +0800
-categories: [spring]
-tags: [spring]
+categories: [tech, spring, applicationcontext]
+tags: [spring, applicationcontext, beandefinition, event]
+description: "从 AnnotationConfigApplicationContext 的启动过程出发，理解 BeanDefinition、refresh 流程和 Spring 容器事件。"
 ---
 
-[Spring - bean的生命周期]({% post_url 2021-11-16-spring-bean-lifecycle %})介绍了spring bean的生命周期需要经过哪些步骤，但是这些只是一半的工作。bean之所以有这些步骤可做，是因为bean的容器在配合它：虽然已经定义了各种操作bean的接口，比如BeanPostProcessor等，如果容器不去响应他们，也就没法完成这些所谓的回调。只有bean和容器协同使用这些接口，才能实现完整的spring框架功能。
+[Spring - bean的生命周期]({% post_url 2021-11-16-spring-bean-lifecycle %})介绍了 Spring Bean 会经历哪些阶段，但那只是对象这一侧的视角。生命周期之所以能被执行，是因为容器在特定时机主动响应这些扩展点：读取配置、注册 `BeanDefinition`、调用后处理器、实例化非懒加载单例、发布容器事件。
 
 1. Table of Contents, ordered
 {:toc}
+
+这篇文章从 `AnnotationConfigApplicationContext` 的构造函数出发，沿着 `register()` 和 `refresh()` 两个动作观察容器如何把配置变成可获取的 bean，再看 Spring 事件为什么本质上也是一种回调机制。
+
+`ApplicationContext` 启动可以先粗略看成三段：准备读取器、注册配置、刷新容器。真正复杂的部分都藏在 `refresh()` 里：
+
+```mermaid
+flowchart TD
+    New["new AnnotationConfigApplicationContext"] --> Ctor["this()<br/>准备 Reader / Scanner"]
+    Ctor --> Register["register(configClass)<br/>配置类变成 BeanDefinition"]
+    Register --> Refresh["refresh()<br/>刷新 BeanFactory"]
+    Refresh --> BFPP["调用 BeanFactoryPostProcessor<br/>继续注册/修改 BeanDefinition"]
+    BFPP --> BPP["注册 BeanPostProcessor<br/>准备拦截 bean 生命周期"]
+    BPP --> Singleton["实例化非懒加载 singleton"]
+    Singleton --> Event["发布 ContextRefreshedEvent"]
+    Event --> Ready["context.getBean 可用"]
+
+    classDef prep fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef refresh fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef done fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    class New,Ctor,Register prep
+    class Refresh,BFPP,BPP,Singleton,Event refresh
+    class Ready done
+```
 
 # ApplicationContext启动流程
 以启动AnnotationConfigApplicationContext为例：

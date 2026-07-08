@@ -3,6 +3,7 @@ title: "Java中断 - 处理InterruptedException"
 date: 2020-05-17 00:00:16 +0800
 categories: [java, interrupt]
 tags: [java, interrupt]
+description: "解释 Java 中断为什么是协作式取消，以及 InterruptedException 应该传递还是恢复中断状态。"
 ---
 
 在Java中，一个线程是不能终止另一个线程的，除非那个线程自己想退出，或者JVM退出了。
@@ -23,6 +24,20 @@ new Thread(
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+stateDiagram-v2
+    [*] --> Running: 线程运行
+    Running --> InterruptFlagTrue: otherThread.interrupt()
+    InterruptFlagTrue --> VoluntaryExit: 线程主动检查 isInterrupted / interrupted
+    InterruptFlagTrue --> InterruptedException: sleep / wait / join 检测到中断
+    InterruptedException --> FlagCleared: 抛异常并清除 interrupt flag
+    FlagCleared --> Rethrow: throws InterruptedException
+    FlagCleared --> Restore: Thread.currentThread().interrupt()
+    Rethrow --> VoluntaryExit
+    Restore --> Running: 保留信号，交给后续逻辑处理
+    VoluntaryExit --> [*]
+```
 
 # 中断信号
 每个线程都拥有一个flag，标志着这个线程的中断位。如果一个线程A想让线程B退出，则A将B的中断位(interrupt flag)置为true，我们说“线程A向线程B发了中断信号”。此时如果B检查到了中断位为true，说明有线程想让它中断。**如果B愿意的话**，可以**自愿地**中断自己的线程。（如果B不愿意，仍然可以欢快地跑下去……你尽管让我中断，我就是不听，你奈我何？）

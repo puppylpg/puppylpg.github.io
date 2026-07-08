@@ -3,6 +3,7 @@ title: "@Conditional"
 date: 2023-10-27 16:53:23 +0800
 categories: [spring, springboot]
 tags: [spring, springboot]
+description: "从 @Conditional、Condition、ConditionEvaluator 到 bean definition 注册阶段，解释条件装配的执行链路。"
 ---
 
 关于springboot，已经写了很丑的两篇：
@@ -13,6 +14,24 @@ tags: [spring, springboot]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    BeanDef["AnnotatedGenericBeanDefinition"] --> Evaluator["ConditionEvaluator.shouldSkip(metadata)"]
+    Evaluator --> Has{"是否有 @Conditional?"}
+    Has -->|否| Register["注册 BeanDefinition"]
+    Has -->|是| Read["读取 value 中的 Condition class"]
+    Read --> Instantiate["实例化 Condition"]
+    Instantiate --> Sort["按 @Order 排序"]
+    Sort --> Match{"所有 matches 都为 true?"}
+    Match -->|是| Register
+    Match -->|否| Skip["跳过注册"]
+
+    style Evaluator fill:#e3f2fd,stroke:#1976d2
+    style Match fill:#fff3bf,stroke:#f59f00
+    style Register fill:#e8f5e9,stroke:#2e7d32
+    style Skip fill:#ffe3e3,stroke:#c62828
+```
 
 # 用法
 用法很简单：对于一个被`@Conditional`标记的bean definition，**只有满足condition条件时，才会被注册到bean factory里**。
@@ -229,4 +248,3 @@ springboot基于`@Conditional`创建了一系列条件注解，我们（或者sp
 
 # 感想
 springboot差不多齐活了。
-

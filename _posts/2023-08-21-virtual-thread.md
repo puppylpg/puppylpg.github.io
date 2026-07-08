@@ -3,12 +3,28 @@ title: "Virtual Thread"
 date: 2023-08-21 00:07:01 +0800
 categories: [java]
 tags: [java]
+description: "从内核线程、绿色线程、异步框架的代价讲到 JDK 21 虚线程如何恢复 thread-per-request 编程模型。"
 ---
 
 [JDK 21](https://openjdk.org/projects/jdk/21/)下个月就要发布了，[Virtual Threads](https://openjdk.org/jeps/444)也正式成为发布特性。虚线程的引入，大概从此会改变Java项目的架构。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Request["一个请求"] --> VThread["一个 Virtual Thread"]
+    VThread -->|计算中| Mount["mount 到 carrier platform thread"]
+    Mount --> CPU["OS thread 真正占用 CPU"]
+    VThread -->|阻塞 I/O| Unmount["unmount<br/>Continuation 保存栈到 heap"]
+    Unmount --> Wait["等待 I/O ready"]
+    Wait --> Remount["重新调度到 carrier thread"]
+    Remount --> VThread
+
+    style VThread fill:#e3f2fd,stroke:#1976d2
+    style Unmount fill:#fff3bf,stroke:#f59f00
+    style CPU fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 语言中线程的实现
 操作系统提供了线程实现，各个编程语言也基于操作系统的线程实现了自己的线程。实现方式大体有三种：
@@ -198,4 +214,3 @@ Java线程和os线程是一对一的，想让os线程高效些是没辙了，但
 我哭了！就等下个月19号[java 21](https://openjdk.org/projects/jdk/21/)发布了！发了我就测性能！
 
 > lei le~ [Virtual Thread benchmark]({% post_url 2023-09-25-virtual-thread-benchmark %})
-

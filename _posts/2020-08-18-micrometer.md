@@ -3,6 +3,7 @@ title: Micrometer
 date: 2020-08-18 15:50:48 +0800
 categories: [micrometer]
 tags: [micrometer]
+description: "从 Dropwizard/JMX/Graphite 链路过渡到 Micrometer，理解 Meter、MeterRegistry 和监控后端适配。"
 ---
 
 在Java程序中，一般需要统计的量被称为metric。比如请求个数、请求到来的速率、请求处理的时间分布quantile（.50/.95/.99等）。
@@ -10,11 +11,26 @@ tags: [micrometer]
 1. Table of Contents, ordered
 {:toc}
 
+```mermaid
+flowchart LR
+    App["Java App"] --> Meter["Meter<br/>Counter / Gauge / Timer"]
+    Meter --> Registry["MeterRegistry"]
+    Registry --> Graphite["Graphite"]
+    Registry --> Prometheus["Prometheus"]
+    Registry --> Influx["InfluxDB"]
+    Registry --> Elastic["Elasticsearch"]
+    Graphite --> Grafana["Grafana"]
+    Prometheus --> Grafana
+
+    style Meter fill:#e3f2fd,stroke:#1976d2
+    style Registry fill:#fff3bf,stroke:#f59f00
+    style Grafana fill:#e8f5e9,stroke:#2e7d32
+```
+
 # metric统计方案
 ## 最简陋
 一般统计metric分为如下步骤：
-1. 在应用中插入metric，统计数据。可以使用[dropwizard](https://www.dropwizard.io/
-)或者micrometer；
+1. 在应用中插入metric，统计数据。可以使用[dropwizard](https://www.dropwizard.io/)或者micrometer；
 2. 将metric暴露出来，比如通过Java提供的JMX（Java Management Extension）技术，将metric变量暴露到特定端口；
 3. 此时，变量可以通过jmx端口从外部获取到。如果比较懒，或者急需临时观察一下metric，可以直接使用Java自带的jconsole连接host和jmx的port，观察metric。
 
@@ -75,7 +91,7 @@ micrometer是专门为基于jvm的app做的监控组件，有两大优势：
 ## 统一的meter接口
 micrometer观察了各个监控系统（eg：graphite、prometheus）的特性，重新定义了一整套大一统接口，可以收集metric，并发送到各种监控系统。
 
-- http://micrometer.io/docs/concepts
+- [Micrometer concepts](http://micrometer.io/docs/concepts)
 
 ### `Meter`
 meter就是metric。具体细分有：

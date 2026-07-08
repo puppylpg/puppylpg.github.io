@@ -2,8 +2,9 @@
 layout: post
 title: "RIP shadowsocks"
 date: 2022-06-03 19:10:35 +0800
-categories: [life, network, v2ray, shadowsocks]
-tags: [network, v2ray, shadowsocks]
+categories: [life, network, proxy, v2ray, shadowsocks, ios]
+tags: [network, proxy, v2ray, shadowsocks, ios, shadowrocket]
+description: "记录给 macOS 和 iPhone 配代理时，从 V2RayX、Shadowrocket、ShadowsocksR 到换 IP 的一整天折腾。"
 math: true
 mermaid: true
 ---
@@ -16,10 +17,29 @@ mermaid: true
 {:toc}
 
 # FUCK GFW
+这次的主线非常生活化：Mac 还算好办，iPhone 开始上强度；想绕过美区 App Store，最后绕了一圈，不但没绕过去，还把 VPS 的 IP 搞没了。总结就是：**别和封闭生态硬刚，别拿低强度代理去硬闯高强度环境**。
+
+```mermaid
+flowchart TD
+    Need[家里多设备都需要代理] --> Mac[Mac: V2RayX 手动配置]
+    Need --> IOS[iPhone: 想绕开美区 App Store]
+    IOS --> OldIPA[低版本 Shadowrocket IPA]
+    OldIPA --> SSR[服务器临时部署 Shadowsocks-R]
+    SSR --> Ban[IP 直接被封]
+    Ban --> ChangeIP[付费换 IP]
+    ChangeIP --> USAccount[注册美区 Apple 账号]
+    USAccount --> Shadowrocket[购买新版 Shadowrocket]
+    Shadowrocket --> VmessTLS[回到 VMess + WebSocket + TLS]
+
+    style Ban fill:#ffe3e3,stroke:#c92a2a
+    style ChangeIP fill:#fff3bf,stroke:#d9480f
+    style VmessTLS fill:#e8f5e9,stroke:#2b8a3e
+```
+
 ## Mac
 mac还是比较简单的，使用v2rayx就行了：
-- https://github.com/Cenmrev/V2RayX
-- https://v2xtls.org/v2rayx%E9%85%8D%E7%BD%AE%E6%95%99%E7%A8%8B/
+- [V2RayX](https://github.com/Cenmrev/V2RayX)
+- [V2RayX 配置教程](https://v2xtls.org/v2rayx%E9%85%8D%E7%BD%AE%E6%95%99%E7%A8%8B/)
 
 比较坑的点在于：如果是直接导入的代理服务器json配置，这个软件有bug，没法设置transport setting，所以没法配置流量混淆的websocket path。折腾了好久，最后手动创建了一个配置，填上代理服务器地址，就发现transport setting也能配置了。坑……
 
@@ -27,10 +47,10 @@ mac还是比较简单的，使用v2rayx就行了：
 
 ## iPhone尝试v2ray
 iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocket等client。但是我并不像为了给iPhone配置v2ray，就去注册个Apple美区账号，所以找了个离线安装app的方案：
-- https://ssrvps.org/archives/6521
+- [iOS 离线安装代理客户端方案](https://ssrvps.org/archives/6521)
 
 1. 找到ipa文件；
-2. 通过pp助手/爱思助手离线装到手机上：https://ssrvps.org/archives/6538；
+2. 通过[PP 助手/爱思助手离线装到手机上](https://ssrvps.org/archives/6538)；
 3. 使用shadowrocket连接代理服务器；
 
 但是这里提供的另外两个ipa需要登录美区Apple账号才能用，shadowrocket版本则太低，虽然支持vmess，但是不支持vmess流量混淆。所以我自己找了个高版本的shadowrocket ipa，但因为不越狱无法装到iPhone上。
@@ -39,7 +59,7 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 夜越来越深，破iPhone还是没搞定。逐渐失去耐心，干脆就用这个能用的shadowrocket得了……只需要VPS上再部署一个shadowsocks-R代理服务。虽然反GFW能力没那么强，但据说还行？
 
 于是找了个docker镜像：
-- https://hub.docker.com/r/teddysun/shadowsocks-r
+- [teddysun/shadowsocks-r](https://hub.docker.com/r/teddysun/shadowsocks-r)
 
 按上面一通操作，在iPhone上使用刚刚低版本的shadowrocket连上了shadowsocks-R。
 
@@ -52,14 +72,14 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 > Migration backend is currently not available for this VPS. Please try again
 
 使用仅存的baidu查了一下，看来是ip被封了之后得使用小钱钱解决问题了：
-- 被封了：https://www.bandwagonhost.net/3174.html
-- 检测自己被封了：https://kiwivm.64clouds.com/VPS_ID/main-exec.php?mode=blacklistcheck
-    + https://tcp.ping.pe/puppylpg.xyz:443
-- 换ip：https://bwh89.net/ipchange.php
+- [被封说明](https://www.bandwagonhost.net/3174.html)
+- [KiwiVM 黑名单检测](https://kiwivm.64clouds.com/VPS_ID/main-exec.php?mode=blacklistcheck)
+    + [tcp.ping.pe 检测端口连通性](https://tcp.ping.pe/puppylpg.xyz:443)
+- [付费换 IP](https://bwh89.net/ipchange.php)
 
 > 每当代理挂了之后，使用百度的时候总感觉自己很可怜。是困在地道里吃最后一点战备粮的可怜人……绝望而无力……
 
-一个比较有用的地方是使用https://port.ping.pe/检测自己端口是否被封了。可以看到除了中国大陆的client，其他地方都能ping通。被GFW封了无疑。
+一个比较有用的地方是使用 [port.ping.pe](https://port.ping.pe/) 检测自己端口是否被封了。可以看到除了中国大陆的 client，其他地方都能 ping 通。被 GFW 封了无疑。
 
 赶紧提个换ip的ticket，付了$8.8之后，等了一段，得到一个新的ip。
 
@@ -79,16 +99,24 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 美区Apple账号当然是能不自己注册就不自己注册，懒。但是网上查到的共享账号都被封禁了，或者监测到异常需要验证。没办法，最终还是要自己注册。
 
 按这个注册就行了：
-- https://zhuanlan.zhihu.com/p/367821925
+- [注册美区 Apple 账号教程](https://zhuanlan.zhihu.com/p/367821925)
 
-美国地址生成器：https://www.meiguodizhi.com/，先选好免税州阿拉斯加再生成。
+[美国地址生成器](https://www.meiguodizhi.com/)，先选好免税州阿拉斯加再生成。
 
 碰到问题就看评论区，基本就能解决了。
 
 ## 买充值卡
 使用新注册的美区账号登录App Store之后，可以搜到shadowrocket了，但是这个app需要购买（$2.99）。据说要用美国信用卡买，所以直接买是没戏了，只能曲线救国，使用大陆visa买个礼品充值卡，再使用美区账号兑换礼品卡。
 
-- https://zhuanlan.zhihu.com/p/476434200
+[大陆 Visa 购买美区 Apple 礼品卡教程](https://zhuanlan.zhihu.com/p/476434200)。
+
+这里的方案取舍大概是这样：
+
+| 方案 | 结果 | 代价 |
+|------|------|------|
+| 旧 IPA + 低版本 Shadowrocket | 能装，但不支持需要的混淆能力 | 折腾半天还不稳 |
+| 服务器补 Shadowsocks-R | 短暂可用 | IP 被封，直接花钱买教训 |
+| 美区账号 + 新版 Shadowrocket | 最终可用 | 注册、充值、购买，一套流程很烦 |
 
 # shadowrocket配置
 终于在iPhone上装好了shadowrocket。接下来配置代理服务器就比较简单了：
@@ -97,7 +125,7 @@ iOS的App Store只能在登陆美区账号的情况下，才能搜到shadowrocke
 3. 开启tls；
 
 参考：
-- https://v2xtls.org/shadowrocket%E9%85%8D%E7%BD%AEv2ray%E6%95%99%E7%A8%8B/
+- [Shadowrocket 配置 V2Ray 教程](https://v2xtls.org/shadowrocket%E9%85%8D%E7%BD%AEv2ray%E6%95%99%E7%A8%8B/)
 
 # 后记
 看着妹子像个刚学会上网的老年人一样开心，感觉无比舒心。没白折腾一天。

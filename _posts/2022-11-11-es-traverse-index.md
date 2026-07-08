@@ -3,6 +3,7 @@ title: "Elasticsearch：遍历索引"
 date: 2022-11-11 02:03:58 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "一次遍历 Elasticsearch 索引翻车后的复盘：tie breaker、search_after、PIT、_shard_doc 和 track_total_hits。"
 ---
 
 今天干了一件蠢事：遍历索引，一时偷懒，索引的条目也还在可接受范围内，所以使用page翻页遍历所有数据，结果翻车了~
@@ -35,6 +36,18 @@ tags: [elasticsearch]
 
 上述现象是从log日志里看到的，有的doc id出现了多次，有的doc id根本就没出现。为什么？
 
+```mermaid
+flowchart TD
+    A[Page 1: match_all + 不指定 sort] --> B[replica A 用自己的 Lucene doc id 排序]
+    C[Page 2: match_all + 不指定 sort] --> D[replica B 用另一套 Lucene doc id 排序]
+    B --> E[第 1000 条之后的边界不稳定]
+    D --> E
+    E --> F[重复处理 / 漏处理]
+
+    style E fill:#fff3bf,stroke:#f59f00
+    style F fill:#ffe3e3,stroke:#ff6b6b
+```
+
 # 如果文档得分相同，怎么排序？
 因为没指定搜索条件，所以默认使用的是match_all搜索，所有文档的返回分数都是1。相同得分的文档的返回顺序是固定的吗？不是的——
 
@@ -60,6 +73,13 @@ GET stored_kol/_search
 
 # 解决方法
 解决办法也很好理解：让文档之间有严格序。
+
+| 目标 | 推荐方式 | 核心要求 |
+| --- | --- | --- |
+| 小页随机翻 | `from + size` | 页数别深，最好有稳定 sort |
+| 一次性遍历全索引 | `search_after + PIT` | sort 必须稳定，纯遍历优先 `_shard_doc` |
+| 老代码批处理 | `scroll` | 控制 scroll context 数量和存活时间 |
+| 只想拿前几条过滤结果 | `track_total_hits=false` | 不关心总数，且排序能 early terminate |
 
 ## 手动指定sort
 在原有page上加了个sort在unique字段上，以保证数据有序，每一条数据都能遍历到：
@@ -296,7 +316,7 @@ GET /_search
     {
       "_shard_doc": "desc"
     }
-  ]
+  ],
   "explain": true
 }
 ```
@@ -472,4 +492,3 @@ GET witake_media/_search
 这也是第二次见pit了，第一次看的时候，看到`_shard_doc`我还一愣一愣的，这次终于捋顺了。果然不同的阶段看同样的知识，理解是完全不同的。有的东西不多刷几遍是理解不了的。
 
 > 翻车之后，领悟更透彻，因为对要解决的问题认识得更清晰了:D 只纯粹灌输知识，没完全领悟它要解决的问题时，确实看得一知半解，不知道它究竟要干什么。
-

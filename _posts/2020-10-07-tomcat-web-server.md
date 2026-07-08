@@ -3,6 +3,7 @@ title: "（一）How Tomcat Works - 原始Web服务器"
 date: 2020-10-07 22:13:39 +0800
 categories: [tomcat, http, web]
 tags: [tomcat, http, web]
+description: "从 ServerSocket、Socket、InputStream、OutputStream 开始，手搓一个最小 HTTP Web Server。"
 ---
 
 Tomcat是一个Servlet容器，Servlet首先是一个web服务器。先来看一下最基础的web服务器怎么构造的。
@@ -10,12 +11,29 @@ Tomcat是一个Servlet容器，Servlet首先是一个web服务器。先来看一
 1. Table of Contents, ordered
 {:toc}
 
+```mermaid
+sequenceDiagram
+    participant Browser as Browser
+    participant ServerSocket as ServerSocket:8080
+    participant Socket as Socket
+    participant Request as Request.parse()
+    participant Response as Response.sendStaticResource()
+
+    Browser->>ServerSocket: TCP connect + HTTP request bytes
+    ServerSocket->>Socket: accept()
+    Socket->>Request: getInputStream()
+    Request->>Request: parse request line / URI
+    Socket->>Response: getOutputStream()
+    Response->>Browser: write HTTP response bytes
+    Response->>Socket: close()
+```
+
 # Tcp
 web服务器其实就是通过http协议收发数据的服务器。Http基于Tcp协议。
 
 Java socket编程通过Socket（ip+port）来建立连接，通过TCP/IP协议发送数据。
 
-为什么需要socket？假设一台机器用一个ip来标识，上面可能运行了多个程序，仅用一个ip无法区分这么多程序，所以每个程序监听自己的端口，**通过ip和程序舰艇的port，也就是socket，成为了寻找一个程序位置的方法，使用socket这个特殊的地址，便能连接到确定的程序上**。
+为什么需要socket？假设一台机器用一个ip来标识，上面可能运行了多个程序，仅用一个ip无法区分这么多程序，所以每个程序监听自己的端口，**通过ip和程序监听的port，也就是socket，成为了寻找一个程序位置的方法，使用socket这个特殊的地址，便能连接到确定的程序上**。
 
 > 通过套接字，不同计算机上的两个程序可以发送、接收字节流，达到通信的目的。
 
@@ -205,5 +223,4 @@ public class HttpServer {
 > 这个webroot在Tomcat的实现里，就是WEB-INF一样的存在。
 
 显然，这个web server足够简陋，而且是单线程执行，根本不足以做一个正常的web server。可以参阅：[Http Server线程模型：NIO vs. BIO]({% post_url 2019-11-25-http-server-nio-bio %})。
-
 

@@ -1,11 +1,12 @@
 ---
 title: "Spring Data Elasticsearch 5.x"
 date: 2023-12-08 22:32:04 +0800
-categories: [elasticsearch, spring-data-elasticsearch]
-tags: [elasticsearch, spring-data-elasticsearch]
+categories: [tech, elasticsearch, spring-data-elasticsearch]
+tags: [elasticsearch, spring-data-elasticsearch, elasticsearch-java, hlrc]
+description: "围绕 Spring Data Elasticsearch 5.x 迁移，比较 HLRC、elasticsearch-java、ElasticsearchTemplate 和 NativeQuery 的使用方式。"
 ---
 
-elasticsearch已经废弃了hlrc（[Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})），使用新的elasticsearch-java客户端：
+Elasticsearch 已经废弃 HLRC（参考 [Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})），转向新的 elasticsearch-java 客户端：
 - hlrc request -> hlrc client -> string response
 - elasticsearch-java request -> elasticsearch-java client -> generic hits
 
@@ -19,10 +20,36 @@ elasticsearch已经废弃了hlrc（[Elasticsearch：client]({% post_url 2022-11-
 - ~~hlrc request -> `ElasticsearchRestTemplate` -> generic hits~~
 - elasticsearch-java request -> `ElasticsearchTemplate` -> generic hits
 
-因此，迁移spring data elasticsearch到5.x最大的问题就是迁移涉及到`ElasticsearchRestTemplate`的代码。
+因此，迁移 Spring Data Elasticsearch 到 5.x 时，最大的问题就是如何处理所有依赖 `ElasticsearchRestTemplate` 的旧代码。
 
 1. Table of Contents, ordered
 {:toc}
+
+本文按迁移路径展开：先看 HLRC 请求应该重写还是保留，再比较 HLRC client、`ElasticsearchTemplate`、`ElasticsearchClient` 三种发起请求的方式，最后记录 child query、aggregation、sort、highlight 等复杂查询的改写经验。
+
+5.x 迁移时，旧 HLRC 代码大致只有两条路：重写成新 client 的 DSL，或者绕开 Spring Data 继续用 HLRC client。
+
+```mermaid
+flowchart TD
+    Old["4.x 旧代码<br/>HLRC request + ElasticsearchRestTemplate"] --> Choice{"迁移策略"}
+    Choice --> Rewrite["重写请求<br/>elasticsearch-java DSL"]
+    Choice --> Keep["保留 HLRC request"]
+    Rewrite --> Template["ElasticsearchTemplate<br/>NativeQuery / CriteriaQuery"]
+    Rewrite --> JavaClient["ElasticsearchClient<br/>原生 typed response"]
+    Keep --> HLRC["RestHighLevelClient<br/>绕开 Spring Data"]
+    Template --> Result["SearchHits<T> / Aggregations"]
+    JavaClient --> Result2["SearchResponse<T>"]
+    HLRC --> Result3["SearchResponse<br/>旧 API 结果"]
+
+    classDef old fill:#ffe3e3,stroke:#c62828,color:#7f1d1d
+    classDef decision fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    classDef new fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef bridge fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    class Old,HLRC,Result3 old
+    class Choice decision
+    class Rewrite,Template,JavaClient,Result,Result2 new
+    class Keep bridge
+```
 
 # hlrc query
 旧有的hlrc request有两种选择：
@@ -578,7 +605,6 @@ HighlightBuilder.Field field = new HighlightBuilder.Field(NICKNAME_AUTOCOMPLETE)
 # 感想
 elasticsearch-java的架构设计真的是惊为天人！在写[Elasticsearch：client]({% post_url 2022-11-06-elasticsearch-client %})的时候，我还没太意识到其爽点，真正写了一些查询之后，真的是爽到不能自已！**曾经从写原始json查询到使用hlrc写出相应的java代码是严重割裂的**！甚至必须靠ChatGPT帮我翻译相关代码，才能把aggregation的代码写出来。如今这些查询写起来简直是砍瓜切菜，一气呵成！
 
-而spring data elasticsearch在果断放弃历史包袱之后也变得简洁了许多。但是删除了转接老hlrc request到泛型结果的`ElasticsearchRestTemplate`之后，对于想要升级5.x的曾经的4.x的老用户来说真的是生不如死……
+Spring Data Elasticsearch 果断放弃历史包袱之后，5.x 的代码变得简洁了许多。但删除 `ElasticsearchRestTemplate` 也意味着 4.x 时代依赖“HLRC request → 泛型结果”桥接能力的代码都需要重新评估迁移路径。
 
 > 但是其实，我一开始只是想升级springboot3.2，使用一下springboot的虚线程支持来着……因为和spring data elasticsearch 4.x不兼容，所以才入了这些升级的坑……本来我是打算4.x的代码用到天荒地老的……
-

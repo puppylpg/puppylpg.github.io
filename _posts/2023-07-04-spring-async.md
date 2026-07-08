@@ -1,29 +1,56 @@
 ---
 title: "Spring - Async"
 date: 2023-07-04 23:44:05 +0800
-categories: [spring, proxy]
-tags: [spring, proxy]
+categories: [tech, spring, aop, async]
+tags: [spring, async, aop, executor, future]
+description: "从 AsyncExecutionInterceptor 的代理逻辑出发，解释 @Async 如何把同步方法调用改造成异步任务提交。"
 ---
 
-使用spring AOP [`@Async`](https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-annotation-support-async)来实现异步，看起来会更优雅一些，因为使用`ExecutorService#submit(callable)`做任务的提交比较模板化，使用spring aop可以直接隐藏这些细节。另外如果需要使用回调函数异步处理异常（线程池线程），也会比较方便。
+使用 Spring AOP 的 [`@Async`](https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-annotation-support-async) 实现异步，看起来比直接写 `ExecutorService#submit(callable)` 更优雅。原因不在于线程池消失了，而是任务封装、提交、返回 `Future`、异常传递这些模板逻辑都被代理层接管了。
 
 1. Table of Contents, ordered
 {:toc}
 
+本文从职责划分开始：先对比手写线程池和 `@Async` 的分工，再读 `AsyncExecutionInterceptor#invoke` 的核心代码，最后解释返回 `Future`、返回 `void`、回调和异常处理分别会发生什么。
+
+`@Async` 的核心是代理层把“普通方法调用”改写成“提交任务到 executor”：
+
+```mermaid
+sequenceDiagram
+    participant Client as 调用方
+    participant Proxy as Async AOP Proxy
+    participant Interceptor as AsyncExecutionInterceptor
+    participant Executor as Executor
+    participant Task as Callable 包装任务
+    participant Target as 目标方法
+    participant Future as Future/ListenableFuture
+
+    Client->>Proxy: asyncMethod()
+    Proxy->>Interceptor: invoke()
+    Interceptor->>Task: 包装目标方法调用
+    Interceptor->>Executor: submit(task)
+    Executor-->>Interceptor: Future
+    Interceptor-->>Client: 返回 Future / null
+    Executor->>Task: 在线程池中执行
+    Task->>Target: 调用原方法
+    Target-->>Task: value / exception / Future
+    Task->>Future: set result or exception
+```
+
 # 职责划分
 要使用spring的异步，主要是分清职责：
 1. 正常的任务提交：
-    1. 程序猿：写任务执行逻辑（callable）；
-    2. executor：执行任务，返回`Futhre`，并set结果/异常到`Futhre`。如果返回的是`ListenableFuture`，还能在set结果的时候通过`done()`方法（`FutureTask`的protected方法）调用它的callback；
+    1. 开发者：写任务执行逻辑（callable）；
+    2. executor：执行任务，返回 `Future`，并 set 结果/异常到 `Future`。如果返回的是 `ListenableFuture`，还能在 set 结果的时候通过 `done()` 方法（`FutureTask` 的 protected 方法）调用它的 callback；
 2. spring async：
-    1. 程序猿：写任务执行逻辑，不过不再把任务写成一个形式上的callable，而是直接写一个普通函数，返回void或者`Future`；
-    2. spring：要做原来流程里的程序猿，所以它现在是executor的使用者，要帮程序猿完成submit task这个动作。所以spring要先写自己的callable，callable里直接调用程序猿提供的函数，然后把它submit到executor：
-        1. spring的callable是直接调用程序猿的函数；
-        2. submit之后会返回一个`Future`。**如果程序猿本身的函数就返回一个`Future`，那么spring就要在自己的callable里把`Future`拆开，取出其值，不然自己的callable就返回`Future<Future<?>>`了**；
+    1. 开发者：写任务执行逻辑，不过不再把任务写成一个形式上的 callable，而是直接写一个普通函数，返回 `void` 或者 `Future`；
+    2. Spring：扮演原来流程里提交任务的人，所以它现在是 executor 的使用者，要帮开发者完成 submit task 这个动作。Spring 会先写自己的 callable，callable 里直接调用开发者提供的函数，然后把它 submit 到 executor：
+        1. Spring 的 callable 直接调用开发者的函数；
+        2. submit 之后会返回一个 `Future`。**如果开发者本身的函数就返回一个 `Future`，那么 Spring 就要在自己的 callable 里把 `Future` 拆开，取出其值，不然自己的 callable 就返回 `Future<Future<?>>` 了**；
 
 # 代码分析
-## 程序猿的逻辑
-程序猿的任务（不再写成callable的形式，而是一个返回`ListenableFuture`的函数）：
+## 开发者的逻辑
+开发者的任务（不再写成callable的形式，而是一个返回`ListenableFuture`的函数）：
 ```java
 @Slf4j
 @Service
@@ -91,7 +118,7 @@ public class Listener implements ListenableFutureCallback<String> {
 
 ## spring aop的逻辑
 
-`AsyncExecutionInterceptor#invoke`里，spring对程序猿的函数的代理操作：生成callable，submit到executor
+`AsyncExecutionInterceptor#invoke`里，spring对开发者的函数的代理操作：生成callable，submit到executor
 ```java
 	/**
 	 * Intercept the given method invocation, submit the actual calling of the method to
@@ -132,7 +159,7 @@ public class Listener implements ListenableFutureCallback<String> {
 		return doSubmit(task, executor, invocation.getMethod().getReturnType());
 	}
 ```
-可以很明显的看到对程序猿函数的执行、拆`Future`的动作。（最后再封装为`Future`是executor的事儿）
+可以很明显的看到对开发者函数的执行、拆`Future`的动作。（最后再封装为`Future`是executor的事儿）
 
 callable的提交方式，就是提交给线程池执行。当然根据具体future类型，选择了不同的线程池提交方式：
 ```java
@@ -204,17 +231,17 @@ Process finished with exit code 0
 ```
 - 代理future对象是`org.springframework.util.concurrent.ListenableFutureTask`；
     - 它的task为`org.springframework.aop.interceptor.AsyncExecutionInterceptor$$Lambda$448/0x0000000801288f58`，也就是上述`AsyncExecutionInterceptor#invoke`处的代码；
-- 程序猿生成的future对象是`org.springframework.scheduling.annotation.AsyncResult`；
-- 从打印出来的线程也可以看到调用程序猿的函数的和调用callback的都是executor（所以都是异步的）
+- 开发者生成的future对象是`org.springframework.scheduling.annotation.AsyncResult`；
+- 从打印出来的线程也可以看到调用开发者的函数的和调用callback的都是executor（所以都是异步的）
 
 # 代理对象
-显然，**spring aop生成了原本程序猿所构建的`Future`对象的代理对象，作为最终函数的返回**。
+显然，**spring aop生成了原本开发者所构建的`Future`对象的代理对象，作为最终函数的返回**。
 
-> 这个`ListenableFuture`对象的实际类型为spring AOP所构建的`ListenableFutureTask`，而非程序猿自己写的`AsyncResult`。
+> 这个`ListenableFuture`对象的实际类型为spring AOP所构建的`ListenableFutureTask`，而非开发者自己写的`AsyncResult`。
 
 **那么回调函数注册在哪个`Future`上面**？
 
-显然，**callback注册在spring生成的代理`Future`上面，并非程序猿自己构造的`Future`**。因为submit之后，立刻返回的就是spring aop的`Future`。只不过程序猿的函数被wrap到spring的callable里了，所以后来实际执行的时候，“看起来”似乎调用的是程序猿的任务。
+显然，**callback注册在spring生成的代理`Future`上面，并非开发者自己构造的`Future`**。因为submit之后，立刻返回的就是spring aop的`Future`。只不过开发者的函数被wrap到spring的callable里了，所以后来实际执行的时候，“看起来”似乎调用的是开发者的任务。
 
 > spring `@Async`并非没改变被代理对象的功能，它所改变的功能点是“把同步调用修改为异步调用”，但并没有改变任务本身的功能。
 
@@ -222,9 +249,9 @@ Process finished with exit code 0
 
 # 异常处理
 从spring aop的代理代码中也可以看到[异常处理](https://docs.spring.io/spring-framework/docs/current/reference/html/integration.html#scheduling-annotation-support-exception)。这里也分几种情况：
-1. 如果程序猿的callable返回的是`Future`：
-    1. 手动构建`Future`（`AsyncResult.forValue(String.valueOf(i))`或者`AsyncResult.forExecutionException(new RuntimeException("exception for: " + i))`）并不会触发异常（确实没触发，只是new了一个对象而已）。spring的AOP在拆`Future`的时候（`Future#get`）会触发异常（会throw出异常），此时spring啥都不做即可，因为异常会自动被executor捕获，set到最终返回的`Future`里；
-    2. 如果执行程序猿逻辑的时候出了异常，同上，也是什么都不用做，最终会被set到返回的`Future`里，由client接收；
+1. 如果开发者的callable返回的是`Future`：
+    1. 手动构建`Future`（`AsyncResult.forValue(String.valueOf(i))`或者`AsyncResult.forExecutionException(new RuntimeException("exception for: " + i))`）并不会触发异常（确实没触发，只是new了一个对象而已）。spring的AOP在拆`Future`的时候（`Future#get`）会触发异常（会throw出异常），此时spring什么都不做即可，因为异常会自动被executor捕获，set到最终返回的`Future`里；
+    2. 如果执行开发者逻辑的时候出了异常，同上，也是什么都不用做，最终会被set到返回的`Future`里，由client接收；
 1. 如果callable返回的是void：
     1. 因为原函数返回void，所以代理函数也只能返回void，此时没法通过`Future`把异常返回给client；
 
@@ -259,15 +286,15 @@ Process finished with exit code 0
 	}
 ```
 是这么说的：
-1. 啥都不干即可，原本来自程序猿函数里`Future`的异常会自动被executor捕获，封装到最终的代理`Future`里，相当于异常传递了：Handles a fatal error thrown while asynchronously invoking the specified Method. If the return type of the method is a Future object, the original exception can be propagated by just throwing it at the higher level. 
-1. 如果程序猿的函数不返回future，却抛异常了，因为异常也不可能被传回到client端，**根据[线程池异常处理]({% post_url 2021-11-28-java-executor-exception %})可知，异常就“被吞了”（set到`Future`，但无人接收）**。但是，虽然不能把异常传回client，spring AOP依然能帮你处理异常，只需要设置`AsyncUncaughtExceptionHandler`就行了。（如果处理的过程中又出了异常，spring AOP弱弱帮你打个warn拉倒）：However, for all other cases, the exception will not be transmitted back to the client. In that later case, the current `AsyncUncaughtExceptionHandler` will be used to manage such exception.
+1. 什么都不干即可，原本来自开发者函数里`Future`的异常会自动被executor捕获，封装到最终的代理`Future`里，相当于异常传递了：Handles a fatal error thrown while asynchronously invoking the specified Method. If the return type of the method is a Future object, the original exception can be propagated by just throwing it at the higher level.
+1. 如果开发者的函数不返回future，却抛异常了，因为异常也不可能被传回到client端，**根据[线程池异常处理]({% post_url 2021-11-28-java-executor-exception %})可知，异常就“被吞了”（set到`Future`，但无人接收）**。但是，虽然不能把异常传回client，spring AOP依然能帮你处理异常，只需要设置`AsyncUncaughtExceptionHandler`就行了。（如果处理的过程中又出了异常，spring AOP弱弱帮你打个warn拉倒）：However, for all other cases, the exception will not be transmitted back to the client. In that later case, the current `AsyncUncaughtExceptionHandler` will be used to manage such exception.
 
 因此，在哪里处理异常/值（使用回调函数还是`Future#get`），全看自己的打算：
 1. 异步处理：用callback（onFailure是处理异常，onSuccess是处理值）；
 2. 同步处理：在最终返回future后（实际是代理future），手动调用get触发异常/处理值；
 
 # 返回void
-如果程序猿任务代码返回void呢？**返回void最大的问题是没法使用callback了**！因为返回void，不再返回future，spring AOP也无法生成future的代理对象，也就没法在上面添加callback。
+如果开发者任务代码返回void呢？**返回void最大的问题是没法使用callback了**！因为返回void，不再返回future，spring AOP也无法生成future的代理对象，也就没法在上面添加callback。
 
 > 从代码编译的角度看更直观——程序员的函数不返回`ListenableFuture`，也就没法`ListenableFuture#addCallback`。**因此，放置代理对象和原始对象的代码框架的确是一模一样的，代理只把同步行为改成了异步行为，但依然兼容之前未代理对象的代码**！因此牢记：代理是增强后的对象。代理便很好理解。
 >
@@ -294,5 +321,3 @@ java.lang.RuntimeException: what about now?
 
 # 总结
 之前的代理（[Java反射与动态代理]({% post_url 2020-08-02-java-reflection-dynamic-proxy %})，[Spring - AOP]({% post_url 2021-11-22-spring-aop %})），代理的都是一个“小”功能。`@Async`的代理比较独特，把同步执行的对象代理为了异步执行的对象，看完之后代理似乎变得更通透了。
-
-

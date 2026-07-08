@@ -1,20 +1,46 @@
 ---
 title: "SpringBoot3.2：虚线程支持"
 date: 2023-11-28 18:22:36 +0800
-categories: [spring, springboot]
-tags: [spring, springboot]
+categories: [tech, spring, springboot, virtual-thread]
+tags: [springboot, virtual-thread, java21, conditional]
+description: "围绕 spring.threads.virtual.enabled，拆解 Spring Boot 3.2 如何用 Threading 与条件注解为组件启用虚线程。"
 ---
 
-springboot3.2在上周发布了，可以直接通过springboot提供的配置`spring.threads.virtual.enabled: true`为许多组件开启虚线程支持，包括：
+Spring Boot 3.2 开始，可以通过 `spring.threads.virtual.enabled: true` 为许多组件开启虚线程支持，包括：
 - Tomcat will use virtual threads for HTTP request processing. This means that your application code that is handling a web request, such as a method in a controller, will run on a virtual thread.
 - When calling `@Async` methods, Spring MVC’s asynchronous request processing, and Spring WebFlux’s blocking execution support will now utilize virtual threads
 - Methods marked with `@Scheduled` will be run on a virtual thread
 - Also, some specific integrations will work on virtual threads like RabbitMQ/Kafka listeners, and Spring Data Redis/Apache pulsar-related integrations...
 
-下面就来看看具体的实现和原理。
+这些能力看起来像一个全局开关，但落到实现上，仍然是 Spring Boot 擅长的自动配置和条件注解：环境里启用了虚线程，匹配虚线程条件的配置类或 bean 才会生效。
 
 1. Table of Contents, ordered
 {:toc}
+
+本文先看 `spring.threads.virtual.enabled` 如何映射到 `Threading`，再看 `@ConditionalOnThreading` 如何复用 Spring 的 `@Conditional` 机制，最后用 Redis 和 Tomcat 两个配置例子说明 Spring Boot 是怎样把普通线程实现替换成虚线程实现的。
+
+虚线程支持看起来是一个开关，但实现上仍然走 Spring Boot 的条件装配：
+
+```mermaid
+flowchart TD
+    Prop["spring.threads.virtual.enabled=true"] --> Env["Environment"]
+    Env --> Threading["Threading.VIRTUAL.isActive(environment)"]
+    Threading --> Condition["@ConditionalOnThreading(VIRTUAL)"]
+    Condition --> Match{"条件是否匹配？"}
+    Match -->|"是"| VirtualBeans["注册虚线程相关 bean<br/>Tomcat / @Async / @Scheduled / integrations"]
+    Match -->|"否"| PlatformBeans["保留平台线程实现"]
+    VirtualBeans --> Runtime["请求/任务运行在 virtual thread"]
+    PlatformBeans --> Runtime2["请求/任务运行在 platform thread"]
+
+    classDef config fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef condition fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    classDef virtual fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef platform fill:#ffe3e3,stroke:#c62828,color:#7f1d1d
+    class Prop,Env,Threading config
+    class Condition,Match condition
+    class VirtualBeans,Runtime virtual
+    class PlatformBeans,Runtime2 platform
+```
 
 # 配置：`Threading`
 设置`spring.threads.virtual.enabled: true`，控制的是springboot 3.2引入的`Threading` enum：
@@ -115,7 +141,7 @@ public @interface ConditionalOnThreading {
 ```
 它接受的参数是`Threading`。
 
-> **注解的名字叫conditional on啥，接受的参数就是啥！**
+> **注解的名字叫conditional on什么，接受的参数就是什么！**
 
 所以想对某个配置开启只有虚线程的条件注解，只需要在其上添加`@ConditionalOnThreading(Threading.VIRTUAL)`即可。
 
@@ -180,7 +206,7 @@ public class TomcatVirtualThreadsWebServerFactoryCustomizer
 该executor是tomcat提供的用于支持Java21的组件。
 
 # 正向梳理
-再正向梳理一遍springboot对虚线程的条件注解支持流程——
+再正向梳理一遍 Spring Boot 对虚线程的条件注解支持流程：
 1. 需要一个`@ConditionOn线程类型`注解：传入虚线程，就构造虚线程bean；传入os线程，就构造os线程bean：
     1. 注解的名字就叫`@ConditionalOnThreading`吧；
     2. 能配置的值没有使用string，而是使用了自定义对象`Threading`。`Threading`支持从当前环境变量读取配置，看看配置的到底是什么线程类型；
@@ -191,5 +217,4 @@ public class TomcatVirtualThreadsWebServerFactoryCustomizer
 之后就可以在可以支持不同线程类型的配置上加上相关条件注解了。
 
 # 感想
-双份条件配置……springboot都这么狠了，双分配置都写了，还有什么理由不用springboot……
-
+虚线程支持并不是在底层偷偷替换所有线程池，而是通过条件自动配置逐个组件接入。这样做需要维护平台线程和虚线程两套配置，但换来的好处是行为清晰：哪个组件支持虚线程、如何启用、如何回退，都能从自动配置代码里追踪出来。

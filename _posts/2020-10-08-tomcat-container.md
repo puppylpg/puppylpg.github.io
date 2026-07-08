@@ -3,6 +3,7 @@ title: "（四）How Tomcat Works - Tomcat servlet容器Container"
 date: 2020-10-08 12:08:33 +0800
 categories: [tomcat, http, web, servlet]
 tags: [tomcat, http, web, servlet]
+description: "理解 Tomcat Container 的四层角色：Engine、Host、Context、Wrapper，以及请求如何映射到 Servlet。"
 ---
 
 上一节讲了半天，经历了“client request -> server http connector -> processor -> parse http request”，终于才提到“使用servlet处理请求”。
@@ -25,6 +26,26 @@ servlet在哪儿？被tomcat用Container接口管理起来了。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Engine["Engine<br/>Catalina servlet 引擎"] --> Host["Host<br/>虚拟主机"]
+    Host --> ContextA["Context<br/>一个 Web 应用"]
+    Host --> ContextB["Context<br/>另一个 Web 应用"]
+    ContextA --> WrapperA["Wrapper<br/>Servlet A"]
+    ContextA --> WrapperB["Wrapper<br/>Servlet B"]
+    Request["Connector 交来的 Request"] --> Engine
+    Engine --> MapHost["按 Host/默认主机选择"]
+    MapHost --> ContextA
+    ContextA --> MapWrapper["按 URL pattern map"]
+    MapWrapper --> WrapperA
+    WrapperA --> Service["调用 Servlet#service"]
+
+    style Engine fill:#e3f2fd,stroke:#1976d2
+    style Host fill:#e8f5e9,stroke:#2e7d32
+    style ContextA fill:#fff3bf,stroke:#f59f00
+    style WrapperA fill:#f3e5f5,stroke:#8e24aa
+```
 
 # `org.apache.catalina.Container`：servlet的容器
 Container是Tomcat的servlet容器必须实现的接口。
@@ -1379,4 +1400,3 @@ Tomcat加载类、资源等，就是**按照`<engine base>/<app base>/<doc base>
 - https://segmentfault.com/a/1190000021168133
 - https://segmentfault.com/a/1190000021177809
 - https://segmentfault.com/a/1190000021177945
-

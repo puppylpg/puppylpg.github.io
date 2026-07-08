@@ -3,12 +3,29 @@ title: "Java - classloader"
 date: 2020-09-17 00:06:04 +0800
 categories: [java, classloader]
 tags: [java, classloader]
+description: "梳理 Java ClassLoader 的加载职责、双亲委派、类身份和 Tomcat 自定义加载器的背景。"
 ---
 
 看到Tomcat自定义的classloader有感而发，总结一下Java里的classloader。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Bootstrap["BootstrapClassLoader<br/>JDK 核心类"] --> Ext["ExtClassLoader<br/>扩展类"]
+    Ext --> App["AppClassLoader<br/>classpath 应用类"]
+    App --> Custom["Custom/WebappClassLoader<br/>应用隔离"]
+    Load["loadClass(name)"] --> ParentFirst["先委托 parent"]
+    ParentFirst --> Found{"parent 找到?"}
+    Found -->|是| Return["返回父加载器定义的 Class"]
+    Found -->|否| Find["findClass / defineClass"]
+    Find --> Return
+
+    style Bootstrap fill:#e3f2fd,stroke:#1976d2
+    style Custom fill:#fff3bf,stroke:#f59f00
+    style Return fill:#e8f5e9,stroke:#2e7d32
+```
 
 # classloader概述
 ## classloader做什么
@@ -661,4 +678,3 @@ Thread.currentThread().getContextClassLoader().getResourceAsStream("config.prope
 **这其实是对双亲委派机制的一种“破坏”，或者说一种逆向应用——父加载器委托子加载器去加载子加载器才能找到的类**！
 
 > 此处的“破坏”无贬义色彩，仅指不再是纯粹的双亲委派机制。
-

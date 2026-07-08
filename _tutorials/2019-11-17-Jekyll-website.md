@@ -1,259 +1,218 @@
 ---
 title: "Jekyll：minima 结构"
 date: 2019-11-17 01:44:39 +0800
-categories: [jekyll]
-tags: [jekyll, minima]
-description: "以 minima 为例解析 Jekyll 主题结构：_layouts、_includes、_sass 的分层机制与覆盖规则。"
+categories: [tutorial, jekyll]
+tags: [jekyll, minima, layout, liquid]
+description: "以 minima 为例解析 Jekyll 主题结构：_layouts、_includes、_sass、_posts、_site 的分层机制与覆盖规则。"
+render_with_liquid: false
 ---
 
-使用Jekyll搭建静态网站是一件容易上手，非常优雅且令人愉悦的事情，甚至让我这个服务端程序猿产生了能搞一搞前端的错觉:D
+使用 Jekyll 搭建静态网站是一件容易上手、非常优雅且令人愉悦的事情，甚至让我这个服务端程序猿产生了能搞一搞前端的错觉 :D
 
-使用Jekyll搭建网站，只需要考虑页面内容即可，Jekyll现有的一些主题能很好的构建整个网站框架。这里以Jekyll默认的minima为例，简单分析一下框架的内容。
+Jekyll 的好处是：写博客时主要关心内容，主题负责网页框架。这里以 Jekyll 默认主题 minima 为例，看清楚一个 Jekyll 主题到底怎么把 Markdown 变成页面。
 
-1. Table of Contents, ordered                    
+1. Table of Contents, ordered
 {:toc}
 
-# minima
-分析minima之前，可以先想象一下一个普通网页应该有的样子：
-- navigation bar：上方应该是一个导航栏；
-- body：中间应该是网页内容；
-- foot：最下面应该是网页的页脚，写着一些网站的通用信息，比如copyright之类的。
+# 先建立页面模型
 
-网页的这三部分不应该是手撸到一个html里的。考虑到网站的网页复用等情况，应该只有body是可变的。上下的导航条和页脚应该是所有网页共用的。所以得有模板之类的东西，我们写blog的时候只是把内容往里填。
+一个普通网页大致有三块：
 
-遵循上面的思路，简单探索一下minima-2.5.1的结构。
+```mermaid
+block-beta
+  columns 1
+  header["header / navigation"]
+  body["body / page content"]
+  footer["footer / site metadata"]
+```
 
-首先，在构建出的网站的根目录下，看一下该构件使用的minima所在的安装路径。在[Jekyll 博客的 Ruby 环境]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})中，我们使用bundler将所有的gem都安装在本工程的vendor/bundle下了：
+真正写文章时，通常只有中间的 `body` 会变。导航栏、页脚、head 标签、脚本、样式都应该复用。Jekyll 的 `_layouts` 和 `_includes` 就是在解决这个问题。
+
+```mermaid
+flowchart TD
+    A["Markdown 文件<br/>只写内容和 front matter"] --> B["_layouts<br/>页面骨架"]
+    C["_includes<br/>可复用片段"] --> B
+    D["_sass / assets<br/>样式和静态资源"] --> B
+    B --> E["_site<br/>最终 HTML"]
+```
+
+# 找到 minima 的安装目录
+
+如果 minima 作为 gem 安装，可以用 Bundler 找位置：
+
 ```bash
-» bundle show minima
+bundle show minima
+```
+
+示例输出：
+
+```text
 /home/win-pichu/Codes/Java/puppylpg.github.io/vendor/bundle/ruby/2.6.0/gems/minima-2.5.0
 ```
-然后到该路径下，看一下minima的目录结构：
-```bash
-$ tree
+
+目录大致如下：
+
+```text
 .
 ├── assets
-│   ├── main.scss
-│   └── minima-social-icons.svg
+│   ├── main.scss
+│   └── minima-social-icons.svg
 ├── _includes
-│   ├── disqus_comments.html
-│   ├── footer.html
-│   ├── google-analytics.html
-│   ├── header.html
-│   ├── head.html
-│   ├── icon-github.html
-│   ├── icon-github.svg
-│   ├── icon-twitter.html
-│   ├── icon-twitter.svg
-│   └── social.html
+│   ├── footer.html
+│   ├── header.html
+│   ├── head.html
+│   └── social.html
 ├── _layouts
-│   ├── default.html
-│   ├── home.html
-│   ├── page.html
-│   └── post.html
-├── LICENSE.txt
-├── README.md
+│   ├── default.html
+│   ├── home.html
+│   ├── page.html
+│   └── post.html
 └── _sass
-	├── minima
-	│   ├── _base.scss
-	│   ├── _layout.scss
-	│   └── _syntax-highlighting.scss
-	└── minima.scss
-
-5 directories, 22 files
+    ├── minima
+    │   ├── _base.scss
+    │   ├── _layout.scss
+    │   └── _syntax-highlighting.scss
+    └── minima.scss
 ```
 
-参阅：
-- https://jekyllrb.com/docs/structure/
+可以对照 [Jekyll 目录结构文档](https://jekyllrb.com/docs/structure/) 看每个目录的职责。
 
-## layouts
-layout就是上面说的网页模板，放在`_layouts`目录下。
+# Layout：页面模板
 
-### `_layout/default.html`：一级模板
-看一下minima的一个根模板（`_layout/default.html`）：
+## `default.html`：一级模板
+
+minima 的根模板大致是：
+
 ```html
-{% raw %}
 <!DOCTYPE html>
 <html lang="{{ page.lang | default: site.lang | default: "en" }}">
-
   {%- include head.html -%}
 
   <body>
+    {%- include header.html -%}
 
-	{%- include header.html -%}
+    <main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        {{ content }}
+      </div>
+    </main>
 
-	<main class="page-content" aria-label="Content">
-	  <div class="wrapper">
-		{{ content }}
-	  </div>
-	</main>
-
-	{%- include footer.html -%}
-
+    {%- include footer.html -%}
   </body>
-
 </html>
-{% endraw %}
 ```
-body标签之间的就是网页内容，模板中body大致有三块内容：
-- body开头引用了`header.html`；
-- 中间引用了内容；
-- body结束前引用了`footer.html`；
 
-header.html和footer.html里分别放着导航栏和页脚。
+它做了三件事：
 
-他们是被include进来的，稍后再说。
+| 位置 | 来源 | 作用 |
+|------|------|------|
+| `<head>` | `head.html` | meta、CSS、RSS、SEO 等 |
+| `<header>` | `header.html` | 站点标题和导航栏 |
+| `{{ content }}` | 子模板或文章正文 | 当前页面真正的内容 |
+| `<footer>` | `footer.html` | 站点页脚 |
 
-### `_layout/home.html`：二级模板
-看一下另一个模板home（`_layout/home.html`）：
+## `home.html`：二级模板
+
+`home.html` 自己又声明了父模板：
+
 ```html
-{% raw %}
 ---
 layout: default
 ---
 
 <div class="home">
-  {%- if page.title -%}
-	<h1 class="page-heading">{{ page.title }}</h1>
-  {%- endif -%}
-
   {{ content }}
 
   {%- if site.posts.size > 0 -%}
-	<h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
-	<ul class="post-list">
-	  {%- for post in site.posts -%}
-	  <li>
-		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-		<span class="post-meta">{{ post.date | date: date_format }}</span>
-		<h3>
-		  <a class="post-link" href="{{ post.url | relative_url }}">
-			{{ post.title | escape }}
-		  </a>
-		</h3>
-		{%- if site.show_excerpts -%}
-		  {{ post.excerpt }}
-		{%- endif -%}
-	  </li>
-	  {%- endfor -%}
-	</ul>
-
-	<p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
+    <ul class="post-list">
+      {%- for post in site.posts -%}
+        <li>
+          <a class="post-link" href="{{ post.url | relative_url }}">
+            {{ post.title | escape }}
+          </a>
+        </li>
+      {%- endfor -%}
+    </ul>
   {%- endif -%}
-
 </div>
-{% endraw %}
 ```
-home的页头定义了自己使用的模板是default（default就是上面介绍的一个layout）。
 
-也就是说，home是一个二级模板，它首先复用了`default.html`模板的内容，然后自己又定义了一些内容。自己定义的这些内容会去替换`default.html`的`{% raw %}{{ content }}{% endraw %}`的内容。
+也就是说，`home.html` 的内容会替换 `default.html` 里的 `{{ content }}`。最终页面结构是：
 
-home定义的元素主要分为两部分：
-- 输出使用该模板的网页的content；
-- 输出该网站所有的post的标题、摘要等；
+```mermaid
+flowchart TD
+    A["default.html"] --> B["include head.html"]
+    A --> C["include header.html"]
+    A --> D["content 插槽"]
+    A --> E["include footer.html"]
+    F["home.html"] -->|"填充 content"| D
+    F --> G["当前页面正文"]
+    F --> H["遍历 site.posts"]
+```
 
-那么一个使用了home模板的页面的内容一定是这样四部分的：
-1. 开头引用了`header.html`（来自default）；
-2. body（来自default）：
-    1. 该网页自己定义的内容（来自home）；
-    1. 该网站所有的post的标题、摘要等（来自home）；
-4. 最后引用了`footer.html`（来自default）；
+这就是 layout 叠加的核心：**父模板负责通用页面骨架，子模板负责当前页面类型的内容组织**。
 
-### `_layouts/page.html`
-page和home模板一样，也是继承了default的模板，内容甚至更简单一些：
+## `page.html` 与 `post.html`
+
+`page.html` 用于普通页面：
+
 ```html
-{% raw %}
 ---
 layout: default
 ---
 <article class="post">
-
   <header class="post-header">
-	<h1 class="post-title">{{ page.title | escape }}</h1>
+    <h1 class="post-title">{{ page.title | escape }}</h1>
   </header>
 
   <div class="post-content">
-	{{ content }}
+    {{ content }}
   </div>
-
 </article>
-{% endraw %}
 ```
 
-### `_layouts/post.html`
-post模板同理：
-```html
-{% raw %}
----
-layout: default
----
-<article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+`post.html` 则多了文章日期、作者、评论、结构化数据等博客文章特有内容。
 
-  <header class="post-header">
-	<h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
-	<p class="post-meta">
-	  <time class="dt-published" datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
-		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-		{{ page.date | date: date_format }}
-	  </time>
-	  {%- if page.author -%}
-		• <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card" itemprop="name">{{ page.author }}</span></span>
-	  {%- endif -%}</p>
-  </header>
+写文章时只要在 front matter 里指定：
 
-  <div class="post-content e-content" itemprop="articleBody">
-	{{ content }}
-  </div>
-
-  {%- if site.disqus.shortname -%}
-	{%- include disqus_comments.html -%}
-  {%- endif -%}
-
-  <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
-</article>
-{% endraw %}
-```
-页面略复杂，大致包括：
-- page title；
-- date；
-- author；
-- 内容；
-- disqus评论；
-
-当然还包括父模板里的header和footer。
-
-### 使用layout
-比如使用Jekyll初始化网站之后默认生成的博客`Welcome to Jekyll!`就使用了post layout，它的Front Matter YAML是这么写的：
 ```yaml
-{% raw %}
 ---
-title:  "Welcome to Jekyll!"
-date:   2019-11-16 02:08:37 +0800
+title: "Welcome to Jekyll!"
+date: 2019-11-16 02:08:37 +0800
 categories: jekyll update
 ---
-blabla...
-{% endraw %}
 ```
-最终的效果如图所示：
-![Jekyll welcome blog](/pics/jekyll/jekyll-welcome-blog.png)
 
-和上面介绍的post layout的页面结构一致。
+Jekyll 就会把正文塞进 `post.html` 的 `{{ content }}` 里。
 
-参阅：
-- https://jekyllrb.com/docs/step-by-step/04-layouts/
-- https://jekyllrb.com/docs/posts/#including-images-and-resources
+更多 layout 规则可以看 [Jekyll layouts 文档](https://jekyllrb.com/docs/step-by-step/04-layouts/)。
 
-## include
-之前介绍default layout的时候，说它引入了`header.html`和`footer.html`。include可以轻松实现页面模块复用。
+# Include：页面组件
 
-参阅：
-- https://jekyllrb.com/docs/step-by-step/05-includes/
+`default.html` 里出现的：
 
-感觉最重要的就是`_layouts`和`_includes`两个文件夹，其他还有`assets`，`_sass`等，用来控制样式，放置一些静态资源如图片，有兴趣可以了解一下。
+```liquid
+{%- include header.html -%}
+{%- include footer.html -%}
+```
 
-# 目录结构
-在[Ruby 环境与 Bundler 套娃]({% link _tutorials/2019-11-16-ruby-bundler-jekyll.md %})中，我们使用Jekyll初始化了一个网站工程。结构大致如下：
-```bash
+就是 include。它的作用类似函数：把可复用片段抽出来，多个 layout 里都能引用。
+
+```mermaid
+flowchart LR
+    A["head.html"] --> D["default.html"]
+    B["header.html"] --> D
+    C["footer.html"] --> D
+    D --> E["home/page/post"]
+```
+
+导航栏、页脚、评论区、SEO 标签都适合用 include。更多用法看 [Jekyll includes 文档](https://jekyllrb.com/docs/step-by-step/05-includes/)。
+
+# 站点目录结构
+
+使用 Jekyll 初始化后，一个项目大致像这样：
+
+```text
 .
 ├── 404.html
 ├── about.markdown
@@ -262,175 +221,169 @@ blabla...
 ├── Gemfile.lock
 ├── index.markdown
 ├── _posts
-│   ├── 2019-11-16-build-github-pages-Debian.md
-│   ├── 2019-11-16-keep-alive.md
-│   └── 2019-11-16-welcome-to-jekyll.markdown
-├── README.md
+│   └── 2019-11-16-welcome-to-jekyll.markdown
 └── _site
 ```
 
-## `_posts`
-这里是专门放置文档的地方。因为我们会使用模板写文章，且模板只需要给出content和一些其他的信息如author、title等，所以现在写文章就很方便，只需要指定：
-- 使用的是哪个模板；
-- 文章内容；
-- 一些author、title等模板里用到的信息；
+关键目录：
 
-文章需要命名为类似于`_posts/2018-08-20-bananas.md`就行。
+| 路径 | 作用 |
+|------|------|
+| `_posts` | 博客文章，文件名带日期 |
+| `_site` | 构建后的静态网站 |
+| `_layouts` | 页面模板 |
+| `_includes` | 可复用组件 |
+| `_sass` / `assets` | 样式和静态资源 |
+| `_config.yml` | 全站配置 |
+| `Gemfile` / `Gemfile.lock` | Ruby 依赖声明与锁定 |
 
-比如Jekyll的样例文章：
-```html
-{% raw %}
----
-title:  "Welcome to Jekyll!"
-date:   2019-11-16 02:08:37 +0800
-categories: jekyll update
----
-You’ll find this post in your `_posts` directory. Go ahead and edit it and re-build the site to see your changes. You can rebuild the site in many different ways, but the most common way is to run `jekyll serve`, which launches a web server and auto-regenerates your site when a file is updated.
+# `_posts`：文章集合
 
-Jekyll requires blog post files to be named according to the following format:
+文章放在 `_posts`，文件名必须类似：
 
-`YEAR-MONTH-DAY-title.MARKUP`
-
-Where `YEAR` is a four-digit number, `MONTH` and `DAY` are both two-digit numbers, and `MARKUP` is the file extension representing the format used in the file. After that, include the necessary front matter. Take a look at the source for this post to get an idea about how it works.
-
-Jekyll also offers powerful support for code snippets:
-
-{% highlight ruby %}
-def print_hi(name)
-  puts "Hi, #{name}"
-end
-print_hi('Tom')
-#=> prints 'Hi, Tom' to STDOUT.
-{% endhighlight %}
-
-Check out the [Jekyll docs][jekyll-docs] for more info on how to get the most out of Jekyll. File all bugs/feature requests at [Jekyll’s GitHub repo][jekyll-gh]. If you have questions, you can ask them on [Jekyll Talk][jekyll-talk].
-
-[jekyll-docs]: https://jekyllrb.com/docs/home
-[jekyll-gh]:   https://github.com/jekyll/jekyll
-[jekyll-talk]: https://talk.jekyllrb.com/
-{% endraw %}
+```text
+_posts/2018-08-20-bananas.md
 ```
-- 用的模板是post.html；
-- 用的标题和日期。如果标题不指定，会使用文件名日期后的字符串作为标题，如`bananas`；
-- YAML Front Matter下面只需要给出文章正文就行了。
 
-## 访问所有的`_posts`
-发表的文章有很多，应该提供一种看到所有文章的机制。
+文章的 front matter 提供模板需要的信息，例如标题、日期、分类。正文在构建时进入 `{{ content }}`。
 
-在`home.html`模板中，已经给出了方法：
+Jekyll 的示例文章会告诉你：
+
+- 文件在 `_posts`。
+- 文件名必须包含 `YEAR-MONTH-DAY-title`。
+- 文章要有 front matter。
+- 代码可以用 fenced code block 或 Jekyll highlight。
+
+现在建议优先用 Markdown fenced code block，简单、直观、主题兼容也更好。
+
+# 访问所有文章：`site.posts`
+
+`site.posts` 表示 `_posts` 下所有已发布文章。目录页可以这样写：
+
 ```html
-{% raw %}
-  {%- if site.posts.size > 0 -%}
-	<h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
-	<ul class="post-list">
-	  {%- for post in site.posts -%}
-	  <li>
-		{%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-		<span class="post-meta">{{ post.date | date: date_format }}</span>
-		<h3>
-		  <a class="post-link" href="{{ post.url | relative_url }}">
-			{{ post.title | escape }}
-		  </a>
-		</h3>
-		{%- if site.show_excerpts -%}
-		  {{ post.excerpt }}
-		{%- endif -%}
-	  </li>
-	  {%- endfor -%}
-	</ul>
-
-	<p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | relative_url }}">via RSS</a></p>
-  {%- endif -%}
-{% endraw %}
+<ul>
+  {% for post in site.posts %}
+    <li>
+      <span>{{ post.date | date: "%Y-%m-%d" }}</span>
+      <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+    </li>
+  {% endfor %}
+</ul>
 ```
-**`site.posts`在Jekyll中代表所有发表在`_posts`下的文章**。通过`{% raw %}{% for post in site.post %}{% endraw %}`就可以遍历所有文章，并访问每个文章的date、title、excerpt等信息。
 
-这也是使用了`home.html`模板的页面也会显示所有文章的原因。
+这也是 `home.html` 能列出文章的原因。更多内容看 [Jekyll blogging 文档](https://jekyllrb.com/docs/step-by-step/08-blogging/)。
 
-参阅：
-- https://jekyllrb.com/docs/step-by-step/08-blogging/
+# `_site`：最终静态网站
 
-## `_site`
-这里是编译`_posts`里的文章生成的最终的网页，模板和内容在这里都被组装到了一起。最终我们访问网页的时候，访问的时候都是这些内容。
+`_site` 是构建结果。模板、Markdown、Liquid、Sass 最终都在这里被组装成 HTML、CSS、JS。
 
-`_site`就是一个完整的静态网站。如果把它拷到Apach服务器上，一个静态网站就可以直接访问了。
+```mermaid
+flowchart LR
+    A["_posts/*.md"] --> C["jekyll build"]
+    B["_layouts / _includes / assets"] --> C
+    C --> D["_site"]
+    D --> E["可直接被 Nginx / Apache / GitHub Pages 托管"]
+```
 
-## `index.md`
-```html
-{% raw %}
+把 `_site` 拷到 Apache 或 Nginx 的静态目录里，一个静态网站就可以访问了。
+
+# `index.md` 与 `about.md`
+
+首页通常使用 `home` layout：
+
+```yaml
 ---
-# Feel free to add content and custom Front Matter to this file.
-# To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
 layout: home
 title: Home
 list_title: puppylpg wanna say -
 ---
 Welcome to puppylpg's home website, pika~
-{% endraw %}
 ```
-index页面使用的模板是`home.html`，所以会列出所有的文章目录。
 
-## `about.md`
-```html
-{% raw %}
+`about.md` 通常使用 `page` layout，并通过 `permalink` 指定路径：
+
+```yaml
 ---
 layout: page
 title: About
 permalink: /about/
 ---
-
-This is the base Jekyll theme. You can find out more info about customizing your Jekyll theme, as well as basic Jekyll usage documentation at [jekyllrb.com](https://jekyllrb.com/)
-
-You can find the source code for Minima at GitHub:
-[jekyll][jekyll-organization] /
-[minima](https://github.com/jekyll/minima)
-
-You can find the source code for Jekyll at GitHub:
-[jekyll][jekyll-organization] /
-[jekyll](https://github.com/jekyll/jekyll)
-
-
-[jekyll-organization]: https://github.com/jekyll
-{% endraw %}
 ```
-about使用的是page模板，路径是/about。关于路径，下面会介绍。
 
-## `_config.yml`
-config文件可以配置很多东西，比如：
-- 全局变量：可以指定一些键值对，这些键值对最终都能通过`site`变量引用；
-- 主题：比如现在用的minima；
-- 插件；
+如果不指定 `permalink`，页面路径通常跟文件路径相关。
 
-其他。
+# `_config.yml`
 
-> 修改其他文件都能做到动态加载，在不重启本地server的情况直接看到变化。但是修改`_config.yml`里的内容必须重启server。
+`_config.yml` 可以配置：
 
-参阅：
-- https://jekyllrb.com/docs/configuration/
+- 全站变量，例如 `title`、`description`、`timezone`。
+- 主题，例如 `theme: minima`。
+- 插件。
+- permalink。
+- defaults。
 
-## `Gemfile` & `Gemfile.lock`
-使用Gemfile最大的作用就是指定工程使用的依赖（gem）的版本，通过`bundler`就可以使用Gemfile中指定的这些版本的gem构建工程，保证构建的一致性。
+> 修改 `_config.yml` 后需要重启 Jekyll server。别问，盯着浏览器刷新十分钟这种事真的会发生。
+{: .prompt-warning }
 
-构建方式：
-- 安装gem：`bundle install`；
-- 更新某个gem：`buldle update <gem>`；
+配置文档可以看 [Jekyll configuration](https://jekyllrb.com/docs/configuration/)。
 
-安装或者更新完gem后，会生成`Gemfile.lock`，它是最后一次执行完构建后，一切都没啥问题的gem和版本。所以它相当于是当前系统使用依赖（及版本）的一个快照。
+# `Gemfile` 与 `Gemfile.lock`
 
-（Gemfile一般定义的是一个gem的范围，比如使用大于2.0版的Jekyll等等，而Gemfile.lock记录了最后一次成功构建时使用的Jekyll的具体版本，比如2.1.1。）
+`Gemfile` 声明依赖范围，`Gemfile.lock` 锁定最后解析出的精确版本。
 
-- https://bundler.io/v1.7/rationale.html#checking-your-code-into-version-control
+常见命令：
 
-# minima主题自定义
-minima是Jekyll默认且最基本的主题，如果想增加更多的定制，可以参阅[minima主题自定义]({% link _tutorials/2019-11-23-minima-customize.md %})
+```bash
+bundle install
+bundle update <gem>
+```
 
-# 总结
-折腾了两天之后，不得不感叹前端的东西果然是丰富多彩。比如想给网站添加sidebar，里面放文章的目录内容。虽然sidebar大差不差勉强算是搞定了，但是很多细节还需要去处理，尤其是toc在这里并不能生成目录，还得想办法去解决。
+`Gemfile.lock` 相当于“这套依赖曾经成功构建过”的快照。团队协作和 CI 都依赖它保证一致性。Bundler 的设计理念可以看 [Bundler rationale](https://bundler.io/v1.7/rationale.html#checking-your-code-into-version-control)。
 
-折腾前端也是耗时间的一件事。而现在的我要学的东西还很多，也不能在前端这儿一直耗着。所以先这样吧，反正目前网站看起来凑合能用了。其他的比如字体，sidebar，图片之类的东西，用一段时间之后再修改一些东西吧，反正一直慢慢用着改着，挺好的。
+# 本地覆盖主题文件
 
-多看几个官方网站：
-- minima的官网：https://github.com/jekyll/minima/blob/master/README.md
-- Jekyll的官网：https://jekyllrb.com/
-- `githup-pages`：https://github.com/github/pages-gem
+gem 主题有一个重要机制：**站点本地同路径文件优先于主题 gem 内文件**。
 
+比如你在项目里创建：
+
+```text
+_layouts/post.html
+```
+
+Jekyll 会优先使用你本地的 `post.html`，而不是 minima gem 里的那个。这是自定义主题最常用的方式，也是未来升级主题时最容易产生“手动合并债务”的地方。
+
+# 验证方式
+
+改完结构或模板后，按这个顺序验证：
+
+```bash
+bundle exec jekyll build
+bundle exec jekyll serve
+```
+
+然后检查：
+
+| 检查项 | 预期 |
+|--------|------|
+| 首页 | 能列出文章 |
+| 文章页 | 标题、日期、正文结构正确 |
+| about 页 | `/about/` 可访问 |
+| `_site` | 能看到生成后的 HTML |
+
+# 小结
+
+minima 虽然简单，但它把 Jekyll 的核心结构展示得很清楚：
+
+- `_layouts` 管页面骨架。
+- `_includes` 管可复用组件。
+- `_posts` 管博客文章。
+- `_site` 是最终静态网站。
+- 本地同路径文件可以覆盖 gem 主题文件。
+
+折腾两天之后，不得不感叹前端的东西果然丰富多彩。比如想给网站添加 sidebar，里面放文章目录内容，虽然勉强能搞定，但细节要处理一堆。前端折腾确实耗时间，而我要学的东西还很多，所以先这样吧：网站看起来凑合能用了，字体、sidebar、图片之类的东西，用着用着慢慢改，挺好的。
+
+参考：
+
+- [minima 官方仓库](https://github.com/jekyll/minima/blob/master/README.md)
+- [Jekyll 官网](https://jekyllrb.com/)
+- [github-pages gem](https://github.com/github/pages-gem)

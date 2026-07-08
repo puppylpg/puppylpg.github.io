@@ -3,6 +3,7 @@ title: "Linux - hostname"
 date: 2021-11-09 15:36:41 +0800
 categories: [linux, dns, network]
 tags: [linux, dns, network]
+description: "从 hostname、/etc/hosts 到 DNS，梳理 Linux 主机名在局域网通信和名字解析中的作用。"
 ---
 
 hostname究竟有什么用？之前在linux pc上一直没有注意到它的用途，直到最近需要在服务器集群上绑定一些服务到特定ip，才发现它在局域网中真的挺有用。
@@ -32,7 +33,7 @@ hostname就和登录账户一样，是标记这个机器的名字的。如果不
 平时单台pc的hostname感知不够强烈，其实hostname放在局域网服务器集群里，作用发挥的更明显，可以用来标识局域网里的各台主机。比如zj044/zj068等。单台pc的hostname意义不大，基本不和局域网其他pc通信。而且基本大家都叫localhost，没有区分。
 
 一些有趣的给集群里的服务器命名hostname的方式：
-- https://web.archive.org/web/20110904040500/https://serverfault.com/questions/45734/the-coolest-server-names
+- [ServerFault 上一个服务器命名脑洞合集](https://web.archive.org/web/20110904040500/https://serverfault.com/questions/45734/the-coolest-server-names)
 
 按照ip尾段用元素周期表命名确实很有意思。是不是还能按照梁山108好汉的座次命名？哈哈哈。
 
@@ -40,6 +41,21 @@ hostname就和登录账户一样，是标记这个机器的名字的。如果不
 hostname和`/etc/hosts`里的name又有什么关系？
 
 在局域网里，直接使用主机名就可以联系对方。当然前提是写入`/etc/hosts`。hostname只是hosts文件的一部分。
+
+```mermaid
+flowchart TD
+    User["用户输入 th017 / th017.corp.yodao.com"] --> Resolver["本机名字解析"]
+    Resolver --> Hosts["/etc/hosts"]
+    Hosts -->|命中| IP["10.105.132.27"]
+    Hosts -->|未命中| DNS["DNS 查询"]
+    DNS --> IP
+    IP --> Conn["连接目标主机"]
+
+    Hostname["hostname<br/>机器自己的名字"] --> Hosts
+    FQDN["局域网域名/FQDN"] --> Hosts
+```
+
+所以hostname本身更像“这台机器叫什么”；`/etc/hosts`才是“这个名字对应哪个IP”。名字好听不好听是审美问题，名字能不能找到机器是解析问题，别混成一坨。
 
 ## `/etc/hosts`
 hosts文件的格式：
@@ -130,9 +146,9 @@ th017上
 ## hostname变更
 可以使用hostname命令即时变更，但只是暂时性的变更，重启后就没了。想永久修改，得修改文件。
 
-- https://www.cyberciti.biz/faq/debian-change-hostname-permanently/
+- [Debian 永久修改 hostname 的方法](https://www.cyberciti.biz/faq/debian-change-hostname-permanently/)
 
 Ref：
-- https://serverfault.com/questions/228102/hostnames-what-are-they-all-about
-- hosts文件的意义：https://www.cnblogs.com/ranyonsue/p/11237334.html
-- hostname意义：https://www.jb51.net/LINUXjishu/10938.html
+- [ServerFault: Hostnames, what are they all about?](https://serverfault.com/questions/228102/hostnames-what-are-they-all-about)
+- hosts文件的意义：[Linux /etc/hosts 文件解释](https://www.cnblogs.com/ranyonsue/p/11237334.html)
+- hostname意义：[Linux hostname 的作用](https://www.jb51.net/LINUXjishu/10938.html)

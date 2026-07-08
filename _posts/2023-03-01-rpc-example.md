@@ -3,12 +3,27 @@ title: "各种各样的RPC"
 date: 2023-03-01 23:45:16 +0800
 categories: [rpc, proxy]
 tags: [rpc, proxy]
+description: "从原生态 Socket RPC、静态代理、动态代理到 Dubbo/gRPC 等实现，比较不同 RPC 方案的取舍。"
 ---
 
 既然当今[RPC]({% post_url 2023-02-26-rpc %})已经不追求大而全的统一方案，而是各有各的特点，那就来稍微细看一下这些数得出名号的rpc。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    RpcCore["RPC 核心<br/>方法 + 参数 + 网络传输 + 返回值"] --> Raw["原生态 Socket<br/>散装字段"]
+    RpcCore --> StaticProxy["静态代理<br/>封装 request object"]
+    RpcCore --> DynamicProxy["动态代理<br/>屏蔽远程调用细节"]
+    DynamicProxy --> Framework["框架化 RPC<br/>服务发现 / 负载均衡 / 序列化 / 协议"]
+    Framework --> Dubbo["Dubbo"]
+    Framework --> Grpc["gRPC"]
+    Framework --> HttpApi["HTTP API"]
+
+    style RpcCore fill:#e3f2fd,stroke:#1976d2
+    style Framework fill:#fff3bf,stroke:#f59f00
+```
 
 # 原生态RPC
 想做到简单，首要的一点就是不要跨语言，这样就不需要IDL。比如调用双方都是java。其次不要关心任何高级一点的功能，比如服务发现。只做rpc最核心最本质的东西：**client以网络通信的方式把要调用的方法、参数都发给server，并接收server返回**。
@@ -428,7 +443,7 @@ public class Test {
             return result;
         }
     }
-```
+    ```
 4. 服务端接收到请求并处理后，将response结果（此结果中包含了前面的requestID）发送给客户端，**客户端socket连接上专门监听消息的线程（想具有主动通知的功能，client里也必须有一个监听线程）收到消息，分析结果，取到requestID，再从前面的ConcurrentHashMap里面get(requestID)，从而找到callback对象，再用synchronized获取callback上的锁，将方法调用结果设置到callback对象里，再调用callback.notifyAll()唤醒前面处于等待状态的线程**。
     ```java
     private void doneJob(Object response) {
@@ -481,4 +496,3 @@ public class Test {
 - [你应该知道的RPC原理](https://www.cnblogs.com/LBSer/p/4853234.html)
 
 当然，最好的还是[这个]({% post_url 2023-02-26-rpc %})。
-

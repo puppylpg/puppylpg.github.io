@@ -3,6 +3,7 @@ title: "Elasticsearch：排序和聚合"
 date: 2022-04-22 23:45:54 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "Elasticsearch 排序与聚合前置机制：相关性得分、doc_values、fielddata 和全局序数。"
 ---
 
 上一篇讲了搜索，这一篇说说排序和聚合。
@@ -33,10 +34,10 @@ es的查询结果，如果没有显式排序，默认按照文档的搜索得分
 - 相关度背后的理论：https://www.elastic.co/guide/cn/elasticsearch/guide/current/scoring-theory.html
 
 **但是es默认不会使用整个索引的数据计算出来的IDF，只使用本分片的IDF近似整个索引的IDF**（假设数据量足够大，二者的区别其实就不大了）：
-- 被破坏的相关度：https://www.elastic.co/guide/cn/elasticsearch/guide/current/relevance-is-broken.html
+- [被破坏的相关度](https://www.elastic.co/guide/cn/elasticsearch/guide/current/relevance-is-broken.html)
 
 如果非要使用精确的IDF，考虑设置`search_type=dfs_query_then_fetch`：
-- search type：https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html
+- [search type](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html)
 
 此时，**本次请求要向其他分片发出额外内部请求，获取他们的该检索词的IDF**，以算出总的IDF，所以会消耗额外的时间在请求上。
 
@@ -54,6 +55,18 @@ es的查询结果，如果没有显式排序，默认按照文档的搜索得分
 这就需要用到正排索引，它和倒排索引是完全相反的概念：
 - 倒排索引是根据token找所有包含这个token的文档；
 - 正排索引是根据文档找它所有的token；
+
+```mermaid
+flowchart LR
+    A[token] -->|倒排索引 index| B[doc id 列表]
+    C[doc id] -->|正排索引 doc_values| D[field value]
+    B --> S[搜索命中]
+    D --> G[排序 / 聚合 / 脚本取值]
+
+    style A fill:#e3f2fd,stroke:#4dabf7
+    style C fill:#e8f5e9,stroke:#51cf66
+    style G fill:#fff3bf,stroke:#f59f00
+```
 
 两个文档：
 1. The quick brown fox jumped over the lazy dog
@@ -98,7 +111,14 @@ Doc_2 | brown, dogs, foxes, in, lazy, leap, over, quick, summer
 
 ## index vs. doc_values
 - `index`：倒排索引，绝大多数field类型默认都开启，开启之后即可搜索。**不开启一般不能搜索，但不绝对**；
-- `doc_values`：倒排索引，**除了`text`和`annotated_text`**，其他field类型都默认开启了；
+- `doc_values`：正排索引/列式存储，**除了`text`和`annotated_text`**，其他field类型都默认开启了；
+
+| 能力 | 主要依赖 | 典型场景 |
+| --- | --- | --- |
+| 搜索某个 token/term | `index` 倒排索引 | `match`、`term` |
+| 按字段排序 | `doc_values` | `sort` |
+| 按字段聚合 | `doc_values` / `fielddata` | `terms agg`、`sum` |
+| 返回少量字段 | `_source` / `stored_fields` / `docvalue_fields` | 控制响应大小 |
 
 **Numeric types, date types, the boolean type, ip type, geo_point type and the keyword type can also be queried when they are not indexed but only have doc values enabled. 大概是因为排好序了，所以就可搜索了。类似innodb**。
 
@@ -294,7 +314,7 @@ fielddata被取代，**因为磁盘速度上来了，而把数据放在后者没
 
 > 序号的构建只被应用于字符串。数值信息（integers（整数）、geopoints（地理经纬度）、dates（日期）等等）不需要使用序号映射，因为这些值自己本质上就是序号映射。因此，我们只能为字符串字段预构建其全局序号。
 
-**global oridinals同样适用于doc_values**：当存储数据的时候，存储的是映射值。查询的时候，查的是全局序号表，获得符合条件的映射值，然后把所有含有映射值的文档从磁盘搜索出来。最后转回原始值，返回给用户。
+**global ordinals同样适用于doc_values**：当存储数据的时候，存储的是映射值。查询的时候，查的是全局序号表，获得符合条件的映射值，然后把所有含有映射值的文档从磁盘搜索出来。最后转回原始值，返回给用户。
 
 同样，默认情况下，第一次搜索时才会创建全局序号表。**之后只有index刷新了，且再次第一次搜索时，才会创建全局序号表**：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/eager-global-ordinals.html
@@ -312,4 +332,3 @@ PUT my-index-000001/_mapping
   }
 }
 ```
-

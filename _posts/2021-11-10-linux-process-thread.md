@@ -1,8 +1,9 @@
 ---
 title: "Linux - 进程与线程"
 date: 2021-11-10 20:47:42 +0800
-categories: [linux]
-tags: [linux]
+categories: [linux, process]
+tags: [linux, process, thread]
+description: "从 task_struct、mm_struct、fs_struct 到孤儿进程和僵尸进程，理解 Linux 里的进程与线程。"
 ---
 
 关于进程和线程。
@@ -23,8 +24,24 @@ tags: [linux]
 
 > 进程和线程都对应到实际代码，形象不？
 
+```mermaid
+flowchart TD
+    Parent["task_struct A"] --> MMA["mm_struct A<br/>虚拟内存"]
+    Parent --> FSA["fs_struct A<br/>fd table"]
+
+    Fork["fork()"] --> ChildProc["task_struct B<br/>子进程"]
+    ChildProc --> MMB["mm_struct B<br/>COW复制"]
+    ChildProc --> FSB["fs_struct B<br/>复制fd表"]
+
+    Pthread["pthread_create()"] --> ChildThread["task_struct C<br/>线程"]
+    ChildThread --> MMA
+    ChildThread --> FSA
+```
+
+Linux里进程和线程都落到`task_struct`上，所以区别不是“有没有一个神秘的线程对象”，而是**这个task到底共享哪些资源**。共享得越多，创建越轻；共享得越多，互相踩脚的机会也越多。
+
 Ref：
-- https://zhuanlan.zhihu.com/p/105086274
+- [Linux 进程和线程 task_struct 的一篇解释](https://zhuanlan.zhihu.com/p/105086274)
 
 # 孤儿进程 vs. 僵尸进程
 从`task_struct`的结构可以看出，进程持有一堆资源。当进程退出，资源（fd、memory）会被释放（close会被调用），但仍然会保留基本信息（pid、status）等，**需要父进程使用wait/waitpid手动释放掉这些东西**。
@@ -41,6 +58,17 @@ Ref：
 
 - 子进程**一定会先经过僵尸进程状态**（进程结束后，没有被wait前），然后如果有一个好爸爸，就会彻底消失，如果父进程不wait，就成了永远的僵尸进程；
 - 如果父进程先结束，子进程最终一定不会变成僵尸进程，因为init这个新的爸爸一定会处理好子进程；
+
+```mermaid
+flowchart TD
+    ChildRun["子进程运行"] --> Exit["子进程 exit"]
+    Exit --> Zombie["保留 pid/status<br/>进入 zombie"]
+    Zombie -->|父进程 wait/waitpid| Reaped["彻底释放"]
+    ParentDie["父进程先退出"] --> Orphan["子进程变孤儿"]
+    Orphan --> Init["init/systemd 接管"]
+    Init -->|子进程退出后 wait| Reaped
+    Zombie -->|父进程一直不 wait| Leak["zombie 持续占 pid"]
+```
 
 
 所以：
@@ -59,4 +87,4 @@ Ref：
 生产环境中碰到不断产生的子进程怎么办？一定是因为它的父进程写挫了，找到他的父进程，kill。
 
 Ref:
-- https://www.cnblogs.com/Anker/p/3271773.html
+- [Linux 孤儿进程与僵尸进程的一篇整理](https://www.cnblogs.com/Anker/p/3271773.html)

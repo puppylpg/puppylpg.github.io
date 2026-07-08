@@ -3,12 +3,27 @@ title: "（五）How Tomcat Works - Tomcat Lifecycle"
 date: 2020-10-08 14:09:52 +0800
 categories: [tomcat, http, web]
 tags: [tomcat, http, web]
+description: "用 Lifecycle 接口统一 Tomcat 组件的启动、停止、事件通知和级联管理。"
 ---
 
 servlet是有生命周期的，需要在不同的阶段调用init/destory等。同时Tomcat包含有很多组件，他们的启动必然是有先后顺序的，也是有联系的，不能漏掉任何一个。为了统一启动关闭这些组件，最好的办法就是给组件都加上生命周期。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+stateDiagram-v2
+    [*] --> New
+    New --> BeforeStart: start()
+    BeforeStart --> Starting: BEFORE_START_EVENT
+    Starting --> Started: START_EVENT / 子组件 start()
+    Started --> AfterStart: AFTER_START_EVENT
+    AfterStart --> BeforeStop: stop()
+    BeforeStop --> Stopping: BEFORE_STOP_EVENT
+    Stopping --> Stopped: STOP_EVENT / 子组件 stop()
+    Stopped --> AfterStop: AFTER_STOP_EVENT
+    AfterStop --> [*]
+```
 
 # `org.apache.catalina.Lifecycle`
 Lifecycle是一个简单明了的接口：
@@ -271,4 +286,3 @@ SimpleWrapper的stop，还调用了servlet的destory：
     lifecycle.fireLifecycleEvent(AFTER_STOP_EVENT, null);
   }
 ```
-

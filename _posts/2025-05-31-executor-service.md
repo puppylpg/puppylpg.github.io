@@ -3,13 +3,32 @@ title: "线程执行服务：ExecutorService"
 date: 2025-05-31 14:50:41 +0800
 categories: [java, executor]
 tags: [java, executor]
+description: "解释 ExecutorService 如何用 submit 把任务封装成 FutureTask，并复用 execute 完成执行与状态同步。"
 ---
 
 有了线程执行器`Executor`，为什么还要有`ExecutorService`？
-**因为executor作为任务执行者最简单的抽象，实在是太简单了，以至于功能有限，无法控制任务的执行，感知任务的状态**。它只提供了`execute`方法，返回值是void，对任务的执行没有暴露任何控制接口。、
+**因为executor作为任务执行者最简单的抽象，实在是太简单了，以至于功能有限，无法控制任务的执行，感知任务的状态**。它只提供了`execute`方法，返回值是void，对任务的执行没有暴露任何控制接口。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+sequenceDiagram
+    participant Caller as 调用方
+    participant Service as ExecutorService.submit
+    participant FutureTask as FutureTask
+    participant Executor as Executor.execute
+    participant Worker as Worker Thread
+
+    Caller->>Service: submit(Callable)
+    Service->>FutureTask: newTaskFor(callable)
+    Service->>Executor: execute(FutureTask)
+    Service-->>Caller: 返回 Future
+    Executor->>Worker: 调度任务
+    Worker->>FutureTask: run()
+    FutureTask->>FutureTask: call 成功 set(result) / 失败 setException
+    FutureTask-->>Caller: get() 返回结果或抛 ExecutionException
+```
 
 # 任务
 先看一下任务的表示方式：
@@ -231,13 +250,13 @@ future必然是和一个任务关联的。所以在`Future`的实现类`FutureTa
                                                      " rejected from " +
                                                      e.toString());
             }
-```
+    ```
 
 - `DiscardPolicy`：提交不了拉倒，啥也不做。啥也不做其实就是扔了。但这个一定要注意，**不要获取它的`Future`**。因为任务已经扔了，不会再被执行了，提交时创建的`Future`的任务执行状态永远不会被改变，所以想要获取其值无异于等待戈多——永远也不可能等到；
     ```java
             public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
             }
-```
+    ```
 
 - `DiscardOldestPolicy`：提交不了，就把队头的拉出来扔了，把新的任务放进去；
     ```java
@@ -258,7 +277,7 @@ future必然是和一个任务关联的。所以在`Future`的实现类`FutureTa
                     r.run();
                 }
             }
-```
+    ```
 
 - ~~自定义一个`CallerBlocksPolicy`：如果提交任务的线程发现交不了了，就卡着（线程挂起），直到队列有了新的位置，可以提交进去位置~~。
     ```java
@@ -266,7 +285,7 @@ future必然是和一个任务关联的。所以在`Future`的实现类`FutureTa
                 // 不建议直接操作这个内部queue：Access to the task queue is intended primarily for debugging and monitoring.
                 executor.getQueue().put(r);
             };
-```
+    ```
 
 [`CallerBlocksPolicy`](https://stackoverflow.com/a/10353250/7676237)这种自定义的方式不是很合适，不过可以在这里列出来用作头脑风暴，以加深对线程池额理解。目前可能用到的场景就是大量数据从数据库读取时，如果直接读全部会OOM。所以采用流式读取。读数据的线程发现worker线程满负载运转，且`BlockingQueue`队列堆满时，就直接卡住，不再继续从数据库流式加载数据了。
 

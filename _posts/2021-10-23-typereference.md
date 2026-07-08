@@ -3,6 +3,7 @@ title: "序列化 - 泛型TypeReference"
 date: 2021-10-23 16:42:02 +0800
 categories: [java, serialization, jackson, json]
 tags: [java, serialization, jackson, json]
+description: "解释 Java 泛型擦除后 Jackson 如何借助匿名子类 TypeReference 捕获 List<Student> 这样的参数化类型。"
 ---
 
 在使用Jackson反序列化json的时候，需要两个基本条件：
@@ -20,6 +21,21 @@ tags: [java, serialization, jackson, json]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Json["JSON 字符串"] --> NeedType["Jackson 需要目标类型"]
+    NeedType --> ClassOnly["List.class<br/>只有 raw type"]
+    ClassOnly --> Lost["Student 泛型信息丢失"]
+    NeedType --> TypeRef["new TypeReference<List<Student>>(){}"]
+    TypeRef --> Anonymous["匿名子类保留 generic superclass"]
+    Anonymous --> Reflect["反射读取 List<Student>"]
+    Reflect --> Deserialize["正确反序列化为 List<Student>"]
+
+    style ClassOnly fill:#ffe3e3,stroke:#c62828
+    style TypeRef fill:#e3f2fd,stroke:#1976d2
+    style Deserialize fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 传的信息不够
 
@@ -66,7 +82,7 @@ or:
 new interface-name () { class-body }
 ```
 
-- docstore.mik.ua/orelly/java-ent/jnut/ch03_12.htm
+- [Java in a Nutshell: Anonymous Classes](http://docstore.mik.ua/orelly/java-ent/jnut/ch03_12.htm)
 
 **匿名类也可以说是匿名子类，因为匿名类实际上是原有类的子类**。
 
@@ -297,4 +313,3 @@ class Student {
 }
 ```
 需要哪个泛型签名，就通过创建`MyClass`的匿名子类，再`MyClass#getType`即可。
-

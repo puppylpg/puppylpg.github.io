@@ -3,12 +3,36 @@ title: "Docker - dind"
 date: 2022-10-09 23:54:39 +0800
 categories: [docker, gitlab]
 tags: [docker, gitlab]
+description: "解释 Docker in Docker、Docker out of Docker、socket binding 以及 GitLab CI 中构建镜像的几种方式。"
 ---
 
 使用docker in docker在容器内构建docker镜像。主要是为了集成到gitlab ci里。
 
 1. Table of Contents, ordered
 {:toc}
+
+# 先分清 DinD 和 DooD
+
+CI 里“在容器里用 Docker”其实有两种完全不同的实现：
+
+```mermaid
+flowchart TD
+    subgraph DinD["真正的 Docker in Docker"]
+        J1["job container<br/>docker cli"] --> S1["service container<br/>dockerd"]
+        S1 --> I1["内层 images/containers/volumes"]
+    end
+    subgraph DooD["Docker out of Docker"]
+        J2["job container<br/>docker cli"] --> Sock["/var/run/docker.sock"]
+        Sock --> HostD["host dockerd"]
+        HostD --> I2["宿主机 images/containers/volumes<br/>job 的 sibling"]
+    end
+```
+
+| 方式 | daemon 在哪 | 需要 `--privileged` | 新容器和 job 的关系 | 主要风险 |
+|---|---|---|---|---|
+| DinD | job 旁边的 `docker:dind` service 容器里 | 通常需要 | 内层 daemon 管的 child | 嵌套存储驱动、隔离不完整、启动慢 |
+| DooD/socket binding | 宿主机 Docker daemon | 不一定需要 | 宿主机上的 sibling | socket 等于宿主机 root 级能力，太猛 |
+| shell executor | 物理机上直接跑命令 | 不涉及 | 宿主机上的普通 Docker 对象 | runner 用户权限和宿主机污染 |
 
 # dind
 docker容器内部是可以再启动一个docker daemon，但并不像想象中的那么美好。主要是无法做到完全的隔离。
@@ -41,7 +65,7 @@ dind可以在docker镜像里使用docker了。
 
 ## 弊端
 dind有很多弊端，比如：外层的docker容器用的是正常的文件系统，容器内部实际用的是一个copy on write文件系统(AUFS, BTRFS, Device Mapper, etc., depending on what the outer Docker is setup to use)，但是这个内部的文件系统并不一定能在外部的文件系统上正常工作，比如内层是AUFS的时候，外层不能是AUFS。除此之外，还有很多其他的问题。
-- https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/
+参考 Jérôme Petazzoni 的 [Do not use Docker-in-Docker for CI](https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/)。
 
 总之，dind使用起来并不能完全像正常的独立docker一样。
 
@@ -85,24 +109,24 @@ Status: Downloaded newer image for docker:latest
 Docker version 20.10.18, build b40c2f6
 ```
 
-早前，甚至都不需要用这个景象，直接把host上的docker binary绑定到容器里就行了。**但是后来docker engine不再是静态的了，所以只能在容器里装docker cli了**：
+早前，甚至都不需要用这个镜像，直接把host上的docker binary绑定到容器里就行了。**但是后来docker engine不再是静态的了，所以只能在容器里装docker cli了**：
 1. 要么直接用带docker cli的镜像，比如官方的`docker:latest`；
 2. 要么自己在image里装docker，比如用apt安装docker。但是图啥呢，何不直接用官方带docker cli的镜像……
 
 > Former versions of this post advised to bind-mount the docker binary from the host to the container. This is not reliable anymore, because the Docker Engine is no longer distributed as (almost) static libraries.
 
 ## dind/dood的示例
-- docker容器中跑docker服务：https://www.zhihu.com/question/435886465/answer/1666067989
+- [docker容器中跑docker服务的一个示例](https://www.zhihu.com/question/435886465/answer/1666067989)
 
 # Ref
 非常好的介绍了docker in docker的弊端：
-- https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/
-- https://hub.docker.com/_/docker
-- https://github.com/jpetazzo/dind
+- [Do not use Docker-in-Docker for CI](https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/)
+- [Docker 官方镜像](https://hub.docker.com/_/docker)
+- [jpetazzo/dind](https://github.com/jpetazzo/dind)
 
 # gitlab dind
 gitlab的dind提供了上述dind和dood，**想使用dind，必须使用[docker gitlab runner](https://docs.gitlab.com/runner/executors/docker.html)，不能使用物理机的runner**：
-- https://docs.gitlab.com/ee/ci/docker/using_docker_build.html
+参考 [GitLab CI 使用 Docker 构建镜像的文档](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html)。
 
 > **runner必须本身是个docker镜像，且含有docker cli**。
 
@@ -161,7 +185,7 @@ build:
 ```
 
 当然，gitlab也提醒了纯正dind的限制，跟上面介绍的差不多：
-- limitations of dind: https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#limitations-of-docker-in-docker
+参考 [GitLab 文档里的 Docker-in-Docker 限制](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#limitations-of-docker-in-docker)。
 
 ## docker socket binding
 也可以使用dood，通过[docker socket binding](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-socket-binding)实现。此时，**docker gitlab runner不需要配置privileged，但是必须用volumes绑定docker socket**：
@@ -189,10 +213,25 @@ build:
 
 ## 实体机docker指令
 gitlab runner想使用docker，并非只能在dind跑。如果实体机上起的有docker，那么把gitlab-runner用户加入docker组之后，实体机的gitlab runner也能调用实体机上的docker daemon了。当然，这不涉及到dind：
-- https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-the-shell-executor
+参考 [GitLab Shell executor 使用 Docker 的文档](https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-the-shell-executor)。
 
 ## gitlab-ci使用dind示例
 这是一个gitlab-ci使用dind的例子，用的是真正的dind：
+
+```mermaid
+sequenceDiagram
+    participant Job as build-image job
+    participant CLI as docker cli in job image
+    participant Service as docker:dind service
+    participant Registry as Harbor registry
+    Job->>CLI: docker build
+    CLI->>Service: DOCKER_HOST=tcp://docker:2375/2376
+    Service->>Service: 构建 image layer
+    Job->>CLI: docker push
+    CLI->>Service: push 请求
+    Service->>Registry: 上传镜像
+```
+
 ```bash
 image: harbor-registry.inner.yd.com/devops/docker:19.03-ydci
 
@@ -249,4 +288,3 @@ build-image:
 开发docker的人，才是真正的深入理解linux啊~
 
 > 我太菜了o(╥﹏╥)o
-

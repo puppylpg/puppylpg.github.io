@@ -3,12 +3,36 @@ title: "Elasticsearch：client"
 date: 2022-11-06 20:11:32 +0800
 categories: [elasticsearch, spring-data-elasticsearch]
 tags: [elasticsearch, spring-data-elasticsearch]
+description: "Elasticsearch Java 客户端梳理：LLRC、HLRC、elasticsearch-java、反序列化、兼容低版本服务端和 Spring Boot 自动配置。"
 ---
 
 elasticsearch有很多Java client，底层的、上层的，废弃的、现存的，需要好好梳理一下，不然编程的时候一脸懵逼，尤其是使用spring boot自动配置client的时候。
 - https://spinscale.de/posts/2022-03-03-running-the-elasticcc-platform-part-2.html
 
 另外spring data elasticsearch也提供了基于elasticsearch原生client的上层client，比如ElasticsearchRestTemplate，在此一起进行对比。
+
+```mermaid
+flowchart TD
+    A[Apache HttpClient] --> B[LLRC RestClient]
+    B --> C[HLRC RestHighLevelClient<br/>deprecated]
+    B --> D[RestClientTransport]
+    D --> E[elasticsearch-java ElasticsearchClient]
+    E --> F[强类型 request/response + JsonpMapper]
+    C --> G[老式 Request/Response + SearchHit]
+    E --> H[Spring Boot 3 自动配置]
+    C --> I[Spring Boot 2 自动配置]
+
+    style B fill:#e3f2fd,stroke:#4dabf7
+    style C fill:#fff3bf,stroke:#f59f00
+    style E fill:#e8f5e9,stroke:#51cf66
+```
+
+| client | 状态 | 优点 | 主要问题 |
+| --- | --- | --- | --- |
+| LLRC | 仍是底层基础 | 负责 HTTP、连接池、节点选择 | 太底层，业务要自己拼 JSON |
+| HLRC | 7.15 deprecated | 比 LLRC 好用一些 | 手写 API、泛型弱、已停止演进 |
+| `elasticsearch-java` | 新官方 Java client | 强类型、lambda builder、泛型响应 | 依赖 JSON-P/Jackson，低版本服务端要兼容处理 |
+| Spring Data Elasticsearch | Spring 上层封装 | repository/template 方便 | 和原生 client 混用时注解和反序列化要分清 |
 
 1. Table of Contents, ordered
 {:toc}
@@ -903,6 +927,17 @@ spring boot可以这么设置：
 `RestHighLevelClient#search`返回的是`SearchResponse`，获取hits后（`searchResponse.getHits().getHits()`），得到的是`SearchHit[]`，从`SearchHit#getSourceAsMap`只能获取`Map<String, Object>`，必须把map手动转成自己想要的类。
 
 而`ElasticsearchClient#search`返回的是`SearchResponse<TDocument>`，它是带泛型的。获取hits后（`searchResponse.hits().hits()`），得到的是`List<Hit<T>>`，一路都是泛型，Hit也支持泛型，所以`Hit#source`直接就返回最终的类了。免去了自己手动转换的过程。
+
+```mermaid
+flowchart LR
+    A[HLRC SearchHit] --> B[BytesReference / Map]
+    B --> C[应用手动转换实体类]
+    D[elasticsearch-java Hit<T>] --> E[JsonpDeserializer<TDocument>]
+    E --> F[直接得到 source(): T]
+
+    style C fill:#fff3bf,stroke:#f59f00
+    style F fill:#e8f5e9,stroke:#51cf66
+```
 
 为什么HLRC不能直接返回类？因为它的`SearchHit`内部的source的表示形式是自定义的`BytesReference`接口，其实现类比如`BytesArray`内部存放的就是`byte[]`。**它没有对象的类信息，所以`SearchHit`要么直接返回bytes，要么转换一下，把bytes转成`Map<String, Object>`，但也仅此而已了**。而java client则支持泛型，所以它的`Hit`内部对source的表示形式是`<TDocument> source`，直接就是一个对象。这个对象是怎么来的？使用`jakarta.json`反序列化来的。
 

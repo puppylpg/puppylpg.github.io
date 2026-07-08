@@ -3,6 +3,7 @@ title: "CompletableFuture"
 date: 2025-06-01 00:56:03 +0800
 categories: [java, executor]
 tags: [java, executor]
+description: "类比 ListenableFuture 理解 CompletableFuture 的 Completion 链、thenApply/thenCompose 和回调触发。"
 ---
 
 jdk的CompletableFuture和guava的ListenableFuture，在功能上基本是一致的。都允许对一个任务添加回调。但是二者的风格不同：
@@ -13,6 +14,19 @@ jdk的CompletableFuture和guava的ListenableFuture，在功能上基本是一致
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart LR
+    F1["f1: supplyAsync<br/>result = Hello"] -->|postComplete| C1["UniApply<br/>s -> s + World"]
+    C1 --> F2["f2: thenApply<br/>result = Hello World"]
+    F2 -->|postComplete| C2["UniAccept<br/>println"]
+    C2 --> F3["f3: thenAccept<br/>result = Void"]
+    Returned["变量 future"] -. "其实指向最后一个 stage" .-> F3
+
+    style F1 fill:#e3f2fd,stroke:#1976d2
+    style F2 fill:#fff3bf,stroke:#f59f00
+    style F3 fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 先从逻辑上理解`CompletableFuture`
 直接看一个例子：
@@ -143,7 +157,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   ```java
   CompletableFuture<String> future = CompletableFuture.completedFuture("Hello");
   // future.get() 立即返回 "Hello"
-```
+  ```
 
 
 ## **2. 创建异步任务**
@@ -154,7 +168,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
       System.out.println("异步任务执行中");
   });
-```
+  ```
 
 - **`runAsync(Runnable runnable, Executor executor)`**  
   使用自定义线程池执行任务：
@@ -172,7 +186,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
       return "计算结果";
   });
-```
+  ```
 
 - **`supplyAsync(Supplier<U> supplier, Executor executor)`**  
   使用自定义线程池执行带返回值的任务：
@@ -181,7 +195,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
       return 42;
   }, executor);
-```
+  ```
 
 
 ## **3. 组合多个 CompletableFuture**
@@ -194,7 +208,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   
   CompletableFuture<Integer> combined = future1.thenCombine(future2, (a, b) -> a + b);
   // combined.get() 返回 30
-```
+  ```
 
 ### **任意一个 Future 完成时执行**
 - **`acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action)`**  
@@ -217,7 +231,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   }).exceptionally(ex -> "默认值");
   
   // future.get() 返回 "默认值"
-```
+  ```
 
 ### **无论是否异常都执行操作**
 - **`whenComplete(BiConsumer<? super T, ? super Throwable> action)`**  
@@ -232,7 +246,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
           System.out.println("结果: " + result);
       }
   });
-```
+  ```
 
 
 ## **5. 多任务并行与聚合**
@@ -246,7 +260,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   );
   
   allFutures.get(); // 等待所有任务完成
-```
+  ```
 **注意`allOf`的返回：它返回的是一个新的`CompletableFuture`，这个cf的结果比较特殊：如果有子任务挂了，它的结果就是一个`CompletionException`，cause是具体的任务异常。如果子任务都没挂，不能从这个任务获取结果（get方法会返回null值），需要从原始的子任务获取结果（比如对原始cf增加`whenComplete`/`thenApply`链式调用以收集结果）。**
 
 另外还有一点要注意：**`allOf`只返回一个新的cf，但并不阻塞等待任务完成，所以如果需要阻塞等待任务完成，对新的cf使用`get()/join()`方法**。
@@ -288,7 +302,7 @@ public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,
   }).start();
   
   // future.get() 将阻塞直到手动完成
-```
+  ```
 
 
 ## **总结：创建方法对比表**

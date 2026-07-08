@@ -3,6 +3,7 @@ title: "Elasticsearch：pipeline"
 date: 2022-08-27 01:02:21 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "Elasticsearch ingest pipeline 笔记：simulate、remove、script、enrich、foreach、pipeline processor 和 default pipeline。"
 ---
 
 最近对Elasticsearch的pipeline研究的比较多一些，主要是做一些数据类任务：如果只是进行离线处理的话，需要先查es，再处理数据，最后写回es。除了有查询的开销之外，最大的问题就是无法做到在数据一开始写入es时进行实时处理。而ingest pipeline则解决了这个问题，在数据ingest的时候，就对其进行处理。**不仅能实时处理数据，还把处理数据的开销分摊到了每一次数据写入上**。
@@ -16,6 +17,20 @@ tags: [elasticsearch]
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html
 
 ingest pipeline理解起来比较直白，关键是在整个pipeline上，能做哪些操作。组成pipeline的操作的是各类processor，所以其实就是学习一下各种processor的用法。
+
+```mermaid
+flowchart LR
+    A[客户端写入文档] --> B[default_pipeline / pipeline 参数]
+    B --> C[processor 1]
+    C --> D[processor 2]
+    D --> E[processor n]
+    E --> F[写入 primary shard]
+    F --> G[refresh 后可搜索]
+
+    style B fill:#e3f2fd,stroke:#4dabf7
+    style C fill:#fff3bf,stroke:#f59f00
+    style F fill:#e8f5e9,stroke:#51cf66
+```
 
 ## pipeline api
 - create: https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html
@@ -259,6 +274,15 @@ processor才是pipeline的灵魂！
 
 其他还有很多，用到了再研究。所以processor非常丰富，功能强大。
 
+| processor | 适合做什么 | 注意点 |
+| --- | --- | --- |
+| `remove` | 删除字段 | `ignore_missing` 很重要，否则字段不存在就报错 |
+| `set` | 设置简单字段或状态 | 配合 `if` 很适合做状态机 |
+| `script` | 复杂转换 | 注意 null 判断，能不用就不用，维护成本高 |
+| `enrich` | 用另一张索引补数据 | policy execute 后才生成 enrich index |
+| `foreach` | 遍历数组 | 当前值用 `_ingest._value` |
+| `pipeline` | 复用子 pipeline | 像函数调用，便于拆分复杂流程 |
+
 ## remove
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/remove-processor.html
 
@@ -339,6 +363,19 @@ PUT _enrich/policy/url_lookup_policy/_execute
 enrich index其实是一个`.enrich-<index>-<timestamp>`命名的索引，可以理解为：
 - 原索引是“源代码”；
 - enrich index是“编译后”的产物；
+
+```mermaid
+flowchart TD
+    A[url_info 原索引] --> B[定义 enrich policy]
+    B --> C[execute policy]
+    C --> D[生成 .enrich-* 索引]
+    D --> E[ingest 时 enrich processor 查 .enrich-*]
+    E --> F[把 rawUrl/platform/brandId 等写入目标文档]
+
+    style A fill:#e3f2fd,stroke:#4dabf7
+    style D fill:#fff3bf,stroke:#f59f00
+    style F fill:#e8f5e9,stroke:#51cf66
+```
 
 新加入原索引的数据不会被匹配到，除非execute后生成新的enrich index。就好像源代码新增了一些功能并没有什么用，编译之后才能生效。
 
@@ -495,4 +532,3 @@ PUT _ingest/pipeline/branding
 # 性能分析
 还能统计pipeline的使用频率和时间消耗，强啊：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html#get-pipeline-usage-stats
-

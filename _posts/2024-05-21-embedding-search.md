@@ -3,12 +3,31 @@ title: "向量搜索"
 date: 2024-05-21 01:08:48 +0800
 categories: [elasticsearch, milvus]
 tags: [elasticsearch, milvus]
+description: "从 embedding、单位向量、KNN/ANN、HNSW 到向量量化，梳理语义搜索的工程链路。"
 ---
 
 把文本编码成向量，用向量搜索向量。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Text["文本 / 图片 / 音频"] --> Model["Embedding 模型<br/>SBERT 等"]
+    Model --> Vector["float32 向量<br/>例如 768 维"]
+    Vector --> Normalize["归一化为单位向量<br/>cosine 可用点积"]
+    Normalize --> Index["向量索引<br/>HNSW / IVF / 等"]
+    Query["自然语言 Query"] --> Model
+    Index --> Recall["ANN 召回 topK"]
+    Recall --> Rerank["可选：原始向量 rerank"]
+    Rerank --> Result["语义相关结果"]
+    Vector --> Quant["量化<br/>binary / int8"]
+    Quant --> Index
+
+    style Model fill:#e3f2fd,stroke:#1976d2
+    style Index fill:#fff3bf,stroke:#f59f00
+    style Quant fill:#e8f5e9,stroke:#2e7d32
+```
 
 # 向量搜索
 传统搜索引擎基于词汇匹配来做文档搜索，虽然像elasticsearch这种发展完善的搜索引擎已经可以在单词预处理后做词根匹配，但是超出词汇的东西还是无能为力，比如不能根据同义词、甚至语义来做搜索。更不要提用文本搜索图片、视频了，对于传统搜索引擎来说，这是完全风马牛不相及的事情。
@@ -124,7 +143,7 @@ milvus作为专用向量数据库，[支持的ANN算法比较多](https://milvus
 
 同样，也可以先使用int8做召回以减少内存占用，然后对结果进一步rerank。甚至可以把binary quantization作为int8 quantization的前置召回步骤。
 
-这里有一个[搜索Wikipedia的demo]，搜索范围是41M，先使用binary quantization，再使用scalar quantization，最后float32计算最终得分。效果非常好，响应也十分迅速！
+这里有一个搜索 Wikipedia 的 demo，搜索范围是41M，先使用binary quantization，再使用scalar quantization，最后float32计算最终得分。效果非常好，响应也十分迅速！
 
 比如输入`a fps game with ak47 and awp as main weapons`，0.2s就能返回top100，而且效果很不错，cs2/cs/csgo是top答案，arma也紧随其后。耗时：
 ```json
@@ -682,4 +701,3 @@ similarity = cos(theta) = Dot Product(A, B) / (||A|| * ||B||)
 
 # 感想
 大人，时代变了。从es的发展就可以看出，纯分词搜索依然必要，但终归也是要拥抱算法的。
-

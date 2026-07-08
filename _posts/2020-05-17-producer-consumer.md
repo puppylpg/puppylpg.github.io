@@ -3,12 +3,29 @@ title: "生产者 - 消费者"
 date: 2020-05-17 00:39:16 +0800
 categories: [java, producer-consumer, concurrency, condition, lock, blockingqueue]
 tags: [java, producer-consumer, concurrency, condition, lock, blockingqueue]
+description: "用有界队列串起生产者-消费者模型，从自旋、休眠轮询到 wait/notify、Condition 和 BlockingQueue。"
 ---
 
 生产者消费者模式是并发编程的一个经典入门场景。假设多个生产者生产一定数量的东西到队列，多个消费者从队列中取走这些东西。如果队列为空，消费者阻塞；如果队列已满，生产者阻塞。如何不出现访问错误，同时尽可能优化性能？
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart LR
+    Producer["Producer"] -->|put| Queue{"BoundedBuffer<br/>有界队列"}
+    Queue -->|take| Consumer["Consumer"]
+    Queue -->|满| ProducerWait["生产者等待 notFull"]
+    Queue -->|空| ConsumerWait["消费者等待 notEmpty"]
+    Consumer -->|取走元素| SignalNotFull["signal notFull"]
+    Producer -->|放入元素| SignalNotEmpty["signal notEmpty"]
+    SignalNotFull --> ProducerWait
+    SignalNotEmpty --> ConsumerWait
+
+    style Queue fill:#e3f2fd,stroke:#1976d2
+    style ProducerWait fill:#fff3bf,stroke:#f59f00
+    style ConsumerWait fill:#fff3bf,stroke:#f59f00
+```
 
 # 支持并发put/get的有界队列
 生产者-消费者使用的队列一般都是有界的。生产满之后生产者要等消费者消耗掉一些对象才能继续生产。消费者同理。
@@ -462,4 +479,3 @@ Thread自己的sleep/yeild等方法和阻塞队列无关，和锁无关。所以
 既然说到这儿了，再提一下Thread.sleep(xxx) vs. yield()：
 - sleep(xxx)：自己歇了，cpu有可能被低级线程抢到；
 - yield()：交出cpu，同时立刻和大家一起竞争。所以yield不可能把cpu交给更低级的线程；
-

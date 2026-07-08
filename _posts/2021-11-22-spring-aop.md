@@ -1,11 +1,13 @@
 ---
 title: "Spring - AOP"
 date: 2021-11-22 01:14:49 +0800
-categories: [spring, aop]
-tags: [spring, aop]
+categories: [tech, spring, aop]
+tags: [spring, aop, proxy, cglib]
+description: "从 advice、pointcut、advisor 到自动代理创建，系统梳理 Spring AOP 的动态代理模型和同类方法调用失效问题。"
 ---
 
-`AOP`，Aspect Oriented Programing，面向切面编程。
+`AOP` 是 Aspect Oriented Programming，即面向切面编程。它解决的不是对象继承关系里的“纵向复用”，而是日志、权限、事务、缓存这类会横跨多个业务对象的“横向逻辑”。
+
 - OOP，面向对象，适用于有相同逻辑的情况：把相同逻辑抽到父类中实现；
 - AOP，面向切面，适用于有横向相同逻辑的情况：只适合具有横切逻辑的场合，比如：
     - 性能检测
@@ -15,6 +17,32 @@ tags: [spring, aop]
 
 1. Table of Contents, ordered
 {:toc}
+
+本文先补齐 AOP 的概念词汇，再用手动组装代理的方式看清 advice、pointcut、advisor 的关系，随后进入 Spring 如何通过 `BeanPostProcessor` 自动创建代理，最后解释为什么“同一个类内部方法互调”不会触发增强。
+
+Spring AOP 的几个概念可以先按“定位哪里、注入什么、怎么包起来”理解：
+
+```mermaid
+flowchart LR
+    Method["目标方法<br/>Joinpoint"] --> Pointcut{"Pointcut<br/>是否匹配？"}
+    Advice["Advice<br/>增强逻辑"] --> Advisor["Advisor / Aspect<br/>Pointcut + Advice"]
+    Pointcut -->|"匹配"| Advisor
+    Pointcut -->|"不匹配"| Raw["直接调用原方法"]
+    Advisor --> Proxy["Proxy<br/>JDK / CGLIB"]
+    Client["调用方"] --> Proxy
+    Proxy --> Advice
+    Advice --> Method
+    Method --> Return["返回结果/异常"]
+
+    classDef target fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef aspect fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef decision fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    classDef skip fill:#ffe3e3,stroke:#c62828,color:#7f1d1d
+    class Method,Client,Return target
+    class Advice,Advisor,Proxy aspect
+    class Pointcut decision
+    class Raw skip
+```
 
 # AOP的概念
 AOP有一些相关概念：
@@ -45,7 +73,7 @@ AspectJ拓展了Java语法，新增了AOP语法，所以需要新的具有拓展
 - JDK自带的动态代理：**仅可以代理接口，即动态产生一个接口的实现类，具有增强的功能**；
 - 基于CGLib的动态代理：**可以代理类，即动态产生一个代理类的子类，该子类具有增强的功能**；
 
-> 关于dk动态代理和cglib动态代理：[Java反射与动态代理]({% post_url 2020-08-02-java-reflection-dynamic-proxy %})
+> 关于 JDK 动态代理和 CGLIB 动态代理，可参考 [Java反射与动态代理]({% post_url 2020-08-02-java-reflection-dynamic-proxy %})。
 
 # AOP接口
 AOP的接口由AOP联盟制作。
@@ -195,7 +223,7 @@ public class BreakdownManager implements ThrowsAdvice {
 
 > 小心一个思维误区：**异常处理增强会处理异常，并不意味着不需要管异常了。在处理完exception之后，会继续把异常往外抛：它不会直接把异常吞掉**。它只是在发生异常之后做一些事情，比如spring @Transaction处理增强，是在发生异常之后完成事务回滚的要求：删掉事务中已插入的数据。处理完之后，异常还会继续抛出去，需要调用者处理（比如打log）。
 >
-> 换个角度想想，如果spring在增强里把异常吞掉了，虽然事务的确回滚了，但是程序猿却不知道曾发生过这个异常，这就很离谱。
+> 换个角度想想，如果spring在增强里把异常吞掉了，虽然事务的确回滚了，但是开发者却不知道曾发生过这个异常，这就很离谱。
 
 把advice和target组装起来：
 ```java
@@ -240,7 +268,7 @@ public class OnlyAdvice {
 1. 指定要代理的对象/接口：如果指定的是对象，就只能使用cglib以子类的方式生成代理；
 2. 指定要进行的增强；
 
-为什么配置ProxyFactoryBean？因为创建proxy object的流程比较复杂，所以以FactoryBean的形式封装起来了。对于程序猿来讲，只需要设置接口/对象、增强就行了。
+为什么配置ProxyFactoryBean？因为创建proxy object的流程比较复杂，所以以FactoryBean的形式封装起来了。对于开发者来讲，只需要设置接口/对象、增强就行了。
 
 > `FactoryBean`是一种特殊的bean，是使用一个自定义的工厂组装bean。当调用getBean获取bean的时候，返回的并不是factory bean本身，而是调用了`FactoryBean#getObject`方法，返回了这个factory用自定义的方法造出的bean。
 
@@ -864,7 +892,7 @@ b()
 同理，把@Transaction换成@Cacheable也都是一个道理，通过调用a间接调用b时，b产生的结果不会被缓存。
 
 # 总结
-spring IOC是spring的基础，但spring AOP才是spring的杀手锏！因为AOP，才有了：
+Spring IoC 是 Spring 的基础，但 Spring AOP 才是很多高级能力能够保持“业务代码少侵入”的关键。因为 AOP，才有了：
 - @Transaction事务管理；
 - @Retry重试；
 - @Cacheable缓存；
@@ -873,4 +901,4 @@ spring IOC是spring的基础，但spring AOP才是spring的杀手锏！因为AOP
 
 等等。
 
-spring通过AOP让程序猿的开发变得简单了太多太多，隐藏了开发中的样板代码和苦力活，让开发变得有意思起来！spring aop是我爱上spring的关键！
+Spring 通过 AOP 隐藏了大量样板代码：开发者只写业务逻辑，框架在代理层补上事务、缓存、异步、重试这些横切行为。理解这一层之后，再看 Spring 的很多“声明式能力”，本质都会清楚很多。

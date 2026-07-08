@@ -1,14 +1,37 @@
 ---
 title: "SpringBoot - 开发、部署、诊断"
 date: 2023-01-08 22:37:56 +0800
-categories: [springboot]
-tags: [springboot]
+categories: [tech, springboot, actuator]
+tags: [springboot, devtools, actuator, diagnostics]
+description: "整理 Spring Boot devtools、maven plugin、actuator、http trace 与 startup tracking 在开发、部署和诊断中的用途。"
 ---
 
-2023年是清理库存之年，清理而后轻装向前。就把springboot之前看到的开发、部署以及一些诊断相关的东西都扔在一起做个了结吧。
+Spring Boot 除了启动应用和自动配置业务组件，还提供了不少围绕开发、部署和诊断的工具：`spring-boot-devtools` 改善本地调试，`spring-boot-maven-plugin` 改善打包和镜像构建，actuator 则让运行中的应用更容易被观察和管理。
 
 1. Table of Contents, ordered
 {:toc}
+
+本文按使用场景整理这些能力：先看开发期的热重启，再看部署期的可执行 jar 和 layered jar，最后集中梳理 actuator endpoint、HTTP trace 和 startup tracking。
+
+这些工具覆盖的是应用生命周期的不同阶段：
+
+```mermaid
+flowchart LR
+    Dev["开发期"] --> Devtools["spring-boot-devtools<br/>restart / remote restart / dev properties"]
+    Build["构建部署期"] --> Plugin["spring-boot-maven-plugin<br/>可执行 jar / layered jar"]
+    Runtime["运行诊断期"] --> Actuator["actuator<br/>health / metrics / env / loggers"]
+    Actuator --> Trace["http trace / startup tracking"]
+    Devtools --> Feedback["缩短本地反馈"]
+    Plugin --> Image["更适合镜像分层"]
+    Trace --> Diagnose["定位请求与启动耗时"]
+
+    classDef phase fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef tool fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef result fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    class Dev,Build,Runtime phase
+    class Devtools,Plugin,Actuator,Trace tool
+    class Feedback,Image,Diagnose result
+```
 
 # spring-boot-devtools
 [spring-boot-devtools](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#using.devtools)会给springboot的开发带来一些便利，**但是注意依赖需要设置为optional，防止作为本工程依赖时，别的项目被迫引入devtools。因为在生产环境使用它可能会导致安全问题。**
@@ -33,11 +56,7 @@ tags: [springboot]
 
 此时服务会重启，直接访问url发现内容变了。
 
-最好别配置idea的自动编译，会边写边编译，太难受了。手动编译一下并不麻烦。
-
-- https://zhuanlan.zhihu.com/p/133233569
-- https://blog.csdn.net/qq_52978553/article/details/122376118
-- https://www.jetbrains.com/help/idea/compiling-applications.html#compilation_output_folders
+最好别配置 IDEA 的自动编译。边写边编译会频繁触发 restart，反而干扰开发。IDEA 的编译行为可以参考 JetBrains 官方文档里的 [compilation output folders](https://www.jetbrains.com/help/idea/compiling-applications.html#compilation_output_folders) 说明。
 
 服务重启的原理：devtools**使用了两个classloader，jar包类的使用不变的classloader加载，工程的类使用另一个restart classloader加载。所谓重启其实是扔掉restart classloader，重新创建一个**。
 
@@ -69,7 +88,7 @@ tags: [springboot]
 
 其他一切都和之前一样了：修改并重新编译本地文件就行了，远程服务会自动restart。
 
-- https://blog.csdn.net/sufu1065/article/details/127505890
+远程 devtools 的配置示例可参考这篇[实践记录](https://blog.csdn.net/sufu1065/article/details/127505890)。
 
 原理应该和本地重启一样，只不过是先把变动发给远程服务，远程服务里的devtools会接受变动并重新创建restart classloader。
 
@@ -81,8 +100,7 @@ tags: [springboot]
 # actuator
 actuator主要用于更详细地了解系统的实际运行情况，让服务变得更加可感知。
 
-actuator毕竟不是生产环境的功能，在不同的版本需要配置的东西并不完全相同，所以还是要参考对应版本的文档。
-- https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html
+actuator 毕竟涉及运行时暴露能力，不同版本需要配置的东西并不完全相同，所以还是要参考对应版本的 [Spring Boot Actuator 文档](https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html)。
 
 ## endpoints
 endpoint可以查看app状态，基本把app里大家比较关心的各种状态（mapping、session、thread、logger、health、metrics、env等）都提供了暴露出来的方法，非常方便！
@@ -110,7 +128,7 @@ endpoint可以查看app状态，基本把app里大家比较关心的各种状态
 - `startup`：[startup tracking](https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#startup)
 - `session`：应该用了spring session才会开启，**[可以直接查看当前所有的session](https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#sessions)**，不错！Allows retrieval and deletion of user sessions from a Spring Session-backed session store. Requires a servlet-based web application that uses Spring Session.
 - `threaddump`：jstack，一样的。但是该接口还支持返回[json格式的thread dump](https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#threaddump.retrieving-json)；
-- `heapdump`：直接heapdump文件！牛逼！
+- `heapdump`：直接生成 heap dump 文件；
 - `prometheus`：直接用于[prometheus server抓metric](https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#prometheus)的endpoint；
 
 ### enable
@@ -136,8 +154,7 @@ management.endpoint.info.enabled=true
 ### expose
 **所有enable的endpoint，jmx端默认基本都会暴露。web endpoint默认只会暴露health**。
 
-具体参考：
-- https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html#actuator.endpoints.exposing
+具体规则可以参考 Spring Boot 2.7 文档中关于 [exposing endpoints](https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html#actuator.endpoints.exposing) 的说明。
 
 分别使用jmx/web的include/exclude控制暴露行为。默认行为：
 ```properties
@@ -189,7 +206,7 @@ public class MySecurityConfiguration {
 
 ## http trace
 可以记录下最近100条request/response的具体信息，但是默认不会记录下cookie、session等信息，需要手动设置。
-- https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html#actuator.tracing
+具体配置见 [Actuator tracing](https://docs.spring.io/spring-boot/docs/2.7.0/reference/html/actuator.html#actuator.tracing)。
 
 还需要显式配置个bean来存储这些信息，比如demo用的in memory bean：
 ```
@@ -258,5 +275,4 @@ spring 5.3引入了startup tracking的功能，springboot 2.4可以通过actuato
 需要安装jq做json parser，可以分析出每一个bean实例化的时间，倒排一下，看看有没有特别拖累启动速度的bean。
 
 # 感想
-springboot真的是把能做的都做了，就差帮你把业务代码也写完了:D
-
+Spring Boot 基本把开发、部署和诊断阶段的常用支撑能力都集成好了，就差帮你把业务代码也写完了 :D

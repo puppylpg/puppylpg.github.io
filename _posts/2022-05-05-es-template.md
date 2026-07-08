@@ -3,6 +3,7 @@ title: "Elasticsearch：default index template"
 date: 2022-05-05 16:10:07 +0800
 categories: [elasticsearch]
 tags: [elasticsearch]
+description: "一次默认 index template 误伤监控索引的排障记录，解释 legacy template 合并顺序和系统索引坑点。"
 ---
 
 从实际遇到的问题，介绍一下索引的模板和默认模板。
@@ -12,6 +13,23 @@ tags: [elasticsearch]
 
 # 问题
 kibana对es的监控没了。We couldn't activate monitoring index pattern
+
+这篇是一次很典型的“全局默认模板误伤系统索引”的事故。现象是 Kibana 监控不可用，真正的原因却藏在 legacy index template 的合并顺序里：业务默认模板匹配了所有索引，把本该由 x-pack 监控模板控制的 mapping 改成了 `dynamic: strict`。
+
+```mermaid
+flowchart TD
+    A[Kibana 监控不可用] --> B[ES log: monitoring document 写入失败]
+    B --> C[node_stats.thread_pool.write.threads 未定义]
+    C --> D[monitoring 索引 mapping dynamic=strict]
+    D --> E[全局 default_template 命中 .* / *]
+    E --> F[和 .monitoring-es 模板 order 相同]
+    F --> G[模板合并顺序不确定]
+    G --> H[新建当天 monitoring index 时翻车]
+
+    style A fill:#ffe3e3,stroke:#ff6b6b
+    style F fill:#fff3bf,stroke:#f59f00
+    style H fill:#ffe3e3,stroke:#ff6b6b
+```
 
 # 监控方案
 当前用的第一种（比较简单，但官方已经不推荐）的监控方式：
@@ -30,9 +48,9 @@ org.elasticsearch.xpack.monitoring.exporter.ExportException: StrictDynamicMappin
 Caused by: org.elasticsearch.index.mapper.StrictDynamicMappingException: mapping set to strict, dynamic introduction of [threads] within [node_stats.thread_pool.write] is not allowed
 ```
 
-看报错信息，写es失败：`node_stats.thread_pool.write`这个filed接收不了threads这个子field。因为索引的dynamic=strict，所以不能接受未定义field。
+看报错信息，写es失败：`node_stats.thread_pool.write`这个field接收不了threads这个子field。因为索引的dynamic=strict，所以不能接受未定义field。
 
-> - 参考dynamic的定义：https://www.elastic.co/guide/en/elasticsearch/reference/current/dynamic.html#dynamic-parameters
+> - 参考[dynamic 的定义](https://www.elastic.co/guide/en/elasticsearch/reference/current/dynamic.html#dynamic-parameters)
 
 但是从log看不出来是哪个index报的错。盲猜是monitor相关的index。
 
@@ -123,12 +141,12 @@ GET .monitoring-es-7-2022.04.21/_mapping
 ```
 **dynamic为false，所以可以写入mapping里未定义的threads field，不会报错**！
 
-这就离谱了，为啥昨天的index denamic=false，今天存储监控信息的index的dynamic=strict，两个还不一样？
+这就离谱了，为啥昨天的index dynamic=false，今天存储监控信息的index的dynamic=strict，两个还不一样？
 
 查了好久，也没查到答案。
 
-一开始查找的方向在于为啥x-pack这个监控插件要创建一个dymamic=strict的mapping：
-- https://www.elastic.co/guide/en/x-pack/current/xpack-introduction.html
+一开始查找的方向在于为啥x-pack这个监控插件要创建一个dynamic=strict的mapping：
+- [X-Pack 文档](https://www.elastic.co/guide/en/x-pack/current/xpack-introduction.html)
 
 后来，不经意看到了之前晓立设置的es索引的default template：
 ```json
@@ -180,6 +198,12 @@ GET _template
 
 > Multiple matching templates with the same order value will result in a non-deterministic merging order.
 
+| 模板 | 匹配范围 | `order` | 风险 |
+| --- | --- | --- | --- |
+| `.monitoring-es` 官方模板 | `.monitoring-es-7-*` | 0 | 负责系统索引 mapping |
+| 业务 `default_template` | `*` | 0 | 会误伤所有系统索引 |
+| 修复后的业务模板 | `*`，但 `order=-1` | -1 | 先被应用，再被官方模板覆盖 |
+
 行为不可预测。
 
 ## 给全局默认模板设置更低的优先级
@@ -202,7 +226,7 @@ Ref：
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html
 - https://www.cnblogs.com/Neeo/articles/10869231.html
 
-最终的detaulf_template修改：
+最终的default_template修改：
 ```json
 PUT _template/default_template
 {
@@ -313,4 +337,3 @@ green  open   .monitoring-es-7-2022.04.21     sDG2cWHHT5CuD9bCZ4nIQg   1   1    
 果然是UTC零点，也就是东八区早上八点创建的。（Z：zulu时区，也是UTC时区）
 
 新创建的索引mapping有问题，所以八点报的错。
-

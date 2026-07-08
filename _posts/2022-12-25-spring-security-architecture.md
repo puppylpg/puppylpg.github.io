@@ -1,16 +1,41 @@
 ---
 title: "Spring Security - 架构"
 date: 2022-12-25 00:51:13 +0800
-categories: [spring, security]
-tags: [spring, security]
+categories: [tech, spring, security]
+tags: [spring-security, servlet-filter, security-filter-chain, springboot]
+description: "从 Servlet Filter、DelegatingFilterProxy、FilterChainProxy 和 SecurityFilterChain 理解 Spring Security 的整体架构。"
 ---
 
-spring有webmvc和webflux，这里只介绍基于servlet的spring webmvc相关的spring security。
-
-> 因为webflux我还不会:D
+Spring Security 同时支持 Servlet 和 WebFlux 两套 Web 技术栈。本文只讨论基于 Servlet 的 Spring MVC 场景，也就是大多数 Spring Boot Web 应用默认使用的那条链路。
 
 1. Table of Contents, ordered
 {:toc}
+
+文章的主线是：**Spring Security 不是替代 Servlet 容器，而是在 Servlet Filter 入口处接管请求，再把安全逻辑委托给 Spring 容器中的一组 Security Filter**。
+
+先把最核心的桥接关系画出来：Servlet 容器只认识一个 `DelegatingFilterProxy`，真正的安全链路在 Spring 容器里。
+
+```mermaid
+flowchart LR
+    Req["HTTP Request"] --> ServletChain["Servlet Filter Chain"]
+    ServletChain --> DFP["DelegatingFilterProxy<br/>注册在 Servlet 容器"]
+    DFP --> FCP["FilterChainProxy<br/>Spring bean: springSecurityFilterChain"]
+    FCP --> Match{"匹配哪条<br/>SecurityFilterChain？"}
+    Match --> Chain1["/api/** chain<br/>JWT / Basic / Authorization"]
+    Match --> Chain2["/admin/** chain<br/>Form Login / CSRF / Role"]
+    Match --> Chain3["any request chain<br/>默认规则"]
+    Chain1 --> Servlet["下游 Servlet / DispatcherServlet"]
+    Chain2 --> Servlet
+    Chain3 --> Servlet
+    Servlet --> Resp["HTTP Response"]
+
+    classDef servlet fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef spring fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef decision fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    class Req,ServletChain,DFP,Servlet,Resp servlet
+    class FCP,Chain1,Chain2,Chain3 spring
+    class Match decision
+```
 
 # 和servlet的关系
 spring security[通过servlet容器标准的`Filter`接口把功能集成到servlet容器里](https://docs.spring.io/spring-security/reference/servlet/index.html)。在设计上，**它只强制原有应用使用servlet容器，但不强制原有应用一定要使用spring框架。**
@@ -77,7 +102,7 @@ Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，
 
 所以spring security的第一步就是注册一个security相关的servlet Filter到servlet容器：
 1. 当请求到来时，需要判断请求是否已经认证。如果没有认证，把请求想要访问的地址缓存下来，并重定向到login；
-2. 当登陆请求再次发过来且验证成功后，取出之前缓存的请求地址，继续访问该请求；
+2. 当登录请求再次发过来且验证成功后，取出之前缓存的请求地址，继续访问该请求；
 3. 如果验证失败，返回错误。
 
 ## 如何注册Filter - `DelegatingFilterProxy`
@@ -87,9 +112,9 @@ Filter是在请求到来之后，和请求做匹配的。检查filter-mapping，
 
 > servlet Filter注册的时候不需要调用`doFilter`，启动tomcat之后就会初始化servlet，初始化spring的wac。**当有请求过来的时候，再调用Filter的`doFilter`。此时去wac里取bean是完全来得及的**。所以`DelegatingFilterProxy`能这么做，都是因为servlet容器的注册启动、接受请求是两条有先后顺序的时间线。
 
-所以`DelegatingFilterProxy`就像是一个桥，联通了servlet和spring wac。不过问题在于，单看这个设定好像没什么太大作用：每当需要一个Filter的时候，不仅需要创建一个spring的filter bean，依然还需要创建一个`DelegatingFilterProxy`，作为servlet容器的Filter注册到servlet容器上。这岂不是更麻烦了？
+所以`DelegatingFilterProxy`就像是一个桥，连通了 servlet 和 Spring WAC。不过问题在于，单看这个设定好像没什么太大作用：每当需要一个 Filter 的时候，不仅需要创建一个 Spring 的 filter bean，依然还需要创建一个`DelegatingFilterProxy`，作为 servlet 容器的 Filter 注册到 servlet 容器上。这岂不是更麻烦了？
 
-之所以这么想是因为没有意识到“桥”的作用：**注册一个`DelegatingFilterProxy`确实只能将逻辑delegate到一个filter bean上，但是如果这个spring的filter bean支持将逻辑再delegate到一堆别的bean上呢**？这不就相当于只给servlet容器注册了一个Filter，之后只要写一堆spring的bean就行了嘛？此时的编程又回到了spring相关的编程了。这就是“桥”的意义。
+之所以这么想，是因为没有意识到“桥”的作用：**注册一个`DelegatingFilterProxy`确实只能将逻辑 delegate 到一个 filter bean 上，但是如果这个 Spring filter bean 支持将逻辑继续 delegate 到一组别的 bean 上呢**？这样就相当于只给 servlet 容器注册了一个 Filter，之后只要编写一组 Spring bean 即可。请求入口仍然是 Servlet Filter，扩展方式则回到了 Spring 容器。
 
 > 类似多路复用了。管道就一条，大家共用一下。
 
@@ -103,14 +128,14 @@ spring security已经提供了这样的一个filter bean实现，`FilterChainPro
 
 最后`SecurityFilterChain`则明显是在模拟servlet的filter chain的概念：一堆filter，有一个不同意，则请求不会继续流转下去。但其实这些bean维护在spring的wac中，并不注册在servlet上。所以它的名字叫security filter chain，是security的filter chain，不是servlet的filter chain。
 
-> 用`DispatcherServlet`这个servlet取代所有servlet，把请求分发给所有的`@Controller`；用`DelegatingFilterProxy`这个filter取代（secutiry相关的）所有filter，把filter逻辑放到自己的wac里的filter bean上。我算是看出来了，spring是想掏空servlet容器:D
+> 这个思路和`DispatcherServlet`很像：`DispatcherServlet`把 Servlet 逻辑转移到 Spring MVC，`DelegatingFilterProxy`则把 Security 相关的 Filter 逻辑转移到 Spring 容器。
 
-## 盗版filter chain - `SecurityFilterChain`
-显然spring的filter chain是在盗版servlet的filter chain。通过`DelegatingFilterProxy`把请求从正统filter chain上引流到自己的盗版filter chain上。
+## `SecurityFilterChain`：Spring Security 自己的过滤链
+可以把`SecurityFilterChain`理解为 Spring Security 在 Servlet Filter 之内维护的二级过滤链。`DelegatingFilterProxy`把请求从 Servlet Filter 链转入 Spring 容器，`FilterChainProxy`再选择具体的`SecurityFilterChain`处理该请求。
 
 ![multi-securityfilterchain](/pics/spring/security/multi-securityfilterchain.png)
 
-一个`SecurityFilterChain`本身就是一堆filter bean的集合，`FilterChainProxy`将逻辑委托给了一堆`SecurityFilterChain`（`List<FilterChainProxy>`），而不是一个`FilterChainProxy`。
+一个`SecurityFilterChain`本身就是一组 filter bean 的集合，`FilterChainProxy`将逻辑委托给一组`SecurityFilterChain`（`List<SecurityFilterChain>`），而不是单个过滤器。
 
 > 所以可以理解为它里面实际存储了filter的二维数组。
 
@@ -196,13 +221,11 @@ spring security还提供了`CookieRequestCache`实现，把request暂存到cooki
 Dynamic registration = servletContext.addFilter(filterName, filter);
 ```
 
-> **它只`ServeletContext#addFilter`，不`ServeletContext#addServlet`。所以spring security不涉及servlet。与之相对的，springmvc的`AbstractDispatcherServletInitializer`则是`ServeletContext#addServlet`**。两个对照着看，意图都很明显。
+> **它只调用`ServletContext#addFilter`，不调用`ServletContext#addServlet`。所以 Spring Security 不注册 Servlet。与之相对，Spring MVC 的`AbstractDispatcherServletInitializer`调用的是`ServletContext#addServlet`**。两个对照着看，意图很明显。
 
 Filter实例是`DelegatingFilterProxy`，注册到servlet上的filter name叫`"springSecurityFilterChain"`。不仅如此，它委托给的那个`FilterChainProxy`在wac里的bean的名字也叫`"springSecurityFilterChain"`：`new DelegatingFilterProxy("springSecurityFilterChain")`。
 
-> 属于是梅开二度了……
-
-之所以都叫这个名，应该是因为这个filter把实现delegate给了`FilterChainProxy`，进而delegate给了`SecurityFilterChain`，所以两个代理其实都没干活儿，实际干活的是security filter chain，所以不如叫`"springSecurityFilterChain"`了。
+之所以都叫这个名字，是因为这个 Filter 把实现 delegate 给了`FilterChainProxy`，后者继续 delegate 给`SecurityFilterChain`。真正执行安全逻辑的是 security filter chain，因此入口名统一为`"springSecurityFilterChain"`。
 
 > 所以这里注册`Filter`是手动在实例化的时候通过代码注册上去的，不是通过`web.xml`配置文件注册上去的！毕竟`WebApplicationInitializer`的本意就是：初始化的时候想干嘛就干嘛！
 
@@ -261,8 +284,6 @@ public class MvcWebApplicationInitializer extends
 	// ... other overrides ...
 }
 ```
-
-> 有句话不知当讲不当讲……怎么感觉用已有的SpringMVC框架加载spring security配置，反而更麻烦了……
 
 **所以总结起来整个架构的配置就一句话：spring security借助spring mvc注册Filter到servlet容器。**
 
@@ -349,7 +370,7 @@ spring security支持多条filter chain。**多条`SecurityFilterChain`之间可
 ```
 `HttpSecurity`里已经预设好一些属性了，所以每次新建一个filter chain的时候，不用担心最基础的东西都要重新设置一遍，比如session管理、request cache等等。我们只需要专注于定义自己需要的过滤行为就行了。正因如此，一下子就能把一个很复杂的过滤规则拆开成多个规则了。
 
-> 这里设置的`PasswordEncoder`比较有意思，是个`LazyPasswordEncoder`。而它其实就是个wrapper，等到实际执行的时候，从`ApplicationContext`里寻找类型为`PasswordEncoder`的bean，并把实际功能实现delegate给它。所以 **虽然spring security在我们配置`PasswordEncoder`之前就设置好了`PasswordEncoder`，但实际用的还是我们配置的`PasswordEncoder`**……这和`DelegatingFilterProxy`的思想一毛一样啊！
+> 这里设置的`PasswordEncoder`比较有意思，是个`LazyPasswordEncoder`。而它其实就是个wrapper，等到实际执行的时候，从`ApplicationContext`里寻找类型为`PasswordEncoder`的bean，并把实际功能实现delegate给它。所以 **虽然spring security在我们配置`PasswordEncoder`之前就设置好了`PasswordEncoder`，但实际用的还是我们配置的`PasswordEncoder`**……这和`DelegatingFilterProxy`的思想几乎一致啊！
 
 `HttpSecurity`其实是一个builder，build后生成的实体是`DefaultSecurityFilterChain`，是`SecurityFilterChain`的实现。
 ```java
@@ -613,7 +634,7 @@ public class MultipleSecurityFilterChainConfig {
 ```
 
 ## 最常配的功能
-- https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/authorize-http-requests.html
+[Authorize HTTP Requests](https://docs.spring.io/spring-security/reference/5.8/servlet/authorization/authorize-http-requests.html) 是最常见的配置入口。
 
 我们最常配置的当然是url权限！
 
@@ -766,23 +787,23 @@ public class MultipleSecurityFilterChainConfig {
 ```
 
 # 集成springboot
-- https://docs.spring.io/spring-security/reference/servlet/getting-started.html#servlet-hello-auto-configuration
+[Spring Boot 的默认安全自动配置](https://docs.spring.io/spring-security/reference/servlet/getting-started.html#servlet-hello-auto-configuration)会默认提供一套可工作的安全配置。
 
 springboot会默认给spring security配置以下内容：
 - 创建一个名为`springSecurityFilterChain`的Filter，把该filter注册到servlet容器上，**拦截每一个请求**；
 - 自动配置一个`UserDetailsService` bean，并创建一个名为`user`的用户，密码会在启动时打印到log里：Using generated security password: 8e557245-73e2-4286-969a-ff57fe326336；
 
 # 感想
-**最后再总结一下spring security注册和使用Filter的流程**：
-1. 借助springmvc，为servlet容器添加security相关的filter。完成这件任务的是**`AbstractSecurityWebApplicationInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑就是add filter到servlet context；
-2. 如果项目本身使用了springmvc，springmvc会为servlet容器添加dispatcher servlet。完成这件任务的是**`AbstractDispatcherServletInitializer`**，它是springmvc的`WebApplicationInitializer`接口的实现，所以会被springmvc执行。执行的逻辑就是add servlet到servlet context；此时request的流程是：
+**最后再总结一下 Spring Security 注册和使用 Filter 的流程**：
+1. 借助 Spring MVC，为 servlet 容器添加 security 相关的 filter。完成这件任务的是**`AbstractSecurityWebApplicationInitializer`**，它是 Spring MVC 的`WebApplicationInitializer`接口实现，所以会被 Spring MVC 执行。执行逻辑就是 add filter 到 servlet context；
+2. 如果项目本身使用了 Spring MVC，Spring MVC 会为 servlet 容器添加 dispatcher servlet。完成这件任务的是**`AbstractDispatcherServletInitializer`**，它也是 Spring MVC 的`WebApplicationInitializer`接口实现。此时 request 的流程是：
     1. http
     2. 进入servlet 容器
         1. servlet filter
         2. 进入springmvc
             1. security filter
             2. dispatcher servlet
-2. 如果项目本身没使用springmvc，项目一定自己往servlet context上注册了servlet（要不然用servlet容器干嘛）；此时request的流程是：
+3. 如果项目本身没使用 Spring MVC，项目一定自己往 servlet context 上注册了 servlet；此时 request 的流程是：
     1. http
     2. 进入servlet 容器
         1. servlet filter
@@ -791,4 +812,4 @@ springboot会默认给spring security配置以下内容：
         3. **出了springmvc**：
             1. 自己注册的servlet
 
-spring security的这些思路真的不错！真的是把springmvc玩儿明白了！
+这套架构的核心价值在于边界清晰：Servlet 容器只看到一个标准 Filter，Spring Security 则在 Spring 容器里完成认证、鉴权、异常转换、请求缓存等复杂逻辑。Spring Security 的这些思路确实漂亮，真的是把 Spring MVC 玩明白了。

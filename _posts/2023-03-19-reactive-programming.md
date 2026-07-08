@@ -3,12 +3,29 @@ title: "Reactive Programming"
 date: 2023-03-19 21:33:11 +0800
 categories: [reactive]
 tags: [reactive]
+description: "从阻塞浪费线程、callback 地狱和 CompletableFuture 组合困难，理解 Reactor 为什么用流式组合表达异步。"
 ---
 
 webflux，之前留下的未尽事宜，终于又碰上了。Reactive Programming，RP，震惊我100年。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart LR
+    Blocking["阻塞式代码<br/>线程等待 I/O"] --> Waste["线程资源浪费"]
+    Waste --> MoreThreads["加更多线程"]
+    MoreThreads --> Contention["上下文切换 / 竞争 / 维护成本"]
+    Waste --> Async["异步非阻塞"]
+    Async --> Callback["callback<br/>容易嵌套"]
+    Async --> Future["Future/CompletableFuture<br/>组合仍复杂"]
+    Async --> Reactor["Reactor<br/>Flux/Mono + operator pipeline"]
+    Reactor --> Backpressure["多值、错误处理、背压、调度"]
+
+    style Blocking fill:#ffe3e3,stroke:#c62828
+    style Async fill:#e3f2fd,stroke:#1976d2
+    style Reactor fill:#e8f5e9,stroke:#2e7d32
+```
 
 # Reactive Programming
 为什么要RP？看了半天，只有[《Reactor 3 Reference Guide》](https://projectreactor.io/docs/core/release/reference/index.html#intro-reactive)介绍的最清楚。
@@ -466,5 +483,4 @@ TODO
 
 # 总结
 交汇了！之前一直想看没看的前端、reactive、webflux，甚至kotlin。包括已看的ListenableFuture、CompletableFuture。
-
 

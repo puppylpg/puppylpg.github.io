@@ -1,52 +1,178 @@
 ---
 title: "redis与linux fork"
 date: 2021-11-10 20:44:57 +0800
-categories: [redis, fork, linux]
-tags: [redis, fork, linux]
+categories: [tech, redis, linux]
+tags: [redis, fork, linux, copy-on-write, overcommit]
+description: "解释 Redis 执行 BGSAVE/BGREWRITEAOF 时为什么依赖 Linux fork、copy-on-write 和 overcommit_memory，以及大内存实例的后台保存风险。"
 ---
 
-Redis进程的fork并不会导致redis内存占用量翻倍，需要深入了解一下fork。
+Redis 进程的 `fork()` 并不会立刻导致 Redis 内存占用翻倍，但它确实会让大内存 Redis 暴露出 Linux 内存承诺和 copy-on-write 的问题。
+
+这篇就是为了回答那个看起来很吓人的问题：**Redis 一大，后台保存是不是就 fork 不出来了？**
 
 1. Table of Contents, ordered
 {:toc}
 
-# redis and linux `fork()`
-`fork()`在parent process里返回child process的pid，在child process里返回0，如果失败返回-1，比如父进程内存占用量超出系统剩余内存，就不足以fork出一个子进程来，会失败返回-1。
+# Redis and Linux `fork()`
 
-那岂不是意味着**部署redis的机器内存使用量不能超过一半，不然redis就启动不了后台进程了？**
+`fork()` 在 parent process 里返回 child process 的 pid，在 child process 里返回 0，如果失败返回 -1。
 
-是的！
+Redis 的 `BGSAVE`、`BGREWRITEAOF` 都会用到 `fork()`。主进程 fork 出一个子进程，让子进程去写 RDB 或重写 AOF，主进程继续处理请求。
 
-但内存复制并不是简单的copy一份，让内存占用double：
-1. 上古Unix的fork()实现，的确是让子进程整个复制一遍父进程的地址空间；
-2. 但现代操作系统都不会傻傻复制一遍，子进程的结构是要创建的，但是内存占用只需要指向父进程的内存空间就行了。从os的层面来讲，内存是一页页的，页表就是指向页的指针，所以子进程“将指针指向父进程的内存”本质上就是**复制一份父进程的页表**。也就是说，**子进程和父进程本质上共享一份内存**，所以**fork实际上并不会导致内存占用被double**，实际上，无论父进程内存占用多大，子进程**真正占用**的内存特别小；
-3. 但是新的问题来了，父子进程本不该共享内存的！他们**逻辑上**应该是互相独立的内存空间，各自修改自己的内存内容。如果**实现上**为了节省内存，用了共享的空间，逻辑上怎么保证二者是独立的？
-4. copy on write！新的fork使用了copy on write，写时复制，即子进程需要写内存的时候，把**这块内存**复制一份，写入复制后的区域，并让子进程指向新的区域。其他没变的内存区域继续共享。从os层面来讲，这块内存对应的是某一页或某几页，复制后，让子进程的页表指向新的页就行了。所以，**通过copy on write，逻辑上父子进程的内存区域是完全分离且相同的内容，但实现上又做到了fork一个子进程也并不会让内存double**；
-5. 但是，如果redis进程占用系统内存50%+，依然会fork失败！copy on write只是缓解了内存占用，但是最不理想的情况下，如果子进程需要把copy出的所有父进程内存全都修改一遍，copy on write的结果其实也是子进程要完全开辟一份和父进程一样大的内存空间，用来存储自己的内容。所以如果父进程内存占用51%，子进程最多也会再占用51%，**操作系统不能保证能给子进程allocate这么多内存，所以fork失败**。
+于是问题来了：
 
-综上，部署redis的机器内存使用量不能超过一半，不然redis的确不能启动后台进程！
+> 父进程是 Redis，内存里放着一大坨 DB。`fork()` 出来的子进程逻辑上几乎是父进程的 copy。那岂不是意味着部署 Redis 的机器内存使用量不能超过一半，不然就没空间复制出子进程？
 
-不过Linux还提供了一个选项：`sysctl vm.overcommit_memory=1`，只要这么设置，在内存真正耗尽之前，系统总认为内存是够的，此时fork不会因为内存不足失败。
+直接说结论：
 
-这也是为什么，在redis的admin里：
-- https://redis.io/topics/admin
+- **不会因为 `fork()` 立刻把 Redis 内存复制一份，所以常驻内存不会马上 double**；
+- **但在某些 Linux overcommit 策略下，内核会评估最坏情况的内存承诺，Redis 太大时 `fork()` 仍然可能失败**；
+- **fork 之后父进程继续写数据，会触发 copy-on-write，写得越多，额外内存消耗越多**。
 
-redis第一条就是让配置Linux的上述选项：
-> Make sure to set the Linux kernel overcommit memory setting to 1. Add `vm.overcommit_memory = 1` to `/etc/sysctl.conf` and then reboot or run the command `sysctl vm.overcommit_memory=1` for this to take effect immediately.
+所以原问题的恐惧不是凭空来的，只是“内存马上翻倍”这个理解太粗暴。
 
-如果不配置，redis server启动的时候会报warning：
-> 462:M 12 Jan 2021 02:09:50.804 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+## 老式 fork 和现代 fork
 
-redis强烈要求用户配置该选项，不然使用内存超过系统的一半redis就功能不正常了，用户可要骂街了……
+上古 Unix 的 `fork()` 实现，确实会让子进程复制一遍父进程的地址空间。父进程大，子进程就跟着大，简单但非常贵。
+
+现代操作系统不会傻傻复制整份物理内存。它会复制必要的进程结构和页表，让父子进程一开始指向同一批物理页。
+
+从 OS 视角看，内存是一页页管理的，页表记录虚拟地址到物理页的映射。`fork()` 后：
+
+- 父进程有自己的页表；
+- 子进程复制一份页表；
+- 两份页表一开始指向同样的物理页；
+- 这些页被标记成只读或 COW 相关状态。
+
+```mermaid
+flowchart LR
+    subgraph BeforeFork [fork 前]
+        Parent1["Redis parent 页表"] --> P1["物理页 A/B/C"]
+    end
+
+    subgraph AfterFork [fork 后，尚未写入]
+        Parent2["Parent 页表"] --> Shared["共享物理页 A/B/C"]
+        Child2["Child 页表"] --> Shared
+    end
+
+    style Shared fill:#e8f5e9,stroke:#81c784
+```
+
+也就是说，**fork 的主要成本是复制页表和创建子进程结构，而不是复制全部物理内存**。
+
+Linux `fork(2)` 手册的 NOTES 里也说明了这一点：[fork 使用 copy-on-write pages](https://man7.org/linux/man-pages/man2/fork.2.html#NOTES)。
+
+## copy-on-write
+
+新的问题来了：父子进程逻辑上应该有各自独立的内存空间。如果实现上共享物理页，怎么保证它们互不影响？
+
+答案是 copy-on-write，写时复制。
+
+流程是：
+
+1. `fork()` 后父子进程先共享物理页；
+2. 谁要写某个共享页，就触发 page fault；
+3. 内核复制这一页；
+4. 写入方的页表指向新复制出来的页；
+5. 未修改的页继续共享。
+
+```mermaid
+sequenceDiagram
+    participant P as Parent Redis
+    participant MM as Linux memory manager
+    participant C as Child process
+    participant Page as Shared page
+    participant New as Copied page
+
+    P->>Page: fork 后共享读取
+    C->>Page: fork 后共享读取
+    P->>MM: 写共享页，触发 COW
+    MM->>New: 复制旧物理页
+    MM->>P: parent 页表指向新页
+    P->>New: 写入新页
+    C->>Page: child 仍读取旧页
+```
+
+通过 COW，逻辑上父子进程的内存空间彼此独立；实现上，没被修改的页继续共享，不会白白复制。
+
+这也解释了 Redis 为什么可以让子进程做 RDB/AOF 重写：子进程看到的是 `fork()` 那一刻的 DB 视图，父进程后续继续处理请求。父进程写过的页会被复制，子进程仍然读旧页去生成快照。
+
+## Redis 为什么仍然怕大内存 fork
+
+既然 COW 不会立刻复制全部内存，那 Redis 大内存实例是不是就完全没事？
+
+没那么美。
+
+第一，`fork()` 本身要复制页表。Redis 内存越大，页表越大，fork 卡顿越明显。虽然不是复制数据页，但主线程仍然会被 fork 这一下暂停一段时间。大实例上，这个停顿可以明显到让人骂街。
+
+第二，fork 后如果父进程写入很多数据，会触发大量 COW。子进程写 RDB/AOF 期间，父进程修改过的页都可能额外复制一份。写流量越大，额外内存越高。
+
+第三，Linux overcommit 策略会影响 `fork()` 是否允许发生。Redis 启动时常见 warning 就和它有关。
+
+## overcommit_memory
+
+Linux 有一个配置：
+
+```bash
+sysctl vm.overcommit_memory=1
+```
+
+它控制内核如何处理内存 overcommit。Redis 官方管理建议里也要求设置这个值：[Redis administration: overcommit memory](https://redis.io/docs/latest/operate/oss_and_stack/management/admin/)。
+
+如果不配置，Redis server 启动时可能报 warning：
+
+```text
+462:M 12 Jan 2021 02:09:50.804 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition.
+```
+
+`vm.overcommit_memory=1` 的意思可以粗略理解成：在内存真正耗尽之前，内核允许更乐观地分配内存承诺。这样 Redis 执行 `BGSAVE` 或 `BGREWRITEAOF` 时，不会因为内核过于保守地估算最坏情况而直接 fork 失败。
+
+这不是说“内存可以无限用”。如果 COW 后真的把物理内存吃光了，系统一样会出问题。它解决的是：**fork 那一刻别因为理论最坏情况直接拒绝 Redis**。
+
+## 那机器内存到底能不能超过一半？
+
+原来的直觉是：Redis 占用超过 50%，fork 最坏情况下还要再来一份，所以会失败。
+
+更精确地说：
+
+- 如果 Linux overcommit 策略保守，内核可能认为子进程最坏需要和父进程一样多的内存承诺，于是 Redis 占用很高时 fork 可能失败；
+- 如果设置 `vm.overcommit_memory=1`，fork 更容易成功；
+- fork 成功后，实际额外内存取决于子进程运行期间父进程改了多少页；
+- Redis 写入越频繁，COW 额外内存越多；
+- Redis 实例越大，fork 页表复制和 COW 风险越值得关注。
+
+所以不能简单说“部署 Redis 的机器内存使用量绝对不能超过一半”。但如果不理解 COW 和 overcommit，大内存 Redis 的后台保存确实可能突然给你表演一个失败。
+
+```mermaid
+flowchart TD
+    BigRedis["Redis 占用大量内存"] --> Fork["BGSAVE/BGREWRITEAOF fork"]
+    Fork --> PageTable["复制页表: 造成 fork 停顿"]
+    Fork --> Overcommit{"overcommit 策略是否允许?"}
+    Overcommit -- "否" --> Fail["fork 失败，后台保存失败"]
+    Overcommit -- "是" --> Child["子进程生成 RDB/AOF"]
+    Child --> Writes["父进程继续写入"]
+    Writes --> COW["修改过的页触发 COW"]
+    COW --> Extra["额外内存上升"]
+
+    style Fail fill:#ffe3e3,stroke:#ff8787
+    style COW fill:#fff3bf,stroke:#f0c36d
+    style Child fill:#e8f5e9,stroke:#81c784
+```
+
+# 工程含义
+
+Redis 强烈建议配置 `vm.overcommit_memory=1`，不是因为它矫情，而是因为后台保存、AOF 重写都依赖 `fork()`。如果内核在 fork 时直接拒绝，Redis 的持久化和重写就不稳定，用户当然要骂街。
+
+大内存 Redis 还要注意：
+
+- 避免单实例过大，实例越大 fork 停顿和页表复制越明显；
+- 关注 `BGSAVE`/`BGREWRITEAOF` 期间的写流量，写得越多 COW 越多；
+- 监控后台保存失败、fork 耗时、内存峰值；
+- 该拆实例就拆实例，不要把所有鸡蛋都塞进一个 Redis 进程里。
+
+Redis 的 fork 问题不是“fork 会不会复制全部内存”这么简单，而是三件事叠在一起：页表复制、COW 额外页、overcommit 策略。理解这三层，`BGSAVE` 的很多奇怪 warning 就不再神秘了。
 
 ## Ref
-fork使用copy on write：
-- https://man7.org/linux/man-pages/man2/fork.2.html#NOTES
 
-> Under Linux, fork() is implemented using copy-on-write pages, so
-       the only penalty that it incurs is the time and memory required
-       to duplicate the parent's page tables, and to create a unique
-       task structure for the child.
-
-整体参考：
-- https://engineering.zalando.com/posts/2019/05/understanding-redis-background-memory-usage.html
+- [Linux fork(2) NOTES](https://man7.org/linux/man-pages/man2/fork.2.html#NOTES)；
+- [Understanding Redis background memory usage](https://engineering.zalando.com/posts/2019/05/understanding-redis-background-memory-usage.html)。

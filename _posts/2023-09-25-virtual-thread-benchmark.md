@@ -3,12 +3,27 @@ title: "Virtual Thread benchmark"
 date: 2023-09-25 23:34:11 +0800
 categories: [java, jmh, jmeter]
 tags: [java, jmh, jmeter]
+description: "用 JMH 和 JMeter 对比平台线程池、平台线程 per task 与虚线程 per task 在阻塞任务中的表现。"
 ---
 
 JDK21如期发布，[Virtual Thread]({% post_url 2023-08-21-virtual-thread %})的benckmark来了！
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart LR
+    Task["10,000 个 sleep 阻塞任务"] --> Cached["newCachedThreadPool<br/>平台线程池，复用 OS 线程"]
+    Task --> PlatformPerTask["newThreadPerTaskExecutor<br/>每任务一个平台线程"]
+    Task --> VirtualPerTask["newVirtualThreadPerTaskExecutor<br/>每任务一个虚线程"]
+    Cached --> Result["比较 Throughput / AverageTime"]
+    PlatformPerTask --> Result
+    VirtualPerTask --> Result
+    VirtualPerTask --> Expect["阻塞时释放 carrier thread<br/>更适合大量 I/O wait"]
+
+    style VirtualPerTask fill:#e8f5e9,stroke:#2e7d32
+    style PlatformPerTask fill:#ffe3e3,stroke:#c62828
+```
 
 # client压测
 虚线程的意义在于：使用虚线程（可以是直接new，也可以是虚线程池，当然我们倾向于线程池）跑blocking任务更高效，所以不必使用reactive框架继续分解任务了。但因为依然使用（虚）线程池，所以仍然需要异步提交任务。

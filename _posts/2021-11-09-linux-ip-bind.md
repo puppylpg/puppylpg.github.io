@@ -3,6 +3,7 @@ title: "Linux - ip绑定"
 date: 2021-11-09 16:38:28 +0800
 categories: [linux, ip, network]
 tags: [linux, ip, network]
+description: "用 netcat 实验解释 IP、网卡、端口和 socket 绑定关系，以及 Linux IPv4-mapped IPv6 的表现。"
 ---
 
 部署一个springboot服务，绑定8122端口。通过netstat查看，发现只有ipv6地址被绑定了：
@@ -44,12 +45,12 @@ Network Interface Card
        valid_lft forever preferred_lft forever
 ```
 
-- https://cloud.tencent.com/developer/article/1468099
+- [网卡、IP 和 MAC 的一篇基础介绍](https://cloud.tencent.com/developer/article/1468099)
 
 网卡有单栈（ipv4-only，ipv6-only）和双栈（nic dual stack）
 
 双栈网卡就是两种协议都能支持的网卡。
-- https://www.juniper.net/documentation/us/en/software/junos/is-is/topics/concept/ipv6-dual-stack-understanding.html
+- [Juniper: IPv6 dual stack](https://www.juniper.net/documentation/us/en/software/junos/is-is/topics/concept/ipv6-dual-stack-understanding.html)
 
 双栈网卡如果两种协议都能支持，用哪种？有以下决策方式：
 - The dual-stacked device can interoperate equally with IPv4 devices, IPv6 devices, and other dual-stacked devices. When both devices are dual stacked, the two devices agree on which IP version to use；
@@ -101,6 +102,26 @@ ff02::2 ip6-allrouters
 - localhost loop地址：ipv4为`127.0.0.1/8`，对应ipv6为`::1/128`；
 - 内网ip：`10.108.160.77/24`，对应ipv6为`fe80::6e92:bfff:fe6a:d3a/64`；
 
+```mermaid
+flowchart TD
+    NIC["网卡 wlp3s0"] --> MAC["MAC 地址"]
+    NIC --> IPv4["IPv4: 10.108.160.77"]
+    NIC --> IPv6["IPv6: fe80::..."]
+    Loop["loopback"] --> L4["127.0.0.1"]
+    Loop --> L6["::1"]
+
+    ProcA["进程 A"] --> SockA["127.0.0.1:3456"]
+    ProcB["进程 B"] --> SockB["10.108.160.77:3456"]
+    ProcC["进程 C"] --> SockC["0.0.0.0:3456 / :::3456"]
+
+    SockA --> L4
+    SockB --> IPv4
+    SockC --> IPv4
+    SockC --> IPv6
+```
+
+先把直觉立住：**端口不是全机器唯一地飘在空气里，socket至少要看IP + port**。同一个端口绑在不同IP上，可以是不同socket；绑到`0.0.0.0`或`::`，才是“这个地址族里的所有本地地址都算我的”。
+
 ## 访问同一机器的不同ip是否是等效的
 使用netcat监听`localhost:3456`（其实就是监听`127.0.0.1:3456`）：
 ```bash
@@ -146,7 +167,7 @@ tcp        0      0 127.0.0.1:3456          0.0.0.0:*               LISTEN      
 
 **说明不同IP可以绑定同一个端口。ip+port二者共同组成一个socket，确定一个服务进程的位置。**
 
-- https://segmentfault.com/q/1010000016970247/a-1020000016970972
+- [SegmentFault 上关于同端口不同 IP 绑定的回答](https://segmentfault.com/q/1010000016970247/a-1020000016970972)
 
 ## 所有ip均绑定同一端口
 关闭上面两个进程，不指定某一ip，使用nc监听所有ip的3456端口：
@@ -172,7 +193,7 @@ tcp6       0      0 :::3456                 :::*                    LISTEN      
 ▶ nc -6 -l -v 3456    
 Listening on :: 3456
 ```
-查看绑定情况，只有tpc6：
+查看绑定情况，只有tcp6：
 ```bash
 $ netstat -anp | grep :3456
 (Not all processes could be identified, non-owned process info
@@ -186,7 +207,7 @@ Connection to fe80::6e92:bfff:fe6a:d3a%wlp3s0 3456 port [tcp/*] succeeded!
 ```
 符合预期。
 
-> 使用ipv6的时候还需要指定网卡名称：https://unix.stackexchange.com/a/136473/283488
+> 使用ipv6的时候还需要指定网卡名称：[Unix StackExchange 的说明](https://unix.stackexchange.com/a/136473/283488)。
 
 还能通过ipv6 loop ip访问：
 ```bash
@@ -202,15 +223,26 @@ Connection to 127.0.0.1 3456 port [tcp/*] succeeded!
 这是为什么？springboot也是只显示绑定了ipv6，却能通过ipv4访问，看来道理是一样的。
 
 # ip映射
-- https://serverfault.com/a/755784/801099
-- http://httpd.apache.org/docs/2.0/bind.html#ipv6
+- [ServerFault: IPv4 mapped IPv6 socket](https://serverfault.com/a/755784/801099)
+- [Apache httpd: binding IPv6 and IPv4 sockets](http://httpd.apache.org/docs/2.0/bind.html#ipv6)
 
 通过上述文档可以看到，确实是只绑定了ipv6，但是linux默认会做ipv4映射，所有监听ipv6某端口的程序，也会收到ipv4该端口的连接请求。
 
+```mermaid
+flowchart TD
+    Start["netstat 只看到 tcp6 :::8122"] --> Test4["用 IPv4 访问 127.0.0.1:8122"]
+    Test4 -->|成功| Map["IPv4-mapped IPv6 生效"]
+    Test4 -->|失败| V6Only["可能开启 IPV6_V6ONLY"]
+    Map --> Kernel["内核把 IPv4 连接映射到 IPv6 socket"]
+    Kernel --> App["Java/SpringBoot 进程收到连接"]
+    V6Only --> Check["检查 bind 配置 / sysctl / 应用参数"]
+```
+
+所以一开始看到`tcp6 :::8122`不用慌，它不必然代表“只能IPv6访问”。`netstat`只是把绑定对象显示出来，**IPv4会不会被这个IPv6 socket接住，还要看内核的v4-mapped行为有没有开启**。
+
 所以，linux上有的显示只绑定了ipv6，有的显示ipv6和ipv4都绑定了，就不足为奇了：
-- https://www.cnblogs.com/wlzjdm/p/8684202.html
+- [Linux 下 tcp6 监听表现的一篇记录](https://www.cnblogs.com/wlzjdm/p/8684202.html)
 
 但有的显示绑定ipv6，实际也只能通过ipv6访问，是因为关了ipv4映射。
 
 究竟有没有关ipv4映射，这一点通过netstat并不能看出来，**netstat只是忠实地显示出了程序绑定了ip而已**。
-

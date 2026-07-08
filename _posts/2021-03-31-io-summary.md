@@ -3,6 +3,7 @@ title: "汇总：IO"
 date: 2021-03-31 00:38:53 +0800
 categories: [io, nio, aio]
 tags: [io, nio, aio]
+description: "汇总 IO/NIO/AIO 相关文章，并用数据流对比 read/write、mmap、sendfile 和零拷贝。"
 ---
 
 汇总一下总结过的IO/NIO/AIO相关。
@@ -21,14 +22,14 @@ IO模型：
 - NIO和异步Servlet，其实这个异步和异步IO思想都是类似的，毕竟都是异步: [Servlet - NIO & Async]({% post_url 2021-03-24-servlet-nio-async %})；
 - Asynchronous IO: [AIO]({% post_url 2021-03-31-aio %})；
 
-读写是的编码问题：
+读写时的编码问题：
 - 字符集：[Unicode & UTF-n]({% post_url 2019-12-15-unicode-and-utf %})；
 
 后续如果还有关于IO的，继续更新到这里。
 
 # 零拷贝
 关于零拷贝的：
-- https://www.cnblogs.com/xiaolincoding/p/13719610.html
+- [小林 coding：零拷贝详解](https://www.cnblogs.com/xiaolincoding/p/13719610.html)
 
 普通文件传输，调用read、write系统调用：
 1. 磁盘 -> 内核缓冲区（**其实就是page cache**）。由DMA操作；
@@ -47,6 +48,24 @@ IO模型：
 
 开销：四次切换、四次数据拷贝。
 
+```mermaid
+sequenceDiagram
+    participant Disk as 磁盘
+    participant Page as page cache 内核态
+    participant User as 用户态 buffer
+    participant Socket as socket buffer 内核态
+    participant NIC as 网卡
+
+    rect rgb(255, 243, 191)
+        Disk->>Page: DMA copy
+        Page->>User: CPU copy
+        User->>Socket: CPU copy
+        Socket->>NIC: DMA copy
+    end
+```
+
+这就是普通`read` + `write`的问题：文件只是路过用户态，应用程序并没有改它，却要多走一趟用户态。很像快递明明从仓库发到隔壁站点，非得先让你拿回家签收再拿去寄，仪式感拉满，效率稀碎。
+
 ## mmap - 数据不经过用户态
 **之前内存里存了两遍数据：先到内核态，再到用户态，在内存里存在了两次**。
 
@@ -57,7 +76,7 @@ IO模型：
 开销：四次切换，三次数据拷贝。
 
 ### java direct memory
-- https://www.zhihu.com/question/376317973/answer/1052239674
+- [一个关于 Java direct memory 的回答](https://www.zhihu.com/question/376317973/answer/1052239674)
 
 Java的direct memory和mmap干的还不一样。**java读文件要拷贝更多次（wtf）**：
 1. 磁盘 -> 内核态；
@@ -84,6 +103,20 @@ mmap + write = sendfile
 所以零拷贝就是：**只把文件描述符和数据长度copy到socket缓冲区，实际数据直接从内核态copy到网卡**。
 
 开销：两次切换、两次数据拷贝。
+
+```mermaid
+sequenceDiagram
+    participant Disk as 磁盘
+    participant Page as page cache 内核态
+    participant Socket as socket buffer 描述符/长度
+    participant NIC as 网卡
+
+    Disk->>Page: DMA copy
+    Page->>Socket: 只传元信息
+    Page->>NIC: DMA copy
+```
+
+所谓“零拷贝”不是说没有任何拷贝，磁盘到内存、内存到网卡这些硬件搬运还在。它强调的是**不再把文件内容拷到用户态，也不再在内核态里傻乎乎复制一份真实数据**。
 
 从四次切换、四次数据拷贝，减少到了两次切换和两次数据拷贝。所以零拷贝看起来至少提升一倍的性能。
 

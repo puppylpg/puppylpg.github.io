@@ -3,12 +3,32 @@ title: "Git - staging area"
 date: 2023-02-08 23:21:20 +0800
 categories: [git]
 tags: [git]
+description: "从 git diff、git diff --staged 和 git diff HEAD 的差异理解 staging area/index 的作用。"
 ---
 
 虽然git早就玩的比较熟练了，但是一直对[暂存区（staging area）](https://git-scm.com/book/zh/v2/Git-%E5%9F%BA%E7%A1%80-%E8%AE%B0%E5%BD%95%E6%AF%8F%E6%AC%A1%E6%9B%B4%E6%96%B0%E5%88%B0%E4%BB%93%E5%BA%93)的存在不甚理解。最近教我弟git，才发现不太能说明白暂存区有什么用。再好好看看暂存区，思来想去，全是intellij idea害的:D 被它的GUI坑了。
 
 1. Table of Contents, ordered
 {:toc}
+
+# 三份快照
+
+理解暂存区，先别急着背命令。Git 在本地至少同时看三份东西：
+
+```mermaid
+flowchart LR
+    H["HEAD<br/>上一次 commit"] -->|git diff --staged| I["index / staging area<br/>下一次 commit 的准快照"]
+    I -->|git diff| W["working tree<br/>当前文件系统"]
+    H -->|git diff HEAD| W
+    W -->|git add| I
+    I -->|git commit| H
+```
+
+| 命令 | 比较对象 | 看见的变化 |
+|---|---|---|
+| `git diff` | working tree vs. index | 还没暂存的改动 |
+| `git diff --staged` / `--cached` | index vs. HEAD | 已经暂存、准备提交的改动 |
+| `git diff HEAD` | working tree vs. HEAD | 当前文件相对上次提交的全部改动 |
 
 # staging area
 暂存区，之所以是暂存，是因为接下来就准备把它commit到git仓库里，称为提交记录树的一个节点了。把变更加入暂存区，就意味着变更已经纳入到git的管理范畴了，不用再怕工作区文件被改坏了。
@@ -43,7 +63,7 @@ tags: [git]
 - `git diff HEAD`：显示1 --> 3；
 
 ref：
-- https://stackoverflow.com/questions/13057457/show-both-staged-working-tree-in-git-diff
+参考 [Stack Overflow 关于同时查看 staged 和 working tree diff 的讨论](https://stackoverflow.com/questions/13057457/show-both-staged-working-tree-in-git-diff)。
 
 **所以暂存区虽然还没有成为git树结构上的一个节点，但它其实已经是一个“准节点”。加入暂存区也算加入git的管理范畴了，diff就没了。**
 
@@ -61,14 +81,12 @@ ref：
 - `git checkout -- .`，没指定tree-ish，用index的内容覆盖工作区。
 
 至于命令中的`--`，则是为了防止歧义，怕把pathspec误解成tree-ish了。这一点应该是仿照的bash的`--`：
-- https://stackoverflow.com/questions/13321458/meaning-of-git-checkout-double-dashes
-- https://git-scm.com/docs/git-checkout#_argument_disambiguation
-- bash的`--`：https://unix.stackexchange.com/a/452793/283488
+参考 [Stack Overflow 对 `git checkout --` 的解释](https://stackoverflow.com/questions/13321458/meaning-of-git-checkout-double-dashes)、[Git checkout 的 argument disambiguation 文档](https://git-scm.com/docs/git-checkout#_argument_disambiguation)，以及 [Unix Stack Exchange 对 Bash `--` 的解释](https://unix.stackexchange.com/a/452793/283488)。
 
 ## 移出暂存区
 **可以使用`git rm --cached xxx`将已纳入暂存区（已经被git管理了）的文件从暂存区里删掉，但是依然留在工作区中**。
 
-- https://git-scm.com/docs/git-rm
+参考 [Git rm 文档](https://git-scm.com/docs/git-rm)。
 
 如果不加`--cached`，则将文件同时同暂存区和工作区删除。
 
@@ -80,4 +98,3 @@ ref：
 学会一丢丢git的用法，就完全够用了。但是偶尔新学会某一个用法，发现可选的骚操作又变多了:D 这就很有意思，就像在一个已经玩得很熟的游戏中，一不小心又解锁了一个奇奇怪怪的成就。
 
 > 关于GUI，我从一开始就坚持使用git指令操作git，只使用gui看看diff的思路是正确的，少走了很多弯路。但是没想到即便如此，即便只用到了gui的diff，依然能让我在diff上栽跟头o(╥﹏╥)o
-

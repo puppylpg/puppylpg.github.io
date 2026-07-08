@@ -3,6 +3,7 @@ title: "（九）How Tomcat Works - Tomcat Service"
 date: 2020-10-09 01:51:47 +0800
 categories: [tomcat, http, web, session]
 tags: [tomcat, http, web, session]
+description: "把 Connector 和顶级 Container 聚合成 Service，再由 Server 统一启动、关闭和 await。"
 ---
 
 之前定义完Connector和Container，直接手动分别启动二者，并使用read来阻止主线程退出，过于简陋，不能算是一个生产环境的Tomcat。至少存在三个不太好的地方：
@@ -12,6 +13,24 @@ tags: [tomcat, http, web, session]
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+flowchart TD
+    Server["Server<br/>await 8005 SHUTDOWN"] --> Service["Service<br/>Connector + Engine 的聚合"]
+    Service --> Connector1["Connector: HTTP/1.1 :8080"]
+    Service --> Connector2["Connector: HTTPS/AJP/..."]
+    Service --> Engine["Engine<br/>顶级 Container"]
+    Engine --> Host["Host"]
+    Host --> Context["Context"]
+    Context --> Wrapper["Wrapper / Servlet"]
+
+    Start["server.start()"] -.-> Service
+    Stop["server.stop()"] -.-> Service
+
+    style Server fill:#e3f2fd,stroke:#1976d2
+    style Service fill:#fff3bf,stroke:#f59f00
+    style Engine fill:#e8f5e9,stroke:#2e7d32
+```
 
 # `org.apache.catalina.Server`
 Server接口是Tomcat提供的服务器的原型。可以向里面添加`org.apache.catalina.Service`。
@@ -213,4 +232,3 @@ public final class Bootstrap {
 总结一下使用Server和Service的好处：
 1. 一个Server里可以有多个Service，一个Service里可以有多个Connector和一个Container，所以Tomcat可以有多个Engine（因为有多个Service），每个Engine里可以有多个Connector；
 2. Connector和Container交由Service，使得二者都组件化，可以随时通过Service的接口替换、增删；
-

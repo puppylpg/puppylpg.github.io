@@ -3,12 +3,34 @@ title: "汇总：锁"
 date: 2021-04-08 01:24:09 +0800
 categories: [java, concurrency]
 tags: [java, concurrency]
+description: "汇总 Java 锁体系：内置锁、显式锁、CAS、性能比较、AQS 与分布式锁。"
 ---
 
 汇总一下总结过的锁相关文章。
 
 1. Table of Contents, ordered
 {:toc}
+
+```mermaid
+mindmap
+  root((Java 锁体系))
+    内置锁
+      synchronized
+      Monitor
+    显式锁
+      ReentrantLock
+      Condition
+      AQS
+    无锁
+      CAS
+      原子变量
+    对比
+      性能
+      使用场景
+    分布式
+      Redis
+      ZooKeeper
+```
 
 **Java锁相关的知识，其实就是围绕着内置锁、显式锁、不用锁（CAS）展开**：
 1. 锁是如何使用的：[生产者 - 消费者]({% post_url 2020-05-17-producer-consumer %})；
@@ -19,6 +41,6 @@ tags: [java, concurrency]
 6. 显式锁的实现原理：[AQS：显式锁的深层原理]({% post_url 2021-04-08-aqs %})；
 
 其他和锁等效的东西：
-- 用redis和zookeeper实现分布式锁：[Reids - 分布式锁 vs. zookeeper]({% post_url 2021-02-06-redis-zookeeper-dlock %})；
+- 用redis和zookeeper实现分布式锁：[Redis - 分布式锁 vs. zookeeper]({% post_url 2021-02-06-redis-zookeeper-dlock %})；
 
 后续如果还有关于锁的，继续更新到这里。

@@ -1,19 +1,44 @@
 ---
 title: "SpringBoot MVC"
 date: 2022-12-03 02:54:20 +0800
-categories: [spring, springboot, mvc]
-tags: [spring, springboot, mvc]
+categories: [tech, spring, springboot, mvc]
+tags: [spring, springboot, mvc, servlet, tomcat]
+description: "从内嵌 Tomcat 的启动过程出发，解释 Spring Boot MVC 如何注册 DispatcherServlet、Filter 和 ServletContextInitializer。"
 ---
 
-在介绍[Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %})的时候说过，springboot反转了调用关系，翻身做主人了。**springboot启动内嵌的servlet容器，内嵌的servlet容器还和之前调用SpringMVC的方式一样，只不过这次调用的是springboot的组件，不再是SpringMVC了**。
+在介绍 [Spring Web MVC]({% post_url 2022-12-03-spring-web-mvc %}) 时说过，传统部署方式下是 servlet 容器发现并启动 Spring MVC；到了 Spring Boot，这个调用关系被反转：Spring Boot 先启动自己的 `ApplicationContext`，再创建内嵌 servlet 容器，并把 Spring 容器里的 servlet/filter 相关 bean 注册进去。
 
 1. Table of Contents, ordered
 {:toc}
 
+这篇文章重点看两个问题：Spring Boot 为什么不直接执行标准 `ServletContainerInitializer` SPI，以及 `DispatcherServlet` 这类 servlet 组件最终是怎样从 Spring Bean 变成 Tomcat 里的注册对象的。
+
+Spring Boot MVC 的调用方向和传统 Spring MVC 相反：不是 Tomcat 发现 Spring，而是 Spring Boot 创建 Tomcat。
+
+```mermaid
+flowchart TD
+    Boot["SpringApplication.run"] --> WebCtx["ServletWebServerApplicationContext"]
+    WebCtx --> Beans["扫描/自动配置 Servlet、Filter、ServletContextInitializer bean"]
+    WebCtx --> Factory["ServletWebServerFactory<br/>TomcatServletWebServerFactory"]
+    Factory --> Tomcat["创建内嵌 Tomcat"]
+    Beans --> Initializers["ServletContextInitializerBeans<br/>整理并排序"]
+    Initializers --> Register["注册 DispatcherServlet / Filter / Listener"]
+    Tomcat --> Start["Tomcat.start()"]
+    Register --> Start
+    Start --> Ready["Web 应用监听端口"]
+
+    classDef boot fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef servlet fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef ready fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    class Boot,WebCtx,Beans boot
+    class Factory,Tomcat,Initializers,Register servlet
+    class Start,Ready ready
+```
+
 # 蓄意内嵌servlet容器
 [springboot MVC](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.embedded-container)不像SpringMVC一样，由servlet容器调用自己。而是启动一个自己的`ApplicationContext`，先像普通springboot app一样配置好各种bean，**这些bean甚至可以包含一些包装了servlet的`Servlet`/`Filter`的wrapper bean**。然后启动一个servlet容器，**再把那些wrapper bean注册到servlet容器里**。
 
-**这样程序猿来说，配置servlet、filter的工作就可以以普通springboot bean的形式进行了。对于新手来说，甚至都不用太理解servlet规范就可以上手配置，启动一个servlet容器了**。不得不说，springboot这一思路真的是6！
+**这样一来，配置 servlet、filter 的工作就可以以普通 Spring Boot bean 的形式完成。对使用者来说，哪怕还没有完整掌握 servlet 规范，也能先启动一个可用的 web 应用。**
 
 > When using an embedded servlet container, you can register servlets, filters, and all the listeners (such as HttpSessionListener) from the servlet spec, **either by using Spring beans or by scanning for servlet components.**
 >
@@ -94,7 +119,7 @@ springboot启动mvc的流程：
 内嵌servlet容器的抽象是`WebServer`，比如`TomcatServletWebServer`。
 
 `ServletWebServerApplicationContext`也是`ApplicationContext`，所以也有普通`ApplicationContext`的生命流程：
-1. 在`postProcessBeforeInitialization`的时候，**会调用`ServletWebServerFactoryCustomizer#customize`，把程序猿自定义的tomcat的port、context path等属性全都设置到tomcat server里**；
+1. 在`postProcessBeforeInitialization`的时候，**会调用`ServletWebServerFactoryCustomizer#customize`，把开发者自定义的tomcat的port、context path等属性全都设置到tomcat server里**；
 2. `onRefresh`的时候获取`ServletWebServerFactory` bean（通过autoconfig class自动配置的），用它实例化`TomcatWebServer`。
     1. **`TomcatWebServer`其实就是apache tomcat（`org.apache.catalina.startup.Tomcat`）的wrapper**，所以要先创建一个真正的tomcat。此时connector、service、engine、valve、docBase，全都映入眼帘……废话，这些代码都是tomcat的……host注册到engine上，**最后一个tomcat container是Context，注册到host上（servlet的`Wrapper`这个最底层Container比较特殊，是在start的时候才实例化出来的。其他几个上层Container是一开始就实例化出来的）**
     2. **此时还手动注册了springboot的`ServletContainerInitializer`实现类`TomcatStarter`到`Context`上**，见下文。
@@ -225,7 +250,7 @@ logger.info("Tomcat started on port(s): " + getPortsDescription(true) + " with c
 		+ getContextPath() + "'");
 ```
 
-> Tomcat started on port(s): 8081 (http) with context path '/wtf' :D
+> Tomcat started on port(s): 8081 (http) with context path '/wtf'
 
 然后发布`TomcatWebServer`启动完毕事件。
 
@@ -235,6 +260,4 @@ servlet提供了标准的`@WebServlet`/`@WebFilter`/`@WebListener`以注册servl
 > `@ServletComponentScan` has no effect in a standalone container, where the container’s built-in discovery mechanisms are used instead.
 
 # 感想
-第一次试图了解springboot tomcat还是四年前，刚工作一年整，对spring了解一般，springboot更是不了解。当时啥也没探究出来，太惨了……
-
-加油吧菜鸡o(╥﹏╥)o，把前置知识都理解清楚了，一切都水到渠成了。
+第一次试图理解 Spring Boot 和内嵌 Tomcat 的关系时，前置知识还不够：Spring 容器、Spring MVC、servlet 规范、Tomcat 容器层次，每一层都缺一点。把这些链路补齐之后再看 Spring Boot MVC，关键点就清楚了：它没有绕过 servlet 规范，而是把“谁负责初始化 servlet 容器”这件事收回到了自己手里。

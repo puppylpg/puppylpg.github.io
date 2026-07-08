@@ -1,19 +1,45 @@
 ---
 title: "Spring - 用AspectJ定义切面"
 date: 2022-07-31 03:50:10 +0800
-categories: [spring, aop, aspectj]
-tags: [spring, aop, aspectj]
+categories: [tech, spring, aop, aspectj]
+tags: [spring, aop, aspectj, proxy]
+description: "解释 Spring AOP 为什么借用 AspectJ 的切面定义方式，以及 @AspectJ、切点表达式、JDK/CGLIB 代理差异。"
 ---
 
-[Spring - AOP]({% post_url 2021-11-22-spring-aop %})使用动态代理（jdk或者cglib）实现aop，非常强大，对于程序猿来讲，大部分aop的工作其实就是定义切面，极大简化了开发难度。但是相比于AspectJ，spring aop在定义切面上还是比较麻烦的。所以spring aop想进一步降低程序猿的开发难度。
+[Spring - AOP]({% post_url 2021-11-22-spring-aop %})已经解释过：Spring AOP 使用运行期动态代理（JDK 或 CGLIB）实现增强。真正让使用者感到繁琐的地方，往往不是代理本身，而是手动定义 advice、pointcut、advisor 并把它们组装起来。
 
 1. Table of Contents, ordered
 {:toc}
 
+这篇文章关注 Spring AOP 与 AspectJ 的分工：Spring 继续负责运行期代理和 bean 生命周期，AspectJ 提供更简洁的切面定义语法。理解这个边界之后，`@Aspect`、`@Pointcut`、`@Before`、`@Around` 这些注解就不再只是“更方便的配置”，而是 Spring AOP 借来的表达层。
+
+两者的分工可以先画成这样：AspectJ 语法负责“表达切面”，Spring AOP 负责“在 bean 生命周期里生成代理”。
+
+```mermaid
+flowchart LR
+    Aspect["@Aspect 类<br/>@Pointcut / @Before / @Around"] --> Parser["AnnotationAwareAspectJAutoProxyCreator<br/>解析 AspectJ 风格注解"]
+    Parser --> Advisors["Advisor 列表<br/>Pointcut + Advice"]
+    Bean["普通 Spring Bean"] --> Match{"是否匹配切点？"}
+    Advisors --> Match
+    Match -->|"匹配"| Proxy["创建代理<br/>JDK 或 CGLIB"]
+    Match -->|"不匹配"| Raw["保留原 bean"]
+    Proxy --> Container["放回 Spring 容器"]
+    Raw --> Container
+
+    classDef syntax fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef spring fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef decision fill:#fff3bf,stroke:#f9a825,color:#7a4f00
+    classDef raw fill:#ffe3e3,stroke:#c62828,color:#7f1d1d
+    class Aspect,Parser,Advisors syntax
+    class Bean,Proxy,Container spring
+    class Match decision
+    class Raw raw
+```
+
 # 切面定义的优劣
 使用spring aop定义的切面有几个问题：
 1. 增强：必须实现spring aop的Advice接口（或其子接口，比如AfterReturningAdvice），耦合了；
-    ```java
+```java
     public class SleepAfterPlay implements AfterReturningAdvice {
     
     	@Override
@@ -28,7 +54,7 @@ tags: [spring, aop, aspectj]
     }
 ```
 2. 切点：切点定义在切面里，且切点定义太麻烦了，指定类和方法需要override相应的函数，看起来臃肿；
-    ```java
+```java
     public class PlayAdvisor extends StaticMethodMatcherPointcutAdvisor {
     
         @Override
@@ -43,7 +69,7 @@ tags: [spring, aop, aspectj]
     }
 ```
 3. 切面：切面不能把切点和增强直接定义在一起，还要在配置里进行组装，麻烦；
-    ```java
+```java
     @Bean
     public PlayAdvisor afterPlayAdvisor(SleepAfterPlay sleepAfterPlay) {
         PlayAdvisor playAdvisor = new PlayAdvisor();
@@ -252,9 +278,7 @@ BUT THE EXCEPTION STILL THROW
 
 # AspectJ切面中语法
 ## 切点表达式
-咱也不太会，用的时候现学现卖吧。既然享受了AspectJ定义切面带来的福利，就得学人家定义切点的语言呀。
-
-- https://www.baeldung.com/spring-aop-pointcut-tutorial
+既然享受了 AspectJ 定义切面带来的便利，就需要掌握它的切点表达式。可以从 [Baeldung 的 Spring AOP pointcut tutorial](https://www.baeldung.com/spring-aop-pointcut-tutorial) 入门。
 
 ## 命名切点
 增强注解里定义的匿名切点无法复用，类似于Java的匿名类。所以导致切点定义重复了，怎么复用呢？使用@Pointcut注解和切面类方法定义切点。
@@ -449,15 +473,13 @@ public class NaiveStudent implements Student {
 ## 注解标注在接口上：等于白标
 如果给接口里的play增加@DebugLog，但是不给实现类里的play加@DebugLog，结果再也无法输出debug log了。
 
-这让我很费解，因为在@Transaction里也提到了注解标注的位置：如果标注到接口上，只有基于接口的jdk动态代理才能织入事务支持。所以spring建议把注解加到实现类上：
-- https://docs.spring.io/spring-framework/docs/current/reference/html/data-access.html#transaction-declarative-annotations
+这让我很费解，因为在 `@Transactional` 里也提到了注解标注的位置：如果标注到接口上，只有基于接口的 JDK 动态代理才能织入事务支持。所以 Spring 建议把注解加到实现类上，具体说明见官方文档里的 [declarative transaction annotations](https://docs.spring.io/spring-framework/docs/current/reference/html/data-access.html#transaction-declarative-annotations)。
 
 > The Spring team recommends that you annotate only concrete classes (and methods of concrete classes) with the @Transactional annotation, as opposed to annotating interfaces. You certainly can place the @Transactional annotation on an interface (or an interface method), but this works only as you would expect it to if you use interface-based proxies. The fact that Java annotations are not inherited from interfaces means that, if you use class-based proxies (proxy-target-class="true") or the weaving-based aspect (mode="aspectj"), the transaction settings are not recognized by the proxying and weaving infrastructure, and the object is not wrapped in a transactional proxy.
 
 但是在接口上标记@DebugLog的现象却是：不管用jdk还是cglib，都无法像@Transactional一样织入。为什么？
 
-后来，终于在一个陈年issue中找到了答案：
-- 太牛逼了：https://github.com/spring-projects/spring-framework/issues/12320
+后来，终于在一个 [Spring Framework issue](https://github.com/spring-projects/spring-framework/issues/12320) 中找到了答案。
 
 原因：根据Java标准，任何标注在接口上的注解都不会被检测到（这个我试了，确实如此）
 > "AspectJ follows Java's rule that annotations on interfaces are not inherited". Actually all non-type annotations, so method/field/constructor/package annotations, are not inherited
@@ -480,9 +502,4 @@ public class NaiveStudent implements Student {
 > spring还不如不加这个支持……加了反而让人混淆，以为只要加到接口上并使用jdk基于接口的动态代理就都可以。
 
 # 感想
-spring真的是兼收并蓄！毫不吝啬地将已有的成熟方案接入自己的体系，大大方方接纳别人，更是进一步成就了自己！
-
-> 做人又何尝不是这样。大度容人，也是在成就自己。
-
-有更优秀方案，spring就主动接入，也不重复造轮子，确实很不错！不得不说，spring之所以优秀，是因为首先它的心态就很优秀！
-
+Spring AOP 没有重复造一套切面表达语言，而是直接接入 AspectJ 的成熟方案；同时它又保留了自己基于容器和动态代理的实现方式。这个组合很典型：表达层借用成熟语法，执行层仍然服务于 Spring 的 bean 生命周期。

@@ -3,6 +3,7 @@ title: "Docker - storage"
 date: 2023-03-20 22:40:45 +0800
 categories: [docker]
 tags: [docker]
+description: "梳理 Docker volume、bind mount、tmpfs、Compose volumes 和容器可写层之间的关系。"
 ---
 
 docker的持久化存储。
@@ -10,12 +11,36 @@ docker的持久化存储。
 1. Table of Contents, ordered
 {:toc}
 
+# 先区分两种“存储”
+
+Docker 里说 storage，容易混成一团。至少要分两层：
+
+1. **镜像/容器自己的分层文件系统**：比如 `overlay2`，负责把只读 image layers 和容器 writable layer 合成一个根文件系统；
+2. **应用数据的持久化 mount**：比如 volume、bind mount、tmpfs，负责让某个路径的数据不跟着容器可写层一起消失。
+
+```mermaid
+flowchart TD
+    L["image lower layers<br/>只读"] --> M["merged rootfs<br/>容器看到的 /"]
+    U["container upperdir<br/>可写层"] --> M
+    M --> P["/var/lib/mysql"]
+    V["volume / bind mount / tmpfs"] -. "挂载后遮住该路径原内容" .-> P
+    P --> A["应用读写数据"]
+```
+
+如果不挂 volume/bind mount，应用写入的数据会落到容器的 writable layer，删容器就没了。**所以数据库、上传文件、证书这类数据，一定不要只放在容器自己的可写层里**。
+
 # docker中的数据管理
 
 docker支持[三种类型的mount](https://docs.docker.com/storage/)：
 - volume：docker自己管理的volume；
 - bind mount：直接mount宿主机上的文件/夹；
 - tmpfs：mount到宿主机的ram里；
+
+| 类型 | 宿主机位置 | Docker CLI 能否管理 | 数据生命周期 | 适合场景 |
+|---|---|---|---|---|
+| volume | `/var/lib/docker/volumes/...` | 可以 | 独立于容器 | 数据库、跨容器共享、备份迁移 |
+| bind mount | 任意宿主机路径 | 不可以 | 取决于宿主机路径 | 本地开发、挂配置文件、挂源码 |
+| tmpfs | 宿主机内存 | 随容器生命周期 | 容器停止即消失 | 临时敏感数据、高速临时缓存 |
 
 volume和bind mount最终对应的都是host上的directory。唯一的区别是volume可以使用docker cli管理，bind mount不行。
 
@@ -142,7 +167,7 @@ docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /db
 > It can be used by a container during the lifetime of the container, to store non-persistent state or sensitive information. **For instance, internally, swarm services use tmpfs mounts to mount secrets into a service’s containers.**
 
 # docker compose
-- https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes
+参考 [Compose file volumes 文档](https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes)。
 
 无论mount volume还是bind mount，在docker compose里用的都是[`volumes`](https://docs.docker.com/compose/compose-file/#volumes)关键字（或者参考[v3的文档](https://docs.docker.com/compose/compose-file/compose-file-v3/#volumes)）。因此volume的语法有short syntax和long syntax：
 ```bash
@@ -207,4 +232,3 @@ volumes:
 
 # rancher volume
 一般来说，使用docker创建volume只能创建在单个宿主机上。在rancher上，可以创建被多个宿主机共享的volume，从而被多个container共享。
-

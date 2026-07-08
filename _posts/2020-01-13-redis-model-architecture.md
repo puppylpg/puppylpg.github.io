@@ -1,164 +1,214 @@
 ---
 title: "Redis - 模型架构"
 date: 2021-01-13 01:51:27 +0800
-categories: [redis]
-tags: [redis]
+categories: [tech, redis]
+tags: [redis, reactor, nio, event-loop, io-thread]
+description: "梳理 Redis 主线程事件循环、文件事件、时间事件和 Redis 6 I/O 多线程，解释 Redis 单线程模型为什么快、又为什么不是绝对单线程。"
 ---
 
-上篇写的redis DB是redis server的主要功能。本文梳理一下redis server的架构、事件处理逻辑。
+上篇写了 Redis DB 和持久化。DB 是 Redis server 的主要功能，这篇梳理 Redis server 的架构和事件处理逻辑。
+
+一句话概括：**Redis 的主服务流程是一个非常快的事件循环，主要由一个线程完成连接处理、命令执行和定时任务调度**。它不是“进程里只有一个线程”，而是“核心读写内存和执行命令这条路径尽量单线程”。
 
 1. Table of Contents, ordered
 {:toc}
 
 # 事件驱动程序
-redis server的主进程就是一个大loop：
+
+Redis server 的主流程可以粗略写成：
+
 ```bash
 while true:
-    processFileEvents();
-    processTimeEvents();
-    flushAOF();
+    processFileEvents()
+    processTimeEvents()
+    flushAOF()
 ```
-**该loop是由redis主进程的主线程完成的。**
 
-1. file events: 服务器通过socket与client进行连接，读写socket。Linux上，一切皆文件，所以socket也是文件，所以对socket的处理就是file event；
-2. timer events：比如serverCron函数，执行之前类似于BGSAVE的后台子任务等；
+**这个 loop 由 Redis 主进程里的主线程完成。**
 
-> Linux一切皆文件：
-> - （你在Windows层面上所认识到的）文件（file）是文件；
-> - 目录也是文件，叫目录文件。打开目录其实就是打开目录文件。能读目录下的所有文件，其实就是对目录文件有读权限，所以能读目录文件包含的所有文件；
-> - 进程是文件；
-> - 硬件（键盘、显示器、硬盘、打印机）是文件。根据类型不同分为块设备文件和字符设备文件；
-> - socket也是文件；
-> - `/dev/zero`，`/dev/null`，pipe都是文件；
+```mermaid
+flowchart TD
+    Loop["Redis main loop"] --> FileEvents["file events: socket 连接、读、写"]
+    FileEvents --> Command["解析并执行命令"]
+    Command --> TimeEvents["time events: serverCron 等周期任务"]
+    TimeEvents --> AOF["flush AOF buffer"]
+    AOF --> Loop
+
+    style Loop fill:#e3f2fd,stroke:#64b5f6
+    style Command fill:#e8f5e9,stroke:#81c784
+    style AOF fill:#fff3bf,stroke:#f0c36d
+```
+
+Redis 事件主要有两类：
+
+1. **file events**：服务器通过 socket 与 client 连接，读写 socket。Linux 上“一切皆文件”，socket 也是文件，所以对 socket 的处理就是 file event；
+2. **time events**：定时任务，比如 `serverCron`，负责过期键清理、持久化条件检查、复制心跳等。
+
+> Linux “一切皆文件”可以这么理解：
 >
-> 一切皆文件就是说：既然所有东西都是文件，那对所有东西都可以使用读写文件的read/write这一套API搞定，都可以用cat/pipe等处理文件的工具处理他们的内容。有什么意义？一套API搞定所有文件，能使用所有上述处理文件的工具，这意义还不大？
+> - 普通文件是文件；
+> - 目录也是文件，打开目录其实就是打开目录文件；
+> - 进程、硬件设备、socket、`/dev/zero`、`/dev/null`、pipe 都可以通过文件抽象处理；
+> - 既然都抽象成文件，就能尽量使用 `read`/`write`/`close` 这一套 API。
+>
+> 意义很朴素：一套 API 搞定一堆东西，工具和系统调用都能复用。这意义还不大？
 
-# file event - 单线程的魅力
-redis的主进程是单线程的吗？不是！只能说上面的那个loop是主线程自己一个线程完成的，但是redis显然还有很多后台线程执行其他后台操作。所以redis只是使用单个线程完成了主要的服务处理流程而已。
+# file event: 单线程的魅力
 
-主线程一个人完成client的连接、IO读写、命令执行。从开发Java服务器的角度来看，这是不现实的。但是别忘了**Redis和Java服务器的应用场景不同**：
-- 在Java服务器开发中，为了处理一个请求，很可能要读写mysql数据库，请求一个其他服务，或者做一些其他很耗时的操作。这种情况下只用一个线程处理所有的client请求，一旦一个请求的处理时间过长，对其他client来说，相当于server失去了响应。所以Java会有多线程，并行+并发处理多个client请求；
-- Redis的请求都是一些简单命令，所以执行非常快，也不存在一个请求把主线程block的情况。所以redis不用担心其被一个请求拖住不放，无法处理其他请求。既然如此，一个主线程就够了；
+Redis 的主进程是单线程的吗？不是。Redis 还有后台线程或子进程做其他事情，比如异步释放、后台 I/O、`BGSAVE` 子进程等。
 
-redis基于Reactor模式（NIO），**IO多路复用**，一个线程处理所有的事件，实现了并发。等等，一个线程怎么还能有并发？并发不是多线程的情况下才存在的吗？回归并发的定义：只要一段时间内，很多事情看起来像是同时被处理的，它就是并发。而redis一个线程能在短时间内快速处理大量请求（每秒处理小100w请求），所以从概念上来讲它就是并发。至于**Java的多线程并发，其实是并行与并发的结合**：并行体现在多个线程同时在多个核上执行，并发体现在单个核上不同线程经常切换，仿佛在同时处理多个线程。
+更准确的说法是：**Redis 的核心服务流程主要由一个主线程完成**。这个主线程处理 client 连接、socket I/O、命令解析、命令执行。
 
-> redis的单线程“并发”更像是概念上的并发，而Java多线程在一个核上不断切换的“并发”更符合我们一开始学习操作系统时所认知的并发行为。
+从开发 Java 服务器的角度看，这好像不现实。但别忘了，Redis 和 Java 业务服务器面对的问题不一样：
 
-关于redis单线程并发，参考：
-- https://stackoverflow.com/questions/10489298/redis-is-single-threaded-then-how-does-it-do-concurrent-i-o
+- Java 服务器处理一个请求时，很可能要读写 MySQL、请求其他服务、做复杂业务逻辑。一个请求慢了，就可能把处理线程占住，所以需要多线程并行和并发处理多个请求；
+- Redis 的请求通常是简单命令，主要是读写内存里的数据结构，执行非常快。只要命令不把主线程 block 住，一个主线程就能高速处理大量请求。
+
+Redis 基于 Reactor 模式和 I/O 多路复用，一个线程监听多个 socket 事件，然后快速处理。等等，一个线程怎么还能有并发？
+
+回到并发定义：**一段时间内，很多事情看起来像是同时被处理，它就是并发**。Redis 一个线程可以在很短时间内处理大量请求，所以从效果上看就是并发。Java 多线程并发则往往是并行与并发的结合：多个线程可能同时在多个核上执行，也可能在单核上快速切换。
+
+```mermaid
+flowchart LR
+    subgraph RedisModel [Redis 主线程模型]
+        Mux["I/O 多路复用"] --> Main["主线程"]
+        Main --> Exec["执行命令: 读写内存"]
+    end
+
+    subgraph JavaModel [典型 Java Server 模型]
+        Acceptor["I/O 线程"] --> Workers["多个 worker threads"]
+        Workers --> DB["DB / RPC / 业务逻辑"]
+    end
+
+    style Main fill:#e8f5e9,stroke:#81c784
+    style Workers fill:#fff3bf,stroke:#f0c36d
+```
+
+> Redis 的单线程“并发”更像概念上的并发；Java 多线程在一个核上不断切换的“并发”，更符合一开始学操作系统时的那个味儿。
+
+关于 Redis 单线程并发，可以参考 Stack Overflow 上的讨论：[Redis is single threaded, then how does it do concurrent I/O?](https://stackoverflow.com/questions/10489298/redis-is-single-threaded-then-how-does-it-do-concurrent-i-o)。
 
 ## 单线程的好处
-很显然，**单线程不需要考虑多线程并发导致的内存共享问题，也就不需要加锁**。不加锁，这也是redis快的一大因素啊！
 
-另一方面，在设计和实现上，单线程显然要比多线程简单。
+好处很直接：**核心数据结构不需要考虑多个 worker 线程同时写内存的问题，也就不需要给每个操作加锁**。
+
+不加锁，是 Redis 快的一大因素。另一方面，单线程在设计和实现上也简单得多。你不用到处想“这段代码会不会被另一个线程同时改掉”，脑子能省不少内存。
 
 ## 单线程的不足
-既然redis server的主要处理流程都是主线程一个人干的，那CPU实际上只用到了一个核。如今的CPU都是多核的，这不是浪费嘛！
 
-> 那咋办？单机部署多个redis呗……哈哈哈，别笑，这是真的解决方案。
+既然 Redis server 的主要处理流程都由主线程干，那 CPU 实际上主要用了一个核。现在 CPU 都多核了，这不是浪费嘛。
 
-针对Redis对CPU利用不足，这篇文章提出了一种新并发思路：
-- https://www.alibabacloud.com/blog/improving-redis-performance-through-multi-thread-processing_594150
+> 那咋办？单机部署多个 Redis 呗。别笑，这真是一个常见解决方案。
 
-读写IO的时候，使用**多个**thread，称为IO thread，当IO多路复用有新的事件到来时，这些IO thread负责读写socket、parse请求，然后请求的执行，都交由**一个**worker thread来做。相当于redis的主线程干的活，拆分给了一堆IO thread和一个worker thread。**因为就一个work thread，所以还是由它单独读写内存，还是不需要加锁**。同时用的还是NIO的多路复用模型，只不过处理IO的人变多了。
+针对 Redis 对 CPU 利用不足，[阿里云的 Redis 多线程方案文章](https://www.alibabacloud.com/blog/improving-redis-performance-through-multi-thread-processing_594150) 提出过一种思路：读写 I/O 时使用多个 I/O thread，真正执行命令仍交给一个 worker thread。
 
-一般Java server NIO的思路是一个（或者几个）IO thread，一堆worker thread。**因为有一堆worker thread可能写内存，所以写内存的地方可能要加锁，导致Java代码比Redis看起来复杂了**。
+这样相当于把 Redis 主线程的活拆成两段：
 
-同样是NIO，上述redis多线程的思路差不多和Java server多线程的思路是反过来的，主要是因为二者面对的问题不同：
-- Java是worker thread干重活，比如读写mysql等，一个worker thread处理一堆请求不够用，只能用一堆worker thread。相比之下，读写socket，parse request就是小事儿了，一个IO thread差不多就够了；
-- Redis是执行命令的时候任务量很小，简单读写一下内存，搞得也很快。相比较之下，读写socket，parse request算是一件大活儿了。这时候用一堆IO thread去处理IO干重活，单个worker thread干轻活。因为是单个worker thread，只有它读写内存，还不用加锁，简直太爽了！
+- I/O thread：负责读写 socket、解析请求，属于比较耗 I/O 的活；
+- worker thread：负责执行命令、读写内存，仍然只有一个。
 
-> 架构之间的差异，都是业务场景决定的！多对比一下不同的架构，他们瞬间都变得更合理了！
+**因为只有一个 worker thread 读写内存，所以仍然不需要加锁。** 同时仍然是 NIO 和多路复用模型，只不过处理 I/O 的人变多了。
 
-加了一堆IO thread让redis的并发量提高了。如果redis的worker thread也变成一堆，会不会有更高的并发量呢？诚然，干活的线程多了，但是由于共享内存，锁是必然跑不掉的了。加了锁，性能就会损失。而且多线程必然涉及到线程切换，想想redis worker thread干的活儿，基本就是简单读写一下内存，这些活的开销加起来也许还不如一个锁、一次线程切换带来的开销大。所以worker thread肯定是不可能多线程了。
+典型 Java Server NIO 的思路通常反过来：一个或少数 I/O thread，加一堆 worker thread。原因还是场景不同：
 
-> 假设未来redis真的搞了多个worker thread，应该还是只有一个worker thread像现在一样用来处理请求，其他的也许会拿来搞一搞特别blocking的请求。
+- Java 的重活在 worker thread：查 DB、调 RPC、跑业务逻辑。一个 worker 处理不过来，只能上一堆 worker；
+- Redis 的重活反而可能在 socket 读写和协议解析。命令执行只是读写内存，快得很。所以 Redis 更适合让多个 I/O thread 干 I/O，单个执行线程守住内存一致性。
+
+> 架构之间的差异，都是业务场景决定的。多对比不同架构，它们瞬间都合理了。
+
+如果 Redis 的 worker thread 也变成一堆，会不会并发更高？看起来线程多了，干活的人多了；但只要共享内存，锁基本就跑不掉。锁、线程切换、缓存失效这些成本叠上来，可能比 Redis 命令本身还贵。所以核心命令执行路径一直不适合粗暴改成多个 worker。
 
 ## Redis 6
-redis 6的时候，上述**IO多线程**（说IO多线程比较严谨，毕竟worker还是单线程）模型发布了！！！
 
-> 现在可以自信地说，redis绝对不是单线程的了。
+Redis 6 发布了 I/O 多线程。说 “I/O 多线程” 比说 “Redis 多线程” 更严谨，因为命令执行这条核心路径仍然由主线程控制。
 
-在6.0.0+版本的redis.conf里，可以看到关于多IO thread的配置：
+> 现在可以自信地说：Redis 绝对不是“只有一个线程”的程序了。但也别反过来误会成“Redis 命令执行已经多线程乱飞”。
+
+Redis 6.0.0+ 的 `redis.conf` 里有相关配置，核心是这两个：
+
 ```bash
-################################ THREADED I/O #################################
+# 启用 I/O threads，例如 4 个
+io-threads 4
 
-# Redis is mostly single threaded, however there are certain threaded
-# operations such as UNLINK, slow I/O accesses and other things that are
-# performed on side threads.
-#
-# Now it is also possible to handle Redis clients socket reads and writes
-# in different I/O threads. Since especially writing is so slow, normally
-# Redis users use pipelining in order to speed up the Redis performances per
-# core, and spawn multiple instances in order to scale more. Using I/O
-# threads it is possible to easily speedup two times Redis without resorting
-# to pipelining nor sharding of the instance.
-#
-# By default threading is disabled, we suggest enabling it only in machines
-# that have at least 4 or more cores, leaving at least one spare core.
-# Using more than 8 threads is unlikely to help much. We also recommend using
-# threaded I/O only if you actually have performance problems, with Redis
-# instances being able to use a quite big percentage of CPU time, otherwise
-# there is no point in using this feature.
-#
-# So for instance if you have a four cores boxes, try to use 2 or 3 I/O
-# threads, if you have a 8 cores, try to use 6 threads. In order to
-# enable I/O threads use the following configuration directive:
-#
-# io-threads 4
-#
-# Setting io-threads to 1 will just use the main thread as usual.
-# When I/O threads are enabled, we only use threads for writes, that is
-# to thread the write(2) syscall and transfer the client buffers to the
-# socket. However it is also possible to enable threading of reads and
-# protocol parsing using the following configuration directive, by setting
-# it to yes:
-#
-# io-threads-do-reads no
-#
-# Usually threading reads doesn't help much.
-#
-# NOTE 1: This configuration directive cannot be changed at runtime via
-# CONFIG SET. Aso this feature currently does not work when SSL is
-# enabled.
-#
-# NOTE 2: If you want to test the Redis speedup using redis-benchmark, make
-# sure you also run the benchmark itself in threaded mode, using the
-# --threads option to match the number of Redis threads, otherwise you'll not
-# be able to notice the improvements.
+# 默认只把写 socket 交给 I/O threads；
+# 如果设为 yes，也会把读和协议解析交给 I/O threads。
+io-threads-do-reads no
 ```
-默认IO thread还是单线程，官方建议除非redis真的遇到了IO瓶颈，想继续再提一提单机redis的并发量，否则尽量别用多IO thread。
 
-用redis提供的`redis-benchmark`，测试qps差不多翻倍：
-- https://blog.csdn.net/weixin_45583158/article/details/100143587
+官方配置注释里有几个关键建议，整理成人话就是：
+
+- 默认不开启 I/O 多线程；
+- 至少 4 核机器才建议考虑开启，并且要给系统留核；
+- 线程数不是越多越好，超过 8 个通常收益不大；
+- 只有 Redis 实例真的遇到 I/O 瓶颈时才值得开；
+- `io-threads` 不能运行时通过 `CONFIG SET` 修改；
+- 用 `redis-benchmark` 测时，benchmark 自己也要配 `--threads`，否则压测端可能先成瓶颈。
+
+```mermaid
+flowchart TD
+    Events["socket events"] --> IOThreads["I/O threads"]
+    IOThreads --> ReadParse["读 socket / 协议解析"]
+    ReadParse --> Main["main thread"]
+    Main --> Exec["执行 Redis 命令"]
+    Exec --> WriteBuf["生成回复"]
+    WriteBuf --> IOThreads
+    IOThreads --> Client["写回 client socket"]
+
+    style IOThreads fill:#fff3bf,stroke:#f0c36d
+    style Main fill:#e8f5e9,stroke:#81c784
+```
+
+用 `redis-benchmark` 测试时，有人测到 QPS 接近翻倍，可以参考这篇记录：[Redis 6 多线程性能测试](https://blog.csdn.net/weixin_45583158/article/details/100143587)。但工程上不要只看“翻倍”两个字，先确认瓶颈真在 I/O，不然开了也是多一层复杂度。
 
 # timer event
-执行完file event，紧接着就执行timer event了。主要了解一下其实现：
-- redisServer struct里有一个`time_events`链表；
-- 所有的timer event都作为一个节点放入链表。节点内容：
-    + id；
-    + when：执行时间unix timestamp；
-    + timeProc handler，也就是一个函数，执行的时候其实就是回调这个函数；
 
-执行timer event就是遍历链表，判断when有没有超过当前timestamp，超过了就执行它：
-- 如果是一次性的定时任务，做完把这个节点删了；
-- 如果是周期任务，做完之后更新一下when；
+执行完 file event，紧接着就是 timer event。Redis 的时间事件实现也很朴素。
 
-忍不住类比一下Java：Java也有一个类似的链表，就是ScheduledThreadPoolExecutor内部的一个DelayQueue，任务作为一个Delayed任务放到DelayQueue里。但是任务的执行逻辑和redis截然不同：Java是起一个线程，不断尝试从DelayQueue中take（阻塞方法）任务，拿到就执行，如果DelayQueue中第一个任务（离执行时间最近的任务）还没到点儿，算一下还要多久，然后调用Condition的await（类似Object的wait），线程休眠。醒来继续拿，拿到就执行。
+`redisServer` 里有一个 `time_events` 链表。每个时间事件节点包含：
 
-所以：
-- Java是单独的线程负责取任务、时间到了就能取到并执行任务；
-- Redis是在每次loop中顺便检查一下所有的任务时间到没，到了就执行；
+- `id`；
+- `when`：执行时间，Unix timestamp；
+- `timeProc`：回调函数，到点就执行它。
 
-之所以Redis更简单，是因为它一直在loop啊，而且loop很快。所以只要把检查任务执行的代码放在loop里就行了。
+执行 timer event 时，Redis 遍历链表，判断 `when` 是否已经到期：
 
-但还有一个问题：redis的loop是执行完file event之后才执行timer event，如果redis server没有命令要处理怎么办？岂不是一直卡在file event那一步了？这个阻塞其实有最大值，默认100ms，也就是redis周期任务的默认执行时间间隔。超过100ms主线程也不等file event了，该看看有没有周期任务要执行了。
+- 一次性定时任务：执行完删除节点；
+- 周期任务：执行完更新下一次 `when`。
+
+```mermaid
+flowchart TD
+    Loop["main loop"] --> BeforeSleep["处理 file events"]
+    BeforeSleep --> Scan["遍历 time_events"]
+    Scan --> Due{"when <= now?"}
+    Due -- "否" --> Next["看下一个事件"]
+    Due -- "是" --> Run["执行 timeProc"]
+    Run --> Once{"一次性任务?"}
+    Once -- "是" --> Delete["删除事件"]
+    Once -- "否" --> Reschedule["更新 when，等待下次"]
+
+    style Run fill:#e8f5e9,stroke:#81c784
+    style Reschedule fill:#fff3bf,stroke:#f0c36d
+```
+
+忍不住类比一下 Java：`ScheduledThreadPoolExecutor` 内部也有类似的延时任务队列，任务作为 `Delayed` 对象放进 `DelayQueue`。但执行逻辑和 Redis 不同：
+
+- Java：单独线程从 `DelayQueue` 取任务。没到点就等待，醒来再取；
+- Redis：自己一直在 loop，所以每轮 loop 顺手检查一下时间事件，到点就执行。
+
+Redis 这么做简单，是因为它本来就在高速循环。把“检查定时任务”塞进 loop 里就行了，不需要额外搞一个专门等时间的线程。
+
+还有个问题：Redis loop 是执行完 file event 之后才执行 timer event，如果没有命令要处理，岂不是一直卡在 file event 那一步？
+
+不会。I/O 多路复用等待文件事件时有最大阻塞时间，默认和周期任务频率相关，大致 100ms。超过这个时间，主线程就不继续傻等 file event 了，该看看有没有周期任务要执行了。
 
 # 总结
-- 因为redis的使用场景，搞了个单线程不断loop的架构，所以执行定时任务只需要扔到loop里就行了；
-- 还是因为场景，同样是NIO，后来加入的multi thread和Java的multi thread完全是反着的。而**这导致Java必须用锁来控制worker threads对内存的访问，redis却不需要考虑锁**；
 
-场景决定架构，架构决定实现。
+Redis 架构的核心不是“单线程”三个字，而是这条取舍链：
 
+- Redis 命令大多是内存操作，足够快；
+- 主线程统一执行命令，避免锁和共享内存并发问题；
+- I/O 多路复用让一个线程能处理大量连接；
+- 时间事件塞进主 loop，简单粗暴；
+- Redis 6 把一部分 I/O 读写拆给多线程，但仍然守住命令执行的单线程核心。
 
-
+场景决定架构，架构决定实现。Redis 的模型看起来简单，恰恰是因为它非常清楚自己要解决什么问题。
