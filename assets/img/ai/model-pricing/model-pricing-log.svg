@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="736" height="545" viewBox="0 0 736 545" role="img" aria-labelledby="title desc">
+  <title id="title">主流大模型 API 价格分布，对数坐标</title>
+  <desc id="desc">横轴为输入价格，纵轴为输出价格，单位是美元每百万 token。对数坐标让低价模型之间的差距更容易看清。</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #e5e7eb; font-size: 12px; }
+    .muted { fill: #94a3b8; }
+    .grid { stroke: #334155; stroke-width: 1; opacity: .72; }
+    .axis { stroke: #64748b; stroke-width: 1.2; }
+    .leader { stroke: #64748b; stroke-width: 1; opacity: .75; }
+    .name { font-weight: 600; }
+  </style>
+  <rect width="736" height="545" rx="14" fill="#111827"/>
+  <g transform="translate(0 36)">
+    <g class="grid">
+      <path d="M78 28V405M199 28V405M290 28V405M381 28V405M472 28V405M593 28V405M684 28V405"/>
+      <path d="M78 405H708M78 345H708M78 299H708M78 254H708M78 193H708M78 147H708M78 102H708M78 41H708"/>
+    </g>
+    <path class="axis" d="M78 28V405H708" fill="none"/>
+
+    <g class="muted" text-anchor="middle">
+      <text x="78" y="427">$0.1</text><text x="199" y="427">$0.25</text><text x="290" y="427">$0.5</text>
+      <text x="381" y="427">$1</text><text x="472" y="427">$2</text><text x="593" y="427">$5</text><text x="684" y="427">$10</text>
+    </g>
+    <g class="muted" text-anchor="end">
+      <text x="66" y="409">$0.2</text><text x="66" y="349">$0.5</text><text x="66" y="303">$1</text><text x="66" y="258">$2</text>
+      <text x="66" y="197">$5</text><text x="66" y="151">$10</text><text x="66" y="106">$20</text><text x="66" y="45">$50</text>
+    </g>
+    <text class="muted" x="393" y="461" text-anchor="middle">输入价格（美元 / 百万 token，对数轴）</text>
+    <text class="muted" x="19" y="217" text-anchor="middle" transform="rotate(-90 19 217)">输出价格（美元 / 百万 token，对数轴）</text>
+
+    <g>
+      <line class="leader" x1="592.8" y1="73.8" x2="598" y2="61"/><circle cx="592.8" cy="73.8" r="7" fill="#38bdf8" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="605" y="56">GPT-5.6 Sol<tspan class="muted" x="605" dy="15">$5 / $30</tspan></text>
+
+      <line class="leader" x1="501.6" y1="119.6" x2="508" y2="132"/><circle cx="501.6" cy="119.6" r="7" fill="#38bdf8" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="514" y="138">GPT-5.6 Terra<tspan class="muted" x="514" dy="15">$2.5 / $15</tspan></text>
+
+      <line class="leader" x1="381" y1="180.2" x2="387" y2="164"/><circle cx="381" cy="180.2" r="7" fill="#38bdf8" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="393" y="158">GPT-5.6 Luna<tspan class="muted" x="393" dy="15">$1 / $6</tspan></text>
+
+      <line class="leader" x1="684" y1="40.1" x2="578" y2="56"/><rect x="678" y="34.1" width="12" height="12" transform="rotate(45 684 40.1)" fill="#fb923c" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="572" y="62" text-anchor="end">Claude Fable 5<tspan class="muted" x="572" dy="15">$10 / $50</tspan></text>
+
+      <line class="leader" x1="592.8" y1="85.9" x2="481" y2="102"/><rect x="586.8" y="79.9" width="12" height="12" transform="rotate(45 592.8 85.9)" fill="#fb923c" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="475" y="108" text-anchor="end">Claude Opus 4.8<tspan class="muted" x="475" dy="15">$5 / $25</tspan></text>
+
+      <line class="leader" x1="472.2" y1="146.4" x2="366" y2="123"/><rect x="466.2" y="140.4" width="12" height="12" transform="rotate(45 472.2 146.4)" fill="#fb923c" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="360" y="128" text-anchor="end">Claude Sonnet 5*<tspan class="muted" x="360" dy="15">$2 / $10</tspan></text>
+
+      <line class="leader" x1="381" y1="192.2" x2="271" y2="209"/><rect x="375" y="186.2" width="12" height="12" transform="rotate(45 381 192.2)" fill="#fb923c" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="265" y="214" text-anchor="end">Claude Haiku 4.5<tspan class="muted" x="265" dy="15">$1 / $5</tspan></text>
+
+      <line class="leader" x1="425.3" y1="200.7" x2="433" y2="220"/><path d="M425.3 192.7L432.3 206.7H418.3Z" fill="#4ade80" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="439" y="227">GLM-5.2<tspan class="muted" x="439" dy="15">$1.4 / $4.4</tspan></text>
+
+      <line class="leader" x1="271.5" y1="307.8" x2="277" y2="293"/><path d="M271.5 299.8L278.5 313.8H264.5Z" fill="#4ade80" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="284" y="288">DeepSeek V4 Pro<tspan class="muted" x="284" dy="15">$0.435 / $0.87</tspan></text>
+
+      <line class="leader" x1="122.3" y1="382.8" x2="128" y2="372"/><path d="M122.3 374.8L129.3 388.8H115.3Z" fill="#4ade80" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="134" y="367">DeepSeek V4 Flash<tspan class="muted" x="134" dy="15">$0.14 / $0.28</tspan></text>
+
+      <line class="leader" x1="374.3" y1="207" x2="264" y2="245"/><path d="M374.3 199L381.3 213H367.3Z" fill="#4ade80" stroke="#111827" stroke-width="2"/>
+      <text class="name" x="258" y="251" text-anchor="end">Kimi K2.7 Code<tspan class="muted" x="258" dy="15">$0.95 / $4</tspan></text>
+    </g>
+  </g>
+  <g transform="translate(238 18)">
+    <circle cx="0" cy="0" r="6" fill="#38bdf8"/><text x="11" y="4">OpenAI</text>
+    <rect x="83" y="-5" width="10" height="10" transform="rotate(45 88 -0)" fill="#fb923c"/><text x="101" y="4">Anthropic</text>
+    <path d="M194 -7L200 5H188Z" fill="#4ade80"/><text x="206" y="4">国内模型</text>
+  </g>
+  <text class="muted" x="78" y="528">* Sonnet 5 为截至 2026-08-31 的推广价；均为标准按量基础价</text>
+</svg>
