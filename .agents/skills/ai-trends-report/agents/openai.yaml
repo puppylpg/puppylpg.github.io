@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Trends 博客报告"
+  short_description: "抓取并解读最新 AI 趋势图表，生成可预览发布的中文博客文章"
+  default_prompt: "Use $ai-trends-report to analyze the latest AI trends charts and prepare a Jekyll blog post for preview."

@@ -17,6 +17,7 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 | Skill | 用途 |
 |-------|------|
 | `archive-chat` | 将当前对话整理成结构化总结并发布为博客文章 |
+| `ai-trends-report` | 抓取最新 AI Trends 动态图表，逐图解读并发布为博客文章 |
 | `summarize-article` | 将用户给的文章 URL 总结成博客文章 |
 
 使用这些 skill 时，先读取对应 `SKILL.md`，再按本文的文章发布通用流程执行预览、确认和发布。
