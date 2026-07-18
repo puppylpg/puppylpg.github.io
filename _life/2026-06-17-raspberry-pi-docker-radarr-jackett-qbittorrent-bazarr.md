@@ -186,43 +186,13 @@ mkdir -p /home/pi/docker/chinesesubfinder/config
       - PUID=1000
       - PGID=100
       - TZ=Asia/Shanghai
-    volumes:
-      - /home/pi/docker/radarr/config:/config
-      - /share/Movies:/movies
-      - /share/Downloads:/downloads
-    ports:
-      - "7878:7878"
-    restart: unless-stopped
-
-  jackett:
-    image: linuxserver/jackett:latest
-    container_name: jackett
-    environment:
-      - PUID=1000
-      - PGID=100
-      - TZ=Asia/Shanghai
-      - HTTP_PROXY=http://172.18.0.1:10809
-      - HTTPS_PROXY=http://172.18.0.1:10809
-    volumes:
-      - /home/pi/docker/jackett/config:/config
-    ports:
-      - "9117:9117"
-    restart: unless-stopped
-
-  radarr:
-    image: linuxserver/radarr:latest
-    container_name: radarr
-    environment:
-      - PUID=1000
-      - PGID=100
-      - TZ=Asia/Shanghai
       - HTTP_PROXY=http://172.18.0.1:10809
       - HTTPS_PROXY=http://172.18.0.1:10809
       - NO_PROXY=localhost,127.0.0.1,qbittorrent,radarr,jackett,bazarr
     volumes:
       - /home/pi/docker/radarr/config:/config
-      - /share/Movies:/movies
-      - /share/Downloads:/downloads
+      - /share/Movies:/movies     # ⚠️ 错误示范：与下一行是两个独立 bind mount，会导致硬链接失败、空间翻倍，正确写法见第 10 节
+      - /share/Downloads:/downloads  # ⚠️ 错误示范：应改为单一 /share 挂载，见第 10 节
     ports:
       - "7878:7878"
     restart: unless-stopped
@@ -280,7 +250,7 @@ mkdir -p /home/pi/docker/chinesesubfinder/config
 
 - qBittorrent 的 WebUI 端口改成 `8085`，因为宿主机 `8080` 已被其他服务占用。
 - Radarr/Jackett/Bazarr 不直接用内置代理，而是通过容器环境变量走 V2Ray，这样更稳定。
-- 容器下载目录统一挂到 `/share/Downloads`，电影最终目录是 `/share/Movies`。
+- 容器下载目录统一挂到 `/share/Downloads`，电影最终目录是 `/share/Movies`。**但 radarr 不能像上面那样把两者挂成两个独立 volume**——这会让导入时的硬链接悄悄退化为复制，空间翻倍（2026-07-18 踩坑实录，排查与正确写法见第 10 节）。
 - ChineseSubFinder 的媒体目录在容器内是 `/media`，对应宿主机的 `/share/Movies`。
 
 ### 4.3 启动
@@ -914,6 +884,7 @@ chmod +x /home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py
 7. **`.hi` 后缀字幕**：Bazarr 下载的字幕可能是 `.en.hi.srt` / `.zh.hi.srt`（Hearing Impaired，听障版），原合并脚本只认 `.en.srt` / `.zh.srt` 会导致无法生成 bilingual 字幕。当前脚本已修复，支持 `.hi` 命名；如果不想下载 HI 字幕，可在 Bazarr 语言 profile 里取消勾选 `Hearing Impaired`。
 8. **ChineseSubFinder 版本现状**：`allanpk716/chinesesubfinder:latest` 目前（2023-12-01 后未再更新）已经是最新版，且作者已转向 Lite 路线，更新也不会带来能点进电影详情页的完整 WebUI。需要手动管理字幕时，建议主要使用 Bazarr。
 9. **安全**：以上凭证仅用于本实验，发布本文后应视为已泄露，建议尽快修改。
+10. **硬链接从未生效（重点）**：`/movies` 和 `/downloads` 两个独立 bind mount 导致跨挂载 `link(2)` 返回 EXDEV，Radarr 静默退化为复制，所有电影占双份空间。排查与修复详见第 10 节。
 
 ## 9. 后续可优化
 
@@ -922,3 +893,165 @@ chmod +x /home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py
 - 给 qBittorrent 设置完成后自动做种限制或分类标签。
 - 把 OpenSubtitles / ChineseSubFinder 账号密码改为环境变量注入，避免手动在 UI 填写。
 - 4K 下载慢时，可尝试加入更多公共索引器或 PT 站点。
+
+## 10. 最大的坑：两个 bind mount 让"硬链接"悄悄变成复制（2026-07-18 补记）
+
+本文前面的架构图和流程都写的是"Radarr **硬链接**/整理到媒体库"。实际上线一个月后才发现：**硬链接从未生效过**，所有电影都是完整复制了两份，235G 磁盘被吃到 91%。这是整套方案里最值得单独成章的坑。
+
+### 10.1 先理清：Downloads 和 Movies 两个目录的分工
+
+理解这个坑之前，得先搞清楚为什么会有两个目录、为什么还要分别挂载。
+
+| 目录 | 谁在用 | 角色 | 里面的文件长什么样 |
+|------|--------|------|-------------------|
+| `/share/Downloads` | qBittorrent | 下载中转站 + 做种田 | 保持种子原始命名（如 `The.Shawshank.Redemption.1994.RESTORED.1080p.BluRay.REMUX-DDB.mkv`），还混着广告 txt、样图等发布组附带文件 |
+| `/share/Movies` | Radarr | 正式片库 | 每片一个目录、规范重命名（如 `The Shawshank Redemption (1994)/`），附带 `movie.nfo`、`poster.jpg`、`fanart.jpg` 等元数据，供播放器、Bazarr、ChineseSubFinder 消费 |
+
+关键在于：**同一部电影需要同时存在于这两个角色里**。做种要求原始文件留在 Downloads 里纹丝不动（改名或移走都会破坏种子完整性，没法继续做种）；而片库要求规范命名、目录干净。鱼和熊掌要兼得，答案就是硬链接——同一份数据挂在两个路径下，互不干扰：
+
+- Radarr 导入时不是"移动"也不是"复制"，而是在 Movies 里建一个指向同一份数据的硬链接，文件名随便改，Downloads 那份原封不动继续做种；
+- 以后任何一边删除都不影响另一边：qBittorrent 删种只删一个链接，片库文件还在；删片库文件也不伤害做种；
+- 磁盘空间只在**所有**硬链接都被删除后才真正释放。
+
+所以"两个目录分别挂载"这个设计本身没有错——错的是挂成了两个**相互独立**的 bind mount，把硬链接这条路悄悄堵死了。接下来就看到这个堵法有多隐蔽。
+
+### 10.2 现象：磁盘空间翻倍
+
+事发是磁盘告警：235G 的盘用到 91%。`du` 逐层排查后发现 `/share/Downloads` 占了 49G，而其中 6 部电影（肖申克 21G REMUX、Toy Story 5 18G 2160p 等）在 `/share/Movies` 片库里也各有一份。
+
+第一反应是：也许 Radarr 用的是硬链接，两份路径共享同一文件，`du` 只是重复计数了？用 `stat` 验证 inode 和链接数：
+
+```bash
+stat -c '%i %h %n' \
+  "/share/Movies/The Shawshank Redemption (1994)/The.Shawshank.Redemption....mkv" \
+  "/share/Downloads/The.Shawshank.Redemption.../The.Shawshank.Redemption....mkv"
+# 5943816  1  /share/Movies/...
+# 5438054  1  /share/Downloads/...
+```
+
+**两个 inode 不同、链接数都是 1**——如果是硬链接，两个路径应该指向同一个 inode 且链接数 ≥ 2。结论是：这是两份真实的拷贝，49G 是实打实多占的空间，"硬链接入库"从未发生过。
+
+### 10.3 根因：跨 bind mount 的 `link(2)` 返回 EXDEV
+
+分层验证的结果很有意思：
+
+- **宿主机上**：`/share/Movies` 和 `/share/Downloads` 在同一块 ext4 上（`stat -c %d` 设备号相同），手动 `ln` 硬链接**成功**；
+- **radarr 容器内**：`ln /downloads/xxx /movies/xxx` 直接报 `Cross-device link`（EXDEV）。
+
+原因在于：Linux 内核的 `link(2)` 要求源和目标落在**同一个挂载（vfsmount）**下。本文第 4.2 节的 compose 把 `/share/Movies` 和 `/share/Downloads` 作为**两个独立的 bind mount** 挂进容器——哪怕底层是同一文件系统，跨 bind mount 做硬链接也会被内核拒绝。而 Radarr 虽然 `copyUsingHardlinks: true`，硬链接失败后会**静默回退为复制**，界面上没有任何告警，不用 `stat` 查 inode 根本发现不了。
+
+这正是 TRaSH Guides 的经典文章 [Hardlinks and Instant Moves (Atomic-Moves)](https://trash-guides.info/Hardlinks/Hardlinks-and-Instant-Moves/) 要解决的问题：它建议让下载目录和媒体库落在**同一个挂载**下（即所谓单一 `/data` 布局），硬链接和瞬时移动才能正常工作。linuxserver 官方示例 compose 里 `/movies`、`/downloads` 两个 volume 的写法历史悠久，照抄就会踩中这个坑。
+
+```mermaid
+flowchart TD
+    subgraph G1["修复前：两个 bind mount"]
+        EXT4A["/share（同一 ext4）"] --> BA["bind: /share/Movies → /movies"]
+        EXT4A --> BB["bind: /share/Downloads → /downloads"]
+        BA -.->|"link() = EXDEV，退化为复制"| BB
+    end
+    subgraph G2["修复后：单一挂载 + 软链"]
+        EXT4B["/share（同一 ext4）"] --> B1["bind: /share → /share"]
+        B1 --> S1["/movies → /share/Movies（软链）"]
+        B1 --> S2["/downloads → /share/Downloads（软链）"]
+        S1 ==>|"link() 成功，零拷贝"| S2
+    end
+    style BA fill:#ffe3e3
+    style BB fill:#ffe3e3
+    style S1 fill:#e8f5e9
+    style S2 fill:#e8f5e9
+```
+
+### 10.4 修复：单一挂载 + 软链，原有路径不变
+
+顺着 10.3 的根因往下推，最直观的修法几乎是自己长出来的：既然病根是"两个独立 bind mount"，那就**只挂一个** `/share:/share`，然后把 Radarr 里的路径直接配成挂载下的真实路径 `/share/Movies` 和 `/share/Downloads`——这正是 TRaSH Guides 推荐的布局，干净利落，没有任何 trick。
+
+但真要动手时发现这条路被**一开始的配置**卡死了：这套系统最初就是按 `/movies`、`/downloads` 两个路径配的，它们早已固化在至少三处：
+
+1. **Root folder**：Radarr 里登记的媒体库根目录就是 `/movies`；
+2. **数据库记录**：每部电影在 Radarr 数据库里存的完整路径都是 `/movies/xxx (年份)/...`，几十上百条；
+3. **下游联动**：Bazarr 通过 Radarr API 拿到这些 `/movies/...` 路径再去文件系统找字幕——路径一变，Bazarr 的挂载也得跟着改，否则字幕功能整个坏掉。
+
+也就是说，"直接改配置"意味着一整套有风险的迁移手术：批量迁移 root folder、补配 Remote Path Mapping（qBittorrent 上报的路径是 `/downloads/...`）、同步改 Bazarr 挂载——任何一处漏改都是静默故障。就为了绕开这个，才用软链 trick 一下：
+
+- 挂载改成 `/share:/share` 后，真实路径变成 `/share/Movies/...`，与旧配置对不上；
+- 那就建个软链 `/movies → /share/Movies`，让旧地址自动改道到新位置。
+
+一行 `ln -s` 换掉了整套手术，Radarr 和 Bazarr 的配置一个字都不用动，它们甚至不知道软链的存在。
+
+这里要分清两种"链接"，它们完全不是一回事：
+
+- **软链接（symlink）**：上面这种，只是容器内**目录的别名**。radarr 访问 `/movies/xxx` 时内核先把它翻译成 `/share/Movies/xxx` 再操作。它不连接任何电影数据，唯一作用是把两个路径引到同一个挂载下，为硬链接铺路；
+- **硬链接（hardlink）**：真正省空间的那个，由 radarr 之后**每部电影导入时自动创建**——同一份电影数据同时挂在 Downloads 的种子原名和 Movies 的规范名两个路径下。
+
+一句话：软链是搭桥的，硬链是过桥的。下面脚本里的软链只是把路修通，真正连接电影文件的硬链接不需要手动建。
+
+> 如果这套系统是**从零搭建**，根本用不着软链：直接挂 `/share:/share`，并在 Radarr 里把 root folder 配成 `/share/Movies`、下载目录配成 `/share/Downloads`，就什么桥都不需要。软链纯粹是给"已经存在的配置"打的兼容补丁。
+
+做法：
+
+1. **compose 改为单一挂载**，radarr 服务的 volumes 从两个 bind 改成：
+
+   ```yaml
+   volumes:
+     - /home/pi/docker/radarr/config:/config
+     - /home/pi/docker/radarr/config/custom-cont-init.d:/custom-cont-init.d:ro
+     - /share:/share
+   ```
+
+2. **用 linuxserver 镜像的 custom-init 机制建软链**，`/home/pi/docker/radarr/config/custom-cont-init.d/10-hardlink-symlinks.sh`（记得 `chmod +x`）：
+
+   ```bash
+   #!/usr/bin/with-contenv bash
+   # 让 radarr 沿用已配置路径 /movies、/downloads，
+   # 但两者软链到单一 /share 挂载下，使导入时可硬链接而非复制。
+   make_link() {
+     link="$1"; target="$2"
+     if [ -L "$link" ]; then ln -sfn "$target" "$link"; return; fi
+     if [ -d "$link" ]; then
+       if mountpoint -q "$link"; then
+         echo "[hardlink-symlinks] $link 是挂载点，保持不变"; return
+       fi
+       if ! rmdir "$link" 2>/dev/null; then
+         echo "[hardlink-symlinks] $link 非空目录，保持不变"; return
+       fi
+     fi
+     ln -s "$target" "$link"
+   }
+   make_link /movies /share/Movies
+   make_link /downloads /share/Downloads
+   ```
+
+   软链解析后，`/movies` 和 `/downloads` 实际都落在 `/share` 这一个挂载点下，`link(2)` 自然成功。Radarr 的 root folder、下载客户端映射、数据库记录全部不用改。
+
+   > 这个脚本**不是一次性的，必须长期保留**：软链建在容器可写层里，容器每次重建（升级镜像、配置变更）都会被丢弃，脚本是每次容器启动时运行、负责把软链重建出来的。它本身幂等，留着没有任何副作用；删掉的话下次重建容器后 `/movies`、`/downloads` 会变成无效路径，片库直接"消失"。
+
+   > 小坑中坑：新版 linuxserver 基础镜像（s6 v3）只在**容器根**的 `/custom-cont-init.d` 找自定义脚本，不再读旧文档里的 `/config/custom-cont-init.d`。所以 compose 里要显式把脚本目录挂到 `/custom-cont-init.d`，否则日志只会打印 `[custom-init] No custom files found, skipping...`。
+
+3. **只重建 radarr 容器**，qBittorrent 完全不用动：
+
+   ```bash
+   docker compose up -d radarr
+   ```
+
+   进行中的下载不受任何影响——qBittorrent 没重启，已下载的分块有哈希校验，不存在损坏或重下的问题；radarr 停的一两分钟里，下完的任务在 qBittorrent 里排队等它回来再导入。
+
+验证：容器内 `ln /downloads/x /movies/x` 成功，且 Radarr API `GET /api/v3/config/mediamanagement` 返回 `copyUsingHardlinks: true`。
+
+### 10.5 存量重复文件：字节校验后改硬链接，立省 49G
+
+对于已经重复占空间的存量文件，不用删也不用重下：把 Movies 里的拷贝替换成指向 Downloads 的硬链接即可（Downloads 侧保留为源，qBittorrent 做种完全不受影响）。
+
+但替换前必须先证明"两份文件内容真的相同"，否则就是把好数据换成坏数据。证据分两层：
+
+1. **尺寸粗筛**：`stat -c %s` 对比字节数。例如肖申克两边都是 21970935446 字节（21G REMUX），Toy Story 5 两边都是 18907976291 字节——字节数完全相等是同一份文件强有力的信号，但理论上仍可能巧合；
+2. **全文比对实锤**：`cmp -s` 逐字节比对两份文件的全部内容（21G 的文件就读 21G × 2），全部一致才动手。
+
+替换本身是原子的，核心逻辑：
+
+```bash
+cmp -s "$downloads_file" "$movies_file" \
+  && ln "$downloads_file" "$movies_file.tmp" \
+  && mv "$movies_file.tmp" "$movies_file"
+```
+
+6 部电影全部通过字节级校验并完成替换后，`stat` 链接数变为 2，磁盘从 **91% 降到 69%（空闲 21G → 70G）**。之后新下载的电影导入时会自动硬链接，Downloads 做种和 Movies 入库共享同一份数据，不再占双份空间。
