@@ -193,6 +193,54 @@ Sonarr 的部署沿用 Radarr 的全部约定：
 
 之后在 Seerr 的 **Settings → Services → Sonarr** 中关联：Host 填 `sonarr`、端口 `8989`、API Key 从 Sonarr 设置页复制，Test 通过后选好 Quality Profile 和根目录并设为 Default Server。剧集点播随后走与电影完全相同的自动化路径，只是终点目录换成 `/share/Video/Series`。
 
+### 2.6 端到端时序：从打开首页到按下播放
+
+第一篇 2.2 的时序图只覆盖电影下载管线；接入点播入口、剧集管线和播放端之后，完整链路如下：
+
+```mermaid
+sequenceDiagram
+    actor U as 家人
+    participant H as Homepage
+    participant SE as Seerr
+    participant JF as Jellyfin
+    participant R as Radarr
+    participant SO as Sonarr
+    participant J as Jackett
+    participant Q as qBittorrent
+    participant B as Bazarr
+    participant S as /share 媒体库
+
+    U->>H: 打开 raspberrypi.local，点 Jellyseerr 卡片
+    U->>SE: 用 Jellyfin 账号登录
+    SE->>JF: 校验用户名密码
+    JF-->>SE: 认证通过
+    U->>SE: 搜索影片并提交请求
+    alt 电影请求
+        SE->>R: 下发 movie 请求
+    else 剧集请求
+        SE->>SO: 下发 tv 请求（可按季勾选）
+    end
+    Note over R,SO: 以下流程两者相同，以 Radarr 为例
+    R->>J: Torznab 查询种子
+    J-->>R: 返回候选列表
+    R->>R: 按 1080-4k profile 选最优版本
+    R->>Q: 添加下载任务（电影 category=radarr，剧集 category=tv-sonarr）
+    Q->>Q: P2P 下载
+    Q-->>R: 下载完成
+    R->>S: 硬链接导入（电影入 /share/Movies，剧集入 /share/Video/Series）
+    R-->>B: Webhook 通知下载/移动完成（Bazarr 同时轮询兜底）
+    B->>B: 下载中英字幕并合并为 .zh+en.srt
+    B->>S: 写入字幕文件
+    JF->>S: 扫描新文件，补充海报与元数据
+    U->>JF: 任意客户端播放，观看进度多端同步
+```
+
+与第一篇时序图相比，链路的三个变化：
+
+1. **入口前移**：用户不再直接面对 Radarr，而是从 Homepage 进 Seerr 点播，登录直接复用 Jellyfin 账号（Seerr 调 Jellyfin 认证接口校验），家人不需要知道 *arr 的存在；
+2. **中段分流**：Seerr 按媒体类型把请求分发给 Radarr 或 Sonarr（见 2.5 的分工说明），分流之后的“查询 → 下载 → 导入 → 字幕”流程两者完全一致，只是下载分类和终点目录不同；
+3. **出口补齐**：导入媒体库只是终点的一半，Jellyfin 扫描入库并面向所有播放端提供播放和进度同步，链路才真正闭环。
+
 ## 3. 使用 Vaultwarden 统一管理凭据
 
 凭据管理由一个自托管服务端和多个客户端共同完成：Vaultwarden 在树莓派上同步加密数据，Bitwarden 浏览器扩展和 App 在用户设备上解密、生成并填写密码。理解这组分工后，账号归属、插件登录方式和加密流程就可以沿着同一条数据链展开。
