@@ -512,7 +512,7 @@ flowchart LR
 
 ## 5. 升级 Seerr 与排障实录
 
-系统跑起来之后，又经历了一次大版本升级和一轮集中排障。这一节按“升级 → 联动坑 → 容量教训 → 网络解析 → 队列残留”的顺序记录，原因都比症状有趣。
+系统跑起来之后，又经历了一次大版本升级和一轮集中排障。这一节按“升级 → 联动坑 → 容量教训 → 网络解析 → 队列残留 → 路径统一”的顺序记录，原因都比症状有趣。
 
 ### 5.1 Jellyseerr 更名 Seerr
 
@@ -567,6 +567,19 @@ publish-aaaa-on-ipv4=no      # 不再发布 IPv6 的 AAAA 记录
 在 Sonarr 里删掉一部剧之后，qBittorrent 里属于该剧的任务仍在排队下载。这不是 bug，而是职责边界：Sonarr 只是把磁力链接**单向**下发给 qBittorrent，后者拿到任务后独立运行，不知道剧集已被删除；Sonarr 删除剧集的对话框只处理自身数据库记录和媒体文件，不会回收已下发的下载任务。
 
 想停下载要分清两种意图：只是不再抓新集数，把剧集改为 unmonitor 即可；连正在下载的任务一起撤掉，要在 **Activity → Queue** 里删除队列项并勾选 **Remove from download client**，Sonarr 这时才会调用 qBittorrent 的 API 撤任务。顺序很关键——先删剧集，Queue 记录会随剧集一起消失，剩下的孤儿任务只能去 qBittorrent 里手动清理：WebUI 里按 `tv-sonarr` 分类过滤后按剧名挑选，或者走 `torrents/delete` API 按 hash 批量删。
+
+### 5.6 路径统一：拆掉所有翻译层
+
+Sonarr 曾报过一条警告：`download client qBittorrent places downloads in /downloads but this directory does not appear to exist inside the container`。直接解法是给 Sonarr 加一条 Remote Path Mapping（“qBittorrent 说 `/downloads` 时，到 `/share/Downloads` 找”），警告当天就消了。但这条警告只是症状：当时同一个文件在每个容器里的路径都不一样——qBittorrent 说 `/downloads`，Radarr 靠[第一篇第 10 节](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/)的软链脚本说 `/movies` 和 `/downloads`，Sonarr 说 `/share/...`，Seerr 给两边各填一种，Bazarr 又单独挂载跟随 Radarr。**软链和远程路径映射这些“翻译层”存在的唯一原因就是路径不统一**，每加一层就多一处静默故障点。
+
+翻译层只治标。根治是把全链路迁到同一个绝对路径：电影 `/share/Movies`、剧集 `/share/Video/Series`、下载 `/share/Downloads`，任何容器看到的都是物理路径本身，然后拆掉所有翻译层。第一篇 10.4 没做这套“迁移手术”是因为当时判断风险大于收益；有了 API 批量操作的经验后，实际做下来半小时内完成：
+
+1. **qBittorrent 对齐路径**：加挂 `/share:/share`，默认下载路径改为 `/share/Downloads`；队列里 29 个存量任务用 `torrents/setLocation` 批量迁移（物理是同一目录，文件零移动），随后摘除 `/downloads` 旧挂载。
+2. **Radarr 批量改写库记录**：新增 root folder `/share/Movies`，用 API 把 23 部电影的 `path` 从 `/movies/...` 改写为 `/share/Movies/...`（`moveFiles=false`，文件不动只改记录），再删旧 root folder。两个隐藏引用也要一并修：电影合集的 `rootFolderPath` 和一个已禁用的 CouchPotato 导入列表残留——漏掉它们，Health 会持续报“缺失根目录”。
+3. **下游全部对齐**：Seerr 的 radarr activeDirectory 改为 `/share/Movies`；Bazarr 挂载改为整挂 `/share:/share`。Bazarr 这一步还有附带收益：它之前只挂了 `/movies` 和 `/downloads`，Sonarr 上报的 `/share/Video/Series` 它根本看不见——**剧集字幕其实一直是断的**，路径统一后才接上。
+4. **拆除翻译层**：删掉软链脚本和两条远程路径映射，重建容器。
+
+验收标准：Radarr、Sonarr 的 Health 均零警告；有文件的影片刷新后全部正常识别；新下载直接落在 `/share/Downloads`，导入硬链接照常工作。至此系统里不存在任何路径别名——这也印证了第一篇 10.4 的判断：从零搭建的系统本就不需要软链，这次迁移等于把存量系统迁回了它本该长成的样子。
 
 ## 6. 当前架构与扩展方向
 
