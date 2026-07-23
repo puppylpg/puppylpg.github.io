@@ -395,6 +395,8 @@ stateDiagram-v2
 
 树莓派上的 [Avahi](https://www.avahi.org/) 通过 [mDNS](https://en.wikipedia.org/wiki/Multicast_DNS) 广播 `raspberrypi.local`。同一局域网中的电脑和手机可以直接解析这个主机名，不需要把 DNS 指向 AdGuard Home，也不依赖路由器下发自定义记录。
 
+零配置不代表零坑：机器同时接着多张网卡时，Avahi 默认把所有接口的地址都发布出去，客户端解析到不可达的地址就会表现为服务“时好时坏”，排查与收敛方法见 [5.4](#54-mdns-双网卡导致主机名时好时坏)。
+
 mDNS 只负责主机名，不会自动解析 `radarr.raspberrypi.local`、`jellyfin.raspberrypi.local` 等多级子域名。为每个服务分配子域名意味着额外维护局域网 DNS；全部保留在 `raspberrypi.local` 下则可以继续使用 mDNS 的零配置能力。
 
 [Caddy](https://caddyserver.com/) 用来承接这个主机名。与 Nginx 相比，它在当前场景中的优势不是代理能力更强，而是配置短，并能为 `.local` 主机名签发本地证书、处理 HTTPS 跳转。局域网入口因此只需要一个 Caddyfile 和客户端对本地根证书的信任。
@@ -510,7 +512,7 @@ flowchart LR
 
 ## 5. 升级 Seerr 与排障实录
 
-系统跑起来之后，又经历了一次大版本升级和一轮集中排障。这一节按“升级 → 联动坑 → 容量教训”的顺序记录，原因都比症状有趣。
+系统跑起来之后，又经历了一次大版本升级和一轮集中排障。这一节按“升级 → 联动坑 → 容量教训 → 网络解析 → 队列残留”的顺序记录，原因都比症状有趣。
 
 ### 5.1 Jellyseerr 更名 Seerr
 
@@ -533,6 +535,38 @@ Jellyseerr 与 Overseerr 已合并更名为 [Seerr](https://github.com/seerr-tea
 电影的体积直觉不适用于剧集。电影一部十几 GB，而剧集请求默认可以一次勾选**全部季**：一部二十多季的长寿剧，仅 season pack 就是上百 GB。接入 Sonarr 后的第一次批量点播，下载队列瞬间排到一百多个任务，磁盘水位直接告急，只能紧急暂停全部任务再逐个放行。
 
 两条对策：批量点剧之前先看磁盘余量，长寿剧按季请求而不是一次全要；在 Seerr 的用户设置里给家人配请求配额（比如每 7 天限几部电影、几季剧），从源头挡住“刷爆磁盘”式点播。
+
+### 5.4 mDNS 双网卡导致主机名“时好时坏”
+
+从 Homepage 点开 Jellyfin，偶尔直接报“服务器不可用”，刷新几次又可能恢复；改用 IP 访问则永远正常。症状出在域名解析上，与 Jellyfin 本身无关。
+
+树莓派同时接着两张网卡：有线 `end0`（192.168.1.x）和 WiFi `wlan0`（192.168.31.x，另一个网段）。Avahi 默认在**所有接口**上发布本机地址，包括 WiFi 地址、两张网卡的 IPv6 全局地址、以及一堆 docker/veth 网桥的 fe80 链路本地地址。客户端解析 `raspberrypi.local` 时拿到哪个地址全凭运气：拿到有线 IPv4 就能通，拿到跨网段的 WiFi 地址或不可达的 IPv6 地址就是“服务器不可用”。mDNS 缓存到期后重新解析的结果仍然随机，所以表现为“修好了还会复发”。
+
+修复是把发布范围收窄到唯一可信的地址，改 `/etc/avahi/avahi-daemon.conf`：
+
+```ini
+[server]
+allow-interfaces=end0        # 只在有线网卡上发布
+use-ipv6=no                  # mDNS 只走 IPv4 传输
+
+[publish]
+publish-aaaa-on-ipv4=no      # 不再发布 IPv6 的 AAAA 记录
+```
+
+第三个开关最容易漏：`use-ipv6=no` 只禁用 IPv6 **传输**，AAAA 记录仍会搭 IPv4 响应的车发出去，必须单独关闭。改完 `systemctl restart avahi-daemon`，用 `avahi-resolve -4/-6 -n raspberrypi.local`（来自 `avahi-utils` 包）验证：IPv4 应只返回有线地址，IPv6 应查无记录；`journalctl -u avahi-daemon` 里的 `Registering` 行也能看到实际发布了哪些地址。
+
+排查时有两个误导项值得记下：
+
+- 在树莓派本机 `getent hosts raspberrypi.local` 会列出所有接口的地址——那是 systemd `nss-myhostname` 合成的本机答案，**不代表 Avahi 对外发布的内容**，不能用来验证修复；
+- 服务端改干净后客户端可能仍然失败，因为设备缓存着旧的错误记录：Windows 跑 `ipconfig /flushdns`（Chrome 还要在 `chrome://net-internals/#dns` 清 host cache），手机开关一次飞行模式。Jellyfin 网页端自身还有 service worker 缓存，用无痕窗口测试可以一并排除。
+
+判据始终只有一条：在出问题的设备上 `ping raspberrypi.local`，看它实际解析到哪个地址。
+
+### 5.5 删除剧集不会撤回下载任务
+
+在 Sonarr 里删掉一部剧之后，qBittorrent 里属于该剧的任务仍在排队下载。这不是 bug，而是职责边界：Sonarr 只是把磁力链接**单向**下发给 qBittorrent，后者拿到任务后独立运行，不知道剧集已被删除；Sonarr 删除剧集的对话框只处理自身数据库记录和媒体文件，不会回收已下发的下载任务。
+
+想停下载要分清两种意图：只是不再抓新集数，把剧集改为 unmonitor 即可；连正在下载的任务一起撤掉，要在 **Activity → Queue** 里删除队列项并勾选 **Remove from download client**，Sonarr 这时才会调用 qBittorrent 的 API 撤任务。顺序很关键——先删剧集，Queue 记录会随剧集一起消失，剩下的孤儿任务只能去 qBittorrent 里手动清理：WebUI 里按 `tv-sonarr` 分类过滤后按剧名挑选，或者走 `torrents/delete` API 按 hash 批量删。
 
 ## 6. 当前架构与扩展方向
 
