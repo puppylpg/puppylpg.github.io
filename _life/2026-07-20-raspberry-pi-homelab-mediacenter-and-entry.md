@@ -193,7 +193,82 @@ Sonarr 的部署沿用 Radarr 的全部约定：
 
 之后在 Seerr 的 **Settings → Services → Sonarr** 中关联：Host 填 `sonarr`、端口 `8989`、API Key 从 Sonarr 设置页复制，Test 通过后选好 Quality Profile 和根目录并设为 Default Server。剧集点播随后走与电影完全相同的自动化路径，只是终点目录换成 `/share/Video/Series`。
 
-### 2.6 端到端时序：从打开首页到按下播放
+### 2.6 补全后的完整架构
+
+第一篇第 2 节给出的“最终架构”只包含电影下载管线；第 1 节的示意图也只画了新增的四个组件。把两部分合并，补全后的完整架构如下：
+
+```mermaid
+flowchart TB
+    Family[家人 / 各设备播放端]
+
+    subgraph PI[树莓派]
+        subgraph ENTRY[统一入口]
+            Caddy[Caddy 80/443]
+            HP[Homepage 3001]
+        end
+        subgraph UFACE[点播与播放]
+            SE[Seerr 5055]
+            JF[Jellyfin 8096]
+        end
+        subgraph ARR[下载管线]
+            R[Radarr 7878 电影]
+            SO[Sonarr 8989 剧集]
+            J[Jackett 9117]
+            Q[qBittorrent 8085]
+            B[Bazarr 6767]
+            CSF[ChineseSubFinder 19035]
+        end
+        subgraph STORE["/share 存储"]
+            DL[(/share/Downloads)]
+            MV[(/share/Movies)]
+            SR[(/share/Video/Series)]
+        end
+        subgraph SUP[基础支撑]
+            VW[Vaultwarden 8443]
+            AG[AdGuard Home 53]
+            V2[V2Ray 代理出口]
+        end
+    end
+
+    IDX[BT 站点：TPB / TheRARBG]
+    SUBS[字幕站：OpenSubtitles / 字幕库]
+    META[TMDB / TVDB 元数据]
+
+    Family -->|唯一入口 raspberrypi.local| Caddy
+    Caddy --> HP
+    Caddy -->|HTTPS 反代| VW
+    HP -->|卡片直达各服务| SE
+    Family -->|搜片点播| SE
+    SE <-->|登录认证| JF
+    SE -->|movie 请求| R
+    SE -->|tv 请求| SO
+    R -->|Torznab| J
+    SO -->|Torznab| J
+    J --> IDX
+    R -->|下发任务| Q
+    SO -->|下发任务| Q
+    Q --> DL
+    R -->|硬链接入库| MV
+    SO -->|硬链接入库| SR
+    B <-->|同步媒体库| R
+    B <-->|同步媒体库| SO
+    B --> SUBS
+    B -->|写入双语字幕| MV
+    B -->|写入双语字幕| SR
+    CSF -->|扫描补字幕| MV
+    MV -->|只读挂载| JF
+    SR -->|只读挂载| JF
+    JF -->|海报墙 / 播放 / 进度同步| Family
+    SE -.->|元数据查询走代理| V2
+    R -.->|元数据查询走代理| V2
+    SO -.->|元数据查询走代理| V2
+    V2 -.-> META
+    Family -.->|局域网 DNS| AG
+```
+
+架构按职责分四层：**统一入口**（Caddy 反代 Homepage 和 Vaultwarden，见第 4 节）承接所有访问；**点播与播放**是家人直接面对的进出两端；**下载管线**沿用第一篇的自动化链路，Sonarr 接入后电影和剧集共用 Jackett 与 qBittorrent；**基础支撑**提供凭据、DNS 和代理出口。所有组件围绕 `/share` 存储交换数据，路径全链路统一（见 5.6）。
+
+### 2.7 端到端时序：从打开首页到按下播放
 
 第一篇 2.2 的时序图只覆盖电影下载管线；接入点播入口、剧集管线和播放端之后，完整链路如下：
 
