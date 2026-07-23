@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "树莓派 Docker 搭建自动电影下载站：Radarr + Jackett + qBittorrent + Bazarr"
+title: "树莓派家庭影院（一）：Docker 自动化电影下载管线（Radarr + Jackett + qBittorrent + Bazarr）"
 date: 2026-06-17 01:29:07 +0800
 categories: [life, raspberry-pi, docker, homelab]
 tags: [docker, raspberry-pi, radarr, jackett, qbittorrent, bazarr, chinesesubfinder, homelab]
@@ -9,7 +9,9 @@ math: true
 mermaid: true
 ---
 
-> **⚠️ 安全警告**：本文会公开本实验环境的登录地址、账号、密码和 API Key。这些凭证在发布后即视为已泄露，**请勿直接用于生产环境或长期暴露的服务**。建议读者在复现时替换为自己的强密码，并在公网访问时加 VPN/反向代理 + HTTPS。
+> **本系列共两篇**：第一篇（本文）搭建“搜索 → 下载 → 字幕”的自动化电影下载管线；[第二篇](/life/2026/07/20/raspberry-pi-homelab-mediacenter-and-entry/)在这条管线上下游接入 Jellyseerr（点播）、Jellyfin（播放）、Sonarr（剧集）、Vaultwarden（密码管理）和 Homepage（统一入口），把它变成家人真正能用的家庭影院。
+
+> **⚠️ 安全警告**：本文会公开本实验环境的登录地址、账号、密码和 API Key。这些凭证在发布后即视为已泄露，**请勿直接用于生产环境或长期暴露的服务**。建议读者在复现时替换为自己的强密码，并在公网访问时加 VPN/反向代理 + HTTPS。（第二篇引入 Vaultwarden，正是为了终结这种“凭证写进文档”的管理方式。）
 
 ## 1. 目标
 
@@ -886,10 +888,17 @@ chmod +x /home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py
 9. **安全**：以上凭证仅用于本实验，发布本文后应视为已泄露，建议尽快修改。
 10. **硬链接从未生效（重点）**：`/movies` 和 `/downloads` 两个独立 bind mount 导致跨挂载 `link(2)` 返回 EXDEV，Radarr 静默退化为复制，所有电影占双份空间。排查与修复详见第 10 节。
 
-## 9. 后续可优化
+## 9. 后续可优化（多数已在第二篇落地）
 
-- 给所有服务加上 HTTPS + 反向代理（Nginx/Caddy + Authelia/Authentik）。
-- 用 Sonarr 扩展电视剧自动下载。
+本文发布时列的优化方向，两条主线已经在[第二篇](/life/2026/07/20/raspberry-pi-homelab-mediacenter-and-entry/)落地：
+
+- **HTTPS + 反向代理**：第二篇第 4 节用 Caddy + Homepage 实现了统一入口，家人只需记住 `https://raspberrypi.local/`，并为必须 HTTPS 的 Vaultwarden 单独保留了 8443 端口；
+- **Sonarr 扩展电视剧**：第二篇 2.5 节接入了 Sonarr，剧集走与电影完全相同的自动化管线，只是终点目录换成 `/share/Video/Series`。
+
+还有一个方向上的**修正**值得交代：本文按“优先 4K”配置的 Ultra-HD profile，在实际跑了一个月后收敛了——树莓派不适合实时转码，27 GB 的单文件对存储和播放都不友好，而下载管线本身（索引器、硬链接、字幕）与分辨率无关。第二篇把点播默认画质改为 1080p 起步，4K 只在点播时单部覆盖，具体代价和教训见第二篇 5.3 节。
+
+仍然待办的：
+
 - 给 qBittorrent 设置完成后自动做种限制或分类标签。
 - 把 OpenSubtitles / ChineseSubFinder 账号密码改为环境变量注入，避免手动在 UI 填写。
 - 4K 下载慢时，可尝试加入更多公共索引器或 PT 站点。

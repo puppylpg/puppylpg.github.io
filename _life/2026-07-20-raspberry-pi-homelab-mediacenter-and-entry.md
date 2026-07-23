@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "树莓派 homelab 服务整合：家庭影院、密码管理与统一入口"
+title: "树莓派家庭影院（二）：点播、播放、密码管理与统一入口的服务整合"
 date: 2026-07-20 13:11:05 +0800
 categories: [life, raspberry-pi, docker, homelab]
 tags: [docker, raspberry-pi, jellyfin, jellyseerr, seerr, sonarr, vaultwarden, homepage, caddy, mdns, homelab]
@@ -8,6 +8,8 @@ description: "在现有 Radarr 下载管线上接入 Jellyfin、Jellyseerr（See
 math: true
 mermaid: true
 ---
+
+> **本系列共两篇**：[第一篇](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/)搭建“搜索 → 下载 → 字幕”的自动化电影下载管线（Radarr + Jackett + qBittorrent + Bazarr）；第二篇（本文）在这条管线的上下游接入 Jellyseerr（点播）、Jellyfin（播放）、Sonarr（剧集）、Vaultwarden（密码管理）和 Homepage（统一入口），把它变成家人真正能用的家庭影院。
 
 1. Table of Contents, ordered
 {:toc}
@@ -197,7 +199,7 @@ Sonarr 的部署沿用 Radarr 的全部约定：
 
 ### 3.1 密码管理的目标
 
-homelab 里的服务越来越多，Jellyfin、Radarr、qBittorrent 和 Portainer 都有自己的登录凭据。把这些密码写进部署文档虽然方便，却会同时带来明文泄露和密码复用问题；一旦文档被公开发布，密码也会随文章进入互联网。
+homelab 里的服务越来越多，Jellyfin、Radarr、qBittorrent 和 Portainer 都有自己的登录凭据。把这些密码写进部署文档虽然方便，却会同时带来明文泄露和密码复用问题；一旦文档被公开发布，密码也会随文章进入互联网——[第一篇](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/)就是把所有凭证直接写进了正文，发布即视为泄露，这一节要的正是终结这种管理方式。
 
 服务只监听局域网，能阻止互联网设备直接访问，却不能防住访客网络、中毒设备或已经进入内网的人。更稳妥的管理方式是：
 
