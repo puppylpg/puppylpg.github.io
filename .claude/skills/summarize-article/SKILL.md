@@ -1,6 +1,6 @@
 ---
 name: summarize-article
-description: "把用户给的文章 URL 总结成博客 post。默认发布到 _ai/，也可按用户要求发布到 _posts/（tech）或 _tutorials/。"
+description: "当用户提供文章 URL、本地文件或正文，并要求总结、解读或整理成博客文章时使用。将来源作为素材，按知识依赖重写为面向零上下文读者的连贯中文文章。"
 ---
 
 # Claude Code 兼容入口
@@ -13,4 +13,4 @@ description: "把用户给的文章 URL 总结成博客 post。默认发布到 _
 .agents/skills/summarize-article/SKILL.md
 ```
 
-使用本 skill 时，必须读取并遵循上述真实文件；如果真实文件引用资源，例如 `assets/PROMPT.md`，也从 `.agents/skills/summarize-article/` 读取。
+使用本 skill 时，必须读取并遵循上述真实文件；若真实文件引用其他资源，也从 `.agents/skills/summarize-article/` 读取。
