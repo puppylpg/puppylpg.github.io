@@ -187,8 +187,9 @@ Sonarr 的部署沿用 Radarr 的全部约定：
 
 - **根目录**用剧集库 `/share/Video/Series`；该目录如果是从别处拷贝来的，注意属主（本机曾是 `nobody:nogroup`），否则 Sonarr 会报目录不可写。
 - **索引器**同样从 Jackett 接入 Torznab，但分类要选剧集类（`5000` 系列），直接照抄 Radarr 的电影分类（`2000` 系列）会什么都搜不到。
-- **qBittorrent 下载器**配置与 Radarr 相同，category 单独用 `sonarr`，避免和电影下载混在一起。
+- **qBittorrent 下载器**配置与 Radarr 相同，category 单独用 `tv-sonarr`，避免和电影下载混在一起。
 - **Seerr 的代理 bypassFilter 要补上 `sonarr`**（见 2.3 的代理说明），否则 Seerr 到 Sonarr 的内部请求会被送进 V2Ray 而失败。
+- **Bazarr 的 Webhook 通知**也要照 Radarr 配一份：Sonarr 的 **Settings → Connect** 添加 Webhook，URL 把第一篇的 `/api/webhooks/radarr` 换成 `/api/webhooks/sonarr`（`apikey` 仍是 Bazarr 的），勾选的事件与 Radarr 侧相同。漏配不会断功能——Bazarr 每 60 分钟轮询兜底——但新入库剧集的字幕会多等一个轮询周期。
 - Jellyfin 侧同步新增一个“剧集”媒体库：compose 里加只读挂载 `/share/Video/Series:/data/series:ro`，再在媒体库设置里添加即可。
 
 之后在 Seerr 的 **Settings → Services → Sonarr** 中关联：Host 填 `sonarr`、端口 `8989`、API Key 从 Sonarr 设置页复制，Test 通过后选好 Quality Profile 和根目录并设为 Default Server。剧集点播随后走与电影完全相同的自动化路径，只是终点目录换成 `/share/Video/Series`。
