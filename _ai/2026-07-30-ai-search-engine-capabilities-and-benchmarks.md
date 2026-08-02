@@ -1,7 +1,7 @@
 ---
 title: "Agent 与 AI 搜索服务：能力边界与评测方法"
 date: 2026-07-30 17:59:56 +0800
-categories: [tech, ai]
+categories: [ai]
 tags: [ai-search, agent, retrieval, benchmark, browsecomp, freshqa]
 description: "区分 Agent 的任务规划能力与搜索服务的检索能力，梳理二者如何协作交付证据，并比较 SimpleQA、FreshQA、BrowseComp-ZH 与 XBench-DeepSearch 的评测边界。"
 ---
