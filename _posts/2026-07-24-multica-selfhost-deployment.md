@@ -1,7 +1,7 @@
 ---
 title: "Multica 自托管：它是什么，如何部署与运行"
 date: 2026-07-24 18:03:29 +0800
-categories: [ai, tools]
+categories: [tech, tools]
 tags: [multica, self-host, agent-runtime, docker, gui]
 description: "介绍 Multica 的用途和自托管架构，说明 --with-server 安装脚本的工作流程，并记录 macOS 上的实际部署与运行方式。"
 ---

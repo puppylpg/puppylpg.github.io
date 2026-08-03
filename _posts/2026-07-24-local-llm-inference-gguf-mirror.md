@@ -1,7 +1,7 @@
 ---
 title: "本地大模型推理入门：推理引擎生态、GGUF 量化与镜像加速下载"
 date: 2026-07-24 01:00:19 +0800
-categories: [ai, tools]
+categories: [tech, tools]
 tags: [llm, inference, gguf, llama.cpp, lm-studio, hf-mirror, aria2]
 description: "以一块 16GB 显卡为例，梳理本地跑大模型的完整拼图：llama.cpp / vLLM / SGLang 推理引擎的分工，GGUF 格式与量化等级的取舍，以及国内用 hf-mirror + aria2 高速下载模型的实战方法。"
 ---

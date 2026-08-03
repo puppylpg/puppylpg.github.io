@@ -1,7 +1,7 @@
 ---
 title: "工作区优先的 Agent Harness 设计"
 date: 2026-07-06 19:50:25 +0800
-categories: [ai, agent]
+categories: [tech, agent]
 tags: [agent, harness, workspace, memory, zleap-agent]
 description: "从 Zleap-Agent 看本地小模型如何通过工作区、工具隔离、记忆治理和运行轨迹构建可控的 Agent Harness。"
 ---

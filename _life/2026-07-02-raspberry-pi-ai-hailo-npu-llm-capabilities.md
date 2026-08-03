@@ -1,9 +1,10 @@
 ---
 title: "树莓派 AI 是怎么回事：从 Hailo NPU 到本地 LLM 的能力边界"
 date: 2026-07-02 01:16:37 +0800
-categories: [ai]
+categories: [life, raspberry-pi, ai]
 tags: [raspberry-pi, hailo, npu, edge-ai, llm, vlm, yolo, quantization, rag]
 description: "梳理 Raspberry Pi 5 搭配 Hailo NPU 的 AI 方案：AI Kit、AI HAT+ 与 AI HAT+ 2 的区别，视觉 AI 与本地大语言模型的实际能力，以及 1B 参数小模型在边缘场景中的价值与局限。"
+mermaid: true
 ---
 
 最近翻到树莓派官方文档里关于 [AI 的章节](https://www.raspberrypi.com/documentation/computers/ai.html)，才发现 Raspberry Pi 5 现在已经不是当年那个只能跑简单脚本的小板子了。官方给 Pi 5 配了一套完整的 AI 加速器方案，从视觉检测到本地大语言模型都有覆盖。这篇文章把这次梳理的内容整理成一份清晰的参考：树莓派的 AI 到底是怎么做的、不同硬件之间有什么区别、以及它到底能干什么、不能干什么。

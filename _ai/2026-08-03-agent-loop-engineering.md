@@ -51,7 +51,7 @@ flowchart LR
     B -- "是" --> H["停止并交给人处理"]
 ```
 
-这类循环与 [ReAct](https://arxiv.org/abs/2210.03629) 所描述的推理、行动和观察模式相近。Harness 的作用，是给循环准备可靠的工作环境：项目规则告诉 Agent 应该怎样做，工具和权限限定它能够做什么，测试与检查提供反馈，运行记录则支持失败恢复和复盘。此前的[《工作区优先的 Agent Harness 设计》](/ai/2026/07/06/agent-harness-workspace-first/)进一步讨论了上下文、工具、记忆、运行轨迹和权限怎样在工作区内收束。
+这类循环与 [ReAct](https://arxiv.org/abs/2210.03629) 所描述的推理、行动和观察模式相近。Harness 的作用，是给循环准备可靠的工作环境：项目规则告诉 Agent 应该怎样做，工具和权限限定它能够做什么，测试与检查提供反馈，运行记录则支持失败恢复和复盘。此前的[《工作区优先的 Agent Harness 设计》](/posts/2026/07/06/agent-harness-workspace-first/)进一步讨论了上下文、工具、记忆、运行轨迹和权限怎样在工作区内收束。
 
 只要这个内循环仍不能稳定完成一次任务，增加调度频率或并行实例就没有意义。外循环提高的是执行次数和覆盖范围，并不会自动提高每一次执行的正确率。
 
@@ -114,7 +114,7 @@ flowchart TB
 
 ## Multica 是外循环控制面，但还不是完整闭环引擎
 
-[Multica](https://multica.ai/docs)可以看作 Loop Engineering 的一种框架与运行底座。此前的[《Multica 自托管：它是什么，如何部署与运行》](/ai/2026/07/24/multica-selfhost-deployment/)已经介绍了它的定位、控制面与执行面，以及 Server、Daemon 和 Agent Runtime 的部署关系；这里继续关注它怎样承接 Agent 的外循环。Multica 位于 Codex、Claude Code 等 Coding Agent 之外，负责组织任务、选择执行者、调度本机 Runtime，并把过程和结果保存到统一的协作空间；底层 Agent CLI 则负责读取代码、调用工具、修改文件和运行测试。
+[Multica](https://multica.ai/docs)可以看作 Loop Engineering 的一种框架与运行底座。此前的[《Multica 自托管：它是什么，如何部署与运行》](/posts/2026/07/24/multica-selfhost-deployment/)已经介绍了它的定位、控制面与执行面，以及 Server、Daemon 和 Agent Runtime 的部署关系；这里继续关注它怎样承接 Agent 的外循环。Multica 位于 Codex、Claude Code 等 Coding Agent 之外，负责组织任务、选择执行者、调度本机 Runtime，并把过程和结果保存到统一的协作空间；底层 Agent CLI 则负责读取代码、调用工具、修改文件和运行测试。
 
 这套分工正好对应外循环与内循环。Multica Server 保存 Workspace、Project、Issue 和任务队列，Daemon 从队列领取任务并启动本机 Agent Runtime，Codex 或 Claude Code 在单次运行中完成分析、行动和验证，结果再由 Daemon 写回 Server。Multica 主要控制“谁在什么时候开始哪项工作”，Agent Runtime 主要解决“拿到工作后怎样完成”。
 

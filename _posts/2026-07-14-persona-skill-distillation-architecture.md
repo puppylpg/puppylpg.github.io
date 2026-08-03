@@ -1,7 +1,7 @@
 ---
 title: "女娲与本竹 Skill 结构分析：人物蒸馏、证据检索与去语料化改造"
 date: 2026-07-14 17:11:57 +0800
-categories: [ai, tools]
+categories: [tech, tools]
 tags: [skill, agent, rag, distillation, persona-model]
 description: "先拆解女娲的人物 Skill 生产流程和本竹的认知模型结构，再分析大规模材料、运行时证据检索、私有语料同步问题，以及本竹的去语料化改造。"
 ---
