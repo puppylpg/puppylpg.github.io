@@ -48,6 +48,15 @@ def resolve_site_path(repo_root: Path, url: str) -> Path:
 def validate(repo_root: Path, run_dir: Path, post_path: Path) -> dict:
     capture = load_json(run_dir / "data" / "capture.json")
     build = load_json(run_dir / "data" / "blog-build.json")
+    interpretations = load_json(run_dir / "data" / "interpretations.json")
+    target_name = build.get("target", "ai")
+    targets = {
+        "ai": {"postRoot": repo_root / "_ai", "categories": "[ai, trends]"},
+        "tech": {"postRoot": repo_root / "_posts", "categories": "[tech, trends]"},
+    }
+    if target_name not in targets:
+        raise ValueError(f"unsupported report target: {target_name}")
+    target = targets[target_name]
     expected = capture.get("chartCount")
     if not isinstance(expected, int) or expected <= 0:
         raise ValueError("capture chartCount is invalid")
@@ -56,9 +65,9 @@ def validate(repo_root: Path, run_dir: Path, post_path: Path) -> dict:
     if not post_path.is_file() or post_path.stat().st_size == 0:
         raise ValueError(f"blog post not found: {post_path}")
     try:
-        post_path.relative_to((repo_root / "_ai").resolve())
+        post_path.relative_to(target["postRoot"].resolve())
     except ValueError as error:
-        raise ValueError("AI trends report must be written under _ai/") from error
+        raise ValueError(f"AI trends report must be written under {target['postRoot'].name}/") from error
 
     markdown = post_path.read_text(encoding="utf-8")
     frontmatter, body = parse_frontmatter(markdown)
@@ -70,8 +79,8 @@ def validate(repo_root: Path, run_dir: Path, post_path: Path) -> dict:
         raise ValueError(f"forbidden frontmatter fields: {', '.join(forbidden)}")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}", frontmatter["date"]):
         raise ValueError("frontmatter date must include time and numeric timezone")
-    if frontmatter["categories"] != "[ai, trends]":
-        raise ValueError("categories must be [ai, trends]")
+    if frontmatter["categories"] != target["categories"]:
+        raise ValueError(f"categories must be {target['categories']}")
     if not re.fullmatch(r"\[[a-z0-9, -]+\]", frontmatter["tags"]):
         raise ValueError("tags must contain lowercase ASCII slugs")
 
@@ -80,10 +89,14 @@ def validate(repo_root: Path, run_dir: Path, post_path: Path) -> dict:
         raise ValueError("post must contain the canonical TOC exactly once")
     if not re.search(r"> 数据来源：\[[^]]+\]\(https?://[^)]+\)", body):
         raise ValueError("post must contain an inline HTTP(S) source link")
-    if "# 整体趋势总结" not in body or "# 方法与局限" not in body:
-        raise ValueError("post is missing summary or limitations section")
+    if any(
+        heading not in body
+        for heading in ("# 整体趋势总结", "# 与上一期相比", "# 方法与局限")
+    ):
+        raise ValueError("post is missing summary, period comparison, or limitations section")
     section_order = [
         body.find("# 整体趋势总结"),
+        body.find("# 与上一期相比"),
         body.find("# 方法与局限"),
         body.find("# 数据范围与读图方法"),
         body.find("## 图 01｜"),
@@ -96,6 +109,20 @@ def validate(repo_root: Path, run_dir: Path, post_path: Path) -> dict:
     summary_reasons = re.findall(r"^\*\*判断依据：\*\* .+$", body, flags=re.MULTILINE)
     if not 4 <= len(summary_reasons) <= 8:
         raise ValueError("overall summary must contain 4-8 explicit rationales")
+
+    comparison_data = interpretations.get("periodComparison", {})
+    comparison = body[body.find("# 与上一期相比") : body.find("# 方法与局限")]
+    comparison_changes = comparison_data.get("changes", [])
+    if comparison_data.get("previousUrl"):
+        expected_baseline = f"]({comparison_data['previousUrl']})；上一期抓取日期：{comparison_data['previousCapturedAt']}。"
+        if expected_baseline not in comparison:
+            raise ValueError("period comparison baseline link or capture date is missing")
+        if not isinstance(comparison_changes, list) or not 3 <= len(comparison_changes) <= 8:
+            raise ValueError("period comparison must render 3-8 changes")
+    evidence_lines = re.findall(r"^\*\*对比证据：\*\* .+$", comparison, flags=re.MULTILINE)
+    comparability_lines = re.findall(r"^\*\*可比性说明：\*\* .+$", comparison, flags=re.MULTILINE)
+    if len(evidence_lines) != len(comparison_changes) or len(comparability_lines) != len(comparison_changes):
+        raise ValueError("period comparison change blocks do not match interpretations")
 
     limitations = body[body.find("# 方法与局限") : body.find("# 数据范围与读图方法")]
     limitation_items = re.findall(r"^- \*\*[^*]+\*\*：.+$", limitations, flags=re.MULTILINE)

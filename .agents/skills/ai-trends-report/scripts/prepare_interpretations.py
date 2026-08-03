@@ -42,6 +42,13 @@ def prepare(capture: dict) -> dict:
             sections.append(chart["section"])
     return {
         "executiveSummary": [],
+        "periodComparison": {
+            "previousTitle": "",
+            "previousUrl": "",
+            "previousCapturedAt": "",
+            "summary": "",
+            "changes": [],
+        },
         "glossary": [],
         "sections": {
             section: {"zhTitle": "", "summary": ""}

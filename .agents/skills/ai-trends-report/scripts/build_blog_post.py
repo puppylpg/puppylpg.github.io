@@ -96,6 +96,30 @@ def validate_interpretations(capture: dict, interpretations: dict, charts: list[
         elif not str(item).strip():
             raise ValueError("executiveSummary contains an empty finding")
 
+    comparison = interpretations.get("periodComparison")
+    if not isinstance(comparison, dict) or not str(comparison.get("summary", "")).strip():
+        raise ValueError("periodComparison requires a summary")
+    previous_fields = ("previousTitle", "previousUrl", "previousCapturedAt")
+    previous_values = [str(comparison.get(field, "")).strip() for field in previous_fields]
+    changes = comparison.get("changes")
+    if any(previous_values):
+        if not all(previous_values):
+            raise ValueError("periodComparison previous-report fields must be filled together")
+        if not previous_values[1].startswith("/"):
+            raise ValueError("periodComparison previousUrl must be a site-absolute URL")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", previous_values[2]):
+            raise ValueError("periodComparison previousCapturedAt must use YYYY-MM-DD")
+        if not isinstance(changes, list) or not 3 <= len(changes) <= 8:
+            raise ValueError("periodComparison requires 3-8 changes when a previous report exists")
+    elif changes != []:
+        raise ValueError("periodComparison changes must be empty when no previous report exists")
+    for item in changes:
+        if not isinstance(item, dict) or any(
+            not str(item.get(field, "")).strip()
+            for field in ("change", "evidence", "comparability")
+        ):
+            raise ValueError("periodComparison changes require change, evidence, and comparability")
+
     glossary = interpretations.get("glossary")
     if not isinstance(glossary, list) or not 3 <= len(glossary) <= 10:
         raise ValueError("glossary must contain 3-10 entries")
@@ -142,6 +166,7 @@ def render_markdown(
     description: str,
     published_at: str,
     asset_url: str,
+    categories: str,
 ) -> str:
     captured = parse_capture_time(capture["capturedAt"])
     source_label = markdown_label(capture.get("sourceTitle") or "AI Trends source page")
@@ -149,7 +174,7 @@ def render_markdown(
         "---",
         f"title: {yaml_quote(title)}",
         f"date: {published_at}",
-        "categories: [ai, trends]",
+        f"categories: {categories}",
         "tags: [ai, llm, ai-trends, benchmark, model-evaluation]",
         f"description: {yaml_quote(description)}",
         "---",
@@ -174,6 +199,26 @@ def render_markdown(
             ])
         else:
             lines.extend([f"## {index}. 趋势判断", "", str(finding), ""])
+
+    comparison = interpretations["periodComparison"]
+    lines.extend(["# 与上一期相比", ""])
+    if comparison["previousUrl"]:
+        lines.extend([
+            f"> 对比基线：[{markdown_label(comparison['previousTitle'])}]({comparison['previousUrl']})；上一期抓取日期：{comparison['previousCapturedAt']}。",
+            "",
+        ])
+    else:
+        lines.extend(["> 对比基线：仓库中没有可用的上一期报告。", ""])
+    lines.extend([comparison["summary"], ""])
+    for index, item in enumerate(comparison["changes"], 1):
+        lines.extend([
+            f"## {index}. {item['change']}",
+            "",
+            f"**对比证据：** {item['evidence']}",
+            "",
+            f"**可比性说明：** {item['comparability']}",
+            "",
+        ])
 
     lines.extend([
         "# 方法与局限",
@@ -245,6 +290,7 @@ def main() -> None:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--published-at", required=True)
     parser.add_argument("--title")
+    parser.add_argument("--target", choices=("ai", "tech"), default="ai")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -264,11 +310,24 @@ def main() -> None:
         f"基于 {source_title} 最新数据快照，逐图解读 "
         f"{capture['chartCount']} 张 AI/LLM 趋势图表及其比较边界。"
     )
-    post_path = repo_root / "_ai" / f"{published:%Y-%m-%d}-{slug}.md"
+    target = {
+        "ai": {
+            "postRoot": repo_root / "_ai",
+            "categories": "[ai, trends]",
+            "urlPrefix": "ai",
+        },
+        "tech": {
+            "postRoot": repo_root / "_posts",
+            "categories": "[tech, trends]",
+            "urlPrefix": "posts",
+        },
+    }[args.target]
+    post_root = target["postRoot"]
+    post_path = post_root / f"{published:%Y-%m-%d}-{slug}.md"
     asset_dir = repo_root / "assets" / "img" / "ai" / "ai-trends" / slug
     asset_url = f"/assets/img/ai/ai-trends/{slug}"
 
-    existing_posts = list((repo_root / "_ai").glob(f"*-{slug}.md"))
+    existing_posts = list(post_root.glob(f"*-{slug}.md"))
     if existing_posts and post_path not in existing_posts:
         raise ValueError(
             "a report for this capture month already exists under a different date: "
@@ -291,6 +350,7 @@ def main() -> None:
         description,
         args.published_at,
         asset_url,
+        target["categories"],
     )
     post_path.parent.mkdir(parents=True, exist_ok=True)
     post_path.write_text(markdown, encoding="utf-8")
@@ -298,7 +358,9 @@ def main() -> None:
     result = {
         "post": str(post_path),
         "assetDir": str(asset_dir),
-        "articleUrl": f"/ai/{published:%Y/%m/%d}/{slug}/",
+        "articleUrl": f"/{target['urlPrefix']}/{published:%Y/%m/%d}/{slug}/",
+        "target": args.target,
+        "categories": target["categories"],
         "chartCount": capture["chartCount"],
     }
     destination = run_dir / "data" / "blog-build.json"

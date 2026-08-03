@@ -2,11 +2,12 @@
 
 使用 `data/capture.json`、每张 PNG、可用的 SVG 文本和来源页面正文填写 `data/interpretations.json`。不得沿用旧报告的排名、数字或结论。
 
-最终文章必须按以下顺序呈现：整体趋势总结及逐条理由 → 方法与局限 → 数据范围与读图方法 → 带英文全称的术语 → 各组结论与逐图解读。分析阶段仍要先完成全部单图证据，再反向归纳开头的整体结论。
+最终文章必须按以下顺序呈现：整体趋势总结及逐条理由 → 与上一期相比 → 方法与局限 → 数据范围与读图方法 → 带英文全称的术语 → 各组结论与逐图解读。分析阶段仍要先完成全部单图证据，再反向归纳开头的整体结论与逐期差异。
 
 ## 必填内容
 
 - `executiveSummary`：4–8 个对象，每个包含 `conclusion` 和 `rationale`。必须完成全部逐图分析后归纳，但文章生成时放在最前面。
+- `periodComparison`：包含 `previousTitle`、`previousUrl`、`previousCapturedAt`、`summary` 和 `changes`。存在上一期时，`changes` 为 3–8 个对象，每个包含 `change`、`evidence`、`comparability`。
 - `glossary`：3–10 个对象，每个包含 `term` 和 `definition`。
 - `glossary.term`：缩写或术语同时写中文含义与英文全称，例如 `GPQA（Graduate-Level Google-Proof Q&A Benchmark）`。
 - `sections`：为每个抓取到的英文 section 填写自然中文 `zhTitle` 和结论式 `summary`；`summary` 要先概括这一组图共同说明的趋势，再进入单图。
@@ -23,6 +24,7 @@
 - 视觉推断写成 `inference: ...`，正文使用“约”“显示”“表明”等谨慎措辞。
 - 不得把相关性写成因果关系。
 - 不得把价格直接解释为基础设施成本，也不得把总参数量等同于激活计算量。
+- 两期指标名称、公式或样本范围变化时，必须在 `comparability` 中标为不可直接比较；只能报告口径切换本身，不能计算伪环比。
 - 发现图卡文字与图形矛盾时，把冲突写入 `note`，不要自行选择更整洁的版本。
 
 ## 关键点规则
@@ -54,6 +56,19 @@
       "rationale": "多条历史最佳曲线进入 85% 以上区域，但新型 Agent 和真实环境基准仍明显低于饱和线。"
     }
   ],
+  "periodComparison": {
+    "previousTitle": "2026 年 7 月 AI/LLM 趋势图表解读",
+    "previousUrl": "/posts/2026/07/11/ai-trends-2026-07/",
+    "previousCapturedAt": "2026-07-11",
+    "summary": "本期图表总数不变，但价格与规模组的能力轴切换为综合分，只有保留同口径的发布数量等指标适合直接比较。",
+    "changes": [
+      {
+        "change": "能力—价格图由 GPQA 切换为 LLM Stats Score。",
+        "evidence": "上一期图 22 标题为 GPQA Score vs Price；本期对应标题为 LLM Stats Score vs Price。",
+        "comparability": "指标口径切换，不可把两期纵轴数值直接计算升降。"
+      }
+    ]
+  },
   "glossary": [
     {
       "term": "GPQA（Graduate-Level Google-Proof Q&A Benchmark）",
