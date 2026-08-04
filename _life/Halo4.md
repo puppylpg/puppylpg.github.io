@@ -2,6 +2,8 @@
 title: Halo4 (2012)
 description: Halo4剧情
 date: 2021-12-26 21:39:34 +0800
+categories: [life, game]
+tags: [halo, game, story]
 ---
 
 四年半后，黎明号飘荡到了安魂星Requiem附近。Cortana检测到有敌人入侵，犹豫之中，最终还是唤醒了士官长。

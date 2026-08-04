@@ -3,6 +3,8 @@ layout: post
 title: 磨排气啦
 description: 磨到排气管啦！
 date: 2023-03-06 00:13:02 +0800
+categories: [life, motorcycle]
+tags: [motorcycle, riding]
 ---
 
 之前并没有get到退档为何补油，最近突然反应过来了。

@@ -2,6 +2,8 @@
 title: Halo - Combat Evolved (2001)
 description: Halo1剧情
 date: 2021-12-05 21:01:55 +0800
+categories: [life, game]
+tags: [halo, game, story]
 ---
 
 Halo: Infinite下周三就要发售了，有PC版真的是太良心了！在发售之前，赶紧补一补还没有移植到PC的Halo5的剧情，顺便再回顾一下Halo Reach、1、2、3、ODST、4。

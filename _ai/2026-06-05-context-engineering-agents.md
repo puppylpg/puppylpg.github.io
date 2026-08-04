@@ -1,6 +1,6 @@
 ---
 title: "【Anthropic】AI Agent 的上下文工程：让有限的 token 更高效"
-date: 2026-06-05 +0800
+date: 2026-06-05 00:00:00 +0800
 categories: [ai, prompt-engineering]
 tags: [context-engineering, prompt-engineering, llm-agents, token-optimization]
 description: "Anthropic 工程博客：在 LLM 推理中优化 token 资源配置，通过系统提示、工具设计、样例选择和长时任务策略提升 agent 性能"

@@ -2,6 +2,8 @@
 title: Halo3 (2007)
 description: Halo3剧情
 date: 2021-12-25 20:56:18 +0800
+categories: [life, game]
+tags: [halo, game, story]
 ---
 
 士官长回到了地球，Miranda、Johnson和神风烈士（包括343罪恶火花）在消灭塔塔罗斯阻止05环带启动之后，也回到了地球。神风烈士和部分精英和人类形成了联盟，共同对付星盟，阻止先知通过地球传送门前往方舟启动环带。而神风烈士的精英伙伴，就是它的好朋友Rtas'Vadumee阿泰斯'瓦图米，俗称半嘴精英。

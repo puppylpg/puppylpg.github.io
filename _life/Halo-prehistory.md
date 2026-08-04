@@ -2,6 +2,8 @@
 title: Halo前史
 description: Halo史前事情
 date: 2021-12-26 23:42:04 +0800
+categories: [life, game]
+tags: [halo, game, story]
 ---
 
 从Halo4开始，如果不了解halo前史，会对剧情有一些难以理解的地方。

@@ -2,6 +2,8 @@
 title: Halo2 (2004)
 description: Halo2剧情
 date: 2021-12-25 18:14:21 +0800
+categories: [life, game]
+tags: [halo, game, story]
 ---
 
 Halo1士官长炸掉04环带之后，驾驶长剑号回到了地球，在开罗空间站授勋，一起的还有雅各布·凯斯Jacob Keyes的女儿米兰达· 凯思Miranda Keyes、Johnson上士。而另一边博爱之城High Charity里，星盟特殊正义舰队（攻陷致远星、追着秋风之墩到了04光环）舰长提尔瓦达米Thel'Vadamee则因为没守住星盟用于朝圣的光环，解职受刑。
