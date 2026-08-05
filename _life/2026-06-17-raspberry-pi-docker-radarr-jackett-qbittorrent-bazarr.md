@@ -472,7 +472,7 @@ HDTV 有 720p / 1080p / 2160p 各档。它的唯一价值是时效——电视�
 1. **Settings → Languages → Add New Profile**：
    - Name：`原版字幕：中文优先，英文兜底`
    - Language items 按 `zh → en` 排列，使用 alpha2 code（不要写“中文”“英文”，否则会报 `ValueError: None is not a valid language`）。
-   - Cutoff 选择 `zh`。找到中文后即视为满足；没有中文时可以先使用英文，后续继续尝试中文。
+   - Cutoff 选择 `zh`。它是整条管线的“毕业线”：找到中文后才算满足，影片彻底退出 Wanted 清单；中文缺席期间会先下载英文兜底，但**英文不满足 cutoff**——条目会一直留在 Wanted 里，由每 6 小时的自动搜索持续重试中文，哪天中文字幕发布了就会自动补上。中文补上后英文文件保留，两条字幕共存，播放端随意切换。
 2. **Settings → Providers**：启用以下字幕源，覆盖英文和中文：
    - **OpenSubtitles.com**：英文/多语言字幕较全，需要到 [OpenSubtitles.com](https://www.opensubtitles.com) 注册免费账号并填入用户名/密码。免费账号每天下载配额约 20 条，且默认匹配分门槛会挡掉部分中文字幕，见第 11.3 节。
    - **subf2m**、**subx**、**shooter（射手网）**：中文字幕源，国内资源较多。注意这些国内站点必须直连，不能走代理，见第 11.1 节。
