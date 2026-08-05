@@ -90,7 +90,7 @@ Jellyfin 使用 `linuxserver/jellyfin` 镜像，与现有 homelab 的权限和�
       # 刮削元数据需要访问 TMDB，走宿主机 V2Ray 代理
       - HTTP_PROXY=http://172.18.0.1:10809
       - HTTPS_PROXY=http://172.18.0.1:10809
-      - NO_PROXY=localhost,127.0.0.1,jellyseerr,radarr
+      - NO_PROXY=localhost,127.0.0.1,jellyseerr,radarr,sonarr
     volumes:
       - /home/pi/docker/jellyfin/config:/config
       - /home/pi/docker/jellyfin/cache:/cache
@@ -128,6 +128,7 @@ Jellyfin 使用 `linuxserver/jellyfin` 镜像，与现有 homelab 的权限和�
 
 ```yaml
   jellyseerr:
+    # 已更名 Seerr，现用镜像为 ghcr.io/seerr-team/seerr:latest，见 5.1 节
     image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     environment:
