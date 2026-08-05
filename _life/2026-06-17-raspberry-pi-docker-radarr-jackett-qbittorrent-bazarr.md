@@ -143,8 +143,9 @@ sequenceDiagram
 ## 3. 环境信息
 
 - 设备：Raspberry Pi，ARM64，8 GB RAM
-- OS：Linux 6.12.87
+- OS：Linux 6.12.93（6.12.93+rpt-rpi-2712）
 - Docker：29.5.3，Docker Compose v5.1.4
+- 服务版本（2026-08-05 升级至最新镜像）：Radarr 6.3.0.10514、Jackett v0.24.2327、qBittorrent v5.2.3、Bazarr v1.6.0；ChineseSubFinder 镜像自 2023-12 后无更新
 - 已有服务：V2Ray（HTTP 代理 `127.0.0.1:10809`）、Portainer、AdGuard Home
 - Samba 共享：`/share`，局域网地址 `192.168.1.7`
 - Docker 默认网桥网关：`172.18.0.1`，容器内通过 `172.18.0.1:10809` 走宿主机 V2Ray 代理
@@ -227,7 +228,8 @@ mkdir -p /home/pi/docker/chinesesubfinder/config
       - TZ=Asia/Shanghai
       - HTTP_PROXY=http://172.18.0.1:10809
       - HTTPS_PROXY=http://172.18.0.1:10809
-      - NO_PROXY=localhost,127.0.0.1,qbittorrent,radarr,jackett,bazarr,yts.gg,movies-api.accel.li,yts.mx
+      # 国内字幕站必须直连，走代理会 SSL 超时，见第 11.1 节
+      - NO_PROXY=localhost,127.0.0.1,qbittorrent,radarr,jackett,bazarr,yts.gg,movies-api.accel.li,yts.mx,zimuku.org,shooter.cn,subf2m.com,subhd.tv,a4k.net,assrt.net,subtitle.best
     volumes:
       - /home/pi/docker/bazarr/config:/config
       - /share/Movies:/movies
@@ -472,8 +474,9 @@ HDTV 有 720p / 1080p / 2160p 各档。它的唯一价值是时效——电视�
    - Language items 按 `zh → en` 排列，使用 alpha2 code（不要写“中文”“英文”，否则会报 `ValueError: None is not a valid language`）。
    - Cutoff 选择 `zh`。找到中文后即视为满足；没有中文时可以先使用英文，后续继续尝试中文。
 2. **Settings → Providers**：启用以下字幕源，覆盖英文和中文：
-   - **OpenSubtitles.com**：英文/多语言字幕较全，需要到 [OpenSubtitles.com](https://www.opensubtitles.com) 注册免费账号并填入用户名/密码。
-   - **zimuku（字幕库）**、**subf2m**、**subx**、**shooter（射手网）**：中文字幕源，国内资源较多。
+   - **OpenSubtitles.com**：英文/多语言字幕较全，需要到 [OpenSubtitles.com](https://www.opensubtitles.com) 注册免费账号并填入用户名/密码。免费账号每天下载配额约 20 条，且默认匹配分门槛会挡掉部分中文字幕，见第 11.3 节。
+   - **subf2m**、**subx**、**shooter（射手网）**：中文字幕源，国内资源较多。注意这些国内站点必须直连，不能走代理，见第 11.1 节。
+   - ~~zimuku（字幕库）~~：因反爬验证码问题已禁用，见第 11.2 节。
 3. **Settings → Languages → Default Settings**：
    - Movies 和 Series 都启用默认 Profile，选择 `原版字幕：中文优先，英文兜底`。
    - 对已有电影和剧集分别执行 Mass Edit，把同一 Profile 批量套用到全部条目。
@@ -550,9 +553,8 @@ Docker Compose 追加：
 
 启动后访问 `http://192.168.1.7:19035`：
 
-- 默认账号：`admin`
-- 默认密码：`shining0306FC`
-- 首次登录后建议立即修改密码。
+- 账号：`admin`
+- 密码：`admin`
 
 #### 关于这个版本的 WebUI
 
@@ -624,7 +626,7 @@ sequenceDiagram
     J-->>J: 合并展示内置与外挂字幕轨
 ```
 
-Bazarr 当前启用了 Zimuku、OpenSubtitles.com、射手网、Subf2m、SubX 和 Embedded Subtitles。统一 Profile 按 `zh → en` 搜索，并把 `zh` 设为 cutoff：只要找到中文就视为满足，没有中文时才用英文兜底。由于字幕站通常把中英双语与单中文字幕都标成 `zh`，Bazarr 无法仅凭语言标签判断正文是不是双语；ChineseSubFinder 则在自己的候选中优先挑选原版双语字幕。
+Bazarr 当前启用了 OpenSubtitles.com、射手网、Subf2m、SubX 和 Embedded Subtitles（Zimuku 因反爬问题已禁用，见第 11.2 节）。统一 Profile 按 `zh → en` 搜索，并把 `zh` 设为 cutoff：只要找到中文就视为满足，没有中文时才用英文兜底。由于字幕站通常把中英双语与单中文字幕都标成 `zh`，Bazarr 无法仅凭语言标签判断正文是不是双语；ChineseSubFinder 则在自己的候选中优先挑选原版双语字幕。
 
 两套工具下载的网络字幕最终都是**外挂字幕**，与视频放在同一个目录、使用相同主文件名：
 
@@ -672,7 +674,7 @@ Bazarr 与 ChineseSubFinder 彼此没有任务协调机制，理论上可能同�
 | Jackett | `http://192.168.1.7:9117` | 无 | `1gh53xjyx9l1djek69yas386y7wtcjoc` |
 | qBittorrent | `http://192.168.1.7:8085` | `admin` | `pi123456` |
 | Bazarr | `http://192.168.1.7:6767` | 无 | `db657bd7209430ebc1e25832b24c9d1b` |
-| ChineseSubFinder | `http://192.168.1.7:19035` | `admin` | `shining0306FC` |
+| ChineseSubFinder | `http://192.168.1.7:19035` | `admin` | `admin` |
 
 ## 8. 踩坑与备注
 
@@ -680,7 +682,7 @@ Bazarr 与 ChineseSubFinder 彼此没有任务协调机制，理论上可能同�
 2. **qBittorrent 端口**：默认 `8080` 被占用，改为 `8085`，Radarr 里也要对应填 `8085`。
 3. **Radarr 4K 画质**：需手动调整 `Ultra-HD` profile 优先级并禁用 `HDTV-2160p`。
 4. **Bazarr 语言 code**：语言 profile 里必须用 `en`/`zh`，不能用中文名。
-5. **字幕源**：OpenSubtitles.com 需要注册并填入账号密码，否则字幕下载会全部失败；ChineseSubFinder 默认账号 `admin`/`shining0306FC`，首次登录后建议修改。
+5. **字幕源**：OpenSubtitles.com 需要注册并填入账号密码，否则字幕下载会全部失败；ChineseSubFinder 账号密码为 `admin`/`admin`。
 6. **ChineseSubFinder 需要 `.nfo` 元数据**：如果日志报 `no metadata file, movie.xml or *.nfo`，WebUI 的电影卡片会点不开或显示异常。需要在 Radarr 的 **Settings → Metadata** 里启用 `.nfo` 生成，然后刷新/整理已有电影。
 7. **`.hi` 后缀字幕**：Bazarr 下载的字幕可能是 `.en.hi.srt` / `.zh.hi.srt`（Hearing Impaired，听障版）。如果不需要对白之外的音效描述，可在语言 Profile 中取消勾选 `Hearing Impaired`。
 8. **ChineseSubFinder 版本现状**：`allanpk716/chinesesubfinder:latest` 目前（2023-12-01 后未再更新）已经是最新版，且作者已转向 Lite 路线，更新也不会带来能点进电影详情页的完整 WebUI。需要手动管理字幕时，建议主要使用 Bazarr。
@@ -865,3 +867,48 @@ cmp -s "$downloads_file" "$movies_file" \
 6 部电影全部通过字节级校验并完成替换后，`stat` 链接数变为 2，磁盘从 **91% 降到 69%（空闲 21G → 70G）**。之后新下载的电影导入时会自动硬链接，Downloads 做种和 Movies 入库共享同一份数据，不再占双份空间。
 
 > **后续更新**：本节当初判断“风险大于收益”而绕开的迁移手术，后来在[第二篇 5.6 节](/life/2026/07/20/raspberry-pi-homelab-mediacenter-and-entry/#56-路径统一拆掉所有翻译层)完成了——全链路统一到 `/share` 物理路径后，软链脚本和远程路径映射已全部拆除。本节作为硬链接问题的排障记录保留；新搭建的系统请直接采用统一路径方案，不必再走软链这条兼容路线。
+
+## 11. 字幕管线的四个坑：中文站代理、反爬、配额门槛与重复下载（2026-08-05 补记）
+
+上线一个半月后暴露出一组字幕问题：剧集《光环》全 8 集一直没有任何中文字幕，Bazarr 的 Wanted 列表里明明挂着"缺中文"却始终下不到；与此同时，电影《Volver》的同一条中文字幕被反复下载了 28 次。逐个排查后定位到四个互相独立的坑。
+
+### 11.1 坑一：国内字幕站走了出国代理
+
+**症状**：zimuku 等中文字幕源全部报错，日志里全是 `_ssl.c: The handshake operation timed out`。
+
+**根因**：bazarr 容器按第 4.2 节配置了 `HTTP_PROXY` 走 V2Ray，**所有**出站流量都被拐到国外。国内字幕站（zimuku、射手、subf2m）本来直连很快，经代理绕一圈后 SSL 握手直接超时。
+
+**修法**：把国内字幕站域名加进 bazarr 的 `NO_PROXY`，中文站直连、OpenSubtitles 继续走代理（第 4.2 节的 compose 片段已更新）。
+
+同一个道理的另一个版本：**dockerd 拉镜像也不走 shell 里配的代理**。树莓派直连 Docker Hub 会超时，需要给守护进程单独配置 `/etc/systemd/system/docker.service.d/http-proxy.conf`（写入 `HTTP_PROXY`/`HTTPS_PROXY`），再 `systemctl daemon-reload && systemctl restart docker`，否则 `docker compose pull` 慢到不可用。
+
+### 11.2 坑二：zimuku 的反爬验证码
+
+zimuku 有 yunsuo 反爬保护，搜索时要求过图形验证码，Bazarr 只能借助付费的 anti-captcha 打码服务来过。没配 key 时每次搜索必然失败：先白等约 30 秒超时，再被 Bazarr 节流 10 分钟。由于字幕源是**串行**查询的，每一集都要先给 zimuku 陪葬半分钟——这是"搜字幕很慢"的主要原因。
+
+不配打码服务的话，直接在 **Settings → Providers** 里禁用 zimuku，中文字幕靠射手、subf2m 和 ChineseSubFinder 兜底。
+
+### 11.3 坑三：OpenSubtitles 的配额与匹配分门槛
+
+OpenSubtitles.com 免费账号**每天只能下载约 20 条字幕**，配额耗尽后当天剩余搜索全部落空。更隐蔽的是默认的**最低匹配分**：Bazarr 给每条候选字幕按文件名匹配度打分，剧集默认要求达到满分 360 的 90%（324 分）才下载。《光环》的中文字幕其实一直能在 OpenSubtitles 搜到，但得分只有 312（86.7%），永远被挡在门外——"看得到，下不到"。
+
+**修法**：**Settings → Subtitles** 把剧集的 minimum score 降到 85。降门槛后《光环》8 集立刻全部命中，而且下到的就是中英双语字幕。
+
+> 顺带一个 API 坑：Bazarr 1.6 的设置接口（`POST /api/system/settings`）用 JSON body 提交会返回 204 但**什么都不保存**，必须用表单字段格式（如 `settings-general-minimum_score=85`）。在 WebUI 上操作则没有这个问题。
+
+### 11.4 坑四：重复下载循环——缺失清单与磁盘脱节
+
+《Volver》的中文字幕从 7 月 18 日到 8 月 4 日被重复下载了 28 次：每次都是同一条 OpenSubtitles 字幕、同样的 85% 得分，覆盖写入同一个 `.zh.hi.srt` 文件。
+
+关键在于：**Bazarr 判断"缺不缺字幕"不是实时看磁盘，而是查数据库里的 `missing_subtitles` 缺失清单**，这张清单由索引任务负责刷新（每天 4:00 全量索引，下载后单部增量更新）。Volver 的清单记录卡在了"缺中文"的状态：字幕文件明明早已落盘、命名也正确，清单却没有被纠正。于是每 6 小时的"搜索缺失字幕"任务都把它当成无字幕处理：搜索 → 命中同一条字幕 → 下载覆盖 → 记一条历史，循环往复。这个循环还顺手把 OpenSubtitles 每天的 20 条配额吃得干干净净，让真正缺字幕的《光环》一直排不上队——四个坑就是这样互相放大的。
+
+**修法**：**System → Tasks** 里手动执行一次 *Index All Existing Movies Subtitles* 和 *Index All Existing Episodes Subtitles*，全量重算缺失清单。重算后 12 部电影中 11 部状态转为"已满足"，重复下载立即停止。
+
+> 遗留疑问：清单为什么没有被自动刷新（疑似这个版本对 `.hi` 字幕的索引更新存在缺陷）没有彻底定位，需要观察一段时间。如果日后再出现同一字幕被反复下载，先手动重建索引，再考虑升级 Bazarr 或上报 issue。
+
+### 11.5 修完后的状态
+
+- 《光环》S02 全 8 集补上了中英双语字幕（OpenSubtitles.com 来源）；
+- 仍缺字幕的只剩真正没有资源的：Rick and Morty 最新几集（中文字幕尚未发布）和老片《Picnic》，由每 6 小时的自动搜索持续盯着；
+- 中文站直连后射手、subf2m 恢复可用，zimuku 保持禁用；
+- 历史下载记录显示，这套系统里**所有**字幕实际都由 Bazarr（OpenSubtitles）下载，ChineseSubFinder 暂无贡献记录，其去留观察后再定。
