@@ -4,12 +4,12 @@ title: "树莓派家庭影院（一）：Docker 自动化电影下载管线（Ra
 date: 2026-06-17 01:29:07 +0800
 categories: [life, raspberry-pi, docker, homelab]
 tags: [docker, raspberry-pi, radarr, jackett, qbittorrent, bazarr, chinesesubfinder, homelab]
-description: "在树莓派上用 Docker 部署 Radarr、Jackett、qBittorrent、Bazarr 和 ChineseSubFinder，实现指定电影自动下载到 Samba 共享目录，并自动下载中英双语字幕。"
+description: "在树莓派上用 Docker 部署 Radarr、Jackett、qBittorrent、Bazarr 和 ChineseSubFinder，实现指定电影自动下载到 Samba 共享目录，并自动补充中文或英文字幕。"
 math: true
 mermaid: true
 ---
 
-> **本系列共两篇**：第一篇（本文）搭建“搜索 → 下载 → 字幕”的自动化电影下载管线；[第二篇](/life/2026/07/20/raspberry-pi-homelab-mediacenter-and-entry/)在这条管线上下游接入 Jellyseerr（点播）、Jellyfin（播放）、Sonarr（剧集）、Vaultwarden（密码管理）和 Homepage（统一入口），把它变成家人真正能用的家庭影院。
+> **本系列共三篇**：第一篇（本文）搭建“搜索 → 下载 → 字幕”的自动化电影下载管线；[第二篇](/life/2026/07/20/raspberry-pi-homelab-mediacenter-and-entry/)接入点播、播放、剧集、密码管理和统一入口；[第三篇](/life/2026/08/04/raspberry-pi-jellyfin-kodi-tv-guide/)让电视上的 Kodi 使用 Jellyfin 媒体库与服务端字幕。
 
 > **⚠️ 安全警告**：本文会公开本实验环境的登录地址、账号、密码和 API Key。这些凭证在发布后即视为已泄露，**请勿直接用于生产环境或长期暴露的服务**。建议读者在复现时替换为自己的强密码，并在公网访问时加 VPN/反向代理 + HTTPS。（第二篇引入 Vaultwarden，正是为了终结这种“凭证写进文档”的管理方式。）
 
@@ -20,7 +20,7 @@ mermaid: true
 1. 打开网页搜索电影。
 2. 选择想下载的版本（优先 4K）。
 3. 自动通过 BT 下载到 Samba 共享目录 `/share/Movies`。
-4. 自动下载中英双语字幕并合并成一条 bilingual 字幕。
+4. 自动下载字幕：优先使用字幕源提供的原版中英双语字幕，其次使用单中文或单英文字幕。
 
 ## 2. 最终架构
 
@@ -37,9 +37,12 @@ flowchart LR
     Bazarr[Bazarr 6767] -->|同步片库| Radarr
     Bazarr -->|下载字幕| OpenSubtitles[OpenSubtitles.com]
     Bazarr -->|中文字幕| Zimuku[字幕库/射手网等]
-    Bazarr -->|写入双语字幕| Movies
-    CSF[ChineseSubFinder 19035] -->|扫描| Movies
-    CSF -->|下载中英双语字幕| Movies
+    Bazarr -->|下载原版中文/英文字幕| Movies
+    Bazarr -->|下载原版中文/英文字幕| Series[(/share/Video/Series)]
+    CSF[ChineseSubFinder 19035] -->|定时扫描| Movies
+    CSF -->|定时扫描| Series
+    CSF -->|下载原版中文/双语字幕| Movies
+    CSF -->|下载原版中文/双语字幕| Series
     subgraph 树莓派
         Radarr
         Jackett
@@ -48,6 +51,7 @@ flowchart LR
         CSF
         Downloads
         Movies
+        Series
     end
 ```
 
@@ -59,9 +63,9 @@ flowchart LR
 
 **qBittorrent**：BT 下载客户端，负责实际的 P2P 下载。Radarr 通过 qBittorrent 的 WebUI API 添加种子、监控进度；下载完成后把文件落到 `/share/Downloads`，再由 Radarr 硬链接/移动到 `/share/Movies`。
 
-**Bazarr**：字幕管理器。它定期向 Radarr 索取电影库清单，比对哪些影片缺少指定语言的字幕，然后到 OpenSubtitles 等字幕站下载。本文配了一个后处理脚本，把下载到的英文和中文 SRT 按时间轴合并成一条 bilingual 字幕。
+**Bazarr**：字幕管理器。它定期向 Radarr 索取电影库清单，比对哪些影片缺少指定语言的字幕，然后到 OpenSubtitles 等字幕站下载原版字幕。语言 Profile 以中文为 cutoff，找到中文（其中可能本身就是中英双语）后停止；没有中文时保留英文兜底。
 
-**ChineseSubFinder**（可选补充）：专攻中文字幕的工具，会去字幕库、射手网等中文站点匹配并下载中英双语字幕。它直接扫描 `/share/Movies`，和 Bazarr 并行工作，作为中文字幕来源的兜底/增强。当前 `latest` 镜像带一个轻量 WebUI，但只能查看电影列表封面、控制系统状态和任务日志，**不能点进电影详情页手动搜索/上传字幕**；手动指定字幕只能直接把 `.srt`/`.ass` 文件放进电影目录。
+**ChineseSubFinder**（可选补充）：专攻中文字幕的工具，会从中文来源匹配原版中文或中英双语字幕。它按计划任务直接扫描电影和剧集目录，和 Bazarr 并行工作；候选中优先选择双语字幕，其次选择中文字幕。当前 `latest` 镜像带一个轻量 WebUI，但只能查看媒体列表、控制系统状态和任务日志，**不能像 Bazarr 那样逐个候选手动挑选字幕**。
 
 ### 2.2 工作流时序
 
@@ -87,14 +91,13 @@ sequenceDiagram
     R->>S: 硬链接/移动到媒体库
     R-->>B: Webhook 通知电影下载/移动完成
     B->>R: 同步电影库（兜底轮询）
-    B->>B: 发现缺少中英字幕（zh 优先）
-    B->>OS: 下载英文字幕
+    B->>B: 按语言 Profile 检查字幕（zh 优先、en 兜底）
+    B->>Z: 优先搜索原版中文字幕
+    Z-->>B: 返回 .zh(.hi).srt（可能本身是双语）
+    B->>OS: 找不到中文时搜索英文字幕
     OS-->>B: 返回 .en(.hi).srt
-    B->>Z: 下载中文字幕
-    Z-->>B: 返回 .zh(.hi).srt
-    B->>B: Post-Processing 检测/合并为 .zh+en.srt
-    B->>S: 写入 .zh+en.srt
-    CSF->>S: 扫描并下载中英双语字幕
+    B->>S: 原样写入下载到的字幕
+    CSF->>S: 扫描并补充原版中文/双语字幕
 ```
 
 时序说明：
@@ -105,9 +108,9 @@ sequenceDiagram
 4. Radarr 把种子推给 qBittorrent，qBittorrent 开始 P2P 下载。
 5. 下载完成后，Radarr 把文件整理到 `/share/Movies`。
 6. **Radarr 通过 Webhook 主动推送事件给 Bazarr**（电影下载/移动完成）；同时 **Bazarr 也会定期轮询 Radarr 的电影库**做兜底同步。
-7. Bazarr 发现缺字幕后去 OpenSubtitles/中文字幕站下载；语言 profile 中 `zh` 优先于 `en`，如果 `.zh.srt` / `.zh.hi.srt` 本身已是中英双语，后处理脚本会直接复制为 `.zh+en.srt`。
-8. 每次下载字幕后，Bazarr 调用后处理脚本，把中英两条 SRT 合并为一条 bilingual 字幕。
-9. （可选）ChineseSubFinder 也会扫描 `/share/Movies`，从中文站点补充下载中英双语字幕。
+7. Bazarr 发现缺字幕后按 `zh → en` 搜索，`zh` 是 cutoff：优先采用字幕站给出的原版中文字幕，找不到时用英文兜底。原版 `.zh.srt` 可能是双语，也可能只有中文，Bazarr 不分析正文内容。
+8. Bazarr 原样保存下载结果，不执行自定义 Post-Processing，也不生成 `.zh+en.srt`。
+9. （可选）ChineseSubFinder 每 6 小时扫描一次 `/share/Movies` 与 `/share/Video/Series`，从中文来源补充原版中文或中英双语字幕。
 
 ### 2.3 为什么这些名字都这么奇怪？
 
@@ -243,6 +246,7 @@ mkdir -p /home/pi/docker/chinesesubfinder/config
     volumes:
       - /home/pi/docker/chinesesubfinder/config:/config
       - /share/Movies:/media
+      - /share/Video/Series:/series
     ports:
       - "19035:19035"
     restart: unless-stopped
@@ -253,7 +257,7 @@ mkdir -p /home/pi/docker/chinesesubfinder/config
 - qBittorrent 的 WebUI 端口改成 `8085`，因为宿主机 `8080` 已被其他服务占用。
 - Radarr/Jackett/Bazarr 不直接用内置代理，而是通过容器环境变量走 V2Ray，这样更稳定。
 - 容器下载目录统一挂到 `/share/Downloads`，电影最终目录是 `/share/Movies`。**但 radarr 不能像上面那样把两者挂成两个独立 volume**——这会让导入时的硬链接悄悄退化为复制，空间翻倍（2026-07-18 踩坑实录，排查与正确写法见第 10 节）。
-- ChineseSubFinder 的媒体目录在容器内是 `/media`，对应宿主机的 `/share/Movies`。
+- ChineseSubFinder 将电影和剧集分开挂载：容器内 `/media` 对应宿主机 `/share/Movies`，`/series` 对应 `/share/Video/Series`。
 
 ### 4.3 启动
 
@@ -464,28 +468,23 @@ HDTV 有 720p / 1080p / 2160p 各档。它的唯一价值是时效——电视�
 配置步骤：
 
 1. **Settings → Languages → Add New Profile**：
-   - Name：`中英双语`
-   - Language items 用 alpha2 code：`en`、`zh`（不要写“英文”“中文”，会报 `ValueError: None is not a valid language`）。
+   - Name：`原版字幕：中文优先，英文兜底`
+   - Language items 按 `zh → en` 排列，使用 alpha2 code（不要写“中文”“英文”，否则会报 `ValueError: None is not a valid language`）。
+   - Cutoff 选择 `zh`。找到中文后即视为满足；没有中文时可以先使用英文，后续继续尝试中文。
 2. **Settings → Providers**：启用以下字幕源，覆盖英文和中文：
    - **OpenSubtitles.com**：英文/多语言字幕较全，需要到 [OpenSubtitles.com](https://www.opensubtitles.com) 注册免费账号并填入用户名/密码。
    - **zimuku（字幕库）**、**subf2m**、**subx**、**shooter（射手网）**：中文字幕源，国内资源较多。
-   - 启用后 Bazarr 会依次尝试这些 provider，直到下载到 `en` 和 `zh` 两条 SRT。
-3. **Settings → Radarr**：
+3. **Settings → Languages → Default Settings**：
+   - Movies 和 Series 都启用默认 Profile，选择 `原版字幕：中文优先，英文兜底`。
+   - 对已有电影和剧集分别执行 Mass Edit，把同一 Profile 批量套用到全部条目。
+4. **Settings → Radarr / Sonarr**：
    - IP：`radarr`
    - Port：`7878`
    - API Key：Radarr 的 API Key `be67ae6612cc4061a7a2335723893305`
-   - 启用后 Bazarr 会同步 Radarr 的电影库，自动判断哪些电影缺字幕。
-4. **Settings → Languages → 编辑“中英双语” profile**：
-   - 把 `zh` 拖到 `en` 上面，让 Bazarr 优先尝试下载中文字幕。
-   - 很多中文字幕站返回的 `.zh.srt` 本身已包含英文，这样能更快得到 bilingual 字幕。
-5. **Settings → Subtitles → Post-Processing**：
-   - 启用 `Use Post-Processing`
-   - Post-Processing Command：
-     ```bash
-     python3 /config/scripts/merge_bilingual_subs.py
-     ```
+   - Sonarr 同理使用 `sonarr:8989` 和 Sonarr 的 API Key；启用后 Bazarr 会同时管理电影与剧集字幕。
+5. **Settings → Subtitles → Post-Processing**：关闭 `Use Custom Post-Processing`，Post-Processing Command 留空。
 
-> **关于 `.hi` 字幕**：Bazarr 下载的字幕有时会带 `.hi` 后缀，例如 `.en.hi.srt`、`.zh.hi.srt`。这里的 `hi` 是 **Hearing Impaired**（听障版）的缩写，除了对白还会标注 `[door slams]`、`[music playing]` 等音效。如果你不想下载这种带音效描述的字幕，可以在语言 profile 里取消勾选 `Hearing Impaired`；合并脚本已经兼容 `.hi` 命名，即使下到 HI 版也能正常合并成 `.zh+en.srt`。
+Bazarr 只知道字幕的语言标签，无法判断一个 `zh` 文件的正文是“中英双语”还是“只有中文”。因此这里不做内容合并：中文站返回原版双语字幕时直接使用；否则接受单中文字幕，实在没有中文时再用英文。`.hi` 表示 Hearing Impaired（听障版），如果不需要音效描述，可在 Profile 中取消 HI。
 
 #### Bazarr 与 Radarr 如何通信
 
@@ -496,24 +495,21 @@ HDTV 有 720p / 1080p / 2160p 各档。它的唯一价值是时效——电视�
 
  webhook 让字幕下载更及时，定期拉取则负责兜底同步。两个都配好是最佳状态。
 
-#### 中英双语字幕的落盘形态
+#### 原版字幕的落盘形态
 
-以电影 `Inception (2010).mkv` 为例，Bazarr 下载后会在同一目录下生成：
+以电影 `Inception (2010).mkv` 为例，Bazarr 只保存字幕源返回的原版文件：
 
 ```
 Inception (2010).mkv
-Inception (2010).en.srt          # 英文原文字幕
-Inception (2010).zh.srt          # 中文字幕（有些站点的 zh 字幕本身已含英文）
-Inception (2010).zh+en.srt       # 后处理合并/复制的 bilingual 字幕
+Inception (2010).zh.srt          # 优先；内容可能是原版双语，也可能只有中文
+Inception (2010).en.srt          # 找不到中文时的英文兜底
 ```
 
-后处理脚本会先判断 `.zh.srt` / `.zh.hi.srt` 本身是否已经是中英双语（即字幕条目里已有大量英文行）。如果是，就直接把它复制为 `.zh+en.srt`，不再等待英文字幕；否则才用对应的英文字幕和 `.zh` 字幕合并。Bazarr 下载的字幕有时会带 `.hi`（hearing impaired，听障版）后缀，脚本也会正确处理。
+媒体目录不再生成 `.zh+en.srt`。播放器优先选择 `zh`；如果这份原版中文字幕本身包含中英文，就显示双语，否则显示单中文。没有 `zh` 时再选择 `en`。
 
-播放时选择 `zh+en.srt`，屏幕上会同时显示中文在上、英文在下。是否生效取决于播放器对 SRT 多行文本的渲染方式；如果播放器只显示一行，可能需要换成支持双语的播放器（如 Kodi、VLC、PotPlayer 等）。
+### 5.5 ChineseSubFinder（可选，补充原版中文/双语字幕）
 
-### 5.5 ChineseSubFinder（可选，专攻中英双语）
-
-如果你的主要目标就是**单文件本身就是中英双语**的字幕，可以额外部署 [ChineseSubFinder](https://github.com/allanpk716/ChineseSubFinder)。它专门去字幕库、射手网等中文站点匹配并下载中英双语字幕，比 Bazarr 更聚焦中文字幕来源。
+如果希望提高**字幕源原本就是中英双语**的概率，可以额外部署 [ChineseSubFinder](https://github.com/ChineseSubFinder/ChineseSubFinder)。它专门从迅雷字幕、射手网等中文来源匹配原版中文或双语字幕，比 Bazarr 更聚焦中文来源，但同样不负责把两份字幕重新合成。Zimuku（字幕库）则作为 Bazarr Provider 接入，不必在 ChineseSubFinder 中重复配置。
 
 Docker Compose 追加：
 
@@ -528,30 +524,29 @@ Docker Compose 追加：
     volumes:
       - /home/pi/docker/chinesesubfinder/config:/config
       - /share/Movies:/media
+      - /share/Video/Series:/series
     ports:
       - "19035:19035"
     restart: unless-stopped
 ```
 
-配置文件 `/home/pi/docker/chinesesubfinder/config/config.yaml` 最小示例：
+当前版本把主要设置保存在 `/home/pi/docker/chinesesubfinder/config/ChineseSubFinderSettings.json`。通常应在 WebUI 中修改；其中与扫描范围直接相关的结构如下：
 
-```yaml
-UseProxy: false
-HttpProxy: ""
-TimeFormat: "yyyy-mm-dd"
-SubSaveDirName: "chinesesubfinder"
-Threads: 4
-SubTypePriority: 0
-DebugMode: false
-SaveMultiSub: false
-CustomVideoExts: ""
-FixTimeLine: false
-FFmpegPath: ""
-FFprobePath: ""
-AdvancedConfig: true
-MediaPaths:
-  - /media
+```json
+{
+  "common_settings": {
+    "scan_interval": "@every 6h",
+    "movie_paths": ["/media"],
+    "series_paths": ["/series"]
+  },
+  "advanced_settings": {
+    "sub_type_priority": 0,
+    "save_multi_sub": false
+  }
+}
 ```
+
+`sub_type_priority: 0` 表示字幕文件格式自动选择，不是语言优先级。ChineseSubFinder 的候选选择逻辑本身就会优先中英双语，再退到中文字幕；`save_multi_sub: false` 则只保留选出的结果，不把每个网站的候选都留在媒体目录。
 
 启动后访问 `http://192.168.1.7:19035`：
 
@@ -580,10 +575,7 @@ MediaPaths:
    /share/Movies/Pressure (2026)/Pressure.2026.1080p...mp4
    /share/Movies/Pressure (2026)/Pressure.2026.1080p...chs.ass
    ```
-2. 重启容器触发重新扫描：
-   ```bash
-   docker restart chinesesubfinder
-   ```
+2. 回到 ChineseSubFinder WebUI 刷新媒体库，或等待每 6 小时一次的计划任务；当前配置不会因为重启容器就立刻执行字幕扫描。
 3. 看日志确认它识别到已有字幕：
    ```bash
    docker logs -f chinesesubfinder
@@ -604,255 +596,62 @@ no metadata file, movie.xml or *.nfo
 1. Radarr → **Settings → Metadata**；
 2. 启用 **Kodi (XBMC)** 或 **Emby**，勾选 `Movie Metadata` / `.nfo`；
 3. 对已有电影执行 **Refresh & Scan** 或 **Organize**，让 Radarr 生成 `.nfo`；
-4. 回到 ChineseSubFinder WebUI 点扫描，或 `docker restart chinesesubfinder`。
+4. 回到 ChineseSubFinder WebUI 刷新媒体库，字幕下载则等待下一次计划任务。
 
 #### 版本状态
 
 `allanpk716/chinesesubfinder:latest` 目前就已经是最新版，不要再指望更新它能获得完整 WebUI。作者已经明确转向 Lite 路线，全功能版本不再维护。如果你确实需要完整的电影详情管理界面，只能换用其他工具（例如主要依赖 Bazarr）。
 
-### 5.6 双语字幕合并脚本
+### 5.6 字幕从下载到播放的完整链路
 
-文件：`/home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py`
+Bazarr 与 ChineseSubFinder 都能写字幕，但两者的触发方式不同。Radarr 和 Sonarr 在媒体新增、下载完成、升级或重命名时通过 Webhook 通知 Bazarr；Bazarr 还会定期同步片库并搜索 Wanted 队列。ChineseSubFinder 不接收这类通知，而是每 6 小时直接扫描电影与剧集目录。
 
-Bazarr 每次下载字幕后会调用该脚本，`BAZARR_SUBTITLE_PATH` 环境变量指向刚下载的字幕。脚本逻辑：
+```mermaid
+sequenceDiagram
+    participant A as Radarr / Sonarr
+    participant B as Bazarr
+    participant C as ChineseSubFinder
+    participant M as 电影 / 剧集目录
+    participant J as Jellyfin
 
-1. 从 `BAZARR_SUBTITLE_PATH` 的文件名里识别语言（支持 `.zh.srt` / `.en.srt`，以及 Bazarr 常见的听障版 `.zh.hi.srt` / `.en.hi.srt`）。
-2. 如果下载的是 `.zh.srt` / `.zh.hi.srt`，先检测它本身是否已经是中英双语（字幕条目里有大量英文行）。
-3. 如果是，直接复制为 `.zh+en.srt`。
-4. 如果不是，且存在对应的英文字幕，则把两条字幕按时间轴合并成 `.zh+en.srt`。
-
-```python
-#!/usr/bin/env python3
-"""
-Bazarr post-processing script: merge Chinese and English subtitles into bilingual subtitle.
-
-This script is called by Bazarr after a subtitle is downloaded.
-It checks if both .zh.srt and .en.srt exist for the same video,
-and creates a .zh+en.srt bilingual subtitle.
-
-Environment variables provided by Bazarr:
-- BAZARR_EPISODE_PATH / BAZARR_MOVIE_PATH: path to video file
-- BAZARR_SUBTITLE_PATH: path to downloaded subtitle
-- BAZARR_SUBTITLE_LANGUAGE: language of downloaded subtitle (en, zh, etc.)
-"""
-
-import os
-import sys
-import re
-import glob
-from pathlib import Path
-
-
-def parse_srt(content):
-    """Parse SRT content into list of (index, start, end, text)."""
-    entries = []
-    # Normalize line endings
-    content = content.replace('\r\n', '\n').replace('\r', '\n')
-    # Split by double newline
-    blocks = re.split(r'\n\s*\n', content.strip())
-    for block in blocks:
-        lines = block.strip().split('\n')
-        if len(lines) < 3:
-            continue
-        index = lines[0].strip()
-        timing = lines[1].strip()
-        text = '\n'.join(lines[2:]).strip()
-        if not text:
-            continue
-        m = re.match(r'(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})', timing)
-        if not m:
-            continue
-        entries.append({
-            'index': index,
-            'start': m.group(1),
-            'end': m.group(2),
-            'text': text
-        })
-    return entries
-
-
-def format_srt(entries):
-    """Format entries back to SRT content."""
-    output = []
-    for i, e in enumerate(entries, 1):
-        output.append(str(i))
-        output.append(f"{e['start']} --> {e['end']}")
-        output.append(e['text'])
-        output.append('')
-    return '\n'.join(output).strip() + '\n'
-
-
-def is_bilingual_zh_srt(zh_path):
-    """检测一个 .zh.srt 是否本身已经是中英双语字幕。
-
-    判断逻辑：统计所有字幕条目，如果包含纯 ASCII/英文单词的行数
-    占总行数一定比例，则认为该文件已经是中英双语。
-    """
-    try:
-        with open(zh_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
-            entries = parse_srt(f.read())
-    except Exception as e:
-        print(f"Failed to parse {zh_path}: {e}")
-        return False
-
-    if not entries:
-        return False
-
-    total_lines = 0
-    english_lines = 0
-    for e in entries:
-        for line in e['text'].split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            total_lines += 1
-            # 包含连续英文字母/数字，且中文字符较少的行算作英文行
-            has_ascii_word = bool(re.search(r'[a-zA-Z]{2,}', line))
-            chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', line))
-            if has_ascii_word and chinese_chars < 3:
-                english_lines += 1
-
-    if total_lines == 0:
-        return False
-
-    ratio = english_lines / total_lines
-    print(f"{zh_path}: {english_lines}/{total_lines} lines look English-only (ratio {ratio:.2f})")
-    # 如果超过 30% 的行是英文，认为已经是中英双语
-    return ratio >= 0.30
-
-
-def create_bilingual_from_zh(zh_path, output_path):
-    """直接把已有的中英双语 .zh.srt 复制为 .zh+en.srt。"""
-    try:
-        with open(zh_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
-            content = f.read()
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print(f"Created bilingual subtitle from existing bilingual zh.srt: {output_path}")
-        return True
-    except Exception as e:
-        print(f"Failed to copy bilingual subtitle: {e}")
-        return False
-
-
-def merge_subtitles(en_path, zh_path, output_path):
-    """Merge English and Chinese subtitles."""
-    with open(en_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
-        en_entries = parse_srt(f.read())
-    with open(zh_path, 'r', encoding='utf-8-sig', errors='ignore') as f:
-        zh_entries = parse_srt(f.read())
-
-    if not en_entries or not zh_entries:
-        print("Empty subtitle entries, skip merging")
-        return False
-
-    # Match entries by start time
-    en_by_start = {e['start']: e for e in en_entries}
-    merged = []
-    for zh in zh_entries:
-        start = zh['start']
-        en = en_by_start.get(start)
-        if en:
-            # Chinese on top, English below
-            text = f"{zh['text']}\n{en['text']}"
-            merged.append({
-                'start': start,
-                'end': zh['end'],
-                'text': text
-            })
-        else:
-            merged.append(zh)
-
-    # Add any English entries not matched
-    zh_starts = {e['start'] for e in zh_entries}
-    for en in en_entries:
-        if en['start'] not in zh_starts:
-            merged.append(en)
-
-    # Sort by start time
-    merged.sort(key=lambda x: x['start'])
-
-    srt_content = format_srt(merged)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(srt_content)
-    print(f"Created bilingual subtitle: {output_path}")
-    return True
-
-
-def main():
-    subtitle_path = os.environ.get('BAZARR_SUBTITLE_PATH', '')
-    if not subtitle_path:
-        print("No BAZARR_SUBTITLE_PATH, exit")
-        sys.exit(0)
-
-    sub_file = Path(subtitle_path)
-    if not sub_file.exists():
-        print(f"Subtitle not found: {subtitle_path}")
-        sys.exit(0)
-
-    # Determine video stem and language
-    # Subtitle filename patterns:
-    #   movie.en.srt, movie.zh.srt
-    #   movie.en.hi.srt, movie.zh.hi.srt  (hearing impaired variant)
-    name = sub_file.stem  # e.g. movie.en or movie.en.hi
-    suffix = sub_file.suffix  # .srt
-    parent = sub_file.parent
-
-    parts = name.split('.')
-    if len(parts) < 2:
-        print(f"Cannot detect language from {name}")
-        sys.exit(0)
-
-    # Strip optional hearing-impaired marker so it doesn't confuse language detection
-    if parts[-1].lower() == 'hi':
-        parts = parts[:-1]
-
-    if len(parts) < 2:
-        print(f"Cannot detect language from {name}")
-        sys.exit(0)
-
-    lang = parts[-1].lower()
-    stem = '.'.join(parts[:-1])  # movie
-
-    def find_subtitle(parent, stem, lang, suffix):
-        """Find a subtitle, preferring the .hi variant but falling back to plain."""
-        hi_path = parent / f"{stem}.{lang}.hi{suffix}"
-        if hi_path.exists():
-            return hi_path
-        return parent / f"{stem}.{lang}{suffix}"
-
-    en_sub = find_subtitle(parent, stem, 'en', suffix)
-    zh_sub = find_subtitle(parent, stem, 'zh', suffix)
-    bilingual_sub = parent / f"{stem}.zh+en{suffix}"
-
-    if lang == 'en':
-        if zh_sub.exists():
-            if is_bilingual_zh_srt(zh_sub):
-                create_bilingual_from_zh(zh_sub, bilingual_sub)
-            else:
-                merge_subtitles(en_sub, zh_sub, bilingual_sub)
-    elif lang == 'zh':
-        if is_bilingual_zh_srt(sub_file):
-            create_bilingual_from_zh(sub_file, bilingual_sub)
-        elif en_sub.exists():
-            merge_subtitles(en_sub, zh_sub, bilingual_sub)
-        else:
-            print(f"No English subtitle found and zh.srt is not bilingual, skip")
-    else:
-        print(f"Language {lang} not en/zh, skip merging")
-
-
-if __name__ == '__main__':
-    main()
+    A->>M: 导入视频文件
+    A-->>B: Webhook 通知媒体变化
+    B->>B: 检查内置与外挂字幕
+    B->>M: 从 Zimuku 等来源写入原版 zh / en 字幕
+    C->>M: 每 6 小时扫描媒体目录
+    C->>M: 优先写入原版中英双语，其次中文字幕
+    J->>M: 实时扫描视频和同名外挂字幕
+    J-->>J: 合并展示内置与外挂字幕轨
 ```
 
-给脚本可执行权限：
+Bazarr 当前启用了 Zimuku、OpenSubtitles.com、射手网、Subf2m、SubX 和 Embedded Subtitles。统一 Profile 按 `zh → en` 搜索，并把 `zh` 设为 cutoff：只要找到中文就视为满足，没有中文时才用英文兜底。由于字幕站通常把中英双语与单中文字幕都标成 `zh`，Bazarr 无法仅凭语言标签判断正文是不是双语；ChineseSubFinder 则在自己的候选中优先挑选原版双语字幕。
 
-```bash
-chmod +x /home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py
+两套工具下载的网络字幕最终都是**外挂字幕**，与视频放在同一个目录、使用相同主文件名：
+
+```text
+/share/Movies/Movie Name (2025)/
+├── Movie Name (2025).mkv
+├── Movie Name (2025).zh.srt
+└── Movie Name (2025).en.srt
+
+/share/Video/Series/Series Name/Season 01/
+├── Series Name S01E01.mkv
+├── Series Name S01E01.zh.ass
+└── Series Name S01E01.en.srt
 ```
 
-> 踩坑：Bazarr 语言配置里如果填“中文”“英文”会报 `ValueError: None is not a valid language`，必须用 alpha2 code `zh`/`en`。
+字幕在播放端分为三类：
+
+| 类型 | 存放位置 | 能否选择或关闭 |
+|------|----------|----------------|
+| 内置字幕 | MKV、MP4 等视频容器内部的字幕流 | 可以 |
+| 外挂字幕 | 视频旁边独立的 `.srt`、`.ass` 等文件 | 可以 |
+| 硬字幕 | 已经压进视频画面 | 不可以 |
+
+视频自身携带的十几种语言仍然是内置字幕；Bazarr 或 ChineseSubFinder 下载到旁边的文件则是外挂字幕。Jellyfin 会读取视频容器中的字幕流，也会按照[官方命名规则](https://jellyfin.org/docs/general/server/media/movies/#external-subtitles-and-audio-tracks)识别同名外挂字幕，然后把两者一起交给网页端、手机或 Kodi 选择。Jellyfin 对媒体目录使用只读挂载也不影响这个过程：字幕由前两套工具写入，Jellyfin 只负责扫描和播放。
+
+Bazarr 与 ChineseSubFinder 彼此没有任务协调机制，理论上可能同时处理同一媒体。通常 Bazarr 发现已经存在满足 Profile 的 `zh` 后便不会继续把它列为缺失；若两者先后写入同一个 `.zh.srt`，最终保留的是最后一次写入的文件。当前系统不再运行任何自定义合并脚本，也不会生成 `.zh+en.srt`。
+
 
 ## 6. 下载测试：《速度与激情 1》4K
 
@@ -883,7 +682,7 @@ chmod +x /home/pi/docker/bazarr/config/scripts/merge_bilingual_subs.py
 4. **Bazarr 语言 code**：语言 profile 里必须用 `en`/`zh`，不能用中文名。
 5. **字幕源**：OpenSubtitles.com 需要注册并填入账号密码，否则字幕下载会全部失败；ChineseSubFinder 默认账号 `admin`/`shining0306FC`，首次登录后建议修改。
 6. **ChineseSubFinder 需要 `.nfo` 元数据**：如果日志报 `no metadata file, movie.xml or *.nfo`，WebUI 的电影卡片会点不开或显示异常。需要在 Radarr 的 **Settings → Metadata** 里启用 `.nfo` 生成，然后刷新/整理已有电影。
-7. **`.hi` 后缀字幕**：Bazarr 下载的字幕可能是 `.en.hi.srt` / `.zh.hi.srt`（Hearing Impaired，听障版），原合并脚本只认 `.en.srt` / `.zh.srt` 会导致无法生成 bilingual 字幕。当前脚本已修复，支持 `.hi` 命名；如果不想下载 HI 字幕，可在 Bazarr 语言 profile 里取消勾选 `Hearing Impaired`。
+7. **`.hi` 后缀字幕**：Bazarr 下载的字幕可能是 `.en.hi.srt` / `.zh.hi.srt`（Hearing Impaired，听障版）。如果不需要对白之外的音效描述，可在语言 Profile 中取消勾选 `Hearing Impaired`。
 8. **ChineseSubFinder 版本现状**：`allanpk716/chinesesubfinder:latest` 目前（2023-12-01 后未再更新）已经是最新版，且作者已转向 Lite 路线，更新也不会带来能点进电影详情页的完整 WebUI。需要手动管理字幕时，建议主要使用 Bazarr。
 9. **安全**：以上凭证仅用于本实验，发布本文后应视为已泄露，建议尽快修改。
 10. **硬链接从未生效（重点）**：`/movies` 和 `/downloads` 两个独立 bind mount 导致跨挂载 `link(2)` 返回 EXDEV，Radarr 静默退化为复制，所有电影占双份空间。排查与修复详见第 10 节。

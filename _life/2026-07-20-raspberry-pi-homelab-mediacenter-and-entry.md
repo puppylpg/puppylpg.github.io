@@ -9,7 +9,7 @@ math: true
 mermaid: true
 ---
 
-> **本系列共两篇**：[第一篇](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/)搭建“搜索 → 下载 → 字幕”的自动化电影下载管线（Radarr + Jackett + qBittorrent + Bazarr）；第二篇（本文）在这条管线的上下游接入 Jellyseerr（点播）、Jellyfin（播放）、Sonarr（剧集）、Vaultwarden（密码管理）和 Homepage（统一入口），把它变成家人真正能用的家庭影院。
+> **本系列共三篇**：[第一篇](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/)搭建“搜索 → 下载 → 字幕”的自动化电影下载管线；第二篇（本文）接入点播、播放、剧集、密码管理和统一入口；[第三篇](/life/2026/08/04/raspberry-pi-jellyfin-kodi-tv-guide/)让电视上的 Kodi 使用 Jellyfin 媒体库与服务端字幕。
 
 1. Table of Contents, ordered
 {:toc}
@@ -72,6 +72,8 @@ flowchart LR
 | 客户端接入 | 每台设备配置 Samba 和 Kodi | 浏览器、手机 App、电视客户端直接登录 |
 
 Jellyfin 负责媒体库，并不要求放弃 Kodi。通过官方的 [Jellyfin for Kodi](https://jellyfin.org/docs/general/clients/kodi/) 插件，电视仍可使用 Kodi 的播放器和解码能力，片库、海报和观看进度则统一交给 Jellyfin 管理。这样既保留电视端直接播放的稳定性，也获得多用户和跨设备续播能力。
+
+字幕也遵循同一条服务端链路：Bazarr 接收 Radarr、Sonarr 的媒体事件，ChineseSubFinder 定时扫描电影和剧集，两者把原版外挂字幕写到视频旁边，再由 Jellyfin 统一读取。字幕源、语言优先级和文件落盘规则集中放在[第一篇的字幕完整链路](/life/2026/06/17/raspberry-pi-docker-radarr-jackett-qbittorrent-bazarr/#56-字幕从下载到播放的完整链路)，本篇只负责把 Jellyfin 接到这条管线下游。
 
 ### 2.2 部署 Jellyfin
 
@@ -256,8 +258,8 @@ flowchart TB
     B <-->|同步媒体库| R
     B <-->|同步媒体库| SO
     B --> SUBS
-    B -->|写入双语字幕| MV
-    B -->|写入双语字幕| SR
+    B -->|写入原版中文/英文字幕| MV
+    B -->|写入原版中文/英文字幕| SR
     CSF -->|扫描补字幕| MV
     MV -->|只读挂载| JF
     SR -->|只读挂载| JF
@@ -307,8 +309,8 @@ sequenceDiagram
     Q-->>R: 下载完成
     R->>S: 硬链接导入（电影入 /share/Movies，剧集入 /share/Video/Series）
     R-->>B: Webhook 通知下载/移动完成（Bazarr 同时轮询兜底）
-    B->>B: 下载中英字幕并合并为 .zh+en.srt
-    B->>S: 写入字幕文件
+    B->>B: 按 zh 优先、en 兜底下载原版字幕
+    B->>S: 原样写入字幕文件
     JF->>S: 扫描新文件，补充海报与元数据
     U->>JF: 任意客户端播放，观看进度多端同步
 ```
@@ -727,7 +729,7 @@ Sonarr 曾报过一条警告：`download client qBittorrent places downloads in 
 剧集接入后暴露过一个迷惑性很强的症状：《The Last of Us》第二季第一集有中文字幕，第二集却只有英文。表层原因是资源差异——E01 的官方 WEB-DL 内嵌 35 条字幕轨（含 3 条中文），E02 的压制资源只内嵌英文。但顺着往下挖，发现字幕管线根本没接通剧集：
 
 1. **Bazarr 的 sonarr 段是指向 Radarr 的残次配置**。第一篇部署 Bazarr 时还没有 Sonarr，第二篇加了 Sonarr 之后没人回来接它。config 里那段 `sonarr:` 的 `ip` 填的是 `radarr`、API key 是 Radarr 的、总开关 `use_sonarr: false`——三项全部修正后，剧集才同步进 Bazarr。
-2. **剧集没有分配字幕语言 profile**。电影都挂着“中英双语”profile（zh 优先 + en），剧集的 profileId 是 `None`，Bazarr 即使同步了剧集也认定“什么都不缺”。分配 profile 并重新索引后，各集才正确标出 `missing: ['zh']`。
+2. **剧集没有分配字幕语言 Profile**。电影已经使用“原版字幕：中文优先，英文兜底”Profile（`zh → en`，cutoff 为 `zh`），剧集的 `profileId` 却是 `None`，Bazarr 即使同步了剧集也认定“什么都不缺”。为电影和剧集同时启用默认 Profile，并给存量剧集批量分配后，各集才正确标出 `missing: ['zh']`。
 3. **字幕源限流制造了“隔集有字幕”的假象**。补齐配置后的首轮搜索按集排队进行：靠前的集用光了 opensubtitlescom 的每日配额（`DownloadLimitExceeded`，封到次日），zimuku 又触发反爬（`AnticaptchaException`），轮到靠后的集时无源可用。最终 E01/E03 靠字幕站、E05/E07 靠提取 mkv 内嵌中文轨补齐，E02/E04/E06 只能等配额重置后自动重试。
 
 这次排障还澄清了两个机理。其一，**每集的字幕有两个来源**：mkv 内嵌提取与字幕站下载；同一发布组每集的封装都可能不同（E05 内嵌中文轨，同组的 E04/E06 就没有），所以“同组同待遇”不成立。其二，**Sonarr 的抓取单位是集而不是季**：每集独立按天梯选秀，同一季来源自然五花八门；想要整季统一只能指望 season pack（一个组出一整季），或者等升级机制向高位画质慢慢收敛。
@@ -742,7 +744,7 @@ Sonarr 曾报过一条警告：`download client qBittorrent places downloads in 
 
 - **客户端画质档位限制**：手动选了低档，或 Auto 档对带宽误判；
 - **浏览器解码短板**：Chrome 不支持 HEVC(x265)、TrueHD/Atmos/DTS 音频，而 Remux/4K 资源多为 x265，浏览器播放必转码，4K 转码树莓派根本无力承担；
-- **图形字幕烧录**：ASS/PGS 字幕必须烧进画面，强制视频转码；外挂 SRT 可直放，本系统的双语字幕恰好是这个形式。
+- **图形字幕烧录**：ASS/PGS 字幕必须烧进画面，强制视频转码；外挂 SRT 更容易直放，本系统优先保留字幕站返回的原版 SRT。
 
 结论：在树莓派上，**直放不是优化项而是必须项**——播放器画质选“自动”或最高档；看 x265/4K 用官方客户端（Jellyfin Media Player、手机 App、Android TV、Kodi、Infuse）而不是浏览器；字幕优先外挂 SRT。DirectStream（仅换封装、不重编码）同样几乎零开销，也是可接受的中间态。
 
