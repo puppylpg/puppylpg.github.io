@@ -85,7 +85,7 @@ docker compose down
 docker compose up --build -d
 ```
 
-Dockerfile 默认使用清华 Debian 镜像和 Ruby China gem 源，适合 Windows / 中国大陆环境。海外环境可在构建时覆盖源：
+Dockerfile 默认使用清华 Debian 和 RubyGems 镜像；`Gemfile` 也会读取 `GEM_SOURCE` 环境变量，未设置时默认使用清华源。如需使用其他镜像，可在构建时覆盖：
 
 ```bash
 DEBIAN_MIRROR=deb.debian.org \

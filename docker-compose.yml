@@ -6,7 +6,7 @@ services:
       args:
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
-        GEM_SOURCE: ${GEM_SOURCE:-https://gems.ruby-china.com/}
+        GEM_SOURCE: ${GEM_SOURCE:-https://mirrors.tuna.tsinghua.edu.cn/rubygems/}
     ports:
       - "${JEKYLL_PORT:-4000}:4000"
       - "35729:35729"
@@ -15,6 +15,7 @@ services:
     environment:
       - JEKYLL_ENV=development
       - LANG=C.UTF-8
+      - GEM_SOURCE=${GEM_SOURCE:-https://mirrors.tuna.tsinghua.edu.cn/rubygems/}
     command: >
       sh -c "bundle check >/dev/null 2>&1 || bundle install &&
              bundle exec jekyll serve --host 0.0.0.0 --port 4000 --livereload"

@@ -1,5 +1,5 @@
 GEM
-  remote: https://gems.ruby-china.com/
+  remote: https://mirrors.tuna.tsinghua.edu.cn/rubygems/
   specs:
     addressable (2.9.0)
       public_suffix (>= 2.0.2, < 8.0)
