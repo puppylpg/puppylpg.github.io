@@ -533,6 +533,31 @@ location ^~ /.well-known/acme-challenge/ {
 > 因此该nginx代理其他server时，**如果收到websocket，也会发给后端服务**。只不过其他后端服务可能不支持websocket，把它当做普通的http处理了。
 >
 
+## xray-client
+2026年8月新增：VPS 入口层除了 v2ray（VMess），还并行部署了一个 Xray（VLESS + WebSocket）容器，和 v2ray 一样挂在 nginx-proxy 主域名下，路径为 `/xray`，复用同一套自动反代和证书体系。树莓派上对应跑一个 xray 客户端容器，把这个代理暴露成本地端口：
+
+```yaml
+# ~/docker/xray-client/compose.yaml
+services:
+  xray-client:
+    image: ghcr.io/xtls/xray-core@sha256:592ec4d11f656db95598d01e76dbcc6e002d67360b96a5436500a938230f52c7
+    container_name: xray-client
+    restart: unless-stopped
+    user: "1000:100"
+    command: ["run", "-config", "/etc/xray/config.json"]
+    ports:
+      - "10818:10808/tcp"
+      - "10818:10808/udp"
+      - "10819:10809/tcp"
+    volumes:
+      - ./config.json:/etc/xray/config.json:ro
+```
+
+容器内 xray 固定监听 10808（SOCKS5）/10809（HTTP），映射到宿主机时整体偏移到 10818/10819，避免和宿主机上老 v2ray 客户端的 10808/10809 冲突。客户端配置在同目录的 `config.json`，出站为 `wss://puppylpg.top/xray`。
+
+> 2026年8月的 VMess / VLESS / REALITY 三套方案对比测速中，这套 VLESS 方案白天持续下载比老 VMess 快约三成，被选为新的主力代理。详细过程和结论见[VMess、VLESS 与 REALITY 对比：架构、理论与昼夜测速](/life/2026/08/05/vmess-vless-docker-nginx-benchmark/)。
+>
+
 ## memos
 > memo是不是memory？
 >

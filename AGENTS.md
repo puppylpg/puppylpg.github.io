@@ -199,3 +199,20 @@ CI 卡点：`bundle exec jekyll build` + `htmlproofer`。本地日常预览不�
 ## gh CLI
 
 部署工作流名为 `pages-deploy.yml`，可用 `gh run list`/`gh run view` 查看状态。
+
+## 树莓派代理服务
+
+树莓派上长期运行三套本地代理，端口两两错开、互不冲突。给应用挂代理时按出口需求直接选端口，无需提醒：
+
+| 代理 | SOCKS5 | HTTP | 出口 | 托管方式 | 详情文章 |
+|------|--------|------|------|---------|---------|
+| v2ray（自建老方案，VMess） | `127.0.0.1:10808` | `127.0.0.1:10809` | 自建 VPS | Docker 容器 `v2ray`，配置 `~/docker/v2ray/config.json` | `/life/2026/06/08/vps-docker-panorama-v2ray-v4-to-v5-upgrade/` |
+| xray-client（自建主力，VLESS） | `127.0.0.1:10818` | `127.0.0.1:10819` | 自建 VPS | Docker 容器 `xray-client`，配置 `~/docker/xray-client/`（compose.yaml + config.json） | `/life/2026/08/05/vmess-vless-docker-nginx-benchmark/` |
+| mihomo（PandaFan 付费机场） | `127.0.0.1:7891` | `127.0.0.1:7890` | 机场节点 | systemd 用户服务 `mihomo.service`（已 enable-linger），配置 `~/.config/mihomo/` | `/life/2026/08/07/pandafan-mihomo-raspberry-pi-proxy/` |
+
+注意：
+
+- 在树莓派上下载境外资源慢时，优先用 `export https_proxy=http://127.0.0.1:10809 http_proxy=http://127.0.0.1:10809` 走自建代理加速。
+- mihomo 是 Rule 分流模式，验证代理连通性要用 `https://www.google.com` 这类明确走代理的站点；被规则判定为直连的站点（如 `api.ipify.org`）不能用来测试。
+- mihomo 维护：`systemctl --user status|restart mihomo`、`journalctl --user -u mihomo -f`；更新方式是重跑官方安装脚本后 restart。改完配置必须以端口监听（`ss -tlnp`）加实际请求验证为准，不能只看 `active (running)`。
+- PandaFan 订阅配置链接含账号凭证，不要写入公开文章或对外输出。
