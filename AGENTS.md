@@ -159,7 +159,7 @@ TOC 固定使用：
 - 不要大段纯文本平铺；对关键概念、核心结论、易错点适当加粗，对代码/SQL 关键字用行内代码，保持整篇强调风格一致。
 - 引用外部资料时使用 Markdown 内联链接，嵌入有意义文字中；不要贴裸 URL。
 - 流程、层级、时序、继承、架构布局、状态流转等结构优先用 Mermaid 图表达；不要默认所有内容都画成 `flowchart`，应按表达目的选择更合适的图形形态，以加深读者的形象化理解。站点固定暗色模式，浅色节点文字一般由 `assets/js/custom-mermaid.js` 自动处理，通常无需手动指定 `color`。
-- Mermaid 图形选型建议：流程/依赖/映射用 `flowchart`；调用链用 `sequenceDiagram`；状态机用 `stateDiagram-v2`；类或接口关系用 `classDiagram`；数据实体关系用 `erDiagram`；系统架构、模块分层、内存/缓存块布局可优先尝试 `block-beta` 或带 `subgraph` 的 `flowchart`；时间演化用 `timeline` 或 `gantt`；知识树用 `mindmap`；简单占比用 `pie`；二维取舍用 `quadrantChart`。
+- Mermaid 图形选型建议：流程/依赖/映射用 `flowchart`；调用链用 `sequenceDiagram`；状态机用 `stateDiagram-v2`；类或接口关系用 `classDiagram`；数据实体关系用 `erDiagram`；网络数据包/协议头/字节字段结构用 `packet-beta`（按比特位画包结构，替代 ASCII 包图）；系统架构、模块分层、内存/缓存块布局可优先尝试 `block-beta` 或带 `subgraph` 的 `flowchart`；时间演化用 `timeline` 或 `gantt`；知识树用 `mindmap`；简单占比用 `pie`；二维取舍用 `quadrantChart`。画图前先想表达目的，主动查 Mermaid 的图型列表选最贴切的一种（包括 `packet-beta`、`block-beta` 这类较新的图型），不要习惯性全画成 flowchart 或退化为 ASCII 图。注意 `packet-beta` 等具体图型也要放在 ```mermaid 围栏里（图型写在内容首行），主题才会把它交给 Mermaid 渲染。
 - 同一概念如果有多个理解视角，可以保留多张互补图：例如先用 `flowchart` 讲依赖和映射，再用 `block-beta` 讲结构布局。但每张图都必须承担不同解释任务，避免重复装饰。
 - 函数、公式或参数变化优先画图辅助：单变量函数画曲线标关键点；向量到分布画概率分布/热力图；参数影响画多组对比。图放在对应概念第一次深入解释的位置。
 - 数学公式用 LaTeX，先直觉解释再给出公式，并定义关键符号与维度。
