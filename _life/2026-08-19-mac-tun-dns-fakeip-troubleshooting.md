@@ -1,9 +1,9 @@
 ---
-title: "Mac 代理时好时坏：TUN、DNS 污染与 fake-ip 的连环坑"
+title: "Mac 代理时好时坏：从 TUN、DNS 与 fake-ip 到 ChatGPT 定向代理"
 date: 2026-08-19 01:49:34 +0800
 categories: [life, proxy, network]
-tags: [proxy, tun, dns, fake-ip, mihomo, macos]
-description: "代理客户端同时开着端口模式和 TUN 模式，网站却时通时断，断开节点后甚至全网瘫痪。逐层排查后发现，真正的元凶依次是 DNS 污染、配置自引用死循环、fake-ip 缓存残留和公司安全软件的出站防火墙拦截。"
+tags: [proxy, tun, dns, fake-ip, mihomo, macos, vpn, chatgpt]
+description: "一次 Mac 代理故障复盘：区分端口代理、TUN、macOS scoped DNS、fake-ip 状态与 pf 重定向，并用 PandaFan 端口模式、公司 VPN 分流和干净的 ChatGPT 启动器收口。"
 layout: post
 mermaid: true
 ---
@@ -11,177 +11,350 @@ mermaid: true
 1. Table of Contents, ordered
 {:toc}
 
-晚上打开 YouTube，代理客户端明明在运行，页面却一直转圈；断开节点重连想测个速，结果连百度都打不开了。这类"代理玄学"在 Mac 上反复出现，重启软件、重启电脑都只能暂时缓解。
+晚上打开 YouTube，代理客户端明明在运行，页面却一直转圈；断开节点重连想测个速，结果连百度都打不开了。更奇怪的是，Google 和 YouTube 恢复后，ChatGPT 与 Gemini 仍然超时，而同一台机器上的 Codex 偶尔要重试很久才开始输出。
 
-这次把整条链路拆到数据包级别排查了一遍，发现"时好时坏"不是一个问题，而是**四层机制各自埋了一个坑，症状随机叠加**。这篇文章按排查的认知顺序把四层坑讲清楚：先理解一个请求在 Mac 上到底走哪条路，再看每一层为什么会断，最后收拢成一套互不冲突的稳态用法。
+这些现象不是一个开关造成的。端口代理、TUN、系统 DNS、fake-ip、macOS `pf` 和公司 VPN 分处不同层级，同一种“打不开”可能来自完全不同的链路。
 
-## 一个请求在 Mac 上走哪条路
+这次排查也留下了一个比结论本身更重要的教训：**恢复现象不等于唯一归因已经成立**。文中把证据分成三类：
 
-要定位"代理开了却不通"，得先知道代理客户端（Clash/mihomo 系，比如 PandaFan、Clash Verge）通常同时提供两种接管方式，它们的差别不在速度，而在**域名在哪里被解析**。
+- **已验证事实**：能通过配置前后对照、进程连接或重复实验直接确认；
+- **高相关推断**：时间和行为高度吻合，但缺少完整日志证明内部机制；
+- **待验证解释**：能够解释现象，却不是唯一可能。
 
-### 端口模式：把域名交给代理
+最终目标不是继续给 TUN 打补丁，而是把流量拆成两条稳定路径：外网应用显式交给 PandaFan 端口代理，公司内网交给 VPN 的分流隧道。
 
-系统代理（HTTP/SOCKS 端口，比如 `127.0.0.1:10080`）是最常见的方式。应用遵守系统代理设置，把**域名本身**发给本地代理端口，代理由核心在远端完成解析和连接。
+## 先把三条流量路径拆开
 
-这条路上，本机的 DNS 污染完全构不成威胁——应用根本没有在本地解析域名。
+定位代理故障的第一步不是换节点，而是确认应用把请求交给了谁。端口代理、PandaFan TUN 和公司 VPN TUN 虽然都叫“代理”或“隧道”，接管位置并不相同。
 
-### TUN 模式：劫持路由表，但解析仍在本地
+### 端口代理把域名交给本地代理
 
-TUN 模式创建一张虚拟网卡（utun），并通过一套精巧的路由表切分（`1/2`、`2/7`……`128.0/1` 这种覆盖全部 IPv4 空间却不触碰默认路由的写法）接管整机流量，包括那些不认系统代理的应用。
+HTTP/SOCKS 端口模式要求应用主动连接本地端口，例如 `127.0.0.1:10080`。以 Chromium 的 HTTP 代理实现为例，HTTP、HTTPS、WebSocket 请求的目标域名由代理侧解析，而不是先由浏览器调用系统 DNS；HTTPS 通过 `CONNECT` 建立隧道，TLS 仍然是端到端的。[Chromium 的代理实现文档](https://chromium.googlesource.com/chromium/src/+/main/net/docs/proxy.md)明确说明了这条解析路径。
 
-但 TUN 有一个结构性前提：**应用会先用系统 DNS 把域名解析成 IP，再发包**。TUN 拿到的是"到某个 IP 的包"，域名信息只存在于 DNS 查询那一瞬。
+因此，只要应用确实使用这个 HTTP 代理，目标站点的污染 DNS 答案通常不会进入应用连接链路。这里的限定词很重要：**只有遵守代理配置的网络栈才成立**，后台助手、更新器和应用自行拉起的原生进程未必自动继承。
+
+### PandaFan TUN 接管的是系统发出的 IP 包
+
+TUN 模式创建 `utun` 虚拟网卡，并通过路由接管原本要发往外部地址的数据包。为了保留域名规则，mihomo 通常再配合 DNS 劫持和 fake-ip：DNS 模块先返回 `198.18.0.0/16` 中的保留地址，TUN 收到数据包后根据映射表还原域名。
+
+这条路比端口代理覆盖得广，却同时依赖四个环节：
+
+1. 系统 DNS 请求进入 mihomo；
+2. 系统缓存与 mihomo 映射一致；
+3. fake-ip 数据包能到达 TUN；
+4. TUN 之前没有更早的过滤或重定向。
+
+任何一环断掉，表面症状都只是“网站超时”。
+
+### 公司 VPN 通常只应接管公司网段
+
+公司 VPN 也是 TUN，但理想状态是 split tunnel：只安装公司 CIDR 和内部 DNS 的路由，不接管互联网默认路由。这样它与 PandaFan 端口模式可以并存，因为两者看到的目的地不同。
 
 ```mermaid
 flowchart LR
-    subgraph 端口模式
-        A1[应用] -->|“帮我连 chatgpt.com”| B1[本地代理端口]
-        B1 --> C1[代理解析并连接]
-    end
-    subgraph TUN模式
-        A2[应用] -->|① 先问系统 DNS| D2[DNS 解析]
-        D2 -->|② 得到 IP| E2[发包到 IP]
-        E2 -->|③ 路由表劫持| F2[utun 虚拟网卡]
-    end
+    A[ChatGPT / 外网浏览器] --> B[127.0.0.1:10080]
+    B --> C[PandaFan 规则]
+    C -->|PROXY| D[代理节点]
+    D --> E[公网服务]
+
+    F[公司应用 / 内网页面] --> G{公司域名或网段}
+    G -->|DIRECT| H[系统路由]
+    H --> I[公司 VPN utun]
+    I --> J[公司内网]
 ```
 
-于是问题来了：如果第 ① 步的 DNS 解析被污染，第 ② 步拿到的就是假 IP，TUN 接管得再彻底也只是把包发往一个错的地址。
+这张图同时揭示一个容易漏掉的条件：如果浏览器把公司域名也交给 PandaFan，PandaFan 必须将它判为 `DIRECT`，并让内部域名使用 VPN 的 scoped DNS；否则请求会被送到远端代理，系统的公司网段路由根本看不到原目标。
 
-## TUN 的盲区：macOS 的系统解析器不走隧道
+## DNS 与本地状态为什么制造“随机故障”
 
-按直觉，TUN 配置里写了 `dns-hijack: any:53`，所有 DNS 查询都应该被劫持到代理核心处理。实测却会发现一个矛盾现象：
+三条路径分清后，前半夜出现的故障可以归到两个局部问题：macOS 实际采用了哪套 DNS，以及本地 DNS 状态是否仍与 mihomo 一致。
 
-- 用 `nslookup` 直接查询被封锁域名，返回 `198.18.x.x`——这是代理核心的 fake-ip，说明 DNS 劫持生效了；
-- 用 `dscacheutil`（走 macOS 系统解析器 mDNSResponder）查同一个域名，返回的却是 `104.244.42.197` 这类**明显被 GFW 污染的假答案**（通常是 Twitter、Facebook 的 IP，外加 `2001::1` 这种假 IPv6）。
+### 同一域名出现了两套答案
 
-同一个域名，两条解析路径，两个答案。原因是：**mDNSResponder 发出 DNS 查询时会绑定物理网卡（interface-scoped socket），绕过路由表的 utun 指向**，TUN 的 DNS 劫持根本看不到这些查询。而 `nslookup` 不绑网卡，包按路由表进了 TUN，反而被正常劫持。
+当时的对照实验是：
 
-更麻烦的是，清 DNS 缓存没有用——`dscacheutil -flushcache` 清掉旧答案后，下一次查询依然是裸奔到运营商 DNS、依然被实时污染。**污染不是缓存里的残留，而是每次查询时现场发生的。**
+- `nslookup` 返回 `198.18.x.x`，说明查询进入了 mihomo fake-ip DNS；
+- `dscacheutil` 返回疑似污染的公网 IPv4 和异常 IPv6，说明 macOS 系统解析路径选中了另一套 resolver。
 
-这就是 TUN 模式下"浏览器直连打不开 YouTube"的根源：系统解析返回污染 IP，其中假 IPv6 地址还恰好不在 TUN 的 IPv6 接管范围内，连接直接黑洞。
+清缓存后错误答案立刻重新出现，证明它不是单纯残留在系统缓存里，而是下一次查询仍走了不合适的上游。
 
-## fake-ip：代理核心的应对机制
+原始判断把它概括成“mDNSResponder 天生绑定物理网卡，所以 TUN 永远劫持不到”，这个说法过满。macOS 支持按接口、域名和 VPN 配置选择 **scoped DNS**；具体查询走哪套 resolver，取决于当时的网络服务顺序、VPN DNS、路由和代理客户端实现。[Apple 关于 scoped DNS 的说明](https://developer.apple.com/forums/thread/742655)也强调了这种按作用域选择的能力。
 
-mihomo 系核心的标准解法叫 fake-ip：核心的 DNS 模块对代理域名一律返回 `198.18.0.0/16` 里的假 IP。应用拿到假 IP 后发包，包被 TUN 捕获，核心**查表把假 IP 还原成域名**，再按分流规则决定走节点还是直连。
-
-这套机制把"解析"和"连接"解耦了：本地解析永远返回安全的假 IP，真正的解析推迟到核心或远端进行，DNS 污染无从下手。
-
-但它成立的前提是**应用的 DNS 查询必须经过核心**。既然 mDNSResponder 绕过 TUN，唯一的彻底办法是把系统 DNS 直接指到核心在本地监听的 DNS 服务（`127.0.0.1`），让查询根本不离开本机：
+因此，更准确的结论是：**这台机器当时的系统 resolver 没有进入预期的 mihomo DNS 路径**，而不是所有 macOS TUN 都存在同一个结构性盲区。排查时应先看：
 
 ```bash
-# 把 Wi-Fi 的 DNS 指向代理核心的本地 DNS 服务
-sudo networksetup -setdnsservers Wi-Fi 127.0.0.1
-# 清掉系统 DNS 缓存里的污染答案
-sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+scutil --dns
+route -n get 1.1.1.1
 ```
 
-设完之后确实全通了。但接下来每次断开节点、切换节点甚至重启电脑，都会演变成**连百度都打不开的全网瘫痪**。
+### 把系统 DNS 指向本地核心会引入强耦合
 
-## 死循环：当代理核心开始“自己问自己”
+将 Wi-Fi DNS 改成 `127.0.0.1` 后，系统解析统一进入 mihomo，网络当场恢复：
 
-全网瘫痪的直觉解释是"本地 DNS 服务挂了"，但重启代理软件后它明明是健康的——`nslookup` 直接问 `127.0.0.1` 能拿到正确答案。真正的炸弹埋在核心配置里：
+```bash
+sudo networksetup -setdnsservers Wi-Fi 127.0.0.1
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
+但这相当于把整台机器的 DNS 生存期绑定给 PandaFan：核心停止、启动失败或配置未就绪时，连国内直连域名也无法解析。它适合定位问题，不适合作为这套机器的最终稳态。
+
+### `system` 自引用确实危险，但字段职责需要纠正
+
+当时配置包含：
 
 ```yaml
 dns:
   default-nameserver:
-    - system        # ← 问题在这里
+    - system
     - 119.29.29.29
     - 223.5.5.5
 ```
 
-`default-nameserver` 的用途之一，是解析**代理节点自己的域名**（比如 `jp1.example.net` 这类节点地址）。`system` 的意思是"去问系统 DNS"。
+系统 DNS 已经指向 `127.0.0.1`，mihomo 再调用 `system`，就可能把查询送回自己，形成递归依赖。删除 `system` 后，断开节点和重启后的恢复能力明显改善。
 
-当系统 DNS 被设为 `127.0.0.1` 后，这条链就闭合了：核心要连接节点 → 需要解析节点域名 → 按配置去问系统 DNS → 系统 DNS 是 `127.0.0.1`，也就是核心自己 → 核心此刻还没连上节点，无法完成解析 → 节点永远连不上。
+不过，`default-nameserver` 不能简单解释为“专门解析代理节点域名”。按当前 [mihomo DNS 官方文档](https://wiki.metacubex.one/config/dns/)：
 
-这个死循环有两个阴险的特性：
+- `default-nameserver` 用于解析 DNS 服务器地址中的域名，是 bootstrap resolver；
+- `proxy-server-nameserver` 才专门解析代理节点域名；
+- `nameserver` / `fallback` 承担普通域名查询。
 
-- **只在重新解析节点域名时触发。** 节点已连接时一切正常，所以刚设好 DNS 那一刻"能用"；一旦断连、换节点、重启，需要重新解析，立刻锁死。
-- **重启电脑无效。** 循环写在配置里，不是运行时状态，重启多少次都一样。
+所以这里已经证实的是“本地 DNS 与 `system` 形成了自引用风险，移除后恢复”，并没有日志证明每次锁死都恰好发生在解析代理节点域名。长期配置应使用明确的 IP bootstrap，并单独设置 `proxy-server-nameserver`。
 
-修法很简单：把 `system` 从配置里删掉，只保留写死的国内 DNS，让核心解析节点域名时永不自引用。这也解释了为什么"把 DNS 改回路由器下发就立刻恢复"——`system` 重新指向真实 DNS，循环解除。
+### 删除 fake-ip 缓存能恢复，但“毒缓存”不是完整解释
 
-## 残留：fake-ip 缓存里的死映射
+修正 DNS 自引用后，仍观察到一批已访问域名超时；完全停止核心、删除 `fakeip-v4.json`、清系统 DNS 缓存并重启后，这批请求恢复。
 
-修完死循环后，"时好时坏"以另一种形态继续：重启代理软件后，之前访问过的网站秒开，新网站全部超时。
+这能确认：
 
-这次的元凶是 `store-fake-ip: true`——核心把 fake-ip 映射持久化到 `fakeip-v4.json`，重启后从文件恢复。但恢复出来的映射处于一种半死状态：**DNS 模块照常回答这些旧映射，TUN 通路却不认它们**，连接发过去就是黑洞。
+- 故障与旧 fake-ip 状态有关；
+- 同时重建系统缓存和核心映射是一种有效恢复手段。
 
-于是出现了极具迷惑性的现象：YouTube 能开（它的映射碰巧被别的流量刷新过），Gemini 打不开（它的旧映射是死的）；清系统 DNS 缓存也没用，因为死的是核心里的映射，不是系统缓存。
+但它不能直接证明 `store-fake-ip: true` 会制造“重启后必死的映射”。这个选项的设计目的恰恰是持久化域名到 fake-ip 的对应关系，让下次启动继续使用。更谨慎的解释是：**当时可能存在系统仍缓存旧假 IP、核心映射未完整恢复、配置切换改变地址池，或特定版本恢复异常中的一种**。
 
-验证方法是用一个从未解析过的域名做对照：新域名分到新的 fake-ip，直连秒开——说明 TUN 和 fake-ip 机制本身完好，只有"重启前分配、重启后恢复"的那批映射是死的。修法是彻底停掉核心、删掉 `fakeip-v4.json`、再启动，让全部映射重新分配，同时清一次系统 DNS 缓存（里面也存着旧假 IP）。
+因此，这部分应记录为“已验证恢复动作，根因尚未唯一确定”，而不是推广成 fake-ip 持久化的通用缺陷。
 
-## 拦截：出站防火墙比 TUN 更靠前
+## 为什么最后只剩 ChatGPT 和 Gemini 超时
 
-到这里为止，YouTube、Google、百度都已畅通，但 ChatGPT 和 Gemini 依然超时，而且只在 TUN 直连路径上超时，走端口代理却正常。
+DNS 与 fake-ip 状态恢复后，YouTube、Google 和普通网站都已正常，ChatGPT 与 Gemini 却仍在 TUN 路径超时。这时故障边界已经从“整个代理”缩小到了“特定 fake-ip 的出站连接”。
 
-把连接过程逐跳观察后发现，发往这两个域名的包**从未到达代理核心**——它们在进入 utun 网卡之前就消失了。劫走它们的是 macOS 的 pf 防火墙里一组规则：
+### `pf` 重定向提供了直接证据
+
+当时在 macOS `pf` 中观察到类似规则：
 
 ```text
 rdr pass inet proto tcp to 198.18.0.5 port = 443 -> 127.0.0.1 port 34010
 pass out route-to (lo0 127.0.0.1) inet proto tcp to 198.18.0.5 port 443 ...
 ```
 
-这台是装了公司终端安全软件的办公机。这类软件通过 pf 在**出站路径**上插了一道关卡：匹配到特定 IP 的 443 流量，先用 `route-to` 强行改道到本机回环，再用 `rdr` 把目标重写到它自己的监听端口。数据包在"即将进入 TUN"之前就被截走了。
+它们会在数据包进入 TUN 前，把目标 443 流量改道到本机 `34010`。现场还出现了三个连续现象：
 
-```mermaid
-flowchart LR
-    A[应用发包] --> B{pf 出站规则}
-    B -->|在拦截名单的 IP| C[改道本机 34010 端口<br>被安全软件截获]
-    B -->|其他流量| D[路由表]
-    D --> E[utun 虚拟网卡]
-    E --> F[代理核心]
+1. 清除相关规则后，ChatGPT 与 Gemini 立即连通；
+2. 约几十秒后规则重新出现，两个站点再次超时；
+3. 机器上存在长期运行的 `/opt/didi/lca/bin/lcanetmon`，并由高权限账户拉起。
+
+这组对照足以支持“有常驻组件持续维护这些重定向规则”，也能解释为什么 TUN 没有收到数据包。但仅凭进程名和时间相关性，还不足以确认软件厂商、具体策略意图，或断言它就是有意封锁某两个产品。
+
+### 它如何把域名映射到 fake-ip 仍是推测
+
+原始排查提出了两种可能：
+
+- 监听系统 DNS 事件，记录域名到 fake-ip 的映射；
+- 从 TLS SNI 或其他终端网络元数据识别目标，再安装 IP 规则。
+
+两种机制都说得通，但目前没有该进程的策略日志或实现证据，不能写成既定事实。文章能确认的只有“规则命中了对应 fake-ip，并被某个常驻组件周期性恢复”。
+
+这类规则属于终端管控层。正确处置仍是确认公司策略，而不是写守护进程每隔几十秒清一次规则。即便应用代理技术上可以改变流量路径，也应在公司允许使用相关服务和代理的前提下部署。
+
+### HTTP 421 不是 API 健康证明
+
+排查过程中还曾用 `api.openai.com` 返回 `421` 作为“Codex API 已经连通”的证据。这个判断需要纠正。
+
+[RFC 9110](https://datatracker.ietf.org/doc/html/rfc9110#section-15.5.20) 对 `421 Misdirected Request` 的定义是：请求被送到了无法或不愿为目标 URI 提供权威响应的服务器。它可能说明 TLS/HTTP 链路收到过响应，却不能证明认证、目标路径、流式响应或 Codex 实际业务调用正常。
+
+最终验收应以真实 ChatGPT/Codex 请求和连接表为准，而不是把任意 HTTP 状态码解释成成功。
+
+## 最终收口：端口代理与 VPN 分流各管一层
+
+排查完成后，没有继续修补 PandaFan TUN，而是主动减少接管层级：
+
+- **PandaFan 只开端口代理**，不再开启 TUN；
+- **系统 DNS 保持 DHCP / VPN 下发**，PandaFan 退出时不会拖垮整机解析；
+- **浏览器继续使用 PandaFan 端口和规则分流**；
+- **ChatGPT 桌面版通过专用启动器显式使用 PandaFan**；
+- **公司 VPN 只接管公司网段和内部 DNS**。
+
+这套方案在家和公司分别形成清晰路径：
+
+| 场景 | ChatGPT / 公网 | 公司内网 |
+|---|---|---|
+| 家里，连接公司 VPN | ChatGPT → PandaFan 端口 → 代理节点 | 公司域名或网段 → `DIRECT` → VPN |
+| 公司，不连接 VPN | ChatGPT → PandaFan 端口 → 代理节点 | 公司网络原生访问 |
+
+它不是“完美无瑕”的自动分流，至少需要满足四个条件：
+
+1. 公司 VPN 是 split tunnel，没有安装 `0.0.0.0/0`、`::/0` 或强制 kill switch；
+2. 公司网段不与家庭局域网、PandaFan 代理节点路由冲突；
+3. 公司域名与网段在 PandaFan 中走 `DIRECT`，内部域名使用 VPN DNS；
+4. 公司允许在这台机器上使用 ChatGPT 和 PandaFan。
+
+只要这四条成立，PandaFan 不再创建 fake-ip TUN 路径，公司 VPN 也不需要处理公网代理流量，两套机制就不会再争夺同一层路由。
+
+## 给 ChatGPT 做一个干净、失败即停的启动器
+
+最终方案生效后又发现，ChatGPT 桌面版不只有一套网络栈：
+
+- 主界面的 Chromium 网络服务认识 `--proxy-server`；
+- 内嵌的 `codex app-server` 是独立原生进程，还需要标准代理环境变量兜底。
+
+第一次从另一个桌面 Agent 启动 ChatGPT 时，父进程的整套环境变量被一并传入，其中包括与 ChatGPT 无关的 API 凭据。虽然代理确实生效了，这种启动方式扩大了密钥暴露面。因此，最终脚本采用 `env -i` 从空环境启动，只白名单保留必要变量。
+
+脚本保存为 `~/bin/chatgpt-via-pandafan`：
+
+```zsh
+#!/bin/zsh
+
+set -euo pipefail
+
+readonly APP_PATH="/Applications/ChatGPT.app"
+readonly APP_EXEC="${APP_PATH}/Contents/MacOS/ChatGPT"
+readonly PROXY_HOST="127.0.0.1"
+readonly PROXY_PORT="10080"
+readonly PROXY_URL="http://${PROXY_HOST}:${PROXY_PORT}"
+readonly NO_PROXY_VALUE="localhost,127.0.0.1,::1"
+readonly CURRENT_USER="${USER:-$(/usr/bin/id -un)}"
+readonly CURRENT_HOME="${HOME:?HOME is required}"
+
+if [[ ! -x "$APP_EXEC" ]]; then
+  print -u2 "ChatGPT app not found: $APP_PATH"
+  exit 1
+fi
+
+# PandaFan 没启动时直接失败，不让 ChatGPT 回退到直连。
+if ! /usr/bin/nc -z -w 2 "$PROXY_HOST" "$PROXY_PORT" \
+  >/dev/null 2>&1; then
+  print -u2 "PandaFan proxy is unavailable at ${PROXY_HOST}:${PROXY_PORT}."
+  exit 2
+fi
+
+# 已运行的实例不会重新读取启动参数，因此必须先完全退出。
+if /bin/ps axww -o command= | /usr/bin/awk -v exe="$APP_EXEC" '
+  index($0, exe) == 1 { found = 1 }
+  END { exit(found ? 0 : 1) }
+'; then
+  print -u2 "ChatGPT is already running. Quit it, then retry."
+  exit 3
+fi
+
+typeset -a clean_env
+clean_env=(
+  -i
+  "HOME=$CURRENT_HOME"
+  "USER=$CURRENT_USER"
+  "LOGNAME=${LOGNAME:-$CURRENT_USER}"
+  "SHELL=/bin/zsh"
+  "PATH=$CURRENT_HOME/bin:$CURRENT_HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  "TMPDIR=${TMPDIR:-/tmp}"
+  "LANG=${LANG:-en_US.UTF-8}"
+  "HTTP_PROXY=$PROXY_URL"
+  "HTTPS_PROXY=$PROXY_URL"
+  "ALL_PROXY=$PROXY_URL"
+  "NO_PROXY=$NO_PROXY_VALUE"
+  "http_proxy=$PROXY_URL"
+  "https_proxy=$PROXY_URL"
+  "all_proxy=$PROXY_URL"
+  "no_proxy=$NO_PROXY_VALUE"
+)
+
+# Git 仍可使用当前 SSH Agent，但不继承其他父进程变量。
+if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
+  clean_env+=("SSH_AUTH_SOCK=$SSH_AUTH_SOCK")
+fi
+
+/usr/bin/nohup /usr/bin/env "${clean_env[@]}" \
+  "$APP_EXEC" "--proxy-server=$PROXY_URL" \
+  >/dev/null 2>&1 &
+
+readonly app_pid=$!
+disown "$app_pid" 2>/dev/null || true
+
+/bin/sleep 1
+if ! /bin/kill -0 "$app_pid" >/dev/null 2>&1; then
+  print -u2 "ChatGPT exited during startup."
+  exit 4
+fi
+
+print "ChatGPT started through PandaFan with PID $app_pid."
 ```
 
-这解释了一直以来的一个困惑：TUN 明明劫持了全部流量，为什么偏偏这几个域名的包进不了隧道——**pf 防火墙和 TUN 不在同一层，它更靠前**。
-
-### 它怎么知道哪个假 IP 是 ChatGPT
-
-安全软件并不需要认识 fake-ip，它用的是"记小本本"的方式：
-
-1. 盯着系统里的 DNS 解析事件，记下"域名 → IP"的对应关系。当代理核心的 DNS 回答"chatgpt.com 是 198.18.0.5"时，这条绑定就被它记录了；
-2. 给记录下来的 IP 安装 pf 重定向规则；
-3. 再不济，TLS 握手里的 SNI 字段本身就是明文域名，嗅探一下即可。
-
-这套"按 IP 定点"的机制碰上 fake-ip 的回收再分配，就会产生随机器式的误伤：某个无害网站分到了它盯过的假 IP，就莫名其妙地被劫走——这也是"时好时坏"的最后一层来源。
-
-需要注意的是，这类规则由安全软件的守护进程持续维护，手动清掉后几十秒内就会重建。它属于公司管控层面，正确的处理是找 IT 确认策略，而不是写脚本跟它对着清。
-
-## 收口：一套互不打架的稳态架构
-
-逐层拆完之后的最终形态，反而比一开始简单：
-
-- **PandaFan 只开端口代理**，系统代理全局生效。浏览器把域名交给代理远端解析，DNS 污染、fake-ip、出站拦截全部不沾边；
-- **不认系统代理的应用，启动时强制指定代理**。Chromium 系应用（含内嵌 Codex 的 ChatGPT 桌面版）加 `--proxy-server=http://127.0.0.1:10080` 启动参数即可，做一个带参数的启动器 App 双击使用；
-- **TUN 保持关闭**。它兜底的场景由上面的启动参数覆盖，开着反而引入 fake-ip 这一整层的复杂度；
-- **公司 VPN（AnyConnect）用自己的隧道接管内网网段**，与端口代理各走各的，互不冲突；
-- **DNS 交还 DHCP 下发**，家里、公司、VPN 切换全自动，不再有"代理一关全网断"的脆弱性。
-
-几条逃生通道留档：
+安装和启动：
 
 ```bash
-# 代理软件异常时，把 DNS 还原为路由器下发（保底）
+chmod 755 ~/bin/chatgpt-via-pandafan
+
+# 先用 Command+Q 完全退出 ChatGPT，再执行：
+~/bin/chatgpt-via-pandafan
+```
+
+这里同时设置大小写代理变量，是为了覆盖不同运行库的约定；`NO_PROXY` 保留本机回环地址，否则 Codex 的本地服务和工具可能被错误送进代理。Chromium 参数没有配置 `direct://` fallback，脚本又在启动前检查端口，因此 PandaFan 不可用时会尽早失败。
+
+### 用连接表验收，而不是凭“感觉变快”
+
+启动后先确认主进程带着参数：
+
+```bash
+ps axww -o pid=,ppid=,command= |
+  grep '/Applications/ChatGPT.app/' |
+  grep -v grep
+```
+
+再检查网络服务和 `codex app-server` 是否连接 PandaFan：
+
+```bash
+lsof -nP -iTCP@127.0.0.1:10080 |
+  grep -E 'ChatGPT|Codex|codex'
+```
+
+实际验收中，两类进程都出现了到 `127.0.0.1:10080` 的 `ESTABLISHED` 连接，随后真实 Codex 对话能够持续输出，之前长时间重试的现象消失。这个结果证明当前版本和当前业务路径已经使用代理，但不应扩大成“所有插件、更新器和用户命令 100% 永远走代理”。
+
+还有一条安全教训：不要直接把未经筛选的 `ps eww` 输出贴进日志或对话，它会展开目标进程的全部环境变量，可能连 API Key 一起打印。验证代理变量时只输出变量名或“是否存在”，不要输出值。
+
+## 边界、逃生通道与最终结论
+
+端口代理方案减少了 TUN、fake-ip 和系统 DNS 的耦合，但没有改变公司终端软件与网络策略的权限。若公司 VPN 改成全隧道、公司网段发生重叠，或终端组件开始直接过滤 PandaFan 进程与代理节点，仍需重新检查路由和策略。
+
+### 代理异常时先恢复系统 DNS
+
+这几条命令保留作逃生通道：
+
+```bash
+# DNS 恢复为 DHCP 下发
 sudo networksetup -setdnsservers Wi-Fi Empty
 
-# 清系统 DNS 缓存
-sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+# 清理系统 DNS 缓存
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
 
-# 查看 pf 里的可疑重定向规则
+# 查看当时涉及的 pf 重定向
 sudo pfctl -a http-forwarding -s nat
 ```
 
-## 番外：Gemini 的“不支持所在区域”是另一回事
+操作代理核心时不要让系统 DNS 长时间停留在 `127.0.0.1`；否则核心一停，浏览器、终端甚至远程排障连接都会一起失去域名解析。
 
-链路全通之后，Gemini 网页版仍提示“不支持你所在的区域”。这次和网络通路无关，而是 **GeoIP 数据库打架**：
+### Gemini 的地区判断属于另一层
 
-- 查询 ipinfo，机场节点的出口 IP 被判定为香港；
-- 查询 ip-api，同一个 IP 被判定为“中国北京，中国移动”；
-- 而访问 [Google 服务条款页](https://policies.google.com/terms) 看 Google 自己的判定——**China**。
+链路恢复后，Gemini 网页仍曾提示“不支持所在区域”。第三方数据库对同一出口 IP 给出了香港和中国大陆等不同结果，而 [Google 服务条款页](https://policies.google.com/terms)显示的地区与 Gemini 的行为一致。
 
-这家机场的出口 IP 段属于中国移动国际，在不同 GeoIP 数据库里注册信息不一致。Gemini 网页版自 2026 年 3 月起已对香港开放，但 Google 只信自己的数据库，它看到这些 IP 就是“大陆”，而大陆个人账号不在支持范围（仅 Workspace 账号可用）。香港、日本、美国节点测下来判定一致，说明是整个 IP 池的注册问题，换节点无解。
+这不是 DNS、TUN 或 pf 故障，而是目标服务依据自己的 GeoIP 与账号策略作出的地区判断。排查此类问题时，应优先采用目标服务自身的判定口径；更换同一机场 IP 池中的节点，也未必改变结果。
 
-这类问题的通用排查结论是：**检测出口 IP 归属时，要用目标服务自己的判定口径**。对 Google 系服务，`policies.google.com/terms` 页面显示的国家就是它的答案，比任何第三方 IP 库都准。
+### 这次真正稳定下来的是什么
 
-## 结尾
+最终稳定的不是一组更复杂的 TUN 参数，而是**减少重叠接管**：
 
-“代理时好时坏”拆开之后，没有一层是真正玄学的：系统解析器绕过 TUN 导致 DNS 污染，配置里的 `system` 自引用导致断连即瘫痪，fake-ip 持久化缓存导致重启后留死映射，公司安全软件的出站防火墙导致定点拦截。每一层单独看都合理，叠在一起就成了随机故障。
+- PandaFan 负责明确交给它的公网应用流量；
+- 公司 VPN 负责公司网段和内部 DNS；
+- macOS 系统 DNS 保持由当前网络环境管理；
+- ChatGPT 用干净启动器同时覆盖 Chromium 与 Codex 原生进程；
+- 观察事实、恢复动作和根因推断分开记录。
 
-排障上最有用的两个习惯：一是**把"解析"和"连接"拆开测**——`nslookup` 和 `dscacheutil` 各查一次，答案不一致就是 DNS 层的问题；二是**分清"谁在拦"**——路由表、虚拟网卡、pf 防火墙是三个不同的关卡，包消失在哪一层，就去哪一层找规则。
+“代理时好时坏”并不玄学，但也不能因为一次恢复就把每个内部机制都写成定论。先回答请求经过哪一层，再用前后对照锁定故障边界，最后只保留必要的接管组件，通常比继续叠加规则更可靠。
