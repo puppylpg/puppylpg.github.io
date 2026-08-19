@@ -1,6 +1,7 @@
 ---
 title: chirpy
 date: 2026-06-13 11:10:16 +0800
+description: "记录 Chirpy Mermaid 节点 label 被裁修复：webfont 未就绪时测宽偏小。"
 ---
 
 - [my issue](https://github.com/cotes2020/jekyll-theme-chirpy/issues?q=is%3Aissue+author%3A%40me+)

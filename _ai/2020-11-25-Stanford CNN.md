@@ -1,6 +1,7 @@
 ---
 title: Stanford CNN
 date: 2020-11-25 14:15:00 +0800
+description: "斯坦福 CNN 笔记：从边缘检测、卷积与 padding 理解 CNN 如何减参。"
 ---
 
 1. Table of Contents, ordered

@@ -1,6 +1,7 @@
 ---
 title: Andrew Ng Sequence Model
 date: 2020-12-01 14:58:00 +0800
+description: "吴恩达序列模型笔记：从 RNN 的参数共享与前向公式，理解循环神经网络如何处理序列数据。"
 ---
 
 1. Table of Contents, ordered

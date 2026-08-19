@@ -1,6 +1,7 @@
 ---
 title: Activation Function
 date: 2020-11-29 17:25:00 +0800
+description: "解释神经网络为什么需要激活函数：没有非线性变换，再多层线性叠加也等价于一个线性变换。"
 ---
 
 1. Table of Contents, ordered

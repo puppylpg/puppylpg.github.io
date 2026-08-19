@@ -1,6 +1,7 @@
 ---
 title: Google Machine Learning Crash Course
 date: 2019-02-22 17:55:00 +0800
+description: "谷歌机器学习速成课笔记：标签与特征、回归与分类、L2 损失、梯度下降等入门概念。"
 ---
 
 1. Table of Contents, ordered

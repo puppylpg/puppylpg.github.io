@@ -1,6 +1,7 @@
 ---
 title: Stanford ML
 date: 2020-10-20 20:44:00 +0800
+description: "吴恩达 Stanford 机器学习课程笔记：监督与无监督学习、线性回归、损失函数与梯度下降。"
 ---
 
 1. Table of Contents, ordered
