@@ -19,6 +19,7 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 | `archive-chat` | 将当前对话整理成结构化总结并发布为博客文章 |
 | `ai-trends-report` | 抓取最新 AI Trends 动态图表，逐图解读并发布为博客文章 |
 | `summarize-article` | 将用户给的文章 URL 总结成博客文章 |
+| `blog-lint` | 全站健康体检：事实矛盾、过时结论、孤儿文章、枢纽页新鲜度、格式约定，输出体检报告 |
 
 使用这些 skill 时，先读取对应 `SKILL.md`，再按本文的文章发布通用流程执行预览、确认和发布。
 
@@ -44,6 +45,7 @@ Ruby 环境、本地开发完整流程以 `README.md` 为准。这里记录 agen
 | “发到 tech” / “发到 post” / “发到 _posts” | `_posts/` | `[tech]` |
 | “发到 life” / “发到生活” / VPS、树莓派、家庭网络、家庭影院、代理/V2Ray、Windows 排障、系统升级、网络加速等日常折腾 | `_life/` | `[life]` |
 | “发到 tutorial” / “发到 _tutorials” | `_tutorials/` | `[tutorial]` |
+| “更新 wiki” / 主题枢纽页、当前状态类活页面 | `_wiki/` | `[wiki]` |
 
 - 内容归属按文章主语判断，而不是按是否用到了某项技术判断。
 - `Tech` 放技术原理、框架机制和可复用工程知识，例如 Java、Spring、Redis、Elasticsearch、Docker Engine、Docker network/storage、Linux/网络/SSH 原理、AI 推理机制等。
@@ -167,11 +169,20 @@ TOC 固定使用：
 
 ## Collections 关键约束
 
-`_config.yml` 定义了 6 个自定义集合：`ai`、`open`、`books`、`life`、`viewed`、`tutorials`。
+`_config.yml` 定义了 7 个自定义集合：`ai`、`open`、`books`、`life`、`viewed`、`tutorials`、`wiki`。
 
 - `_tabs/<name>.md` 的 basename 必须和 collection label 一致。自定义列表 layout 会拿 tab 文件名和 `collection.label` 比较；只改一边会导致页面静默变空。
-- 除 `open` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
-- `open` 使用 `/:collection/:title/`。
+- 除 `open` 和 `wiki` 外，所有自定义集合 permalink 都是 `/:collection/:year/:month/:day/:title/`。
+- `open` 和 `wiki` 使用 `/:collection/:title/`。
+
+### Wiki 集合约定
+
+`_wiki/` 是“活页面”集合，思想来源是 Karpathy 的 LLM Wiki 模式（见 `_ai/2026-08-24-karpathy-llm-wiki-knowledge-base.md`）：
+
+- 文章（`_life/`、`_ai/` 等）记录“当时发生了什么”，wiki 页记录“当前状态”；两者互相链接，各司其职。
+- wiki 页不写日期型 slug，一个主题一页（如 `_wiki/raspberry-pi.md`），随现实变化持续更新；`date` 只在创建时写一次。
+- 新文章发布时，如果属于某个 wiki 主题，必须同步更新对应枢纽页（加入链接和一句话定位）；事实性信息变更时，枢纽页与 `AGENTS.md` 保持一致。
+- wiki 页默认 `comments: false`（见 `_config.yml` defaults scope）。
 
 ## 本地覆盖 gem 主题的文件
 

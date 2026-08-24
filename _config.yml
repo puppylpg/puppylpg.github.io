@@ -156,6 +156,9 @@ collections:
   tutorials:
     output: true
     permalink: /:collection/:year/:month/:day/:title/
+  wiki:
+    output: true
+    permalink: /:collection/:title/
 
 defaults:
   - scope:
@@ -238,6 +241,13 @@ defaults:
       toc: true
       math: true
       mermaid: true
+  - scope:
+      path: _wiki
+      type: wiki
+    values:
+      layout: post
+      comments: false
+      toc: true
 
 sass:
   style: compressed
