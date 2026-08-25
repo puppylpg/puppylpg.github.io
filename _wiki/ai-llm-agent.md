@@ -12,7 +12,7 @@ description: "AI 主题文章的活索引：按知识线而不是时间线组织
 
 - [LLM工作原理](/ai/2025/07/29/LLM%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/) — 入门主线
 - [GPT 参数量的故事](/ai/2026/08/04/gpt-parameter-count/) — 规模演化
-- 早期课程笔记：[机器学习概念](/ai/2019/08/12/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E6%A6%82%E5%BF%B5/)、[Stanford ML](/ai/2020/10/20/Stanford-ML/)、[Stanford CNN](/ai/2020/11/25/Stanford%20CNN/)、[Activation Function](/ai/2020/11/29/Activation-Function/)、[Sequence Model](/ai/2020/12/01/Andrew-Ng-Sequence-Model/)
+- 早期课程笔记：[机器学习概念](/ai/2019/08/12/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E6%A6%82%E5%BF%B5/)、[Stanford ML](/ai/2020/10/20/Stanford-ML/)、[Stanford CNN](/ai/2020/11/25/Stanford-CNN/)、[Activation Function](/ai/2020/11/29/Activation-Function/)、[Sequence Model](/ai/2020/12/01/Andrew-Ng-Sequence-Model/)
 
 ## 知识线二：RAG 与检索
 
