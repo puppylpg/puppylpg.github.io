@@ -7,3 +7,7 @@
 {% if page.layout == 'tags' %}
   <script defer src="{{ '/assets/js/tag-sphere.js' | relative_url }}"></script>
 {% endif %}
+{% if page.path contains '_wiki/' %}
+  <!-- wiki 集合：信息卡、开放问题卡片等 wiki 形态样式 -->
+  <link rel="stylesheet" href="{{ '/assets/css/wiki.css' | relative_url }}">
+{% endif %}

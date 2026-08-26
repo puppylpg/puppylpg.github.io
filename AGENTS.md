@@ -161,7 +161,7 @@ TOC 固定使用：
 - 不要大段纯文本平铺；对关键概念、核心结论、易错点适当加粗，对代码/SQL 关键字用行内代码，保持整篇强调风格一致。
 - 引用外部资料时使用 Markdown 内联链接，嵌入有意义文字中；不要贴裸 URL。
 - 流程、层级、时序、继承、架构布局、状态流转等结构优先用 Mermaid 图表达；不要默认所有内容都画成 `flowchart`，应按表达目的选择更合适的图形形态，以加深读者的形象化理解。站点固定暗色模式，浅色节点文字一般由 `assets/js/custom-mermaid.js` 自动处理，通常无需手动指定 `color`。
-- Mermaid 图形选型建议：流程/依赖/映射用 `flowchart`；调用链用 `sequenceDiagram`；状态机用 `stateDiagram-v2`；类或接口关系用 `classDiagram`；数据实体关系用 `erDiagram`；网络数据包/协议头/字节字段结构用 `packet-beta`（按比特位画包结构，替代 ASCII 包图）；系统架构、模块分层、内存/缓存块布局可优先尝试 `block-beta` 或带 `subgraph` 的 `flowchart`；时间演化用 `timeline` 或 `gantt`；知识树用 `mindmap`；简单占比用 `pie`；二维取舍用 `quadrantChart`。画图前先想表达目的，主动查 Mermaid 的图型列表选最贴切的一种（包括 `packet-beta`、`block-beta` 这类较新的图型），不要习惯性全画成 flowchart 或退化为 ASCII 图。注意 `packet-beta` 等具体图型也要放在 ```mermaid 围栏里（图型写在内容首行），主题才会把它交给 Mermaid 渲染。
+- Mermaid 图形选型建议：流程/依赖/映射用 `flowchart`；调用链用 `sequenceDiagram`；状态机用 `stateDiagram-v2`；类或接口关系用 `classDiagram`；数据实体关系用 `erDiagram`；网络数据包/协议头/字节字段结构用 `packet-beta`（按比特位画包结构，替代 ASCII 包图）；系统架构、模块分层、内存/缓存块布局可优先尝试 `block-beta` 或带 `subgraph` 的 `flowchart`；时间演化用 `timeline` 或 `gantt`；知识树用 `mindmap`；简单占比用 `pie`；二维取舍用 `quadrantChart`。画图前先想表达目的，主动查 Mermaid 的图型列表选最贴切的一种（包括 `packet-beta`、`block-beta` 这类较新的图型），不要习惯性全画成 flowchart 或退化为 ASCII 图。注意 `packet-beta` 等具体图型也要放在 ```mermaid 围栏里（图型写在内容首行），主题才会把它交给 Mermaid 渲染。`quadrantChart` 的轴标签、象限名、点名含中文时必须整体加英文双引号（如 `x-axis "架构侵入低" --> "架构侵入高"`、`"A · VMess 老方案": [0.15, 0.3]`），不加引号会直接抛 Syntax error；`xychart-beta`、`timeline` 的中文可以不加引号。
 - 同一概念如果有多个理解视角，可以保留多张互补图：例如先用 `flowchart` 讲依赖和映射，再用 `block-beta` 讲结构布局。但每张图都必须承担不同解释任务，避免重复装饰。
 - 函数、公式或参数变化优先画图辅助：单变量函数画曲线标关键点；向量到分布画概率分布/热力图；参数影响画多组对比。图放在对应概念第一次深入解释的位置。
 - 数学公式用 LaTeX，先直觉解释再给出公式，并定义关键符号与维度。
@@ -179,10 +179,17 @@ TOC 固定使用：
 
 `_wiki/` 是“活页面”集合，思想来源是 Karpathy 的 LLM Wiki 模式（见 `_ai/2026-08-24-karpathy-llm-wiki-knowledge-base.md`）：
 
-- 文章（`_life/`、`_ai/` 等）记录“当时发生了什么”，wiki 页记录“当前状态”；两者互相链接，各司其职。
+- 文章（`_life/`、`_ai/` 等）记录“当时发生了什么”，wiki 页记录“当前状态”与“蒸馏结论”；两者互相链接，各司其职。wiki 页必须有原文任何一篇都没有的新知识（跨文章蒸馏、演化脉络、决策原则），纯链接聚合页等于重复 tags/归档的工作，禁止。
 - wiki 页不写日期型 slug，一个主题一页（如 `_wiki/raspberry-pi.md`），随现实变化持续更新；`date` 只在创建时写一次。
-- 新文章发布时，如果属于某个 wiki 主题，必须同步更新对应枢纽页（加入链接和一句话定位）；事实性信息变更时，枢纽页与 `AGENTS.md` 保持一致。
+- 新文章发布时，如果属于某个 wiki 主题，必须同步更新对应枢纽页；事实性信息变更时，枢纽页与 `AGENTS.md` 保持一致。
 - wiki 页默认 `comments: false`（见 `_config.yml` defaults scope）。
+
+形态规范（wiki 页不是线性长文，样板见 `_wiki/proxy-evolution.md`）：
+
+- 固定骨架：**信息卡 → 当前结论（含图）→ 演化脉络 → 决策原则 → 开放问题 → 维护约定**。
+- 右上角维基百科式信息卡用 `<div class="wiki-infobox">`（样式在 `assets/css/wiki.scss`，仅 wiki 页注入）；关键结论用 `.wiki-keypoint` 高亮条。
+- 开放问题用 `<div class="wiki-openq">` 卡片，带状态徽章：`wiki-openq-status--open`（未实施）、`--doing`（进行中）、`--done`（已解决，划线保留）。lint 时检查是否有新文章回答了 open 状态的问题。
+- 图型按表达目的选择：演化用 `timeline`、取舍用 `quadrantChart`、实测数据对比用 `xychart-beta`、架构用 `flowchart`/`block-beta`，不要全部退化为一张大 flowchart。
 
 ## 本地覆盖 gem 主题的文件
 
@@ -193,7 +200,7 @@ gem-based 主题机制：本地同路径文件优先于 gem 内文件。以下�
 | `_includes/update-list.html` | 原版只遍历 `site.posts`，覆盖后让右侧栏“最近更新”涵盖所有集合（ai、open、tutorials、books、life） |
 | `_layouts/home.html` | 首页合并所有集合按日期倒序展示，而非仅 `_posts` |
 | `_includes/js-selector.html` | 在原版基础上追加加载 `assets/js/custom-toc.js`；mermaid 页面追加 `assets/js/custom-mermaid.js`（等 webfont 加载完成后再渲染避免文字被裁，并自动给浅色填充节点换深色文字） |
-| `_includes/metadata-hook.html` | 原版是空占位符（官方自定义入口），覆盖后注入 `custom.css`、赛博皮肤 `cyber-skin.css`、星空背景 `starfield.js`、3D 纵深交互 `cyber-depth.js`，tags 页另注入 `tag-sphere.js` |
+| `_includes/metadata-hook.html` | 原版是空占位符（官方自定义入口），覆盖后注入 `custom.css`、赛博皮肤 `cyber-skin.css`、星空背景 `starfield.js`、3D 纵深交互 `cyber-depth.js`，tags 页另注入 `tag-sphere.js`，wiki 页另注入 `wiki.css`（信息卡/开放问题卡片样式） |
 | `assets/404.html` | 原版只有一句话，覆盖为“迷失太空”主题 404（故障风数字 + 漂浮宇航员 + 回首页/去 3D 世界按钮） |
 
 任何时候新增或删除对 gem 主题的覆盖文件，必须同步更新此表。每个覆盖文件都是升级主题时的手动合并债务。

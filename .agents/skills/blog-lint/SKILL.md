@@ -43,6 +43,8 @@ description: "对博客全站做健康体检（lint）时使用。检查文章�
   - AI 主题：`_ai/` 新文章 vs `_wiki/ai-llm-agent.md` 的知识线；
   - 博客主题：`_tutorials/` 中 Jekyll/Chirpy 相关文章 vs `_wiki/blog-chirpy-jekyll.md`。
 - 新增集合、主题覆盖文件、发布流程变化时，检查 `_wiki/blog-chirpy-jekyll.md` 和 `AGENTS.md` 是否同步。
+- **开放问题跟进**：wiki 页里 `wiki-openq-status--open` 状态的问题，检查近期新文章是否已经回答；已回答的把结论编回 wiki 页正文，问题徽章改为 `--done`。
+- **枢纽页链接有效性**：wiki 页手写的内链必须与目标文件的真实 slug 一致（曾发生 `Stanford%20CNN` vs `Stanford-CNN` 导致 CI htmlproofer 失败）；本地 `bundle exec jekyll build` 后用 htmlproofer 或 grep `_site` 抽查。
 
 ### 4. 孤儿文章与缺失交叉引用
 
