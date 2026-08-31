@@ -3,8 +3,8 @@ layout: post
 title: "Memos 0.30 自托管：Docker 升级、SQLite 备份与 MCP 调用链"
 date: 2026-09-01 00:27:07 +0800
 categories: [life, vps, docker, memos]
-tags: [memos, docker, sqlite, backup, api, mcp, self-hosted]
-description: "从一次 Memos 0.29.1 到 0.30.0 的 Docker 升级出发，梳理 SQLite 数据卷与备份方式，并结合源码解释 REST API、MCP 工具生成及客户端调用时序。"
+tags: [memos, docker, sqlite, backup, api, mcp, pat, security, self-hosted]
+description: "从一次 Memos 0.29.1 到 0.30.0 的 Docker 升级出发，梳理 SQLite 备份、REST API 与 MCP 调用链，以及 Codex 使用 PAT 和环境变量时的权限边界。"
 mermaid: true
 ---
 
@@ -229,7 +229,9 @@ flowchart LR
 
 客户端调用 `memo_list_memos` 后，[`adapter.go`](https://github.com/usememos/memos/blob/v0.30.0/server/router/mcp/adapter.go) 会把 arguments 分解成 path 参数、query 参数和 JSON body，构造对应的 `/api/v1/...` HTTP 请求，并原样转发 `Authorization` header。
 
-这条请求没有从 VPS 发到公网域名再绕回来。Adapter 使用同一个 Echo server 的 `ServeHTTP` 在进程内派发请求，因此 API 原有的路由、认证、授权、错误处理和 service/store 逻辑都会照常执行。成功的 API JSON 被包装成 MCP `structuredContent`；非 `2xx` 响应则被转换为 `isError: true` 的工具结果，让模型能够看到错误并调整下一步。
+这条请求虽然有完整的 method、path、query、header、body 和 HTTP response，却没有从 VPS 发到公网域名再绕回来。源码中的具体动作是：`httptest.NewRequest` 在内存里创建请求，`httptest.NewRecorder` 接收响应，再由同一个 Echo 实例的 `ServeHTTP` 把请求直接派发给 `/api/v1` 路由。整个过程不经过 DNS、TCP、TLS 或 nginx，但 API 原有的路由、认证、授权、参数校验、错误处理和 service/store 逻辑都会照常执行。成功的 API JSON 被包装成 MCP `structuredContent`；非 `2xx` 响应则被转换为 `isError: true` 的工具结果，让模型能够看到错误并调整下一步。
+
+同进程内当然也可以直接调用 Go 函数，但那会要求 MCP handler 自己决定应该跳过哪些 HTTP middleware、怎样注入当前用户、如何复用 REST 参数校验，以及如何把 service error 重新映射为 HTTP/MCP error。Memos 选择“**保持 HTTP 形状，但省掉网络传输**”，就能让 Web、普通 API 客户端和 MCP 走过同一套认证与业务边界。代价是多一次内存中的 JSON 编解码和路由派发，收益则是不用维护第二套容易漂移的业务入口；对个人知识库这类调用频率，这个开销通常远小于一次模型推理和公网往返。
 
 因此，“MCP 可以独立承接请求”要分两层理解：`/mcp` 可以作为独立的网络入口接收 MCP 协议请求；但生成出来的 Tool 只是 schema、operation 映射和通用 handler，并没有复制 memo 的 CRUD 业务逻辑。Memos MCP 仍依赖同一进程中的 `/api/v1` 路由、认证、service、store 和 SQLite，不能把 OpenAPI 用完后就脱离 API 单独提供等价服务。
 
@@ -245,20 +247,41 @@ MCP 标准规定的是服务器向客户端暴露 `tools/list`、响应 `tools/c
 
 MCP 把 REST 操作改写成模型理解的工具，但工具不会凭空执行。一次完整调用同时涉及用户、AI Host、Host 内的 MCP Client、Memos MCP handler、API 路由和数据库。
 
-调用的起点是 Host 中的一条 MCP server 配置。当前实例处于 private mode，因此客户端连接 `/mcp` 时要随请求携带单独创建的 PAT：
+调用的起点是 Host 中的一条 MCP server 配置。当前实例处于 private mode，因此 Codex 连接 `/mcp` 时要随请求携带单独创建的 PAT。PAT 的值不直接写进配置，而是让 Codex 从本机环境变量读取。当前的完整配置如下：
 
-```json
-{
-  "mcpServers": {
-    "memos": {
-      "type": "http",
-      "url": "https://memos.puppylpg.top/mcp",
-      "headers": {
-        "Authorization": "Bearer memos_pat_xxx"
-      }
-    }
-  }
-}
+```toml
+# ~/.codex/config.toml
+[mcp_servers.memos]
+url = "https://memos.puppylpg.top/mcp"
+bearer_token_env_var = "MEMOS_MCP_PAT"
+enabled = true
+default_tools_approval_mode = "writes"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+enabled_tools = [
+  "auth_get_current_user",
+  "memo_list_memos",
+  "memo_get_memo",
+  "memo_list_memo_comments",
+  "memo_list_memo_attachments",
+  "memo_list_memo_reactions",
+  "memo_list_memo_relations",
+  "attachment_list_attachments",
+  "attachment_get_attachment",
+  "shortcut_list_shortcuts",
+  "memo_create_memo",
+  "memo_update_memo",
+  "memo_create_memo_comment",
+  "memo_set_memo_attachments",
+  "memo_upsert_memo_reaction",
+  "memo_set_memo_relations",
+  "attachment_create_attachment",
+]
+disabled_tools = [
+  "memo_delete_memo",
+  "memo_delete_memo_reaction",
+  "attachment_delete_attachment",
+]
 ```
 
 ```mermaid
@@ -273,7 +296,9 @@ sequenceDiagram
     participant R as Echo /api/v1
     participant D as SQLite
 
-    Note over H,C: Host 保存 MCP URL 与独立 PAT
+    Note over H,C: Codex Host / session 启动或重连<br/>读取配置与已导出的环境变量
+    H->>C: 为已启用的 Memos server 创建客户端
+    Note over C,M: Streamable HTTP 请求携带<br/>Authorization: Bearer PAT
     C->>M: POST /mcp · initialize<br/>协议版本、clientInfo、capabilities
     M-->>C: serverInfo、tools capability
     C->>M: notifications/initialized
@@ -288,11 +313,11 @@ sequenceDiagram
     C->>M: POST /mcp · tools/call<br/>Authorization: Bearer PAT
     M->>M: Origin 检查、解析参数、JSON Schema 校验
     M->>A: operation 映射与 arguments
-    A->>R: 进程内 GET /api/v1/memos?...<br/>转发 Authorization
+    A->>R: httptest.NewRequest + echo.ServeHTTP<br/>进程内 GET /api/v1/memos?...<br/>转发 Authorization
     R->>R: 验证 PAT，恢复用户与权限
     R->>D: 查询当前用户可见的 memo
     D-->>R: 查询结果
-    R-->>A: HTTP status + JSON
+    R-->>A: 内存中的 HTTP status + JSON
 
     alt API 返回 2xx
         A-->>M: structuredContent
@@ -311,22 +336,78 @@ sequenceDiagram
     end
 ```
 
-这段时序可以拆成两个阶段。
+这段时序已经覆盖了 MCP Client 从初始化、发现工具到一次工具执行的完整主链路。省略的是分页继续调用、工具列表缓存、超时、重连和 Host 的审批 UI，它们不会改变这条核心依赖关系。
+
+### 初始化发生在 Codex 会话准备阶段
+
+配置了一个启用的 MCP server 后，不需要等用户第一次说“调用 Memos”，Codex 才临时创建客户端。Codex 会在本地 Host/session 启动或需要重建 MCP 连接时，自动初始化已启用的 server，并在为模型准备工具目录时完成工具发现。[Codex 的开源说明](https://github.com/openai/codex/blob/main/codex-rs/README.md)把它概括为客户端在 startup 连接 MCP server；[Codex MCP 文档](https://developers.openai.com/codex/mcp)也要求桌面端保存配置后执行 Restart，并说明 Codex 会读取 server 在 initialization 中返回的 instructions。
+
+因此，“一打开 Codex 就初始化”作为日常理解基本成立，但更准确的触发对象是 **Codex 的本地 Host/session 生命周期**，不是窗口绘制本身：同一个已运行 Host 可以复用已建立的客户端和工具目录；新 Host、新 session、配置刷新、连接失效或显式重启可能重新初始化。单次 `tools/call` 不会从头重复 `initialize` 和 `tools/list`。
+
+Memos `0.30.0` 的 stateless 是另一层概念：Memos server 不要求多次 HTTP 请求绑定一份服务端 session 状态，但 MCP Client 仍要完成协议协商和工具发现。stateless 并不等于没有 `initialize`。
 
 **连接与发现阶段**先执行 `initialize`，协商协议版本和 capability。Memos `0.30.0` 只声明 tools，不提供旧版 MCP 的 prompts 和 resources；随后 `tools/list` 把工具名称、说明和 JSON Schema 交给 Host。Memos 使用 Streamable HTTP，但服务端配置为 stateless 和 JSON response：协议握手仍然存在，服务端不依赖跨请求 session 保存调用状态。
 
 **对话与执行阶段**由 Host 把用户消息和工具定义一起交给模型。模型输出工具名和 arguments 后，Host 内的 MCP Client 才真正发送 `tools/call`。也就是说，Memos MCP server 不会自动看到整段聊天记录；它只收到这次工具调用所需的参数和认证信息。这个边界与 MCP 的[Host—Client—Server 架构](https://modelcontextprotocol.io/specification/2025-06-18/architecture)一致：对话编排和用户确认属于 Host，Memos server 只负责聚焦的数据能力。
 
-## 接入 Agent 后仍要守住权限边界
+## PAT 接入要同时处理配置、进程环境和数据权限
 
-REST API 和 MCP 复用同一种 token 与用户权限，因此 MCP 并不会天然获得额外权限，也不会天然更安全。当前实例处于 private mode，读取私有 memo 和任何写操作都需要有效 token；PAT 能做什么，取决于它所属用户能做什么。
+REST API 和 MCP 复用同一种 token 与用户权限，因此 MCP 并不会天然获得额外权限，也不会天然更安全。PAT 安全至少有三层：值放在哪里、哪个进程能得到它，以及它代表的账号可以读写哪些数据。只解决其中一层，很容易得到“配置文件里没有 token，所以 Agent 看不到秘密”的错误安全感。
 
-接入时应遵循几条边界：
+### 用环境变量注入，但不要把环境变量当保险箱
 
-- **每个客户端使用独立 PAT**，便于查看使用情况和单独吊销，不要让多个自动化共享一个长期 token；
-- **把 PAT 当密码保存**，只写入客户端的 secret 配置，不能提交到博客或公开仓库；
-- **关注工具的破坏性提示**，`memo_delete_memo`、附件删除以及可能覆盖字段的更新都应由 Host 请求用户确认；
-- **白名单不是权限系统**，MCP 的 20 个工具和 annotations 只是暴露面与客户端提示，最终授权仍由 `/api/v1` 的认证链决定；
-- **浏览器客户端还受 Origin 检查**，跨域来源不符合实例 Host 或配置的 Instance URL 时会收到 `403`，桌面客户端通常不发送 Origin。
+[Codex MCP 配置](https://developers.openai.com/codex/mcp)中的 `bearer_token_env_var` 保存的是**环境变量名**。发起 Streamable HTTP 请求时，Codex 从本机环境读取对应值，再把它放进 `Authorization: Bearer ...`；`config.toml`、普通工具参数和文章里都不需要出现 PAT 原文。
+
+```zsh
+# ~/.zshrc
+export MEMOS_MCP_PAT='memos_pat_替换为真实值'
+```
+
+写完后要让新的 shell 重新加载配置，并完整重启 Codex，使新的本地 Host 得到这份环境。检查时只判断变量是否进入子进程，不要把值打印到终端或 Agent 上下文：
+
+```zsh
+source ~/.zshrc
+printenv MEMOS_MCP_PAT >/dev/null && echo 'MEMOS_MCP_PAT is exported'
+```
+
+这里最容易漏掉的恰好是 `export`。下面两行在 zsh 中不是一回事：
+
+```zsh
+MEMOS_MCP_PAT='memos_pat_...'         # 仅当前 shell 的 shell variable
+export MEMOS_MCP_PAT='memos_pat_...'  # 当前 shell + 后续子进程的 environment
+```
+
+漏掉 `export` 时，手写 `curl` 仍可能成功：shell 会先展开命令中的 `$MEMOS_MCP_PAT`，再把展开后的 header 作为普通命令参数交给 `curl`。这只证明**当前 shell 知道值**，不证明另一个进程能通过环境读取它。Codex MCP Host 是独立进程，只能看到自己启动时继承或显式加载的 environment；已经运行的进程也不会因为 `.zshrc` 刚被编辑就自动获得新值。这就解释了“CLI 能用、Codex MCP 却拿不到 token”的表面矛盾。
+
+这台 Mac 上在补上 `export` 并重启 Codex 后恢复正常。一般情况下还要注意，`.zshrc` 属于 zsh 启动文件，从 Dock/Finder 启动的 GUI 应用不必然继承交互式 shell 的环境；如果某个桌面版本没有主动加载 shell 环境，应从已加载变量的终端启动应用，或改用系统级凭据注入方式。
+
+环境变量的收益是避免 PAT 出现在 Codex 配置和普通 MCP 调用参数中，**不是对本机 Agent 建立不可突破的秘密边界**。拥有同一用户身份和终端执行权限的 Agent，理论上仍可能读取进程环境或 shell 配置。因此要使用专门为 MCP 创建、可随时撤销、有有效期的 PAT，而不能把高价值主密钥仅靠环境变量“藏”起来。[Memos 安全文档](https://usememos.com/docs/configuration/security)也建议每个 integration 使用独立 PAT、检查 last-used time，并在不需要永久凭据时设置过期时间。
+
+### PAT 代表账号，不会自动缩成 MCP 最小权限
+
+[Memos MCP 文档](https://usememos.com/docs/integrations/mcp)写明，工具调用复用 Web App 的 REST API 和相同权限：token identifies you，工具能看到和修改的内容与该账号一致。Memos 当前没有给 PAT 单独配置“只读”“不能看 PRIVATE”或“只能访问某个 tag”的 scope。
+
+这也解释了一个看似反直觉的现象：memo 即使标记为 `PRIVATE`，自己的 PAT 仍然可以读取。`PRIVATE` 的含义是[只有 memo 所有者可读](https://usememos.com/docs/usage/sharing)，而 owner PAT 在服务端恢复出来的身份正是所有者本人。它不是鉴权绕过，也不是 MCP 获得了额外权限。
+
+Codex 里的工具白名单、禁用 delete 工具和 `default_tools_approval_mode = "writes"` 仍然有价值：它们缩小模型可选择的动作，并让写操作先经过确认。但这些是**客户端侧的工具暴露和审批策略**，不会改变 PAT 在 Memos 服务端的权限。换一个 REST 客户端携带同一枚 PAT，账号原本能做的操作仍然能做。
+
+### PRIVATE 过滤是默认护栏，不是硬隔离
+
+如果日常约定是“除非明确授权，否则 Agent 不读 PRIVATE memo”，每次列表或搜索都应该把限制放进服务端 CEL filter，而不是先拉回全部内容再让模型过滤：
+
+```text
+visibility != "PRIVATE"
+```
+
+这个条件要与日期、作者、关键词等其他条件用 `&&` 合并。按 ID 读取 memo、附件、评论、关系或 reaction 前，也应先在不接触 private 数据的前提下确认目标 memo 不是 `PRIVATE`。本地 `AGENTS.md` 可以固化这条默认行为，减少误调用；但它仍是 Agent 执行策略，而不是 Memos 强制的权限 scope，因此不能用来保护真正的密钥。
+
+尤其不要把可复用 token 或 key 保存在**同一账号的 PRIVATE memo** 中，再把该账号 PAT 交给 Agent。对浏览者而言它是 private，对这枚 PAT 而言却是自己的正常数据；一旦列表或搜索漏掉 filter，秘密就可能进入工具结果和模型上下文。发生这种情况时应停止继续读取、立即轮换凭据，并检查调用记录。
+
+更稳妥的边界从弱到强依次是：
+
+1. 每个集成使用独立、可过期、易撤销的 PAT；Codex 只通过环境变量名引用它；
+2. 禁用删除工具，对写操作启用审批，并默认给 list/search 加 `visibility != "PRIVATE"`；
+3. 把真正的 secret 放进密码管理器或专用 secret store，不与 Agent 可读的知识内容混放；
+4. 需要服务端硬隔离时，为 Agent 建独立的 Memos 账号，或在 Memos 前增加受限代理，只暴露明确 allowlist 中的 memo 和操作。
 
 脚本需要精确控制 HTTP method、批量处理数据或调用 MCP 白名单之外的能力时，直接使用 `/api/v1` 更合适；希望模型根据自然语言选择操作、读取结果再继续推理时，使用 `/mcp` 更自然。二者最终汇入同一条 API service、store 和 SQLite 链路，所以备份保护的数据、账号限制的权限以及升级迁移的数据库始终只有一套。
