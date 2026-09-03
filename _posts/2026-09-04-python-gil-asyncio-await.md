@@ -396,7 +396,9 @@ HTTP 服务通常连 `asyncio.run()` 都不用自己写。先看异步路由。
 
 ### 框架如何调用：异步路由
 
-以 FastAPI 为例，路由就是那个被染成异步的入口；底下的三个 `fetch_user` 仍然可以 `gather` 在一起：
+以 FastAPI 为例，路由就是那个被染成异步的入口；底下的三个 `fetch_user` 仍然可以 `gather` 在一起。
+
+**用户大概怎么写**
 
 ```python
 import asyncio
@@ -418,16 +420,24 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-`list_users` 里有 `await`，必须是 `async def`。`uvicorn.run(...)` 和前面的 `main` 一样是同步的。框架接管，不是把你的函数改成同步，而是**它自己先把事件循环跑起来，再按路径找到你写的函数并调用它**。压成几行伪代码，大致是：
+`list_users` 里有 `await`，必须是 `async def`。`uvicorn.run(...)` 和前面的 `main` 一样是同步的。框架接管，不是把你的函数改成同步，而是**它自己先把事件循环跑起来，再按路径找到你写的函数并调用它**。
+
+**框架从 main 起怎么接到它**
 
 ```python
-routes: list[tuple[str, str, object]] = []  # (method, path, handler)
+def main() -> None:
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
-def get(path: str):
-    def decorator(fn):
-        routes.append(("GET", path, fn))  # @app.get("/users") 把函数登记进来
-        return fn
-    return decorator
+def run(app) -> None:
+    # 启动时 @app.get 已经把 list_users 放进 routes
+    loop = asyncio.new_event_loop()
+    sock = listen(host, port)
+    loop.run_until_complete(serve(sock))  # 循环一直活着，不像 asyncio.run 用完就拆
+
+async def serve(sock) -> None:
+    while True:
+        request = await sock.accept()
+        asyncio.create_task(handle(request))  # 每个请求一份协程
 
 def lookup(request):
     for method, path, handler in routes:
@@ -435,19 +445,9 @@ def lookup(request):
             return handler
     raise NotFound()  # 没有匹配的路由，404
 
-def run(app) -> None:
-    loop = asyncio.new_event_loop()
-    sock = listen(host, port)
-    loop.run_until_complete(serve(app, sock))  # 循环一直活着，不像 asyncio.run 用完就拆
-
-async def serve(app, sock) -> None:
-    while True:
-        request = await sock.accept()
-        asyncio.create_task(handle(app, request))  # 每个请求一份协程
-
-async def handle(app, request) -> None:
-    handler = lookup(request)          # GET /users → list_users
-    response = await handler()         # 调到你写的异步路由
+async def handle(request) -> None:
+    handler = lookup(request)   # GET /users → list_users
+    response = await handler()  # 调到你写的异步路由
     await request.send(response)
 ```
 
@@ -457,7 +457,9 @@ Python 的 HTTP 服务一样要承接成百上千个用户。打 `/users` 时，
 
 ### 框架如何调用：同步路由
 
-FastAPI 并不要求每个路由都是 `async def`。没有 `await` 的，写成普通 `def` 即可，比如手头只有同步 SDK、或者就是一段同步计算：
+FastAPI 并不要求每个路由都是 `async def`。没有 `await` 的，写成普通 `def` 即可，比如手头只有同步 SDK、或者就是一段同步计算。
+
+**用户大概怎么写**
 
 ```python
 @app.get("/report")
@@ -465,10 +467,18 @@ def build_report():
     return render_report()
 ```
 
-框架**不会**把这个函数改造成协程。`lookup` 仍然只是从表里找出函数；认出这是普通 `def` 之后，把它丢进线程池，用另外几条 OS 线程去跑。伪代码里对应的是 `handle` 的分叉：异步路由继续 `await`，同步路由走 [`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)。
+框架**不会**把这个函数改造成协程。`lookup` 仍然只是从表里找出函数；认出这是普通 `def` 之后，把它丢进线程池。
+
+**框架从 main 起怎么接到它**
+
+还是同一个 `main` → `uvicorn.run` → `accept` 循环。变的只有 `handle`：异步路由继续 `await`，同步路由走 [`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)。
 
 ```python
-async def handle(app, request) -> None:
+def main() -> None:
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# accept 循环同上。lookup 之后多一个分叉：
+async def handle(request) -> None:
     handler = lookup(request)
     if iscoroutinefunction(handler):
         response = await handler()
@@ -499,21 +509,30 @@ async def handle(app, request) -> None:
 
 ### 框架如何调用：多 worker
 
-线上常见的补法，就是给 Uvicorn 开多个 [worker](https://www.uvicorn.org/deployment/)。每个 worker 是独立进程，各自一把 GIL、一个事件循环。前面单进程可以写成 `uvicorn.run(app, ...)`；一开多进程，就必须改成导入字符串，子进程才能各自再 import 一份应用：
+线上常见的补法，就是给 Uvicorn 开多个 [worker](https://www.uvicorn.org/deployment/)。每个 worker 是独立进程，各自一把 GIL、一个事件循环。
+
+**用户大概怎么写**
+
+前面单进程可以写成 `uvicorn.run(app, ...)`；一开多进程，就必须改成导入字符串，子进程才能各自再 import 一份应用：
 
 ```python
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, workers=4)
 ```
 
-它做的事情很短：主进程绑好端口，再拉起 4 个子进程，让它们去跑同一份应用。压成几行，大致是：
+**框架从 main 起怎么接到它**
+
+主进程绑好端口，再拉起 4 个子进程。每个子进程再走上一节那个 `accept` 循环。
 
 ```python
+def main() -> None:
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, workers=4)
+
 def run(app: str, workers: int) -> None:
     sock = bind("0.0.0.0", 8000)
     for _ in range(workers):
         if os.fork() == 0:
-            serve_forever(app, sock)  # 子进程：自己的循环，自己的 GIL
+            serve_forever(app, sock)  # 子进程：自己的循环，自己的 GIL，再 lookup 调用户函数
             os._exit(0)
     wait_all_children()
 ```
