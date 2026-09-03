@@ -116,6 +116,23 @@ sequenceDiagram
 
 [从阻塞IO到IO多路复用到异步IO]({% post_url 2022-02-24-io-nio-aio %})则介绍了请求从网卡到达TCP服务器的过程。上述原始的tcp服务器使用的还是BIO。
 
+这一层几乎没有框架可藏。`main` 自己 `accept`、自己读字节、自己写回去。用户代码就是那个 `handle`：
+
+```java
+public static void main(String[] args) throws Exception {
+    ServerSocket server = new ServerSocket(8080);
+    while (true) {
+        Socket conn = server.accept();
+        byte[] raw = readAll(conn);
+        byte[] body = handle(raw);   // 用户自己写：字节进，字节出
+        conn.getOutputStream().write(httpResponse(body));
+        conn.close();
+    }
+}
+```
+
+请求怎么来、字节怎么拆成 HTTP，都得自己管。后面每一层框架，都是把这里的某一截收走，只留给用户一个更小的入口。
+
 # Tomcat
 Tomcat使用原始的web服务器接收tcp请求，然后构建了一套servlet规范处理请求。
 
@@ -125,6 +142,38 @@ Tomcat使用原始的web服务器接收tcp请求，然后构建了一套servlet�
     + 后者介绍了请求是怎么在tomcat的体系里游走的；
 
 从现在起，开发者只要按照业务逻辑写个servlet，扔到tomcat下面，就可以处理http请求了。
+
+Tomcat 把上一层的 `accept` 和 HTTP 解析收走了。用户不再写套接字，只写 Servlet；框架按 URI 找到它，再调用 `service`：
+
+```java
+// 用户写
+public class HelloServlet extends HttpServlet {
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) {
+        resp.getWriter().write("hello");
+    }
+}
+// web.xml: /hello -> HelloServlet
+
+// Tomcat 大致
+void process(Socket conn) {
+    HttpServletRequest req = parseHttp(conn);      // Connector：字节 → 请求对象
+    Servlet servlet = lookup(req.getRequestURI()); // Container：Engine → Host → Context → Wrapper
+    servlet.service(req, resp);                    // 调到用户的 doGet
+    write(conn, resp);
+}
+
+Servlet lookup(String uri) {
+    for (Mapping m : servletMappings) {
+        if (match(m.pattern, uri)) {
+            return m.servlet;
+        }
+    }
+    return defaultServlet; // 静态资源，或 404
+}
+```
+
+用户只看见 `doGet`。`lookup` 发生在 Tomcat 的 Container 里：URI 对上哪个 Wrapper，就调哪个 Servlet。
 
 问题又来了：**如果系统简单，总共没有几个接口，每个接口对应一个servlet，那就写几个servlet扔到tomcat里，再配置一下servlet的映射关系就行了**。如果系统复杂，那就要写一堆servlet，然而一堆servlet都配置到web.xml里，非常混乱。
 
@@ -138,6 +187,25 @@ spring mvc基于spring，要处理http请求。它选择继续站在前人的肩
 现在SpringMVC告诉开发者：你们连servlet都不用写了，把自己的业务逻辑嵌在我的servlet里就行了。这个servlet就是DispatcherServlet。开发者只需要在spring mvc的世界里写@Controller就可以了——以后大家不用写tomcat的servlet、listener、filter，来写我的@Service、@Controller吧！
 
 他们都活在由DispatcherServlet构建的王国里。
+
+启动时，框架把这一个 Servlet 登记进 Tomcat 的映射表。之后 Tomcat 的 `lookup` 找到的，几乎总是它：
+
+```java
+// 容器启动，不是每个请求。用户写 WebApplicationInitializer，框架调 onStartup
+void onStartup(ServletContext ctx) {
+    DispatcherServlet ds = new DispatcherServlet(webContext);
+    ctx.addServlet("dispatcher", ds).addMapping("/");
+}
+
+// 请求来了，Tomcat 仍然只认识 Servlet
+void process(Socket conn) {
+    HttpServletRequest req = parseHttp(conn);
+    Servlet servlet = lookup(req.getRequestURI()); // 对上 "/"，就是 DispatcherServlet
+    servlet.service(req, resp);                    // 进入 doDispatch，不再进入用户的 Servlet
+}
+```
+
+用户从此不用写 Servlet。Tomcat 调用的是框架的 `DispatcherServlet`；框架再去调用用户的 `@Controller`。
 
 # SpringMVC如何做的
 ## 世界分为两步
@@ -243,6 +311,51 @@ DispatcherServlet 的这一模式，又被称作 [Front Controller](https://en.w
 
 `Servlet#service`是处理servlet请求的标准入口。DispatcherServlet继承了HttpServlet。上面归纳的处理流程，都在`DispatcherServlet#doDispatch`方法里。
 
+用户写的是 `@Controller` 里的方法。框架找到它、绕过拦截器、反射调用、再处理返回值，大致是：
+
+```java
+// 用户写
+@Controller
+public class UserController {
+    @GetMapping("/users")
+    public List<User> listUsers() {
+        return userService.findAll();
+    }
+}
+
+// DispatcherServlet#doDispatch 大致
+void doDispatch(HttpServletRequest req, HttpServletResponse resp) {
+    HandlerExecutionChain chain = getHandler(req); // lookup：URI → @RequestMapping 方法
+    if (chain == null) {
+        send404(resp);
+        return;
+    }
+    Exception ex = null;
+    try {
+        for (HandlerInterceptor i : chain.getInterceptors()) {
+            if (!i.preHandle(req, resp, chain.getHandler())) {
+                return;
+            }
+        }
+        ModelAndView mv = adapter.handle(req, resp, chain.getHandler()); // 反射调用 listUsers()
+        for (HandlerInterceptor i : chain.getInterceptors()) {
+            i.postHandle(req, resp, chain.getHandler(), mv);
+        }
+        render(mv, req, resp);
+    } catch (Exception e) {
+        ex = e;
+        ModelAndView mv = resolveException(req, resp, chain.getHandler(), e); // @ExceptionHandler
+        render(mv, req, resp);
+    } finally {
+        for (HandlerInterceptor i : chain.getInterceptors()) {
+            i.afterCompletion(req, resp, chain.getHandler(), ex);
+        }
+    }
+}
+```
+
+`getHandler` 就是这一层的 `lookup`：不是找 Servlet，是找 `@RequestMapping` 方法。`adapter.handle` 才真正进到用户代码。
+
 > 早期 Spring 文档也描述了 [DispatcherServlet 的核心角色](https://docs.spring.io/spring-framework/docs/3.0.0.M4/spring-framework-reference/html/ch15s02.html)。
 
 **DispatcherServlet的核心就是handler，通过handler处理请求**：
@@ -252,6 +365,35 @@ DispatcherServlet 的这一模式，又被称作 [Front Controller](https://en.w
 ## `HandlerMapping`：全靠uri找到handler chain
 handler mapping通过请求的uri找到对应的handler execution chain。从它接口的唯一方法就能看出：
 - `HandlerExecutionChain getHandler(HttpServletRequest request)`：根据request（的uri）找到chain。
+
+和 Tomcat 的 `lookup` 是同一类事情，只是登记的对象从 Servlet 换成了 Controller 方法：
+
+```java
+// 启动时：扫所有 @Controller，把 @RequestMapping 登记进表
+void detectHandlerMethods() {
+    for (Object bean : beansWithAnnotation(Controller.class)) {
+        for (Method m : bean.getClass().getMethods()) {
+            RequestMapping mapping = findMapping(m); // @RequestMapping / @GetMapping
+            if (mapping != null) {
+                registry.put(mapping.path(), mapping.method(), new HandlerMethod(bean, m));
+            }
+        }
+    }
+}
+
+// 每个请求：按 URI 和方法从表里取出用户方法，再配上拦截器
+HandlerExecutionChain getHandler(HttpServletRequest req) {
+    for (HandlerMapping mapping : handlerMappings) {
+        HandlerMethod handler = mapping.lookup(req.getRequestURI(), req.getMethod());
+        if (handler != null) {
+            return new HandlerExecutionChain(handler, selectInterceptors(req));
+        }
+    }
+    return null; // 没有匹配，后面 404
+}
+```
+
+`RequestMappingHandlerMapping` 干的就是这张表。用户只写 `@GetMapping("/users")`；请求来了，框架用 URI 把 `listUsers` 找出来。
 
 > **Tomcat在Context内部是根据uri映射servlet的。现在DispatcherServlet把所有收来的请求也按照uri映射到相应的Controller**。所以spring先用DispatcherServlet让开发者不再直接写servlet，抢了tomcat的风光，再使用和tomcat类似的逻辑，分发请求给controller。tomcat已气晕_(¦3」∠)_
 
@@ -456,7 +598,24 @@ view都渲染完了，请求确实处理完了。
 > 其实发布事件的代码在DispatcherServlet的父类FrameworkServlet里。
 
 # 框架的本质
-程序的执行永远是线性的：
+程序的执行永远是线性的。每一层都在 `main` 这条线上，收走上一层的细节，只给用户留一个入口：
+
+```java
+public static void main(String[] args) {
+    tomcat.start(); // 或 Spring Boot 把 Tomcat 嵌进来
+}
+
+// 每个请求，从外到内。括号里是用户写的那一小截
+void onRequest(Socket conn) {
+    Request req = tomcat.parse(conn);                       // TCP / Connector
+    Servlet servlet = tomcat.lookup(req.uri);               // 通常就是 DispatcherServlet
+    servlet.service(req, resp);
+    // —— 进入 DispatcherServlet ——
+    HandlerExecutionChain chain = dispatcher.getHandler(req); // 用户的 @GetMapping 方法
+    invoke(chain.handler);                                    // 用户的 listUsers()
+}
+```
+
 1. Java提供的框架是main函数：开发者在main函数里写代码就行了；
 2. Tomcat在main里启动，然后构造了Connector、Container（Engine/Host/Context/Wrapper），提供的是servlet接口：开发者只要写servlet扔到tomcat里就行了；
 3. Spring在main里启动，构造的是spring application context：开发者只要在里面写bean就行了；

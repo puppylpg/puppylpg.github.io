@@ -416,9 +416,23 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-`list_users` 里有 `await`，必须是 `async def`。`uvicorn.run(...)` 和前面的 `main` 一样是同步的。框架接管，不是把你的函数改成同步，而是**它自己先把事件循环跑起来，每个请求再 `await` 一次你的异步路由**。压成几行伪代码，大致是：
+`list_users` 里有 `await`，必须是 `async def`。`uvicorn.run(...)` 和前面的 `main` 一样是同步的。框架接管，不是把你的函数改成同步，而是**它自己先把事件循环跑起来，再按路径找到你写的函数并调用它**。压成几行伪代码，大致是：
 
 ```python
+routes: list[tuple[str, str, object]] = []  # (method, path, handler)
+
+def get(path: str):
+    def decorator(fn):
+        routes.append(("GET", path, fn))  # @app.get("/users") 把函数登记进来
+        return fn
+    return decorator
+
+def lookup(request):
+    for method, path, handler in routes:
+        if request.method == method and path_matches(path, request.path):
+            return handler
+    raise NotFound()  # 没有匹配的路由，404
+
 def run(app) -> None:
     loop = asyncio.new_event_loop()
     sock = listen(host, port)
@@ -430,9 +444,12 @@ async def serve(app, sock) -> None:
         asyncio.create_task(handle(app, request))  # 每个请求一份协程
 
 async def handle(app, request) -> None:
-    response = await list_users()   # 简化：这里调到你写的异步路由
+    handler = lookup(request)          # GET /users → list_users
+    response = await handler()         # 调到你写的异步路由
     await request.send(response)
 ```
+
+`@app.get("/users")` 发生在启动时：装饰器把 `list_users` 放进路由表。请求来了之后，`lookup` 按方法和路径从表里找出那个函数，再 `await` 它。真正的 FastAPI 还会在这一步做依赖注入和参数校验，这里只留下“找到函数、调用函数”。
 
 Python 的 HTTP 服务一样要承接成百上千个用户。打 `/users` 时，每个请求一份 `handle` 协程。查询在等网络，协程冻住，那一条线程去伺候别人。等待可以重叠，墙钟时间不会按用户数线性相加。染色停在路由：`list_users` 是异步的，`run` 是同步的。循环已经在转，不要在路由里再套 `asyncio.run()`。
 
@@ -444,13 +461,13 @@ def build_report():
     return render_report()
 ```
 
-框架**不会**把这个函数改造成协程。它认出这是普通函数之后，把它丢进线程池，用另外几条 OS 线程去跑。伪代码里对应的是分叉：异步路由继续 `await`，同步路由走 [`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)。
+框架**不会**把这个函数改造成协程。`lookup` 仍然只是从表里找出函数；认出这是普通 `def` 之后，把它丢进线程池，用另外几条 OS 线程去跑。伪代码里对应的是 `handle` 的分叉：异步路由继续 `await`，同步路由走 [`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)。
 
 ```python
 async def handle(app, request) -> None:
-    handler = app.lookup(request)
+    handler = lookup(request)
     if iscoroutinefunction(handler):
-        response = await handler(request)
+        response = await handler()
     else:
         response = await asyncio.to_thread(handler)
     await request.send(response)
