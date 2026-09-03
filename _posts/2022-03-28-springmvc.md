@@ -76,7 +76,7 @@ flowchart TB
 1. Table of Contents, ordered
 {:toc}
 
-文章按层次推进：先看 TCP server 和 Tomcat 如何接收请求，再看 Spring MVC 如何把自己注册成一个 servlet，最后拆 `DispatcherServlet#doDispatch` 内部的 handler mapping、interceptor、return value handler、exception resolver 和 view rendering。
+文章按层次推进：先看 TCP server 和 Tomcat 如何接收请求，再看 Spring MVC 如何把自己注册成一个 servlet，最后拆 `DispatcherServlet#doDispatch` 内部的 handler mapping、interceptor、return value handler、exception resolver 和 view rendering。每一层都单列一节「框架如何调用……」，专门看框架怎样接到你写的那一小截。
 
 如果只看 `DispatcherServlet#doDispatch` 内部调用，可以把它理解成下面这条时序链：
 
@@ -116,6 +116,8 @@ sequenceDiagram
 
 [从阻塞IO到IO多路复用到异步IO]({% post_url 2022-02-24-io-nio-aio %})则介绍了请求从网卡到达TCP服务器的过程。上述原始的tcp服务器使用的还是BIO。
 
+## 框架如何调用：handle
+
 这一层几乎没有框架可藏。`main` 自己 `accept`、自己读字节、自己写回去。用户代码就是那个 `handle`：
 
 ```java
@@ -142,6 +144,8 @@ Tomcat使用原始的web服务器接收tcp请求，然后构建了一套servlet�
     + 后者介绍了请求是怎么在tomcat的体系里游走的；
 
 从现在起，开发者只要按照业务逻辑写个servlet，扔到tomcat下面，就可以处理http请求了。
+
+## 框架如何调用：Servlet
 
 Tomcat 把上一层的 `accept` 和 HTTP 解析收走了。用户不再写套接字，只写 Servlet；框架按 URI 找到它，再调用 `service`：
 
@@ -187,6 +191,8 @@ spring mvc基于spring，要处理http请求。它选择继续站在前人的肩
 现在SpringMVC告诉开发者：你们连servlet都不用写了，把自己的业务逻辑嵌在我的servlet里就行了。这个servlet就是DispatcherServlet。开发者只需要在spring mvc的世界里写@Controller就可以了——以后大家不用写tomcat的servlet、listener、filter，来写我的@Service、@Controller吧！
 
 他们都活在由DispatcherServlet构建的王国里。
+
+## 框架如何调用：DispatcherServlet
 
 启动时，框架把这一个 Servlet 登记进 Tomcat 的映射表。之后 Tomcat 的 `lookup` 找到的，几乎总是它：
 
@@ -311,6 +317,8 @@ DispatcherServlet 的这一模式，又被称作 [Front Controller](https://en.w
 
 `Servlet#service`是处理servlet请求的标准入口。DispatcherServlet继承了HttpServlet。上面归纳的处理流程，都在`DispatcherServlet#doDispatch`方法里。
 
+## 框架如何调用：Controller
+
 用户写的是 `@Controller` 里的方法。框架找到它、绕过拦截器、反射调用、再处理返回值，大致是：
 
 ```java
@@ -365,6 +373,8 @@ void doDispatch(HttpServletRequest req, HttpServletResponse resp) {
 ## `HandlerMapping`：全靠uri找到handler chain
 handler mapping通过请求的uri找到对应的handler execution chain。从它接口的唯一方法就能看出：
 - `HandlerExecutionChain getHandler(HttpServletRequest request)`：根据request（的uri）找到chain。
+
+## 框架如何调用：按 URI 找方法
 
 和 Tomcat 的 `lookup` 是同一类事情，只是登记的对象从 Servlet 换成了 Controller 方法：
 
@@ -598,7 +608,9 @@ view都渲染完了，请求确实处理完了。
 > 其实发布事件的代码在DispatcherServlet的父类FrameworkServlet里。
 
 # 框架的本质
-程序的执行永远是线性的。每一层都在 `main` 这条线上，收走上一层的细节，只给用户留一个入口：
+程序的执行永远是线性的。每一层都在 `main` 这条线上，收走上一层的细节，只给用户留一个入口。
+
+## 框架如何调用：从 Socket 到 Controller
 
 ```java
 public static void main(String[] args) {

@@ -394,6 +394,8 @@ flowchart TB
 
 HTTP 服务通常连 `asyncio.run()` 都不用自己写。先看异步路由。
 
+### 框架如何调用：异步路由
+
 以 FastAPI 为例，路由就是那个被染成异步的入口；底下的三个 `fetch_user` 仍然可以 `gather` 在一起：
 
 ```python
@@ -453,6 +455,8 @@ async def handle(app, request) -> None:
 
 Python 的 HTTP 服务一样要承接成百上千个用户。打 `/users` 时，每个请求一份 `handle` 协程。查询在等网络，协程冻住，那一条线程去伺候别人。等待可以重叠，墙钟时间不会按用户数线性相加。染色停在路由：`list_users` 是异步的，`run` 是同步的。循环已经在转，不要在路由里再套 `asyncio.run()`。
 
+### 框架如何调用：同步路由
+
 FastAPI 并不要求每个路由都是 `async def`。没有 `await` 的，写成普通 `def` 即可，比如手头只有同步 SDK、或者就是一段同步计算：
 
 ```python
@@ -492,6 +496,8 @@ async def handle(app, request) -> None:
 这个缺口不等于 Python 不能做线上 Web。缺的是一个进程里靠多线程把计算铺到多核，不是接不住请求。
 
 线上 HTTP 多半不是在算，是在等：数据库、缓存、下游服务、磁盘。等的时候 GIL 会放开。一条事件循环就能把成千上万个等待叠起来，这和 Netty、Node 是同一类活。Python 一直有人拿来扛线上流量。就算是 Java，1000 条 worker 也不是 1000 路并行计算——核就那么几个，纯计算同一时刻也就按核数在跑。Java 便宜的地方是：**同一个进程里**，线程就能把这些核用上。CPython 做不到。要用满 4 个核，得开 4 个进程。
+
+### 框架如何调用：多 worker
 
 线上常见的补法，就是给 Uvicorn 开多个 [worker](https://www.uvicorn.org/deployment/)。每个 worker 是独立进程，各自一把 GIL、一个事件循环。前面单进程可以写成 `uvicorn.run(app, ...)`；一开多进程，就必须改成导入字符串，子进程才能各自再 import 一份应用：
 
