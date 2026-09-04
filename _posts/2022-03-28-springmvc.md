@@ -173,17 +173,38 @@ public class HelloServlet extends HttpServlet {
 
 **框架从 main 起怎么接到它**
 
+先看成和上一层一样的单线程循环，只多了「按 URI 找 Servlet、调用 `service`」：
+
 ```java
 public static void main(String[] args) {
     tomcat.start(); // 读 web.xml，把 /hello → HelloServlet 登记进映射表，开始听 8080
 }
 
-// start() 之后，Connector 线程一直在跑：
 while (true) {
     Socket conn = serverSocket.accept();
-    Request req = parseHttp(conn);           // 字节 → 请求对象
+    Request req = parseHttp(conn);
     Servlet servlet = lookup(req.getURI());  // /hello → HelloServlet
     servlet.service(req, resp);              // HttpServlet → 用户的 doGet
+    write(conn, resp);
+}
+```
+
+调用关系已经清楚，但 `accept` 和 `doGet` 抢同一条线程：一个请求没处理完，下一个连接只能排队。正经的 Tomcat 把接连接和处理拆开——Connector 接完立刻丢进线程池，自己回去再 `accept`：
+
+```java
+public static void main(String[] args) {
+    tomcat.start();
+}
+
+while (true) {
+    Socket conn = serverSocket.accept();
+    executor.execute(() -> handle(conn));  // BIO 时代是 HttpProcessor 线程
+}
+
+void handle(Socket conn) {
+    Request req = parseHttp(conn);
+    Servlet servlet = lookup(req.getURI());
+    servlet.service(req, resp);  // 用户的 doGet 跑在 worker 上
     write(conn, resp);
 }
 
@@ -197,7 +218,9 @@ Servlet lookup(String uri) {
 }
 ```
 
-用户只看见 `doGet`。从 `main` 到 `doGet` 中间多了 `start`、`accept`、解析 HTTP、按 URI `lookup`。`lookup` 发生在 Tomcat 的 Container 里：URI 对上哪个 Wrapper，就调哪个 Servlet。
+今天默认的 NIO Connector 还多了一条 Poller 做就绪通知，但接到用户代码的仍是 worker。后面几层都默认这个多线程版本：`service` 已经在 worker 上。
+
+用户只看见 `doGet`。从 `main` 到 `doGet` 中间多了 `start`、`accept`、丢进线程池、解析 HTTP、按 URI `lookup`。`lookup` 发生在 Tomcat 的 Container 里：URI 对上哪个 Wrapper，就调哪个 Servlet。
 
 问题又来了：**如果系统简单，总共没有几个接口，每个接口对应一个servlet，那就写几个servlet扔到tomcat里，再配置一下servlet的映射关系就行了**。如果系统复杂，那就要写一堆servlet，然而一堆servlet都配置到web.xml里，非常混乱。
 
@@ -239,6 +262,10 @@ public static void main(String[] args) {
 
 while (true) {
     Socket conn = serverSocket.accept();
+    executor.execute(() -> handle(conn));  // 仍是 Tomcat 的 worker，不是单线程循环
+}
+
+void handle(Socket conn) {
     Request req = parseHttp(conn);
     Servlet servlet = lookup(req.getURI()); // "/" → DispatcherServlet，不再是用户 Servlet
     servlet.service(req, resp);             // 进入 doDispatch
@@ -377,6 +404,10 @@ public static void main(String[] args) {
 
 while (true) {
     Socket conn = serverSocket.accept();
+    executor.execute(() -> handle(conn));
+}
+
+void handle(Socket conn) {
     Request req = parseHttp(conn);
     Servlet servlet = lookup(req.getURI()); // DispatcherServlet
     servlet.service(req, resp);             // HttpServlet → doDispatch
@@ -692,11 +723,15 @@ public static void main(String[] args) {
 
 while (true) {
     Socket conn = serverSocket.accept();
+    executor.execute(() -> handle(conn));  // worker 上才跑 Servlet / Controller
+}
+
+void handle(Socket conn) {
     Request req = parseHttp(conn);
-    Servlet servlet = lookup(req.uri);                // 通常就是 DispatcherServlet
-    servlet.service(req, resp);                       // → doDispatch
-    HandlerExecutionChain chain = getHandler(req);    // URI → listUsers
-    invoke(chain.handler);                            // 用户的 listUsers()
+    Servlet servlet = lookup(req.uri);             // 通常就是 DispatcherServlet
+    servlet.service(req, resp);                    // → doDispatch
+    HandlerExecutionChain chain = getHandler(req); // URI → listUsers
+    invoke(chain.handler);                         // 用户的 listUsers()
     write(conn, resp);
 }
 ```
