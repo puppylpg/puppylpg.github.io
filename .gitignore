@@ -16,6 +16,7 @@ package-lock.json
 # IDE configurations
 .idea
 .vscode
+.obsidian/
 
 # Claude Code (本机授权,因人/机器而异;skills 仍然进库)
 .claude/settings.local.json
