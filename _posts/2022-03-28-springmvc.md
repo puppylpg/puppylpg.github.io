@@ -253,6 +253,8 @@ public class SpitterWebInitializer extends AbstractAnnotationConfigDispatcherSer
 
 **框架从 main 起怎么接到它**
 
+接连接沿用上一节的多线程版本：Connector `accept` 之后丢进 worker，下面的 `handle` 跑在池里。
+
 ```java
 public static void main(String[] args) {
     tomcat.start();
