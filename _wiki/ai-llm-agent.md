@@ -2,7 +2,7 @@
 title: "AI 知识地图：五条线路的当前理解"
 date: 2026-08-24 16:45:37 +0800
 categories: [wiki]
-tags: [ai, llm, agent, rag, claude-code]
+tags: [ai, llm, agent, rag, claude-code, spec-kit, codex]
 description: "AI 主题文章按五条知识线重组：每条线不是链接清单，而是当前理解的蒸馏。完整时间流见 AI 归档页。"
 mermaid: true
 ---
@@ -13,7 +13,7 @@ mermaid: true
     <tr><th>文章规模</th><td>40+ 篇（<a href="/ai/">完整时间流</a>）</td></tr>
     <tr><th>知识线</th><td>5 条（见下图）</td></tr>
     <tr><th>阅读重心</th><td>LLM 原理 → RAG → Agent 工程</td></tr>
-    <tr><th>最新落点</th><td>知识管理：LLM Wiki 模式</td></tr>
+    <tr><th>最新落点</th><td>Agent 工程：需求约定与独立验收</td></tr>
     <tr><th>开放问题</th><td>4 个（见文末）</td></tr>
   </table>
 </div>
@@ -39,6 +39,7 @@ mindmap
       Harness 工程
       Loop 工程
       长程 Agent
+      Spec 驱动开发
     Claude Code
       源码架构
       多 Agent
@@ -74,6 +75,10 @@ mindmap
 
 **当前理解**：行业的瓶颈已经从“模型够不够聪明”迁移到“围绕模型的工程系统够不够稳”——harness、loop、context 三层工程纪律决定 agent 的实际产出。这条线直接影响本博客的维护方式：`AGENTS.md` 加 skills 的组合就是 harness 工程的个人实践。
 
+[Spec Kit 与 Codex 的开发流程](/posts/2026/09/09/spec-kit-codex-workflow/)把这条线推进到需求与验收：Spec 确定行为，Plan 设计方案，Tasks 拆解并推进实现，Validation 核对证据。虚构相册案例将同一组验收标准贯穿四步，并演示规则变化后怎样修订与复验；独立 reviewer 是验证阶段的可选增强。
+
+**跨主题的维护原则**：LLM Wiki 解决“当前知识放在哪里”，Spec 驱动开发解决“当前承诺是什么”，独立验证解决“承诺是否兑现”。三者都需要区分历史材料、当前依据和执行证据；增加文档或 agent 数量，不能替代这三个边界。选择自动化范围时，优先固化有明确验收场景、能够取得证据的步骤，再扩大编排。
+
 ### Claude Code 与工具链：从使用到编排
 
 使用层（[powerup 教程](/ai/2026/05/27/claude-code-powerup-guide/)）→ 原理层（[源码架构](/ai/2026/05/27/claude-code-source-code-architecture/)、[大型代码库](/ai/2026/06/07/claude-code-large-codebases/)、[多 Agent](/ai/2026/05/28/claude-code-multi-agent/)）→ 编排层（[Multica 三 CLI 流水线](/ai/2026/08/20/multica-multi-agent-pipeline/)）。
@@ -93,7 +98,7 @@ mindmap
 
 <div class="wiki-openq">
   <div class="wiki-openq-title">多 agent 编排会成为日常交付方式吗？<span class="wiki-openq-status wiki-openq-status--open">待验证</span></div>
-  <p>Multica 实验跑通了流水线，但日常写作和维护目前仍是单 agent 会话。什么类型的任务值得付出编排开销？暂无稳定判断。</p>
+  <p>Multica 实验跑通了流水线；新的 <a href="/posts/2026/09/09/spec-kit-codex-workflow/">Spec Kit 开发流程</a>将需求、方案、实现与验收连成主线，并给出独立 reviewer 的可选分工。下一步应在同一需求上记录 reviewer 新发现的问题、未验证项和额外成本，据此判断哪些任务值得固定启用多 agent。常态化编排的收益仍待验证。</p>
 </div>
 
 <div class="wiki-openq">
