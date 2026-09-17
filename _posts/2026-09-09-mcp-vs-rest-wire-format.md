@@ -10,7 +10,7 @@ description: "以自托管 Memos 的 /mcp 端点为对象，用 curl 抓取 init
 
 上一篇 [Memos 0.30 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)梳理过这两个入口在服务端的实现关系（MCP 由 OpenAPI 转换而来、进程内复用 REST 路由）；这篇换一个视角，不看服务端代码，直接从网络抓包看协议本身长什么样。
 
-与其看规范文档，不如直接抓包。下面所有报文都是用 `curl` 对真实 Memos 实例（`0.30.0`）发起请求得到的原始响应，只有 token 做了脱敏。
+与其看规范文档，不如直接抓包。下面的报文以用 `curl` 对真实 Memos 实例（`0.30.0`）发起请求得到的抓包为基础，token 已脱敏；较长的业务数据和工具目录做了节选。`tools/list` 中展示的 description 按同版本源码核对并完整保留，省略范围会在示例前说明。后文补充的 `tools/call` 教学示例使用虚构数据，并单独标注。
 
 1. Table of Contents, ordered
 {:toc}
@@ -115,9 +115,33 @@ flowchart LR
 
 只有需要跨请求状态的 server——记住协商结果、维护资源订阅、支持 SSE 断线后按 event id 重放——才要承担和传统 Web session 管理几乎相同的义务：唯一且不可猜测的 id、与用户的绑定、多实例下的 sticky session 或共享存储、过期清理与 `404` 语义。MCP 把“要不要做 session 管理”留成了 server 的架构选择题，而不是协议的强制要求；工具调用大多是“给参数、拿结果”的无状态操作，所以轻量实现（比如 Memos 这种 OpenAPI 转 MCP）天然倾向 stateless。
 
-## 握手与能力发现：initialize 的真实样子
+## 握手、工具发现与调用：一条完整链路
 
-REST 客户端怎么知道有哪些接口？读 API 文档，或者读 OpenAPI 给代码生成器用——发现发生在**人和工具链那一侧**，协议本身不管。MCP 把这件事搬到了协议里：客户端连上 server 后，第一件事就是握手和问“你有什么工具”。
+REST 客户端怎么知道有哪些接口？读 API 文档，或者读 OpenAPI 给代码生成器用——发现发生在**人和工具链那一侧**，协议本身不管。MCP 把能力发现纳入了协议：客户端先完成初始化，确认 server 支持哪些能力，再按需获取工具等具体目录。初始化与工具发现是两个阶段。
+
+先把成功路径放在一张时序图里。左侧是 Host 内负责收发协议消息的 MCP Client，右侧是 Memos MCP Server；图中的两个可选区段分别表示工具发现和工具调用；客户端也可以直接调用已经知道名称和参数的工具。
+
+```mermaid
+sequenceDiagram
+    participant C as MCP Client（客户端代码）
+    participant S as Memos MCP Server
+
+    Note over C,S: 初始化阶段：必须完成，以下展示成功路径
+    C->>S: initialize（id = 1）<br/>protocolVersion、capabilities、clientInfo
+    S-->>C: 初始化结果（id = 1）<br/>protocolVersion、capabilities、serverInfo
+    C-)S: notifications/initialized（无 id）
+    Note over C,S: 通知没有 JSON-RPC 响应<br/>本例 HTTP 层返回 202 + 空 body
+
+    Note over C,S: 初始化完成，进入正常操作阶段
+    opt 服务端声明 tools 能力，且客户端需要发现工具
+        C->>S: tools/list（id = 2）
+        S-->>C: 工具目录（id = 2）<br/>result.tools 数组
+    end
+    opt 服务端支持 tools，且客户端决定调用已知工具
+        C->>S: tools/call（id = 3）<br/>params.name、params.arguments
+        S-->>C: 调用结果（id = 3）<br/>result.content、result.structuredContent
+    end
+```
 
 这是抓到的真实握手请求：
 
@@ -147,7 +171,7 @@ Authorization: Bearer memos_pat_***
 }
 ```
 
-这是一次双向协商：服务端确认协议版本，声明自己的能力——Memos 只提供 `tools`，不提供 prompts 和 resources；`listChanged: true` 表示工具列表变化时支持主动通知。注意响应里的 `"id": 1` 和请求配对，这是 JSON-RPC 的规矩。
+这是一次双向协商：服务端确认协议版本，声明自己的能力——这里 Memos 声明了 `logging` 和 `tools`，没有声明 prompts 和 resources；`listChanged: true` 表示工具列表变化时支持主动通知。注意响应里的 `"id": 1` 和请求配对，这是 JSON-RPC 的规矩。
 
 握手之后还有一个容易漏掉的步骤：客户端要回一条 `notifications/initialized` 通知，告诉服务端“我准备好了”。
 
@@ -157,51 +181,220 @@ Authorization: Bearer memos_pat_***
 
 注意这条消息**没有 `id`**——JSON-RPC 里没有 id 的消息是通知（notification），不需要响应体。服务端对此的真实回应是 `HTTP 202` 加空 body：收到了，没话要说。
 
-然后客户端问出关键问题——`tools/list`：
+### 标准方法、可选能力与调用时机
+
+**`tools/list` 是 MCP 规范约定的方法名，但 `tools` 能力本身是可选的。** 服务端可以只提供 resources 或 prompts；支持工具的服务端则必须在 `initialize` 响应中声明 `capabilities.tools`，并按标准提供 `tools/list` 和 `tools/call`。`"tools": {}` 就能声明工具能力，其中的 `listChanged` 只表示是否支持工具目录变化通知，不决定能不能列出工具。具体约定见 [MCP 2025-06-18 Tools 规范](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#capabilities)。
+
+**初始化成功后，客户端必须发送的是 `notifications/initialized`，并不必须立即调用 `tools/list`。** 按 [Lifecycle 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle)，初始化完成后进入正常操作阶段。客户端需要发现工具目录时才发送 `tools/list`；常见客户端会紧接着执行这一步，为模型准备工具定义，但这是客户端的工作流程，不是初始化必须附带的第四步。即使准备调用工具，协议也没有把“先执行一次 `tools/list`”规定为 `tools/call` 的额外前置条件。
+
+在本文的 Memos 示例中，客户端已经看到 `capabilities.tools`，于是继续获取工具目录：
 
 ```json
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 ```
 
-真实响应里有 20 个工具。挑出 `memo_list_memos` 的定义看看，它和 REST 的“文档”气质完全不同：
+### 返回结构：JSON-RPC 对象中的 tools 数组
+
+**整个响应是对象，工具数组在 `result.tools`。** 数组的每个元素是一份工具定义，描述工具叫什么、做什么、接收什么参数。这里返回的是工具目录，还没有执行 `memo_list_memos`，因此不会返回 memo 数据。
+
+原抓包的目录里有 20 个工具。下面保留 `memo_list_memos` 和 `auth_get_current_user` 两项，其余 18 项以及两项的 `outputSchema` 省略；展示的工具级 description、全部输入参数及其 description 均按 [Memos v0.30.0 的 OpenAPI 定义](https://github.com/usememos/memos/blob/v0.30.0/proto/gen/openapi.yaml)和 [MCP 转换代码](https://github.com/usememos/memos/blob/v0.30.0/server/router/mcp/catalog.go)核对补全。省略说明放在正文中，因此代码仍然是可解析的 JSON：
 
 ```json
 {
-  "name": "memo_list_memos",
-  "title": "Memo List Memos",
-  "description": "ListMemos lists memos with pagination and filter.",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "filter": {
-        "type": "string",
-        "description": "Optional. A CEL expression to filter memos. Combine terms with && and ||.\n Available fields: content, creator, created_ts / updated_ts, pinned, visibility (PRIVATE | PROTECTED | PUBLIC), tags ...\n Examples:\n   pinned == true && visibility == \"PUBLIC\"\n   content.contains(\"roadmap\") && created_ts > now - duration(\"168h\")"
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "memo_list_memos",
+        "title": "Memo List Memos",
+        "description": "ListMemos lists memos with pagination and filter.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Optional. The maximum number of memos to return.\n The service may return fewer than this value.\n If unspecified, at most 50 memos will be returned.\n The maximum value is 1000; values above 1000 will be coerced to 1000."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Optional. A page token, received from a previous `ListMemos` call.\n Provide this to retrieve the subsequent page."
+            },
+            "state": {
+              "enum": [
+                "STATE_UNSPECIFIED",
+                "NORMAL",
+                "ARCHIVED"
+              ],
+              "type": "string",
+              "format": "enum",
+              "description": "Optional. The state of the memos to list.\n Default to `NORMAL`. Set to `ARCHIVED` to list archived memos."
+            },
+            "orderBy": {
+              "type": "string",
+              "description": "Optional. The order to sort results by.\n Default to \"create_time desc\".\n Supports comma-separated list of fields following AIP-132.\n Example: \"pinned desc, create_time desc\" or \"update_time asc\"\n Supported fields: pinned, create_time, update_time, name.\n Note: order_by uses create_time / update_time, while the filter\n expression uses created_ts / updated_ts for the same timestamps."
+            },
+            "filter": {
+              "type": "string",
+              "description": "Optional. A CEL expression to filter memos. Combine terms with && and ||.\n Available fields:\n   content (string), creator (string, e.g. \"users/1\"),\n   created_ts / updated_ts (timestamp), pinned (bool),\n   visibility (string: PRIVATE | PROTECTED | PUBLIC),\n   tags (list<string>; match with `\"work\" in tags`, not `tag == \"work\"`),\n   has_task_list / has_link / has_code / has_incomplete_tasks (bool).\n Note: the time fields here are created_ts / updated_ts, which differ from\n the create_time / update_time names used by order_by.\n Examples:\n   pinned == true && visibility == \"PUBLIC\"\n   tags.exists(t, t == \"urgent\")\n   content.contains(\"roadmap\") && created_ts > now - duration(\"168h\")"
+            },
+            "showDeleted": {
+              "type": "boolean",
+              "description": "Optional. If true, show deleted memos in the response."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Memo List Memos",
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "method": "GET",
+          "operationId": "MemoService_ListMemos",
+          "path": "/api/v1/memos"
+        }
       },
-      "pageSize": { "type": "integer", "format": "int32", "description": "Optional. The maximum number of memos to return..." },
-      "state": { "type": "string", "enum": ["STATE_UNSPECIFIED", "NORMAL", "ARCHIVED"], "..." : "..." }
-    }
-  },
-  "annotations": {
-    "readOnlyHint": true,
-    "idempotentHint": true,
-    "destructiveHint": false,
-    "openWorldHint": false
-  },
-  "_meta": {
-    "method": "GET",
-    "operationId": "MemoService_ListMemos",
-    "path": "/api/v1/memos"
+      {
+        "name": "auth_get_current_user",
+        "title": "Auth Get Current User",
+        "description": "GetCurrentUser returns the authenticated user's information.\n Validates the access token and returns user details.\n Similar to OIDC's /userinfo endpoint.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Auth Get Current User",
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "method": "GET",
+          "operationId": "AuthService_GetCurrentUser",
+          "path": "/api/v1/auth/me"
+        }
+      }
+    ]
   }
 }
 ```
 
-（真实定义还包含完整的 `outputSchema`，太长这里省略；`_meta` 一节稍后会再提到。）
+这里的 `id: 2` 对应上面的 `tools/list` 请求。`result.tools[0].name` 是服务端定义的工具名 `memo_list_memos`，与协议方法名 `tools/list` 属于不同层次；执行它时，要把这个名字放进 `tools/call` 的 `params.name`。
 
-这份定义处处是“写给模型看”的设计：`description` 不是给人扫一眼的摘要，而是手把手教模型怎么填参数的自然语言说明书——支持哪些字段、CEL 表达式怎么写、给了三个完整示例，甚至特意提醒“filter 里的时间字段叫 `created_ts`，和 `orderBy` 里的 `create_time` 不一样”。`annotations` 则告诉 Host 这个工具是只读的、幂等的、不具有破坏性，Host 可以据此决定要不要弹审批。这就是 MCP 和 REST 在“发现”上的根本差异：**REST 的接口目录写进文档给人读，MCP 的工具目录通过协议实时下发给模型读**，模型在对话中自己决定调哪个、参数怎么填。
+工具目录还支持[分页](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/pagination)：如果服务端返回 `result.nextCursor`，客户端可以在下一次 `tools/list` 请求的 `params.cursor` 中原样带回；没有 `nextCursor` 就表示目录已到末尾。这里人为省略 18 个工具只是文章节选，不代表服务端把它们放到了下一页。工具目录分页使用的 `nextCursor` / `cursor`，也与查询 memo 数据时的 `nextPageToken` / `pageToken` 无关。
+
+### description 分为工具说明和参数说明
+
+`memo_list_memos` 顶层的 `description` 完整内容就是一句 `ListMemos lists memos with pagination and filter.`。支持哪些筛选字段、CEL 表达式怎样写，放在 **`inputSchema.properties.filter.description`** 中；分页上限、排序规则等则分别放在对应参数的 description 中。
+
+为了直接读清这段最长的说明，下面把上面 JSON 中 `filter.description` 的 `\n` 展开为换行、`\"` 还原成双引号，内容没有删减：
+
+```text
+Optional. A CEL expression to filter memos. Combine terms with && and ||.
+ Available fields:
+   content (string), creator (string, e.g. "users/1"),
+   created_ts / updated_ts (timestamp), pinned (bool),
+   visibility (string: PRIVATE | PROTECTED | PUBLIC),
+   tags (list<string>; match with `"work" in tags`, not `tag == "work"`),
+   has_task_list / has_link / has_code / has_incomplete_tasks (bool).
+ Note: the time fields here are created_ts / updated_ts, which differ from
+ the create_time / update_time names used by order_by.
+ Examples:
+   pinned == true && visibility == "PUBLIC"
+   tags.exists(t, t == "urgent")
+   content.contains("roadmap") && created_ts > now - duration("168h")
+```
+
+这段说明列出了字段、类型和三个完整表达式示例，还特意区分了同一时间戳的两套命名：**`filter` 使用 `created_ts` / `updated_ts`，`orderBy` 使用 `create_time` / `update_time`**。因此模型拿到的不只是“这是个查询工具”，还有怎样构造有效参数的自然语言说明书。
+
+`annotations` 则声明这个工具只读、幂等、不具有破坏性，Host 可以把这些提示作为执行策略的参考。MCP 将工具发现标准化后，Host 可以通过协议取得这些定义，再交给模型选择工具、填写参数；Memos 里的说明文字本身仍来自同一份 OpenAPI，这也说明面向人阅读的 API 文档和面向模型的工具目录可以共享描述来源。
+
+### 从工具定义到 tools/call：一次完整调用
+
+拿到 `memo_list_memos` 的定义后，客户端已经知道工具名称、可用参数及其含义。现在把“按创建时间倒序，最多取一条非私有 memo”写成实际的 [tools/call 请求](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#calling-tools)。下面是完整的 JSON-RPC 请求体；在本文的 HTTP 传输中，它仍然发往 `POST /mcp`：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "memo_list_memos",
+    "arguments": {
+      "pageSize": 1,
+      "filter": "visibility != \"PRIVATE\"",
+      "orderBy": "create_time desc"
+    }
+  }
+}
+```
+
+定义和调用在这里一一对应：
+
+- **`method` 固定为 `tools/call`**：告诉 MCP Server 本次要执行工具调用。
+- **`params.name` 来自工具定义的 `name`**：选择 `memo_list_memos`，而不是把业务工具名写进 `method`。
+- **`params.arguments` 按 `inputSchema` 填写**：`pageSize` 是整数，`filter` 和 `orderBy` 是字符串；字段名沿用 Memos 的定义。`visibility != "PRIVATE"` 排除私有 memo，`create_time desc` 使用排序参数规定的时间字段名。
+- **`id: 3` 标识本次请求**：与前面的 `tools/list` 请求区分，服务端回同一个 id；它不是工具编号，也不是 memo 的 id。
+
+执行成功后，Memos 把查询结果包装进 MCP 响应。**下面是结构完整的教学示例，memo 的名称和内容均为虚构，业务对象只保留便于说明的字段，不是新的抓包记录：**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"memos\":[{\"name\":\"memos/example-public-memo\",\"state\":\"NORMAL\",\"content\":\"这是一条公开的示例 memo。\",\"visibility\":\"PUBLIC\"}]}"
+      }
+    ],
+    "structuredContent": {
+      "memos": [
+        {
+          "name": "memos/example-public-memo",
+          "state": "NORMAL",
+          "content": "这是一条公开的示例 memo。",
+          "visibility": "PUBLIC"
+        }
+      ]
+    }
+  }
+}
+```
+
+外层 `id: 3` 将响应对应到这次调用。`result.content` 是 MCP 的内容块数组，这里只有一个 `type: "text"` 块，其 `text` 是经过转义的业务 JSON 字符串；`result.structuredContent` 则直接放同一份业务对象。**`result.tools` 是工具目录，`result.structuredContent.memos` 才是这次查询得到的 memo 列表**：前者来自 `tools/list`，后者来自 `tools/call`。本例没有后续数据页，所以业务对象里没有 `nextPageToken`；如果返回了它，应在下一次调用的 `params.arguments.pageToken` 中原样带回。
+
+这就把一次使用过程接完整了：`tools/list` 让客户端知道“有哪些工具、参数怎样填”，`tools/call` 才真正执行查询并返回业务数据。初始化完成后可以继续调用多个工具，无需为每次调用重新握手或重新列目录。
+
+## 从 Memos 看 MCP 协议的基本约定
+
+MCP（Model Context Protocol）统一的是 **AI 应用与外部服务之间的通信约定**。Memos 提供“列出 memo”等具体能力，MCP 规定客户端怎样协商能力、发现工具、发起调用和接收结果。沿着上面的例子，可以把本文使用的 [MCP 2025-06-18 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic)概括为三组约定。
+
+**第一组是消息格式。** 双方交换 JSON-RPC 2.0 消息，基本类型只有三种：
+
+| 消息类型与 Memos 例子 | 协议约定 |
+|---|---|
+| 请求（request）<br>`id: 2` 的 `tools/list` | 有 `id`、`method`，按需带 `params`<br>发出后等待对应响应 |
+| 响应（response）<br>`result.tools` 返回工具数组 | 回带请求的 `id: 2`<br>`result` 与 `error` 二选一 |
+| 通知（notification）<br>`notifications/initialized` | 有 `method`，可带 `params`，没有 `id`<br>接收方不返回 JSON-RPC 响应 |
+
+这里有两个独立的版本号：每条消息里的 **`jsonrpc: "2.0"` 是信封格式版本**，初始化时的 **`protocolVersion: "2025-06-18"` 是 MCP 协议版本**。HTTP 或 stdio 负责传送这些消息；换传输方式不会把 `tools/list` 变成另一套协议方法。
+
+**第二组是方法的输入输出契约。** 以 [Tools 规范](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)为例，MCP 不只约定方法叫什么，也约定它接收和返回哪些字段：`tools/list` 返回 `result.tools`；`tools/call` 接收 `params.name` 和 `params.arguments`，结果放在 `result.content` 中，也可以带 `result.structuredContent`。Memos 的 `memo_list_memos` 是 `params.name` 的一个值，`pageSize`、`filter` 是这个工具自己声明的 arguments。**标准协议方法承载服务端自定义的业务工具**，因此换成另一个服务端，客户端仍然可以沿用相同的发现和调用代码。调用失败时怎样区分 JSON-RPC `error` 与工具结果里的 `isError`，后文再展开。
+
+**第三组是生命周期与可选能力。** 基础消息和[初始化流程](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle)是共同底座，业务能力按需实现，并在 `initialize` 时声明。服务端的三类主要能力是：`tools` 提供可调用的操作，[resources](https://modelcontextprotocol.io/specification/2025-06-18/server/resources) 提供可按 URI 读取的内容，[prompts](https://modelcontextprotocol.io/specification/2025-06-18/server/prompts) 提供可获取的提示词模板。本例 Memos 声明了 `tools`，所以客户端通过工具查询 memo；“读取数据”同样可以是一项工具操作，并不意味着服务端一定实现了 `resources`。客户端只使用已协商的能力，何时拉取目录、把哪些工具交给模型，则由 Host 决定。
 
 ## 协议的每一层字段，分别由谁定义
 
-看到 `description` 是手把手教模型的自然语言，容易推出一个误解：既然有模型的理解力兜底，是不是整个报文的字段都可以随便写？回答这个问题，要先弄清楚**谁在读协议**。
+这些约定同时包含固定字段和服务端自定义内容。要区分哪些必须严格匹配协议、哪些可以由 Memos 自己设计，需要先明确**谁在读协议**。
 
 一个常见的错位是把 MCP Client 当成大模型本身。实际上 Client 是 Host（Codex、Claude Desktop 等）内部的一段**确定性代码**，和模型是两个组件：
 
@@ -225,12 +418,12 @@ MCP 规范存在的意义也就在第二层：没有它，每个 AI 应用接每
 
 ## tools/call 的结果，和它的两种错误
 
-工具真正执行时，回到开头的 `tools/call` 响应，有一个细节值得放大——同一份数据出现了**两次**：
+前面的完整 `tools/call` 示例中，同一份业务数据出现了**两次**：一次位于文本块，一次位于结构化结果。把相关字段单独摘出来：
 
 ```json
 "result": {
   "content": [{ "type": "text", "text": "{\"memos\":[...]}" }],
-  "structuredContent": { "memos": [...], "nextPageToken": "CAIQAg==" }
+  "structuredContent": { "memos": [...] }
 }
 ```
 

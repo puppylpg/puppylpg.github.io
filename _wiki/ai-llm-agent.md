@@ -79,6 +79,8 @@ mindmap
 
 **跨主题的维护原则**：LLM Wiki 解决“当前知识放在哪里”，Spec 驱动开发解决“当前承诺是什么”，独立验证解决“承诺是否兑现”。三者都需要区分历史材料、当前依据和执行证据；增加文档或 agent 数量，不能替代这三个边界。选择自动化范围时，优先固化有明确验收场景、能够取得证据的步骤，再扩大编排。
 
+**工具接入要区分协议约定、服务能力和客户端策略**：[MCP 抓包对比](/posts/2026/09/09/mcp-vs-rest-wire-format/)展示了初始化如何声明能力、`tools/list` 如何通过 `result.tools` 下发目录，[Memos 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)则说明工具执行如何复用已有 API。结合 harness 的职责边界，接入时应先确认 server 声明了什么能力，再决定何时发现目录、如何交给模型；不能从某个客户端“启动时立即列工具”的实现，推导出 MCP 对所有 server 和客户端都有相同要求。
+
 ### Claude Code 与工具链：从使用到编排
 
 使用层（[powerup 教程](/ai/2026/05/27/claude-code-powerup-guide/)）→ 原理层（[源码架构](/ai/2026/05/27/claude-code-source-code-architecture/)、[大型代码库](/ai/2026/06/07/claude-code-large-codebases/)、[多 Agent](/ai/2026/05/28/claude-code-multi-agent/)）→ 编排层（[Multica 三 CLI 流水线](/ai/2026/08/20/multica-multi-agent-pipeline/)）。
