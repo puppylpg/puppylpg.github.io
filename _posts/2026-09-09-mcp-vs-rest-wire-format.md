@@ -1,209 +1,261 @@
 ---
-title: "MCP 是不是也是 HTTP？用真实抓包对比 MCP 与 REST"
+title: "MCP 是不是也是 HTTP？用 Memos 示例对比 MCP 与 REST"
 date: 2026-09-09 18:58:09 +0800
 categories: [tech]
 tags: [mcp, rest, http, json-rpc, memos]
-description: "以自托管 Memos 的 /mcp 端点为对象，用 curl 抓取 initialize、tools/list、tools/call 的真实请求响应，逐字节对比 MCP 与 REST 的差异，并厘清 session id、三层协议字段各自的归属。"
+description: "按 MCP 2026-07-28 规范，以 Memos 为例对比 REST 与 MCP 的请求响应，串起能力发现、工具目录、输入输出 schema 和调用结果，并解释 stdio 与 Streamable HTTP。"
 ---
 
-同一个 Memos 服务同时暴露两个入口：`/api/v1` 下的 REST API 和单一的 `/mcp`。两者都能“列出最近的 memo”，鉴权用的还是同一枚 token。那么 MCP 和 REST 的区别到底在哪？经常听到的“MCP 也是基于 HTTP 的”，这话对不对？
+同一个业务能力可以有两个入口：面向程序的 REST API，以及供 AI 应用发现和调用工具的 MCP 接口。以 Memos 的“列出 memo”为例，两条路都能读取数据，但它们怎样描述操作、暴露参数和返回结果，存在明显差别。
 
-上一篇 [Memos 0.30 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)梳理过这两个入口在服务端的实现关系（MCP 由 OpenAPI 转换而来、进程内复用 REST 路由）；这篇换一个视角，不看服务端代码，直接从网络抓包看协议本身长什么样。
+本文采用官方[当前 MCP 规范 `2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)，用 Memos 的 API 和工具定义作为业务素材，假设一个符合该规范的示例适配器暴露这些工具。**下文请求和响应均为教学示例**，服务端名为 `memos-example-adapter`，memo 数据与 token 均为虚构；工具名、description 和 schema 来自 [Memos v0.30.0 的 OpenAPI](https://github.com/usememos/memos/blob/v0.30.0/proto/gen/openapi.yaml)，节选范围会单独说明。
 
-与其看规范文档，不如直接抓包。下面的报文以用 `curl` 对真实 Memos 实例（`0.30.0`）发起请求得到的抓包为基础，token 已脱敏；较长的业务数据和工具目录做了节选。`tools/list` 中展示的 description 按同版本源码核对并完整保留，省略范围会在示例前说明。后文补充的 `tools/call` 教学示例使用虚构数据，并单独标注。
+服务端怎样复用业务 API，可结合[上一篇 Memos 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)阅读；这里重点看当前协议的报文与交互方式，HTTP 示例省略由客户端补齐的 `Content-Length` 等传输字段。
 
 1. Table of Contents, ordered
 {:toc}
 
-## 同一个动作，两种完全不同的报文
+## 同一个动作，两种不同的报文
 
-先用两种方式做同一件事：列出最近一条公开 memo。
+先用两种方式查询最多一条非私有 memo。这里比较的是 **HTTP REST API 与 MCP**；REST 是架构风格，MCP 则规定了一套具体消息格式和交互方法。
 
-REST 版本的请求，语义全部写在 HTTP 层：
+REST 请求用 HTTP method 和资源路径表达操作，参数放在 query 中：
 
 ```http
-GET /api/v1/memos?pageSize=1&filter=visibility+%21%3D+%22PRIVATE%22 HTTP/2
-Host: memos.puppylpg.top
-Authorization: Bearer memos_pat_***
+GET /api/v1/memos?pageSize=1&filter=visibility+%21%3D+%22PRIVATE%22 HTTP/1.1
+Host: memos.example.com
+Authorization: Bearer example-token
 ```
 
-响应也是典型的 REST 风格：状态码表意，body 就是数据本身。
+假设没有匹配数据，响应 body 直接是业务对象：
 
 ```http
-HTTP/2 200
-content-type: application/json
+HTTP/1.1 200 OK
+Content-Type: application/json
 
-{"memos":[{"name":"memos/M7DBxb4xuUSyRPrTJftLsx","state":"NORMAL",
-"creator":"users/puppylpg","createTime":"2026-09-08T16:22:18Z",
-"content":"spec kit，sdd 范式就是我想要的那个 loop 啊……","visibility":"PUBLIC",
-"tags":["life"], ...}], "nextPageToken":"CAEQAQ=="}
+{"memos":[]}
 ```
 
-MCP 版本做的事情一样，但 HTTP 层变得“面无表情”——固定 `POST`，固定路径 `/mcp`，查询条件、动作类型全部挪进了 body：
+MCP 使用同一端点 `/mcp`，通过 JSON-RPC 的 `method` 选择协议方法，再用 `params.name` 指定业务工具：
 
 ```http
-POST /mcp HTTP/2
-Host: memos.puppylpg.top
+POST /mcp HTTP/1.1
+Host: memos.example.com
 Content-Type: application/json
 Accept: application/json, text/event-stream
-Authorization: Bearer memos_pat_***
-Mcp-Session-Id: 4HRLQYAJNSKJRQBCTLLBG4MKAH
+Authorization: Bearer example-token
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: memo_list_memos
 
-{"jsonrpc":"2.0","id":3,"method":"tools/call",
- "params":{"name":"memo_list_memos",
-           "arguments":{"pageSize":2,"filter":"visibility != \"PRIVATE\""}}}
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "tools/call",
+  "params": {
+    "name": "memo_list_memos",
+    "arguments": {
+      "pageSize": 1,
+      "filter": "visibility != \"PRIVATE\""
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "memos-demo-client",
+        "version": "1.0.0"
+      },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
 ```
+
+对应响应把业务对象放进 MCP 的结果结构：
 
 ```http
-HTTP/2 200
-content-type: application/json
+HTTP/1.1 200 OK
+Content-Type: application/json
 
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text",
- "text":"{\"memos\":[{\"content\":\"spec kit……\" ...}]}"}],
- "structuredContent":{"memos":[ ... ],"nextPageToken":"CAIQAg=="}}}
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": {
+    "resultType": "complete",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"memos\":[]}"
+      }
+    ],
+    "structuredContent": {
+      "memos": []
+    },
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
+    }
+  }
+}
 ```
 
-对比这两组报文，第一个结论就出来了：**REST 把语义寄生在 HTTP 自己身上**——method 表示动作类型、path 定位资源、query 表达过滤、状态码表示结果；**MCP 只把 HTTP 当运输队**，`POST /mcp` 这行几乎不含任何业务信息，真正的“做什么”写在 body 的 `"method": "tools/call"` 里。
+两种请求的业务目标相同，表达位置不同：REST 使用 `GET /api/v1/memos`；MCP 使用 `tools/call` 加 `memo_list_memos`。响应也多了一层：`jsonrpc` 和 `id` 属于 JSON-RPC，`resultType`、`content`、`structuredContent` 属于 MCP，最里面的 `memos` 才是业务数据。
 
-那个 body 就是 JSON-RPC 2.0 信封：`jsonrpc` 固定版本号，`id` 用来配对请求和响应，`method` 是协议方法名，`params` 是参数。接下来自然会问：既然语义都在 body 里，那 MCP 和 HTTP 到底还有没有必然关系？
+**HTTP 头也能看到 MCP 方法与工具名。** 当前规范要求 `Mcp-Method` 镜像 body 的 `method`，`tools/call` 还要求 `Mcp-Name` 镜像 `params.name`；它们帮助网关路由和观测，服务端必须检查头与 body 一致。完整参数及其结构仍以 JSON-RPC 消息为准，具体要求见[标准请求头](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers)。
 
-## MCP 不是 HTTP 协议，HTTP 只是它的一种载体
+## HTTP 是 MCP 的一种传输方式
 
-答案分两层。**在远程部署形态下，MCP 确实跑在 HTTP 上**，抓包就是证据；但 **MCP 本身是一个基于 JSON-RPC 2.0 的应用层协议，HTTP 只是规范定义的两种传输方式之一**：
+MCP 消息采用 JSON-RPC 2.0 格式，规范定义了两种标准传输：
 
-- **stdio**：本地场景。AI Host 把 MCP server 当子进程拉起，双方通过标准输入输出交换 JSON-RPC 消息，一个字节的 HTTP 都没有。
-- **Streamable HTTP**：远程场景，也就是上面抓到的这种。客户端用 POST 发送 JSON-RPC，服务端可以直接返回 JSON，也可以把响应升级成 SSE 流持续推送。
+- **stdio**：Host 启动本地 MCP Server 子进程，通过标准输入输出交换消息。
+- **Streamable HTTP**：客户端向 MCP 端点发送 POST，服务端返回 JSON 或 SSE 响应流。
 
-关键点是：**换传输方式时，body 里的 JSON-RPC 消息一个字都不用改**。同一个 `tools/call` 请求，走 stdio 就是一行 JSON，走 HTTP 就套一层 POST 信封。这和 REST 有本质区别——REST 的语义（`GET` 的幂等读取、`DELETE` 的删除、`404` 的未找到）离开 HTTP 就没有意义了。
+两种传输使用相同的协议方法和业务结构。stdio 直接写入一行 JSON；HTTP 把同一条 JSON 消息装进请求体，并添加版本、方法等传输头。
 
 ```mermaid
 flowchart LR
-    subgraph rpc["应用层：JSON-RPC 2.0 消息（与传输无关）"]
-        msg["method: tools/call<br/>params: name + arguments"]
+    subgraph rpc["协议消息：JSON-RPC 2.0"]
+        msg["method: tools/call<br/>params: name、arguments、_meta"]
     end
-    subgraph transports["传输层：二选一"]
-        stdio["stdio<br/>本地子进程，无网络"]
-        http["Streamable HTTP<br/>POST + 可选 SSE 流"]
+    subgraph transports["标准传输"]
+        stdio["stdio<br/>本地子进程管道"]
+        http["Streamable HTTP<br/>POST + JSON 或 SSE 响应"]
     end
     msg --> stdio
     msg --> http
 ```
 
-即便是走 HTTP，抓包里也能看到它不是普通 REST 的用法，有几个专属于 MCP 的痕迹：
+上面请求的 `params._meta` 携带了本次操作所需的协议上下文：[每请求元数据](https://modelcontextprotocol.io/specification/2026-07-28/basic#_meta)中，协议版本 `io.modelcontextprotocol/protocolVersion` 和客户端能力 `io.modelcontextprotocol/clientCapabilities` 必填；`clientInfo` 推荐携带，用于标识客户端软件。这里的 `{}` 表示客户端没有声明额外能力，不影响它调用服务端工具。
 
-- `Accept: application/json, text/event-stream` 必须**同时**带上两种类型——客户端在声明“普通 JSON 和 SSE 流我都能收”，这是 Streamable HTTP 传输的硬性要求；
-- `initialize` 响应里服务端回了 `mcp-session-id: 4HRLQYAJNSKJRQBCTLLBG4MKAH`，后续请求要原样带回——这个头名字像传统 Web 的 session，实际不是一回事，下面单独展开；
-- 响应头里没有 REST 世界常见的资源定位信息，所有结果都在 body 里。
+**每个请求都自包含，服务端不能依赖前一次请求来获知版本或客户端能力。** `clientInfo` 只是软件身份说明，认证仍由本例的 Bearer token 完成。两个版本号也要分开：`jsonrpc: "2.0"` 是消息格式版本，`2026-07-28` 是 MCP 协议版本；HTTP 的 `MCP-Protocol-Version` 必须与 body 中的值一致。
 
-所以“MCP 也是 HTTP”这个说法，只对了一半：它描述的是远程部署时的传输选择，不是协议本质。
+## 能力发现、工具目录与调用：一条完整链路
 
-### `Mcp-Session-Id` 是协议状态句柄，不是身份凭证
-
-传统前后端的 cookie session id 通常是**登录态本身**：服务端拿它去 session store 查出“这是哪个用户”，它事实上承担了认证凭证的角色，泄露 cookie 约等于泄露身份。管理上它也是全自动的——服务端 `Set-Cookie` 一次，浏览器就按域和路径在之后每个请求自动带上，前端代码可以毫无感知，这也是它需要 SameSite、HttpOnly 一堆补丁防 CSRF 的原因。
-
-`Mcp-Session-Id` 在这两点上都不同：
-
-- **它不是凭证**。认证由 `Authorization: Bearer` 独立完成（抓包里那枚 PAT），session id 绑定的是 `initialize` 协商出来的协议上下文——谈好的协议版本、capabilities、订阅关系。MCP 规范明确要求服务端不得拿 session id 鉴权，生成时也要求全局唯一、加密随机，并与用户身份绑定，一个用户的 session id 不能看到别人的数据。
-- **它没有自动管理机制**。它只是一个自定义 header，浏览器和通用 HTTP 客户端对它一无所知；要不要带、带在哪个请求上，全由 MCP 客户端库自己记住、自己塞——上面的抓包就是手动回带的。
-- **失效语义指向协议而非登录**。带着失效 session id 的请求会收到 `404`，客户端要重新走一遍 `initialize` 开新会话，因为旧会话绑定的协商结果已经没了——不是“重新登录”，而是“重新握手”。
-
-类比来说：cookie session id 像酒店房卡，证明你是住客；`Mcp-Session-Id` 像餐厅取餐号，只关联“这一单”的上下文，验资另有其物。
-
-### 维护 session 是 server 的可选题
-
-既然有 session id，server 是不是就要像传统后端一样维护一套 session 管理？不一定。规范里这个头是 server **可以**在 `initialize` 时返回的，不是必须。不返回的话，每个请求自包含：认证靠每次都带的 token，协商结果客户端自己记着，服务端打完就忘——和传统 REST 服务一样无状态，横向扩容任意一台实例都能处理任何请求。Memos 就是这种 stateless 配置：抓包里它仍按 SDK 默认行为发了一个 session id，但服务端并不真的拿它去查跨请求状态，更像一张握手回执。
-
-只有需要跨请求状态的 server——记住协商结果、维护资源订阅、支持 SSE 断线后按 event id 重放——才要承担和传统 Web session 管理几乎相同的义务：唯一且不可猜测的 id、与用户的绑定、多实例下的 sticky session 或共享存储、过期清理与 `404` 语义。MCP 把“要不要做 session 管理”留成了 server 的架构选择题，而不是协议的强制要求；工具调用大多是“给参数、拿结果”的无状态操作，所以轻量实现（比如 Memos 这种 OpenAPI 转 MCP）天然倾向 stateless。
-
-## 握手、工具发现与调用：一条完整链路
-
-REST 客户端怎么知道有哪些接口？读 API 文档，或者读 OpenAPI 给代码生成器用——发现发生在**人和工具链那一侧**，协议本身不管。MCP 把能力发现纳入了协议：客户端先完成初始化，确认 server 支持哪些能力，再按需获取工具等具体目录。初始化与工具发现是两个阶段。
-
-先把成功路径放在一张时序图里。左侧是 Host 内负责收发协议消息的 MCP Client，右侧是 Memos MCP Server；图中的两个可选区段分别表示工具发现和工具调用；客户端也可以直接调用已经知道名称和参数的工具。
+客户端可以先了解服务端，再获取工具定义，最后执行工具。下面按这个顺序展开；**两个发现步骤都按需调用，调用工具本身不依赖此前建立协议会话**。
 
 ```mermaid
 sequenceDiagram
-    participant C as MCP Client（客户端代码）
-    participant S as Memos MCP Server
-
-    Note over C,S: 初始化阶段：必须完成，以下展示成功路径
-    C->>S: initialize（id = 1）<br/>protocolVersion、capabilities、clientInfo
-    S-->>C: 初始化结果（id = 1）<br/>protocolVersion、capabilities、serverInfo
-    C-)S: notifications/initialized（无 id）
-    Note over C,S: 通知没有 JSON-RPC 响应<br/>本例 HTTP 层返回 202 + 空 body
-
-    Note over C,S: 初始化完成，进入正常操作阶段
-    opt 服务端声明 tools 能力，且客户端需要发现工具
+    participant C as MCP Client
+    participant S as Memos 示例适配器
+    Note over C,S: 每个请求独立携带协议版本与客户端能力
+    opt 客户端需要了解服务端
+        C->>S: server/discover（id = 1）
+        S-->>C: supportedVersions、capabilities、服务端信息
+    end
+    opt 客户端需要工具目录
         C->>S: tools/list（id = 2）
-        S-->>C: 工具目录（id = 2）<br/>result.tools 数组
+        S-->>C: tools 数组、缓存提示
     end
-    opt 服务端支持 tools，且客户端决定调用已知工具
-        C->>S: tools/call（id = 3）<br/>params.name、params.arguments
-        S-->>C: 调用结果（id = 3）<br/>result.content、result.structuredContent
-    end
+    C->>S: tools/call（id = 3）<br/>name + arguments
+    S-->>C: resultType = complete<br/>content + structuredContent
 ```
 
-这是抓到的真实握手请求：
+### server/discover：查询版本与能力
+
+[`server/discover`](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) 是服务端必须实现的方法，客户端可以选择是否调用。它不创建会话，而是返回服务端支持的协议版本、能力和软件信息：
 
 ```http
-POST /mcp HTTP/2
+POST /mcp HTTP/1.1
+Host: memos.example.com
 Content-Type: application/json
 Accept: application/json, text/event-stream
-Authorization: Bearer memos_pat_***
+Authorization: Bearer example-token
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: server/discover
 
-{"jsonrpc":"2.0","id":1,"method":"initialize",
- "params":{"protocolVersion":"2025-06-18",
-           "capabilities":{},
-           "clientInfo":{"name":"curl-wire-demo","version":"0.1.0"}}}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "memos-demo-client",
+        "version": "1.0.0"
+      },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
 ```
 
-客户端自报家门：我会说哪个版本的协议（`protocolVersion`）、我是谁（`clientInfo`）、我支持哪些能力（`capabilities`）。服务端的真实响应：
+示例适配器只声明工具能力，响应如下：
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "capabilities": { "logging": {}, "tools": { "listChanged": true } },
-    "protocolVersion": "2025-06-18",
-    "serverInfo": { "name": "memos", "version": "0.30.0" }
+    "resultType": "complete",
+    "supportedVersions": [
+      "2026-07-28"
+    ],
+    "capabilities": {
+      "tools": {}
+    },
+    "instructions": "Provides tools for querying Memos.",
+    "ttlMs": 300000,
+    "cacheScope": "private",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
+    }
   }
 }
 ```
 
-这是一次双向协商：服务端确认协议版本，声明自己的能力——这里 Memos 声明了 `logging` 和 `tools`，没有声明 prompts 和 resources；`listChanged: true` 表示工具列表变化时支持主动通知。注意响应里的 `"id": 1` 和请求配对，这是 JSON-RPC 的规矩。
+`capabilities.tools: {}` 已足以表示支持工具，`tools.listChanged` 只在支持工具目录变化通知时声明。客户端根据 `supportedVersions` 和能力列表选择后续操作；`result._meta` 中的软件信息用于展示、日志和调试。每个后续请求仍需携带自己的 `_meta`。
 
-握手之后还有一个容易漏掉的步骤：客户端要回一条 `notifications/initialized` 通知，告诉服务端“我准备好了”。
+**“服务端必须实现”不等于“客户端启动后必须调用”。** 已知版本和工具定义的客户端可以直接发起操作；版本不兼容时，按协议错误处理，再选择双方支持的版本。
 
-```json
-{"jsonrpc":"2.0","method":"notifications/initialized"}
-```
+### tools/list：获取工具的输入输出契约
 
-注意这条消息**没有 `id`**——JSON-RPC 里没有 id 的消息是通知（notification），不需要响应体。服务端对此的真实回应是 `HTTP 202` 加空 body：收到了，没话要说。
+[`tools/list`](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#listing-tools) 是标准方法，但工具能力本身可选。服务端也可以只提供 resources 或 prompts；声明工具能力后，必须响应工具目录请求，目录可以为空。客户端何时列目录、是否复用缓存，由实际需求决定；协议并不要求每次 `tools/call` 前都先列一次工具。
 
-### 标准方法、可选能力与调用时机
+下面发起一次工具目录请求：
 
-**`tools/list` 是 MCP 规范约定的方法名，但 `tools` 能力本身是可选的。** 服务端可以只提供 resources 或 prompts；支持工具的服务端则必须在 `initialize` 响应中声明 `capabilities.tools`，并按标准提供 `tools/list` 和 `tools/call`。`"tools": {}` 就能声明工具能力，其中的 `listChanged` 只表示是否支持工具目录变化通知，不决定能不能列出工具。具体约定见 [MCP 2025-06-18 Tools 规范](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#capabilities)。
+```http
+POST /mcp HTTP/1.1
+Host: memos.example.com
+Content-Type: application/json
+Accept: application/json, text/event-stream
+Authorization: Bearer example-token
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/list
 
-**初始化成功后，客户端必须发送的是 `notifications/initialized`，并不必须立即调用 `tools/list`。** 按 [Lifecycle 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle)，初始化完成后进入正常操作阶段。客户端需要发现工具目录时才发送 `tools/list`；常见客户端会紧接着执行这一步，为模型准备工具定义，但这是客户端的工作流程，不是初始化必须附带的第四步。即使准备调用工具，协议也没有把“先执行一次 `tools/list`”规定为 `tools/call` 的额外前置条件。
-
-在本文的 Memos 示例中，客户端已经看到 `capabilities.tools`，于是继续获取工具目录：
-
-```json
-{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "memos-demo-client",
+        "version": "1.0.0"
+      },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
 ```
 
 ### 返回结构：JSON-RPC 对象中的 tools 数组
 
-**整个响应是对象，工具数组在 `result.tools`。** 数组的每个元素是一份工具定义，描述工具叫什么、做什么、接收什么参数。这里返回的是工具目录，还没有执行 `memo_list_memos`，因此不会返回 memo 数据。
+**整个响应是对象，工具数组在 `result.tools`。** 数组每个元素描述工具叫什么、做什么、接收什么参数，还可以声明结构化输出。此时尚未执行 `memo_list_memos`，所以返回的是定义，不是 memo 数据。
 
-原抓包的目录里有 20 个工具。下面保留 `memo_list_memos` 和 `auth_get_current_user` 两项，其余 18 项以及两项的 `outputSchema` 省略；展示的工具级 description、全部输入参数及其 description 均按 [Memos v0.30.0 的 OpenAPI 定义](https://github.com/usememos/memos/blob/v0.30.0/proto/gen/openapi.yaml)和 [MCP 转换代码](https://github.com/usememos/memos/blob/v0.30.0/server/router/mcp/catalog.go)核对补全。省略说明放在正文中，因此代码仍然是可解析的 JSON：
+Memos 原有目录包含 20 个工具。这里用两项定义构造新版目录响应：保留 `memo_list_memos` 和 `auth_get_current_user`，省略其余 18 项和后者的 `outputSchema`。前者的输出 schema 保留顶层字段及 `$defs.Memo` 中的 `name`、`state`、`content`、`visibility`，其余 memo 属性和嵌套定义省略。**工具级 description、全部输入参数及其 description 均完整保留**，来源为 [OpenAPI 定义](https://github.com/usememos/memos/blob/v0.30.0/proto/gen/openapi.yaml)和 [MCP 转换代码](https://github.com/usememos/memos/blob/v0.30.0/server/router/mcp/catalog.go)。响应中的版本相关字段与缓存值为教学示例。
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 2,
   "result": {
+    "resultType": "complete",
     "tools": [
       {
         "name": "memo_list_memos",
@@ -246,6 +298,63 @@ Authorization: Bearer memos_pat_***
           },
           "additionalProperties": false
         },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "memos": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Memo"
+              },
+              "description": "The list of memos."
+            },
+            "nextPageToken": {
+              "type": "string",
+              "description": "A token that can be sent as `page_token` to retrieve the next page.\n If this field is omitted, there are no subsequent pages."
+            }
+          },
+          "$defs": {
+            "Memo": {
+              "required": [
+                "state",
+                "content",
+                "visibility"
+              ],
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The resource name of the memo.\n Format: memos/{memo}, where memo is the user-defined UID."
+                },
+                "state": {
+                  "enum": [
+                    "STATE_UNSPECIFIED",
+                    "NORMAL",
+                    "ARCHIVED"
+                  ],
+                  "type": "string",
+                  "description": "The state of the memo.",
+                  "format": "enum"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Required. The content of the memo in Markdown format."
+                },
+                "visibility": {
+                  "enum": [
+                    "VISIBILITY_UNSPECIFIED",
+                    "PRIVATE",
+                    "PROTECTED",
+                    "PUBLIC"
+                  ],
+                  "type": "string",
+                  "format": "enum",
+                  "description": "The visibility of the memo.\n One of PRIVATE (creator only), PROTECTED (signed-in users), or\n PUBLIC (anyone). Defaults to PRIVATE on creation when unspecified."
+                }
+              }
+            }
+          }
+        },
         "annotations": {
           "title": "Memo List Memos",
           "readOnlyHint": true,
@@ -281,14 +390,24 @@ Authorization: Bearer memos_pat_***
           "path": "/api/v1/auth/me"
         }
       }
-    ]
+    ],
+    "ttlMs": 300000,
+    "cacheScope": "private",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
+    }
   }
 }
 ```
 
-这里的 `id: 2` 对应上面的 `tools/list` 请求。`result.tools[0].name` 是服务端定义的工具名 `memo_list_memos`，与协议方法名 `tools/list` 属于不同层次；执行它时，要把这个名字放进 `tools/call` 的 `params.name`。
+`id: 2` 对应上面的请求；`resultType: "complete"` 表示已经得到完整结果。`result.tools[0].name` 是业务工具名，与协议方法 `tools/list` 属于不同层次，执行时要放进 `tools/call` 的 `params.name`。
 
-工具目录还支持[分页](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/pagination)：如果服务端返回 `result.nextCursor`，客户端可以在下一次 `tools/list` 请求的 `params.cursor` 中原样带回；没有 `nextCursor` 就表示目录已到末尾。这里人为省略 18 个工具只是文章节选，不代表服务端把它们放到了下一页。工具目录分页使用的 `nextCursor` / `cursor`，也与查询 memo 数据时的 `nextPageToken` / `pageToken` 无关。
+`server/discover` 和 `tools/list` 的完整结果必须带[缓存提示](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching)。这里 `ttlMs: 300000` 表示建议的五分钟新鲜期，`cacheScope: "private"` 表示缓存只在同一鉴权上下文内复用；这个“private”描述缓存范围，与 memo 的可见性字段无关。
+
+工具目录支持[分页](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/pagination)：出现 `result.nextCursor` 时，下一次 `tools/list` 可把它放入 `params.cursor`；没有该字段表示目录结束。文章省略 18 项不代表目录实际分页。目录的 `nextCursor` / `cursor` 与 memo 数据的 `nextPageToken` / `pageToken` 也是两套参数。
 
 ### description 分为工具说明和参数说明
 
@@ -316,9 +435,29 @@ Optional. A CEL expression to filter memos. Combine terms with && and ||.
 
 `annotations` 则声明这个工具只读、幂等、不具有破坏性，Host 可以把这些提示作为执行策略的参考。MCP 将工具发现标准化后，Host 可以通过协议取得这些定义，再交给模型选择工具、填写参数；Memos 里的说明文字本身仍来自同一份 OpenAPI，这也说明面向人阅读的 API 文档和面向模型的工具目录可以共享描述来源。
 
+### 返回值也有定义：outputSchema
+
+工具定义中的 `inputSchema` 和 `outputSchema` 分别描述业务输入与结构化输出。返回值字段同样可以带 `description`，说明字段的含义；`type`、`enum`、`required` 等 JSON Schema 关键字则表达可由程序检查的约束。**字段出现在 `properties` 中，不等于它一定会返回，是否必填要看 `required`。**
+
+响应中不同层次的结构，来自不同的约定：
+
+| 层次 | 结构从哪里得知 |
+|---|---|
+| JSON-RPC 信封<br>`jsonrpc`、`id`、`result` / `error` | JSON-RPC 与 MCP 规范 |
+| 协议方法的结果<br>如 `tools/list` 的 `result.tools` | MCP 为该方法定义的结果类型<br>客户端通常由 SDK 解析 |
+| 具体工具的业务数据<br>如 `structuredContent.memos` | 工具定义里的 `outputSchema`<br>由服务端通过 `tools/list` 下发 |
+
+因此，客户端不是看到一份 response 后才猜它属于哪个方法：它先用 `id` 找到对应请求，再按该方法的结果类型解析。对于 `tools/call`，还知道请求选择了哪个工具，因而可以使用这个工具的输出 schema。
+
+上面输出 schema 中的 `$ref: "#/$defs/Memo"` 表示数组元素使用 `$defs.Memo` 的定义，其中 `required` 列出了 `state`、`content`、`visibility`；顶层没有 `required`，不能仅凭 schema 就假定 `memos` 和 `nextPageToken` 每次都存在。分页 token 的 description 还明确说明：字段省略时表示没有后续页。
+
+以 `memo_list_memos` 为例，`outputSchema` 描述的是 `result.structuredContent` 内的业务对象：`memos` 是数组、元素有哪些字段、`nextPageToken` 是什么类型。**它不描述整个 JSON-RPC 响应，也不直接约束 `content[].text` 里的字符串。** 按 [Output Schema 规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#output-schema)，声明输出 schema 后，服务端必须返回符合它的结构化结果，客户端应校验。
+
+**`outputSchema` 是可选的。** 没有它时，协议外层和内容块的类型仍然明确，工具可以只返回一段供人或模型阅读的文本，也可以返回未声明 schema 的结构化数据。此时若要让程序稳定地读取业务字段，应依赖工具文档或另行约定的契约；一次响应样本不能证明所有字段永远存在，模型对内容的理解也不能代替结构校验。
+
 ### 从工具定义到 tools/call：一次完整调用
 
-拿到 `memo_list_memos` 的定义后，客户端已经知道工具名称、可用参数及其含义。现在把“按创建时间倒序，最多取一条非私有 memo”写成实际的 [tools/call 请求](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#calling-tools)。下面是完整的 JSON-RPC 请求体；在本文的 HTTP 传输中，它仍然发往 `POST /mcp`：
+现在按定义执行“按创建时间倒序，最多取一条非私有 memo”。HTTP 请求仍使用前文的 `/mcp` 端点，`Mcp-Method: tools/call` 和 `Mcp-Name: memo_list_memos` 与正文一致，完整 JSON-RPC 请求体如下：
 
 ```json
 {
@@ -331,25 +470,29 @@ Optional. A CEL expression to filter memos. Combine terms with && and ||.
       "pageSize": 1,
       "filter": "visibility != \"PRIVATE\"",
       "orderBy": "create_time desc"
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "memos-demo-client",
+        "version": "1.0.0"
+      },
+      "io.modelcontextprotocol/clientCapabilities": {}
     }
   }
 }
 ```
 
-定义和调用在这里一一对应：
+定义与调用的对应关系是：`method` 选择标准协议方法，`name` 选择具体工具，`arguments` 按 `inputSchema` 填写，`_meta` 携带协议上下文，`id` 将本次请求与响应关联起来。`visibility != "PRIVATE"` 排除私有 memo，`create_time desc` 使用排序参数规定的时间字段名。
 
-- **`method` 固定为 `tools/call`**：告诉 MCP Server 本次要执行工具调用。
-- **`params.name` 来自工具定义的 `name`**：选择 `memo_list_memos`，而不是把业务工具名写进 `method`。
-- **`params.arguments` 按 `inputSchema` 填写**：`pageSize` 是整数，`filter` 和 `orderBy` 是字符串；字段名沿用 Memos 的定义。`visibility != "PRIVATE"` 排除私有 memo，`create_time desc` 使用排序参数规定的时间字段名。
-- **`id: 3` 标识本次请求**：与前面的 `tools/list` 请求区分，服务端回同一个 id；它不是工具编号，也不是 memo 的 id。
-
-执行成功后，Memos 把查询结果包装进 MCP 响应。**下面是结构完整的教学示例，memo 的名称和内容均为虚构，业务对象只保留便于说明的字段，不是新的抓包记录：**
+适配器执行查询后，返回以下虚构业务结果：
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
+    "resultType": "complete",
     "content": [
       {
         "type": "text",
@@ -365,106 +508,356 @@ Optional. A CEL expression to filter memos. Combine terms with && and ||.
           "visibility": "PUBLIC"
         }
       ]
+    },
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
     }
   }
 }
 ```
 
-外层 `id: 3` 将响应对应到这次调用。`result.content` 是 MCP 的内容块数组，这里只有一个 `type: "text"` 块，其 `text` 是经过转义的业务 JSON 字符串；`result.structuredContent` 则直接放同一份业务对象。**`result.tools` 是工具目录，`result.structuredContent.memos` 才是这次查询得到的 memo 列表**：前者来自 `tools/list`，后者来自 `tools/call`。本例没有后续数据页，所以业务对象里没有 `nextPageToken`；如果返回了它，应在下一次调用的 `params.arguments.pageToken` 中原样带回。
+外层 `id: 3` 对应本次调用。`result.content` 是内容块数组，这里只有一个文本块，`text` 是序列化后的业务 JSON；`result.structuredContent` 则直接放同一份业务对象，按工具声明的 `outputSchema` 校验。
 
-这就把一次使用过程接完整了：`tools/list` 让客户端知道“有哪些工具、参数怎样填”，`tools/call` 才真正执行查询并返回业务数据。初始化完成后可以继续调用多个工具，无需为每次调用重新握手或重新列目录。
+**`result.tools` 是目录，`result.structuredContent.memos` 才是查询数据。** 本例没有后续数据页，所以业务对象没有 `nextPageToken`；如果返回了它，下一次调用应把它放进 `params.arguments.pageToken`。
+
+完整链路由此连起来：`server/discover` 说明服务端能力，`tools/list` 下发工具契约，`tools/call` 执行业务。已知目录时，可以直接继续调用；每个请求都独立携带必要元数据。
 
 ## 从 Memos 看 MCP 协议的基本约定
 
-MCP（Model Context Protocol）统一的是 **AI 应用与外部服务之间的通信约定**。Memos 提供“列出 memo”等具体能力，MCP 规定客户端怎样协商能力、发现工具、发起调用和接收结果。沿着上面的例子，可以把本文使用的 [MCP 2025-06-18 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic)概括为三组约定。
+MCP 统一的是 **AI 应用与外部服务之间的通信约定**。沿着上面的例子，可以把[基础协议](https://modelcontextprotocol.io/specification/2026-07-28/basic)概括为消息、契约和能力三层。
 
-**第一组是消息格式。** 双方交换 JSON-RPC 2.0 消息，基本类型只有三种：
+**第一层是消息格式。** 请求、响应与通知的区别如下：
 
-| 消息类型与 Memos 例子 | 协议约定 |
+| 消息类型 | 协议约定 |
 |---|---|
-| 请求（request）<br>`id: 2` 的 `tools/list` | 有 `id`、`method`，按需带 `params`<br>发出后等待对应响应 |
-| 响应（response）<br>`result.tools` 返回工具数组 | 回带请求的 `id: 2`<br>`result` 与 `error` 二选一 |
-| 通知（notification）<br>`notifications/initialized` | 有 `method`，可带 `params`，没有 `id`<br>接收方不返回 JSON-RPC 响应 |
+| 请求，如 `tools/list` | 有 `id`、`method`<br>`params._meta` 带必需的协议字段 |
+| 响应，如工具目录 | 回带请求的 `id`<br>`result` 与 `error` 二选一 |
+| 通知，如进度更新 | 有 `method`，没有 `id`<br>接收方不返回 JSON-RPC 响应 |
 
-这里有两个独立的版本号：每条消息里的 **`jsonrpc: "2.0"` 是信封格式版本**，初始化时的 **`protocolVersion: "2025-06-18"` 是 MCP 协议版本**。HTTP 或 stdio 负责传送这些消息；换传输方式不会把 `tools/list` 变成另一套协议方法。
+当前规范的 `result` 还有 `resultType`：`complete` 表示请求已完成；需要客户端补充信息时，可以返回 `input_required`。本文展示的是完成型结果；后者的继续交互遵循[多轮请求约定](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns#multi-round-trip-requests)，不能把任意 `result` 都当成最终业务数据。
 
-**第二组是方法的输入输出契约。** 以 [Tools 规范](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)为例，MCP 不只约定方法叫什么，也约定它接收和返回哪些字段：`tools/list` 返回 `result.tools`；`tools/call` 接收 `params.name` 和 `params.arguments`，结果放在 `result.content` 中，也可以带 `result.structuredContent`。Memos 的 `memo_list_memos` 是 `params.name` 的一个值，`pageSize`、`filter` 是这个工具自己声明的 arguments。**标准协议方法承载服务端自定义的业务工具**，因此换成另一个服务端，客户端仍然可以沿用相同的发现和调用代码。调用失败时怎样区分 JSON-RPC `error` 与工具结果里的 `isError`，后文再展开。
+**第二层是输入输出契约。** MCP 定义 `tools/list` 的目录结构和 `tools/call` 的调用、结果结构；服务端再通过工具自己的 `inputSchema` / `outputSchema` 定义业务数据。因此通用客户端可以解析不同服务的目录，而不必为每个服务重新设计调用协议。
 
-**第三组是生命周期与可选能力。** 基础消息和[初始化流程](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle)是共同底座，业务能力按需实现，并在 `initialize` 时声明。服务端的三类主要能力是：`tools` 提供可调用的操作，[resources](https://modelcontextprotocol.io/specification/2025-06-18/server/resources) 提供可按 URI 读取的内容，[prompts](https://modelcontextprotocol.io/specification/2025-06-18/server/prompts) 提供可获取的提示词模板。本例 Memos 声明了 `tools`，所以客户端通过工具查询 memo；“读取数据”同样可以是一项工具操作，并不意味着服务端一定实现了 `resources`。客户端只使用已协商的能力，何时拉取目录、把哪些工具交给模型，则由 Host 决定。
+**第三层是可选能力与独立请求。** 服务端可以提供可调用操作 [tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)、可按 URI 读取的内容 [resources](https://modelcontextprotocol.io/specification/2026-07-28/server/resources)，或提示词模板 [prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)。本例把读取 memo 表达为工具，并不因此必须实现 resources。需要跨请求的业务状态时，应通过明确的业务标识传递，服务端不能把某条连接当成隐含的对话上下文。
 
-## 协议的每一层字段，分别由谁定义
+## 协议字段和业务字段，分别由谁定义
 
-这些约定同时包含固定字段和服务端自定义内容。要区分哪些必须严格匹配协议、哪些可以由 Memos 自己设计，需要先明确**谁在读协议**。
-
-一个常见的错位是把 MCP Client 当成大模型本身。实际上 Client 是 Host（Codex、Claude Desktop 等）内部的一段**确定性代码**，和模型是两个组件：
+AI Host、模型和 MCP Client 各自承担不同职责。模型可以选择工具并填写参数，Client 则负责组织与解析协议消息：
 
 ```mermaid
 flowchart LR
     U[用户] <--> H[AI Host 应用]
-    H <-->|对话、工具定义、工具结果| L[LLM<br/>选工具、填参数]
-    H --- C[MCP Client<br/>协议解析代码]
+    H <-->|工具定义与工具结果| L[LLM]
+    H --- C[MCP Client]
     C <-->|JSON-RPC over HTTP / stdio| S[MCP Server]
 ```
 
-模型在这条链里只接触两样东西：`tools/list` 结果里的工具名、description 和 JSON Schema（Host 转发给它当说明书），以及 `tools/call` 的结果文本。除此之外的所有消息——`initialize` 握手、capabilities 协商、session id 的回带——都是 Client 代码在收发和解析，模型全程不可见。代码没有“猜”的能力，所以信封层的字段一个都不能随便写。
+Host 决定把哪些工具说明和结果交给模型。版本字段、HTTP 头与 body 的一致性、`id` 配对、schema 校验等由客户端或服务端代码处理，不依赖模型猜测。
 
-把报文从外到内拆开，每一层的“制定者”不同，自由度也完全不同：
+1. **JSON-RPC 定义消息信封**：`jsonrpc`、`id`、`method`、`params` 以及响应的 `result` / `error` 有固定含义。
+2. **MCP 定义标准方法和结果类型**：例如 `tools/list` 必须返回工具目录，`tools/call` 用 `name` 和 `arguments` 表达调用，结果还要说明 `resultType`。
+3. **服务端定义工具业务契约**：工具名、description、`pageSize` 等输入字段，以及 `memos` 等输出字段，来自具体业务。自定义结构一旦通过 schema 声明，就成为调用和校验的依据。
 
-1. **JSON-RPC 2.0 信封：最严，独立通用规范**。[JSON-RPC 2.0](https://www.jsonrpc.org/specification) 早在 2010 年前后就定稿了，不是为 AI 发明的。它锁死 `jsonrpc`/`id`/`method`/`params` 的形态，规定没有 `id` 就是 notification、服务端禁止返回响应体（上文 `notifications/initialized` 只回 `202` 空 body 的原因），规定响应里 `result` 和 `error` 必须二选一，还保留了 `-32768` 到 `-32000` 的错误码区间——下文抓到的 `-32602` 就来自这张保留码表。
-2. **MCP 协议方法：由 MCP 规范定义**。[MCP 规范](https://modelcontextprotocol.io/specification/2025-06-18)（Anthropic 2024 年底发起开源）在信封之上锁死了方法词汇表和生命周期：方法就叫 `initialize`、`tools/list`、`tools/call`，Server 不能发明一个叫 `listTools` 的变体——Client 代码里硬编码了要调什么；每个方法的 params 和 result 结构也是固定的，比如 Client 要程序化地读 `capabilities.tools` 来判断服务端有没有工具能力，再决定下一步行为。
-3. **工具参数：唯一自由的一层**。`tools/call` 里 `arguments` 的字段（`pageSize` 还是 `limit`）、工具叫什么、description 怎么写，由**每个 server 自己**用 JSON Schema 声明并通过 `tools/list` 下发。这是协议里唯一“随便写”的部分，也恰恰是模型唯一能读到的那层——说它自由，是因为它的消费者是模型；说它仍受约束，是因为 Client 会拿声明的 schema 做确定性校验，填错类型照样被拒。
+这也解释了 `method: "tools/call"` 和 `name: "memo_list_memos"` 为什么分开：前者让通用客户端知道怎样处理消息，后者让服务端知道具体执行哪项业务。
 
-MCP 规范存在的意义也就在第二层：没有它，每个 AI 应用接每个外部服务都要写一套定制对接代码，N 个 Host 乘 M 个服务就是 N×M 份胶水；中间层统一之后，Client 库只需实现一次，任何合规 Server 即插即用。用邮政打个比方：JSON-RPC 规定信封格式，MCP 规范规定有哪几种公文、每种公文有哪些固定栏目，Server 自定义的只是某张表格上的填空题——而模型只负责答填空题，既不拆信封，也不印表格。
+## tools/call 的结果与两种错误
 
-## tools/call 的结果，和它的两种错误
+`content` 是带类型的内容块，可承载文本、图像等；`structuredContent` 保留业务数据的结构，便于按 `outputSchema` 校验和读取。本例同时提供业务对象及其 JSON 文本，Host 可以分别处理，也可以将结果提供给模型。
 
-前面的完整 `tools/call` 示例中，同一份业务数据出现了**两次**：一次位于文本块，一次位于结构化结果。把相关字段单独摘出来：
+工具调用失败时，[Tools 规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling)区分协议错误与工具执行错误。下面只展示两种错误响应，假定请求已按前文携带所需元数据。
+
+**协议错误**：例如指定了不存在的工具。响应使用 JSON-RPC 的 `error`：
 
 ```json
-"result": {
-  "content": [{ "type": "text", "text": "{\"memos\":[...]}" }],
-  "structuredContent": { "memos": [...] }
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "error": {
+    "code": -32602,
+    "message": "Unknown tool: memo_unknown_tool"
+  }
 }
 ```
 
-`content` 是给模型读的文本形态（这里是 JSON 字符串），`structuredContent` 是按 `outputSchema` 组织的结构化数据，给 Host 程序用。MCP 服务端选择两者都返回，各取所需。
+此时没有 `result`，也就没有 `resultType`。客户端按错误码和消息处理失败。
 
-更有教学价值的是错误。故意造了两种错误，抓到的响应形态完全不同：
-
-**协议层错误**——调用一个不存在的工具：
+**工具执行错误**：工具已被识别，但业务参数校验失败，例如筛选表达式无法解析。错误作为工具结果返回：
 
 ```json
-{"jsonrpc":"2.0","id":4,
- "error":{"code":-32602,"message":"unknown tool \"memo_delete_everything\""}}
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "result": {
+    "resultType": "complete",
+    "content": [
+      {
+        "type": "text",
+        "text": "Invalid filter expression: expected a comparison after visibility."
+      }
+    ],
+    "isError": true,
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
+    }
+  }
+}
 ```
 
-这是标准的 JSON-RPC error：没有 `result`，换成 `error`，`-32602` 是规范里的 “Invalid params”。说明请求根本没进入工具执行阶段，在协议路由层就被拒了。
+这里的 `resultType: "complete"` 表示这次请求已结束，**不等于业务执行成功**；`isError: true` 才是工具失败标记。错误内容可以帮助模型修正参数，但并不保证一定能够自动恢复。
 
-**工具层错误**——工具存在，但参数类型填错（`pageSize` 传了字符串）：
+HTTP 层仍有自己的错误语义，例如认证失败、请求头与 body 不一致。不能仅凭 HTTP `200` 判断工具成功，也不能把所有 MCP 错误都概括成 HTTP 状态码。
 
-```json
-{"jsonrpc":"2.0","id":5,
- "result":{"content":[{"type":"text","text":"argument \"pageSize\" must be integer"}],
-           "isError":true}}
-```
+## 两种接口如何配合
 
-注意这次 HTTP 依然是 `200`，JSON-RPC 信封里是 `result` 而不是 `error`，失败标记藏在结果的 `isError: true` 里。为什么要设计成这样？因为这个错误的读者是**模型**：模型拿到 `isError: true` 和一句人话错误描述后，会自己改正参数重试。对 LLM 来说，“工具执行失败但错误可读”和“协议本身出错”是两件事，前者是正常推理过程的一部分，后者才是异常。对比 REST 就明白了：REST 用 `400`/`404` 状态码把错误类型压进 HTTP 层，是给调用方程序的 `if` 判断用的；MCP 把业务错误压成自然语言文本，是给模型“读”的。
+将本例的差别放在一起：
 
-## 收束：两种协议，两种读者
-
-把抓包看到的事实归拢成一张表：
-
-| 维度 | REST | MCP |
+| 维度 | HTTP REST API | MCP |
 |---|---|---|
-| 业务语义位置 | HTTP method + path + query + 状态码 | body 里 JSON-RPC 的 method + params |
-| 与 HTTP 的关系 | 语义寄生在 HTTP 上，离开 HTTP 不成立 | HTTP 只是两种传输之一（另一种是 stdio），换传输不改消息 |
-| 能力发现 | 协议不管，靠文档 / OpenAPI | 协议内建：`initialize` 协商能力，`tools/list` 动态下发 |
-| 接口描述受众 | 程序员、代码生成器 | 模型：自然语言 description + JSON Schema + 行为注解 |
-| 请求形态 | 多个资源路径、多个 method | 单一端点、固定 POST |
-| 会话状态 | cookie session 常兼任身份凭证，浏览器自动管理 | `Mcp-Session-Id` 只是协议状态句柄，客户端显式回带；server 可选择完全 stateless |
-| 字段定义方 | method/path 语义来自 HTTP，资源结构由各 API 自定义 | 信封由 JSON-RPC 2.0 锁死，方法由 MCP 规范锁死，仅工具参数由 server 自定义 |
-| 错误表达 | HTTP 状态码 + 错误 body | 协议层用 JSON-RPC error；业务层用 `isError: true` + 可读本 |
+| 操作表达 | method + 资源路径 | JSON-RPC method + 工具名 |
+| 输入输出描述 | API 文档、OpenAPI 等 | 协议结果类型 + 工具 schema |
+| 能力发现 | 由 API 自行设计 | `server/discover`、`tools/list` |
+| 传输方式 | 本例使用 HTTP | stdio 或 Streamable HTTP |
+| 请求上下文 | 按 API 契约携带 | 每请求携带版本与客户端能力 |
+| 结果处理 | 业务响应体与状态码 | 内容块、结构化结果及错误标记 |
 
-最后还有一个抓包附赠的证据，回答“MCP 和 REST 是不是两套平行实现”。回看上面工具定义里的 `_meta` 字段——`"method": "GET", "path": "/api/v1/memos"` 明明白白写着这个 MCP 工具背后的 REST 映射。Memos 的 MCP server 接到 `tools/call` 后，就是在进程内按这个映射构造一个 `GET /api/v1/memos` 请求，复用同一套路由、鉴权和业务代码（服务端实现细节见[上一篇 Memos 升级实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)）。所以两者的关系不是并列，而是分层：**REST API 是能力底座，MCP 是架在其上、面向模型的适配层**。
+MCP 与 REST 可以共用一套业务实现。工具定义中的 `_meta.method` 和 `_meta.path` 来自 Memos 转换器，用来记录其背后的 `GET /api/v1/memos` 映射；这是工具的实现元数据，与请求 `params._meta` 里的 MCP 版本字段不同。适配器可以把工具调用交给同一套路由、鉴权和业务代码，协议包装无需复制业务数据。
 
-日常选择也由此而来：脚本要精确控制、批量处理、调用管理类接口，直接打 `/api/v1`；要让模型根据自然语言自己挑工具、读结果、继续推理，走 `/mcp`。两条路最终汇入同一个 SQLite，数据始终只有一套。
+因此，脚本已明确知道 API 契约时可以直接访问 REST；需要 AI 应用动态发现工具、依据说明构造参数并处理结果时，可以接入 MCP。两种入口的选择取决于调用方需要的接口形式。
+
+## 拓展：stdio 怎样通信，HTTP 怎样支持流式消息
+
+同一份 MCP 消息可以通过不同的传输方式送达：本地使用进程管道，远程使用 HTTP。下面继续用示例适配器的 `memo_list_memos` 演示。
+
+### stdio：通过子进程的标准输入输出通信
+
+**stdio 使用操作系统的进程管道。** Host 内的 MCP Client 启动本地 Server 子进程，并在启动时接好两条管道：一条把请求送进 Server，另一条把响应送回 Client。这里的 `stdin`、`stdout` 都是 **Server 子进程的标准流**，两端由程序读写，不需要用户在终端输入。
+
+#### 启动时，怎样把两个进程接起来
+
+以 Linux/macOS 为例，每个进程都有自己的文件描述符表。[标准输入、标准输出、标准错误](https://man7.org/linux/man-pages/man3/stdin.3.html)分别使用约定的描述符 `0`、`1`、`2`。在终端里直接运行程序时，它们通常连接到终端；启动子进程时也可以将它们重定向到管道。**标准输入输出只是约定的读写入口，实际连接到哪里，由启动方式决定。**
+
+Python 的 [`subprocess.Popen`](https://docs.python.org/3/library/subprocess.html#subprocess.Popen) 可以完成启动和重定向。指定 `stdin=PIPE, stdout=PIPE` 后，会得到以下连接：
+
+```mermaid
+flowchart TB
+    CW["Client 父进程<br/>proc.stdin.write(...)：管道 A 写端"] --> A["操作系统管道 A：请求字节"]
+    A --> SR["Server 子进程<br/>sys.stdin.buffer.readline()<br/>stdin / fd 0：管道 A 读端"]
+    SR -->|"解析请求，处理业务，构造响应"| SW["Server 子进程<br/>sys.stdout.buffer.write(...)<br/>stdout / fd 1：管道 B 写端"]
+    SW --> B["操作系统管道 B：响应字节"]
+    B --> CR["Client 父进程<br/>proc.stdout.readline()：管道 B 读端"]
+```
+
+`proc` 是父进程中代表这个子进程的 Python 对象。它的属性按所连接的**子进程标准流**命名，所以 `proc.stdin` 在父进程这一侧是可写的，`proc.stdout` 是可读的：
+
+| 代码所在进程 | 操作 | 字节去向 |
+|---|---|---|
+| Client 父进程 | `proc.stdin.write(...)` | 写入管道 A，供 Server 从自己的 `stdin` 读取 |
+| Server 子进程 | `sys.stdin.buffer.readline()` | 从管道 A 读取一行请求 |
+| Server 子进程 | `sys.stdout.buffer.write(...)` | 写入管道 B，供 Client 读取 |
+| Client 父进程 | `proc.stdout.readline()` | 从管道 B 读取一行响应 |
+
+因此，Client 写 `proc.stdin` 不会修改它自己的 `sys.stdin`；Server 写 `sys.stdout` 时，内容也会进入已接好的管道，而不是直接显示在屏幕上。两边无需监听端口或通过文件路径找到对方，启动时建立的管道已经把它们连接起来。
+
+#### 管道传的是字节，MCP 用换行划分消息
+
+[操作系统管道](https://man7.org/linux/man-pages/man7/pipe.7.html)提供的是**字节流，没有 JSON 消息边界**。一次写入的字节可能分几次读到，连续写入的几条消息也可能一起到达；不能把底层的一次 `read` 当成一条完整请求。
+
+[MCP stdio 规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio)在这条字节流上约定：**UTF-8 编码，一行一条完整 JSON-RPC 消息，末尾追加换行符。** 发送方先把对象序列化为单行 JSON，再编码、追加真实的 LF 字节 `0x0A`；接收方累积到换行符后，才解码并解析 JSON。
+
+JSON 字符串内的换行会由序列化器转义为 `\n`，它是反斜杠和字母 `n`，不会提前结束这条消息。协议报文不能用 `indent=2` 美化成多行；排版用的真实换行会被接收端当成消息分隔符。
+
+#### 两个 Python 文件，跑通一次请求和响应
+
+下面只演示一次 `tools/call` 的管道往返：Server 固定返回示例数据 `{"memos":[]}`，不连接 Memos。这是传输机制的最小演示，尚未实现完整 MCP Server 所需的发现、参数校验等逻辑。
+
+先保存子进程程序为 `memo_stdio_demo.py`：
+
+```python
+import json
+import sys
+
+# 逐行读取自己的标准输入；本例中，它已经连接到父进程的管道。
+# 暂时没有完整一行时会等待，读到 EOF 后循环结束。
+for line in sys.stdin.buffer:
+    request = json.loads(line.decode("utf-8"))
+
+    # 演示程序只处理约定的这一个工具，不访问真实 Memos。
+    if (request["method"] != "tools/call"
+            or request["params"]["name"] != "memo_list_memos"):
+        raise ValueError("This demo only handles memo_list_memos")
+
+    # 日志写入 stderr，不能污染 stdout 中的协议消息。
+    print("server: received tools/call", file=sys.stderr, flush=True)
+    data = {"memos": []}
+    response = {
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {
+            "resultType": "complete",
+            "content": [{"type": "text", "text": json.dumps(data)}],
+            "structuredContent": data,
+            "_meta": {
+                "io.modelcontextprotocol/serverInfo": {
+                    "name": "memos-example-adapter",
+                    "version": "1.0.0",
+                },
+            },
+        },
+    }
+
+    # 先得到一整行 UTF-8 字节；末尾 b"\n" 才是真实的消息分隔符。
+    payload = json.dumps(response, ensure_ascii=False, separators=(",", ":"))
+    sys.stdout.buffer.write(payload.encode("utf-8") + b"\n")
+    # 把 Python 缓冲区里的数据提交给底层管道，让父进程及时读到。
+    sys.stdout.buffer.flush()
+```
+
+再在同一目录保存父进程程序为 `client.py`：
+
+```python
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+request = {
+    "jsonrpc": "2.0",
+    "id": 6,
+    "method": "tools/call",
+    "params": {
+        "name": "memo_list_memos",
+        "arguments": {"pageSize": 1, "filter": 'visibility != "PRIVATE"'},
+        "_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+            "io.modelcontextprotocol/clientInfo": {
+                "name": "memos-demo-client",
+                "version": "1.0.0",
+            },
+        },
+    },
+}
+
+# 以当前 Python 解释器启动子进程，两个 PIPE 建立双向通信所需的两条管道。
+# 默认使用二进制模式，由代码明确处理 UTF-8 和 LF。
+server = Path(__file__).with_name("memo_stdio_demo.py")
+proc = subprocess.Popen(
+    [sys.executable, str(server)],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    # 继承父进程的 stderr；在终端运行本例时，Server 日志直接显示在终端。
+    stderr=None,
+)
+
+try:
+    payload = json.dumps(request, ensure_ascii=False, separators=(",", ":"))
+    proc.stdin.write(payload.encode("utf-8") + b"\n")
+    proc.stdin.flush()
+
+    # 从子进程 stdout 所连接的管道读一行，而不是读取终端输入。
+    line = proc.stdout.readline()
+    if not line:
+        raise RuntimeError("Server closed stdout before sending a response")
+    if not line.endswith(b"\n"):
+        raise RuntimeError("Server closed stdout with an incomplete message")
+    response = json.loads(line.decode("utf-8"))
+    if response.get("id") != request["id"]:
+        raise RuntimeError("Unexpected response id")
+
+    # Client 自己的 stdout 没有重定向到 Server，可以用来展示结果。
+    print(json.dumps(response["result"]["structuredContent"]))
+finally:
+    # 本例不再发请求，关闭写端，让子进程读到 EOF 并结束循环。
+    proc.stdin.close()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+    proc.stdout.close()
+```
+
+只需要启动 Client；Server 会由它自动启动：
+
+```bash
+python3 client.py
+```
+
+终端可看到两行内容。第一行来自 Server 的 `stderr`；第二行是 Client 解析协议响应后，写到自己 `stdout` 的业务结果：
+
+```text
+server: received tools/call
+{"memos": []}
+```
+
+这里没有 HTTP 请求头；协议版本和客户端能力仍在请求的 `params._meta` 中。代码虽然把 Python 字典排成多行，实际通过管道发送的 `payload` 始终是一行 JSON。
+
+这次往返还包含几个需要区分的动作：
+
+- **`write` 写入，`flush` 刷新缓冲，`readline` 等待一行。** `flush()` 把语言运行时缓冲区里的字节提交给底层管道，不代表 Server 已经处理完成。忘记换行或刷新，双方就可能一直等待。
+- **[`readline()`](https://docs.python.org/3/library/io.html#io.IOBase.readline) 等换行或 EOF，`read()` 不带长度会一直等到 EOF。** 常驻 Server 通常不会在一条响应后关闭输出，所以这里不能用 `read()` 读取单条响应。返回 `b""` 表示输出流已结束，不是工具返回了空结果。
+- **结束通信时才关闭 `stdin`。** 本例只有一个管道写端，关闭后，子进程读完剩余数据就会读到 EOF 并退出。实际 Client 可以保持同一子进程运行，多次执行发送和接收。
+- **协议输出与日志分别消费。** 本例让 `stderr` 继承终端；如果 Host 改用 `stderr=PIPE` 收集日志，也要持续读取，避免日志填满管道后阻塞 Server。不能用 `stderr=STDOUT` 把日志合并进协议流。
+
+示例串行发送一条请求，且 Server 不发送通知，所以读一行就能拿到这次响应。实际 MCP Client 需要持续读取 `stdout`，按 `id` 分发响应，另外处理进度和订阅通知；“下一行”未必对应刚发出的请求。示例中的 `readline()` 是阻塞读取，末尾的 `wait(timeout=5)` 只限制等待子进程退出的时间；请求超时、并发读写和异常清理由实际客户端或 SDK 负责。
+
+### Streamable HTTP：由 HTTP 响应选择 JSON 或 SSE
+
+**Streamable HTTP 不需要 `Upgrade` 请求头或 `101 Switching Protocols`。** Client 向同一个 `/mcp` 端点发送 POST；Server 可以直接返回 JSON，也可以用 `text/event-stream` 在响应体里陆续发送 SSE 事件。两种方式都属于 Streamable HTTP。
+
+```mermaid
+sequenceDiagram
+    participant C as MCP Client
+    participant S as MCP Server /mcp
+    C->>S: POST /mcp，tools/call，id = 6<br/>Accept 同时接受 JSON 和 SSE
+    alt 直接返回 JSON
+        S-->>C: HTTP 200，application/json<br/>一份 JSON-RPC 响应，id = 6
+    else 通过 SSE 返回消息
+        S-->>C: HTTP 200，text/event-stream
+        S-->>C: SSE 事件：本次请求的进度通知（可选）
+        S-->>C: SSE 事件：最终 JSON-RPC 响应，id = 6
+        Note over C,S: 最终响应发出后通常结束响应流
+    end
+```
+
+下面让示例适配器先报告进度，再返回空列表。请求仍携带相同的版本、方法、工具名和认证字段：
+
+```http
+POST /mcp HTTP/1.1
+Host: memos.example.com
+Authorization: Bearer example-token
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: memo_list_memos
+
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"memo_list_memos","arguments":{"pageSize":1,"filter":"visibility != \"PRIVATE\""},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"memos-demo-client","version":"1.0.0"},"progressToken":"list-demo-6"}}}
+```
+
+[HTTP 请求头](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)中的版本、方法和工具名必须与 body 对应字段一致；body 仍是协议信息的来源。`progressToken` 表示客户端愿意接收这次请求的[进度通知](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/progress)，它属于协议元数据，不属于工具的业务参数，也不保证服务端一定报告进度。
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"list-demo-6","progress":1,"total":2}}
+
+event: message
+data: {"jsonrpc":"2.0","id":6,"result":{"resultType":"complete","content":[{"type":"text","text":"{\"memos\":[]}"}],"structuredContent":{"memos":[]},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"memos-example-adapter","version":"1.0.0"}}}}
+
+```
+
+**这是一次 HTTP 响应，两个 SSE 事件可以在不同时间到达。** 按 [SSE 解析规则](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)，空行结束一个事件；每个消息事件的 `data` 都是一条完整 JSON-RPC 消息。第一条没有 `id`，通过 `progressToken` 关联请求；第二条通过 `id: 6` 返回最终结果。服务端逐事件写入并刷新，客户端增量解析响应体，反向代理也要及时转发；仅修改 `Content-Type` 不会自动获得流式效果。
+
+本次操作的进度走本次 POST 的响应流；持续接收工具目录变化等消息，则使用 [`subscriptions/listen`](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions) 打开另一条 POST 响应流。关闭 SSE 响应流就是取消对应请求；连接意外断开时不支持从事件 ID 恢复，重试需要新的请求 ID，并自行考虑业务操作能否安全重试。
+
+如果从普通 REST API 接入 MCP，需要增加处理 `server/discover`、`tools/list`、`tools/call` 等协议方法的适配层，再复用原有业务代码。SSE 解决的是响应如何分批送达，MCP 解决的是双方按什么方法、元数据和输入输出契约交互。
