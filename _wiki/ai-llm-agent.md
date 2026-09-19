@@ -81,6 +81,8 @@ mindmap
 
 **工具接入要区分协议约定、业务契约和客户端策略**：[MCP 与 REST 对比](/posts/2026/09/09/mcp-vs-rest-wire-format/)以 `2026-07-28` 规范串起 `server/discover`、`tools/list` 和 `tools/call`：每个请求独立声明版本与客户端能力，发现方法是否调用由客户端需求决定，工具定义同时描述输入与可选的结构化输出。[Memos 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)则展示适配层如何复用业务 API。接入时应分别确认协议版本、工具 schema 和 Host 的使用策略；程序读取业务结果依赖输出契约，不能从一次响应样本推断固定结构，也不能把某个客户端的启动流程当成所有实现的协议要求。
 
+**流式交互需要分别验证传输和消息处理**：同一个 HTTP 响应可以陆续承载多个 SSE 事件，MCP 再定义事件中的进度通知和最终结果。界面迟迟不更新时，应分别检查服务端与代理是否及时刷新、客户端是否增量解析、Host 是否消费了进度通知；HTTP 已经收到字节，并不等于用户已经看到业务进展。
+
 ### Claude Code 与工具链：从使用到编排
 
 使用层（[powerup 教程](/ai/2026/05/27/claude-code-powerup-guide/)）→ 原理层（[源码架构](/ai/2026/05/27/claude-code-source-code-architecture/)、[大型代码库](/ai/2026/06/07/claude-code-large-codebases/)、[多 Agent](/ai/2026/05/28/claude-code-multi-agent/)）→ 编排层（[Multica 三 CLI 流水线](/ai/2026/08/20/multica-multi-agent-pipeline/)）。

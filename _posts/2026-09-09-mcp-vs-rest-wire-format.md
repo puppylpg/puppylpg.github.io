@@ -10,7 +10,7 @@ description: "按 MCP 2026-07-28 规范，以 Memos 为例对比 REST 与 MCP �
 
 本文采用官方[当前 MCP 规范 `2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)，用 Memos 的 API 和工具定义作为业务素材，假设一个符合该规范的示例适配器暴露这些工具。**下文请求和响应均为教学示例**，服务端名为 `memos-example-adapter`，memo 数据与 token 均为虚构；工具名、description 和 schema 来自 [Memos v0.30.0 的 OpenAPI](https://github.com/usememos/memos/blob/v0.30.0/proto/gen/openapi.yaml)，节选范围会单独说明。
 
-服务端怎样复用业务 API，可结合[上一篇 Memos 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)阅读；这里重点看当前协议的报文与交互方式，HTTP 示例省略由客户端补齐的 `Content-Length` 等传输字段。
+服务端怎样复用业务 API，可结合[上一篇 Memos 自托管实录](/life/2026/09/01/memos-docker-upgrade-api-mcp/)阅读；这里重点看当前协议的报文与交互方式，HTTP 示例省略由 HTTP 库处理的 `Content-Length` 等传输字段，以及分块长度等底层编码。
 
 1. Table of Contents, ordered
 {:toc}
@@ -809,7 +809,21 @@ server: received tools/call
 
 ### Streamable HTTP：由 HTTP 响应选择 JSON 或 SSE
 
-**Streamable HTTP 不需要 `Upgrade` 请求头或 `101 Switching Protocols`。** Client 向同一个 `/mcp` 端点发送 POST；Server 可以直接返回 JSON，也可以用 `text/event-stream` 在响应体里陆续发送 SSE 事件。两种方式都属于 Streamable HTTP。
+Streamable HTTP 通过 HTTP 传输 MCP 消息：Client 向同一个 `/mcp` 端点发送 POST，Server 为这次请求选择返回一份 JSON，或者在响应体里陆续发送 SSE 事件。**流式发送的是同一个 HTTP 响应的 body：响应头先发出，body 随业务处理逐步写入，最后结束本次响应。** 两种响应方式都属于 [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)，无需 `Upgrade` 请求头或 `101 Switching Protocols`。
+
+#### SSE 与 text/event-stream：事件机制和媒体类型
+
+**SSE 全称是 Server-Sent Events，通常译为“服务器发送事件”。** 它让服务器通过 HTTP 响应持续向客户端发送事件；`text/event-stream` 是这类事件流使用的媒体类型（MIME type）。响应头中的 `Content-Type: text/event-stream` 告诉客户端，接下来的 body 要按 SSE 格式解析。
+
+一条 SSE 事件可以写成下面这样，末尾有一个空行：
+
+```text
+event: message
+data: 第一条消息
+
+```
+
+按 [SSE 格式](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)，`event:` 指定事件类型，`data:` 提供事件数据，空行结束一条事件。SSE 的数据是 UTF-8 文本，可以承载普通字符串；MCP 使用它时，把完整的 JSON-RPC 消息放进事件数据中。**SSE 负责划分和传送事件，MCP 负责定义事件数据里的方法、参数和结果。**
 
 ```mermaid
 sequenceDiagram
@@ -819,14 +833,19 @@ sequenceDiagram
     alt 直接返回 JSON
         S-->>C: HTTP 200，application/json<br/>一份 JSON-RPC 响应，id = 6
     else 通过 SSE 返回消息
-        S-->>C: HTTP 200，text/event-stream
-        S-->>C: SSE 事件：本次请求的进度通知（可选）
-        S-->>C: SSE 事件：最终 JSON-RPC 响应，id = 6
-        Note over C,S: 最终响应发出后通常结束响应流
+        S-->>C: 第 0 秒：HTTP 200 与响应头<br/>Content-Type 为 text/event-stream
+        Note over C,S: 以下内容持续写入同一个 HTTP 响应 body
+        S-->>C: 第 1 秒：一条 SSE 事件，报告进度 1/2
+        C->>C: 立即解析并更新进度
+        S-->>C: 第 3 秒：一条 SSE 事件，返回最终结果
+        C->>C: 按 id = 6 完成本次调用
+        Note over C,S: 服务端结束本次响应流
     end
 ```
 
-下面让示例适配器先报告进度，再返回空列表。请求仍携带相同的版本、方法、工具名和认证字段：
+#### 请求：声明接受 JSON 或 SSE
+
+下面让示例适配器先报告一次进度，再返回空列表。时间仅用于说明发送顺序，不代表实际查询耗时。Client 发送一次普通 POST，请求 body 是一条完整的 `tools/call` 消息：
 
 ```http
 POST /mcp HTTP/1.1
@@ -838,15 +857,76 @@ MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: memo_list_memos
 
-{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"memo_list_memos","arguments":{"pageSize":1,"filter":"visibility != \"PRIVATE\""},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"memos-demo-client","version":"1.0.0"},"progressToken":"list-demo-6"}}}
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "memo_list_memos",
+    "arguments": {
+      "pageSize": 1,
+      "filter": "visibility != \"PRIVATE\""
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "memos-demo-client",
+        "version": "1.0.0"
+      },
+      "progressToken": "list-demo-6"
+    }
+  }
+}
 ```
 
-[HTTP 请求头](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)中的版本、方法和工具名必须与 body 对应字段一致；body 仍是协议信息的来源。`progressToken` 表示客户端愿意接收这次请求的[进度通知](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/progress)，它属于协议元数据，不属于工具的业务参数，也不保证服务端一定报告进度。
+`Accept` 同时声明接受 JSON 和 SSE，客户端需要支持两种响应；本例中 Server 选择 SSE。[HTTP 请求头](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)中的版本、方法和工具名必须与 body 对应字段一致。
+
+`params._meta.progressToken` 表示客户端愿意接收这次调用的进度，并给出关联标识。它由 Client 选择，在进行中的请求之间保持唯一；服务端可以报告进度，也可以直接给出最终结果。这些规则由 [MCP 进度协议](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/progress)定义。
+
+#### 响应：先看每次分别写出什么
+
+服务端可以在完成业务之前发送响应头，再在不同时间写入事件。下面逐次展示应用层写出的内容；HTTP/1.1 的 chunk 长度等底层分帧编码仍然省略。
+
+**第 0 秒，发送响应状态行和响应头。** 头部末尾的空行表示后面开始响应 body，此时整个响应还没有结束：
 
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/event-stream
 Cache-Control: no-cache
+X-Accel-Buffering: no
+
+```
+
+**第 1 秒，向这个 body 写入第一条 SSE 事件，并刷新输出缓冲。** 事件报告当前进度为 `1/2`：
+
+```text
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"list-demo-6","progress":1,"total":2}}
+
+```
+
+`data:` 行后面的空行也属于发送内容，它标记这条 SSE 事件结束。客户端此时就能解析并处理这条进度通知；服务端继续执行剩余业务。
+
+**第 3 秒，继续向同一个 body 写入第二条 SSE 事件。** 这次是 `id: 6` 对应的最终调用结果，同样以空行结束：
+
+```text
+event: message
+data: {"jsonrpc":"2.0","id":6,"result":{"resultType":"complete","content":[{"type":"text","text":"{\"memos\":[]}"}],"structuredContent":{"memos":[]},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"memos-example-adapter","version":"1.0.0"}}}}
+
+```
+
+发送完最终结果后，服务端结束本次响应流。这里的“结束”针对这次 HTTP 响应；底层连接仍可能供后续请求复用。
+
+#### 完整响应：一个 body 中的两条事件
+
+将上面各次写出的内容按发送顺序连起来，完整响应如下。这个视图用于展示报文结构，实际发送仍发生在不同时间：
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+X-Accel-Buffering: no
 
 event: message
 data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"list-demo-6","progress":1,"total":2}}
@@ -856,7 +936,79 @@ data: {"jsonrpc":"2.0","id":6,"result":{"resultType":"complete","content":[{"typ
 
 ```
 
-**这是一次 HTTP 响应，两个 SSE 事件可以在不同时间到达。** 按 [SSE 解析规则](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream)，空行结束一个事件；每个消息事件的 `data` 都是一条完整 JSON-RPC 消息。第一条没有 `id`，通过 `progressToken` 关联请求；第二条通过 `id: 6` 返回最终结果。服务端逐事件写入并刷新，客户端增量解析响应体，反向代理也要及时转发；仅修改 `Content-Type` 不会自动获得流式效果。
+**整段只有一个 HTTP 响应：状态行和响应头出现一次，body 中包含两条 SSE 事件。** “连起来”指的是同一响应的各段字节按顺序组成完整内容。客户端可以在响应尚未结束时处理已经完整到达的事件。
+
+#### 客户端：逐条还原 JSON-RPC 消息
+
+客户端根据响应的 `Content-Type` 选择解析方式。对于 `text/event-stream`，它持续读取 body，先按 SSE 规则识别完整事件，再对每条事件的 `data` 字符串做 JSON 解析。
+
+**第 1 秒收到完整事件后，可以得到下面这个进度通知对象：**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/progress",
+  "params": {
+    "progressToken": "list-demo-6",
+    "progress": 1,
+    "total": 2
+  }
+}
+```
+
+这条消息没有 JSON-RPC `id`，客户端通过 `params.progressToken` 找到对应操作，立即更新进度。
+
+**第 3 秒收到第二条完整事件后，得到最终响应对象：**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "result": {
+    "resultType": "complete",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"memos\":[]}"
+      }
+    ],
+    "structuredContent": {
+      "memos": []
+    },
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "memos-example-adapter",
+        "version": "1.0.0"
+      }
+    }
+  }
+}
+```
+
+客户端用 `id: 6` 匹配原请求，取出 `structuredContent` 中的业务结果 `{"memos":[]}`。本例流式送达的是一次进度通知和一次最终结果，memo 列表在最终结果里完整返回。
+
+这些字段分属两个层次：
+
+| 所属层次 | 字段或格式 | 含义 |
+|---|---|---|
+| SSE | `event: message` | 事件类型，本例两条事件都使用 `message` |
+| SSE | `data:` 与末尾空行 | 承载事件数据，并划分事件边界 |
+| MCP | `method: notifications/progress` | 表示这条 JSON-RPC 消息是一条进度通知 |
+| MCP | `progressToken` | 请求中位于 `params._meta`，通知中位于 `params`，用相同标识关联两者 |
+| MCP | `progress`、`total` | 当前进度和可选的总量 |
+| MCP / JSON-RPC | `id: 6` | 把最终响应关联到原请求 |
+
+**`progressToken` 是 MCP 的协议字段，SSE 不解释它的业务含义。** SSE 解析器把 `data` 作为文本交给 MCP 层，后者才识别进度或调用结果。相同的 MCP 进度通知也能通过 stdio 传输，SSE 不是它成立的前提。
+
+#### 读取到的一块字节，不一定是一条事件
+
+服务端的一次 `write`、HTTP 的传输分块、客户端的一次读取，以及 SSE 的事件边界，不保证一一对应。一次读取可能只拿到半条事件，也可能拿到两条完整事件和第三条的开头；客户端需要保留尚未解析完的字节或文本，等事件完整后再处理。
+
+HTTP/1.1 可以用 [chunked 编码](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1)分批传输 body；[HTTP/2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.1)则通过 DATA 帧逐步传输，并使用 `END_STREAM` 标记流方向的结束，不使用 `Transfer-Encoding: chunked`。这些分帧由 HTTP 层处理，SSE 解析仍以事件格式和空行为依据。
+
+例如使用 JavaScript 时，可以从 `response.body` 增量读取，再交给 SSE 解析器；`response.json()` 会完整消费 body 后尝试解析成一个 JSON 值，不适合这里的 SSE 正文。实际实现还要处理跨读取的 UTF-8 字符、不同换行形式和多行 `data:`，适合交给现成的 SSE 解析器或 MCP SDK。[Fetch 的 body API](https://fetch.spec.whatwg.org/#body-mixin)与 SSE 的事件解析各自承担一层职责。
+
+服务端逐事件写入并及时刷新，客户端逐事件消费，中间代理也需要及时转发。示例中的 `X-Accel-Buffering: no` 用于提示支持该头部的反向代理关闭响应缓冲；代理实际配置仍需配合。只有这些环节都及时传递，客户端才能在最终结果之前看到进度。
 
 本次操作的进度走本次 POST 的响应流；持续接收工具目录变化等消息，则使用 [`subscriptions/listen`](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions) 打开另一条 POST 响应流。关闭 SSE 响应流就是取消对应请求；连接意外断开时不支持从事件 ID 恢复，重试需要新的请求 ID，并自行考虑业务操作能否安全重试。
 
