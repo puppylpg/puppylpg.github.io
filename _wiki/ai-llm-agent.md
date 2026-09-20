@@ -13,7 +13,7 @@ mermaid: true
     <tr><th>文章规模</th><td>40+ 篇（<a href="/ai/">完整时间流</a>）</td></tr>
     <tr><th>知识线</th><td>5 条（见下图）</td></tr>
     <tr><th>阅读重心</th><td>LLM 原理 → RAG → Agent 工程</td></tr>
-    <tr><th>最新落点</th><td>Agent 工程：需求约定与独立验收</td></tr>
+    <tr><th>最新落点</th><td>RAG 评测：证据覆盖与漏召回定位</td></tr>
     <tr><th>开放问题</th><td>4 个（见文末）</td></tr>
   </table>
 </div>
@@ -34,6 +34,7 @@ mindmap
       图增强检索
       grep 派检索
       搜索即代码
+      证据覆盖评测
     Agent 工程
       概念体系
       Harness 工程
@@ -68,6 +69,8 @@ mindmap
 主干是 [RAG 的工程深度](/ai/2026/06/13/rag-core-knowledge/)（切分、检索、排序、评估、幻觉防护），延伸出 [GraphRAG vs LightRAG](/ai/2026/06/13/graphrag-vs-lightrag/) 的图增强路线。但更有张力的反而是两篇“反 RAG”文章：[Claude Code 为什么用 grep 而不是 RAG](/ai/2026/05/27/claude-code-grep-vs-rag/) 和 [把搜索当代码来写](/ai/2026/06/26/search-as-code/)。
 
 **当前理解**：检索范式正在分化——对静态文档集合，embedding RAG 仍是主力；对代码和活文件系统，“agent 直接 grep + 按需阅读”被证明更简单有效；而 [Karpathy 的 LLM Wiki 模式](/ai/2026/08/24/karpathy-llm-wiki-knowledge-base/) 提出了第三条路：不检索原文，而是让 LLM 把知识预先编译成 wiki。三条路线的适用边界是本板块最活跃的思考点（见开放问题）。
+
+**比较路线之前，先固定任务需要的知识。** [Ragas 与 TREC 的评测思路](/ai/2026/09/20/ragas-trec-evidence-recall/)把标准构建、覆盖判定和失败定位分开。用于比较上述三条路线时，评测单位应尽量独立于文档数量和切片方式：同一条必要知识可能由原文 chunk、代码片段或 wiki 页面提供，来源改变不应直接改变分母。先确认必要 Evidence，再维护各类来源的支持关系，才能检查不同路线是否把同一组知识交给了 Agent；固定映射适合高频回归，语义评判辅助发现新来源与复核争议，生成答案的完整性再单独验证。
 
 ### Agent 工程：本板块当前的主线
 
