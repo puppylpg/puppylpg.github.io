@@ -1,7 +1,7 @@
 ---
 title: "Ragas 与 TREC 的评测思路：标准从哪里来，覆盖怎么算"
 date: 2026-09-20 21:48:32 +0800
-categories: [ai, rag]
+categories: [tech, rag]
 tags: [ragas, trec, rag, evaluation, retrieval, agent]
 description: "从一次知识漏召回出发，理解 Ragas 与 TREC 的不同目标、标准构建和覆盖判定，进而设计适合私有知识库的 Evidence 评测与定位方法。"
 ---
