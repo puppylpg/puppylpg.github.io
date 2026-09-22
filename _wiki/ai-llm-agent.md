@@ -93,6 +93,8 @@ mindmap
 
 **流式交互需要分别验证传输和消息处理**：同一个 HTTP 响应可以陆续承载多个 SSE 事件，MCP 再定义事件中的进度通知和最终结果。界面迟迟不更新时，应分别检查服务端与代理是否及时刷新、客户端是否增量解析、Host 是否消费了进度通知；HTTP 已经收到字节，并不等于用户已经看到业务进展。
 
+**操作发现与业务决策应分别验收**：[HATEOAS 与 MCP 的对照](/posts/2026/09/09/mcp-vs-rest-wire-format/#番外hateoas-与-mcp发现操作之后由谁决定下一步)说明，服务端提供当前可用动作或工具目录，可以减少客户端硬编码，却不会自动赋予调用方业务目标。结合 Harness 的验收思路，应分别验证“能发现并正确调用”“当前对象允许执行”和“所选动作符合用户目标”；前一项通过不能替代后两项。传统程序依赖预先约定的语义，模型可以从描述推断用途，但推断结果仍需在实际任务中验证。
+
 ### Claude Code 与工具链：从使用到编排
 
 使用层（[powerup 教程](/ai/2026/05/27/claude-code-powerup-guide/)）→ 原理层（[源码架构](/ai/2026/05/27/claude-code-source-code-architecture/)、[大型代码库](/ai/2026/06/07/claude-code-large-codebases/)、[多 Agent](/ai/2026/05/28/claude-code-multi-agent/)）→ 编排层（[Multica 三 CLI 流水线](/ai/2026/08/20/multica-multi-agent-pipeline/)）。
