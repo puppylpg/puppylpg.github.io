@@ -2,7 +2,7 @@
 title: "AI 知识地图：五条线路的当前理解"
 date: 2026-08-24 16:45:37 +0800
 categories: [wiki]
-tags: [ai, llm, agent, rag, claude-code, spec-kit, codex]
+tags: [ai, llm, agent, rag, claude-code, spec-kit, codex, okf, knowledge-base]
 description: "AI 主题文章按五条知识线重组：每条线不是链接清单，而是当前理解的蒸馏。完整时间流见 AI 归档页。"
 mermaid: true
 ---
@@ -13,7 +13,7 @@ mermaid: true
     <tr><th>文章规模</th><td>40+ 篇（<a href="/ai/">完整时间流</a>）</td></tr>
     <tr><th>知识线</th><td>5 条（见下图）</td></tr>
     <tr><th>阅读重心</th><td>LLM 原理 → RAG → Agent 工程</td></tr>
-    <tr><th>最新落点</th><td>Jev 语义判断：接口、精排与工作流验收</td></tr>
+    <tr><th>最新落点</th><td>OKF：知识沉淀、交换与消费分工</td></tr>
     <tr><th>开放问题</th><td>4 个（见文末）</td></tr>
   </table>
 </div>
@@ -36,6 +36,7 @@ mindmap
       搜索即代码
       证据覆盖评测
       表格证据与结构化查询
+      Wiki 知识沉淀与 OKF
     Agent 工程
       概念体系
       Harness 工程
@@ -66,13 +67,15 @@ mindmap
 
 </div>
 
-### RAG 与检索：从“怎么检索”到“要不要检索”
+### RAG 与检索：取回证据与复用理解
 
 主干是 [RAG 的工程深度](/ai/2026/06/13/rag-core-knowledge/)（切分、检索、排序、评估、幻觉防护），延伸出 [GraphRAG vs LightRAG](/ai/2026/06/13/graphrag-vs-lightrag/) 的图增强路线。但更有张力的反而是两篇“反 RAG”文章：[Claude Code 为什么用 grep 而不是 RAG](/ai/2026/05/27/claude-code-grep-vs-rag/) 和 [把搜索当代码来写](/ai/2026/06/26/search-as-code/)。
 
-**当前理解**：检索范式正在分化——对静态文档集合，embedding RAG 仍是主力；对代码和活文件系统，“agent 直接 grep + 按需阅读”被证明更简单有效；而 [Karpathy 的 LLM Wiki 模式](/ai/2026/08/24/karpathy-llm-wiki-knowledge-base/) 提出了第三条路：不检索原文，而是让 LLM 把知识预先编译成 wiki。三条路线的适用边界是本板块最活跃的思考点（见开放问题）。
+**当前理解**：检索方式与知识沉淀是可以组合的两个维度。Embedding RAG、关键词搜索和 grep 决定怎样取回内容；[Karpathy 的 LLM Wiki 模式](/ai/2026/08/24/karpathy-llm-wiki-knowledge-base/)决定是否将跨来源的理解维护成持久页面。Wiki 页面仍可被检索，原始资料仍可用于复核。比较方案时，需要同时说明检索方式和检索对象，避免把“预先整理知识”误当成“从此无需检索”。
 
-**比较路线之前，先固定任务需要的知识。** [Ragas 与 TREC 的评测思路](/posts/2026/09/20/ragas-trec-evidence-recall/)把标准构建、覆盖判定和失败定位分开。用于比较上述三条路线时，评测单位应尽量独立于文档数量和切片方式：同一条必要知识可能由原文 chunk、代码片段或 wiki 页面提供，来源改变不应直接改变分母。先确认必要 Evidence，再维护各类来源的支持关系，才能检查不同路线是否把同一组知识交给了 Agent；固定映射适合高频回归，语义评判辅助发现新来源与复核争议，生成答案的完整性再单独验证。
+**共同格式把知识交接的验收补齐了。** [从 Skill 文件理解 Google OKF](/ai/2026/10/08/google-okf-llm-wiki/)将维护方式、文件约定与消费行为分开：LLM Wiki 负责沉淀理解，OKF 统一产物的字段和引用，具体工具负责使用这些信息。结合下文的证据覆盖评测，可以将知识库验收拆成三项：整理后是否保留必要证据，跨工具交换是否保留字段与链接，消费时是否实际检查来源与适用状态。前两项通过并不自动保证第三项；最小文件合规也不能证明可选的核验信号已填写，或计算契约已经得到实现。分别检查这些承诺，比只检查 Markdown 能否打开或回答能否生成，更能定位知识交接中的损失。
+
+**比较路线之前，先固定任务需要的知识。** [Ragas 与 TREC 的评测思路](/posts/2026/09/20/ragas-trec-evidence-recall/)把标准构建、覆盖判定和失败定位分开。用于比较不同检索与知识沉淀组合时，评测单位应尽量独立于文档数量和切片方式：同一条必要知识可能由原文 chunk、代码片段或 wiki 页面提供，来源改变不应直接改变分母。先确认必要 Evidence，再维护各类来源的支持关系，才能检查不同路线是否把同一组知识交给了 Agent；固定映射适合高频回归，语义评判辅助发现新来源与复核争议，生成答案的完整性再单独验证。
 
 **证据的完整性还取决于关系和数据范围。** [Excel 与 Markdown 表格 RAG 方案调研](/posts/2026/09/22/rag-excel-markdown-tables/)对照 Unstructured、Docling、RAGFlow、LangChain、LlamaIndex 和 Azure 的文档与源码，展示结构切块、行级文档、摘要引用和混合检索各自承担的环节。结合证据覆盖评测，检查单位不能停在“命中这一行”：表头、单位、适用范围和例外可能共同构成必要 Evidence；子块命中后是否补齐这些内容，应在最终交给模型的上下文中验证。对于全量筛选与统计，还必须验证查询覆盖范围和计算口径，相关性 top-k 无法证明集合完整。由此，检索路线的比较应同时考察证据语义、依赖关系和集合范围，分别定位解析损失、召回遗漏与计算错误。
 
@@ -87,6 +90,8 @@ mindmap
 [Spec Kit 与 Codex 的开发流程](/posts/2026/09/09/spec-kit-codex-workflow/)把这条线推进到需求与验收：Spec 确定行为，Plan 设计方案，Tasks 拆解并推进实现，Validation 核对证据。虚构相册案例将同一组验收标准贯穿四步，并演示规则变化后怎样修订与复验；独立 reviewer 是验证阶段的可选增强。
 
 **跨主题的维护原则**：LLM Wiki 解决“当前知识放在哪里”，Spec 驱动开发解决“当前承诺是什么”，独立验证解决“承诺是否兑现”。三者都需要区分历史材料、当前依据和执行证据；增加文档或 agent 数量，不能替代这三个边界。选择自动化范围时，优先固化有明确验收场景、能够取得证据的步骤，再扩大编排。
+
+**流程与知识独立维护，也需要一起回归**：[Skill 与 OKF 的配合](/ai/2026/10/08/google-okf-llm-wiki/#agent-将技能流程与知识依据结合)区分了知识复用与交换约定：多个工作流引用普通 Markdown 就能共享定义，OKF 进一步统一字段和引用的语义。结合 Spec 的变更验收原则，回归记录应同时保留技能版本和所用知识版本：相同流程可能因口径更新而产生不同结果，相同知识也可能被新流程错误使用。将这两类变化分开记录，才能定位应修订步骤还是重新确认依据。
 
 **并行协作还需要明确引用对象**：Spec Kit 的递增编号可能在不同工作区重复，时间戳命名可以减少碰撞；团队应使用完整需求路径或关联 Issue 定位工作，并用代码版本关联验证证据。目录前缀帮助组织材料，不能单独证明任务唯一、先后依赖或验收结果适用于当前实现。
 
@@ -113,8 +118,8 @@ mindmap
 ## 开放问题
 
 <div class="wiki-openq">
-  <div class="wiki-openq-title">个人知识库三条路线，哪条赢？<span class="wiki-openq-status wiki-openq-status--doing">进行中 · 本 wiki 即实验</span></div>
-  <p>embedding RAG / grep 派 / LLM Wiki 预编译——本博客的 wiki 集合就是第三条路线的实地实验。观察指标：枢纽页是否真的被持续更新、lint 能否闭环、三个月后开放问题是减少了还是积压了。</p>
+  <div class="wiki-openq-title">个人知识库的检索与沉淀如何组合？<span class="wiki-openq-status wiki-openq-status--doing">进行中 · 本 wiki 即实验</span></div>
+  <p>本博客的 wiki 集合正在验证知识沉淀；检索原文、检索 Wiki 与两者组合，应使用同一组问题和必要证据比较。<a href="/ai/2026/10/08/google-okf-llm-wiki/">OKF 调研</a>进一步引出交换实验：导出少量概念后，换一个消费者检查来源、链接与过期信息能否保留并被使用。当前仍待实测；持续观察枢纽更新、lint 闭环和开放问题积压，并将维护成本与回答质量分开记录。</p>
 </div>
 
 <div class="wiki-openq">
