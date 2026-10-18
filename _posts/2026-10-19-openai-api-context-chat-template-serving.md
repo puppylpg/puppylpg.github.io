@@ -204,6 +204,8 @@ sequenceDiagram
 
 [vLLM 的 Renderer 文档](https://docs.vllm.ai/en/stable/serving/online_serving/renderer/)直接展示了这种分层：预处理和后处理可以与引擎分离，甚至不使用 GPU；引擎可以提供接收和返回 token 的服务。HTTP JSON 因而不是神经网络的原生调用格式。
 
+要逐步检查这条链路，可以继续阅读 [Transformers 直接推理实操](/posts/2026/10/19/transformers-direct-chat-template-tokenizer/)：以 Qwen3-0.6B 的真实运行展示 `apply_chat_template`、`encode`、`generate` 与 `decode` 的输入输出，并比较生成起点、特殊 token、填充和截断参数怎样改变序列。
+
 ### 调用原始输入端点时，格式责任会回到调用方
 
 服务端适配减少了应用的工作，但这个便利以端点接收结构化消息为前提。如果为了控制精确输入而改用接受原始 prompt 或 token IDs 的路径，调用方就需要提前组织模型格式。
