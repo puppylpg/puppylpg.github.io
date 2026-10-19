@@ -1,49 +1,94 @@
 ---
-title: "OpenAI API 与模型输入：Chat Template、上下文管理和推理框架"
+title: "模型没有 HTTP 路由：从 Token、Chat Template 到 API 与 vLLM"
 date: 2026-10-19 00:33:23 +0800
 categories: [tech, llm]
-tags: [openai, llm, chat-template, vllm, sglang, context-engineering]
-description: "同一份 messages 如何变成模型输入，历史由谁保存？用三种模型的模板和一张时序图，说明 OpenAI API、Chat Template、vLLM/SGLang 与 Responses 的分工。"
+tags: [llm, tokenizer, chat-template, openai, reranker, vllm, model-serving]
+description: "先看模型如何读取 token、生成文本或计算分数，再看 Chat Template、OpenAI 聊天 API、Cohere/Jina Rerank API 和 vLLM 怎样把本地计算包装成远程服务。"
 ---
 
 1. Table of Contents, ordered
 {:toc}
 
-聊天应用接入多个模型、支持连续追问后，既要适配接口和输入格式，又要保存历史。这些工作分属不同层，统一 API 只解决其中一部分。
+下载一份 Qwen 模型，用 Python 就能让它回答问题；部署成服务后，又能通过 `/v1/chat/completions` 调用。换成 Qwen Reranker，同样可以在本地算分，也可以通过 `/rerank` 请求排序。HTTP 接口与模型计算之间，多了一层服务软件。
 
-## 接入多个模型：用统一 API 复用调用代码
+> **模型本身没有 HTTP 路由。下载的模型权重里，不会自带一个 `/rerank` 服务；这个接口由 vLLM 等服务软件提供。**
+{: .prompt-info }
 
-如果每个平台的请求字段、响应结构和流式格式都不同，换模型就要重写接入代码。OpenAI-compatible 服务通过兼容这些约定，让应用在双方支持的能力范围内，只调整服务地址、认证信息和模型名称即可复用调用代码。
+理解这层关系，可以从模型实际接收的输入开始，再逐步把它包装成一个供应用调用的服务。下面以纯文本模型为例；多模态模型还会接收图像等输入对应的张量，但同样需要外围软件处理网络请求。
 
-早期 Completions 接收一段 `prompt`，返回续写。聊天还需要区分应用规则、用户提问和助手回答，Chat Completions 因此使用带角色的 `messages`。例如，向 `POST /v1/chat/completions` 提交：
+## 模型先接收 Token 序列，再执行计算
 
-```json
-{
-  "model": "<模型 ID>",
-  "messages": [
-    {"role": "system", "content": "用中文简洁回答。"},
-    {"role": "user", "content": "你好。"}
-  ]
-}
+在本地使用一个因果语言模型，最基本的过程是：准备文本，把文本编码成整数序列，让模型计算，再把生成的整数序列解码成文字。
+
+例如，人能读懂的输入可以是：
+
+```text
+中国的首都是
 ```
 
-`model` 选择模型，`role` 表示消息身份，`content` 是内容。这里用 `system` 对照后面的三个开源模型；实际支持的角色和参数应按[接口文档](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)核对。
+Tokenizer 按自己的词表和编码规则，把它转换成 token IDs。模型读取这些 ID 对应的向量，计算下一个 token 的 logits，也就是尚未归一化的分数。生成程序据此选择一个 token，加入已有序列，再继续计算，直到满足停止条件。
 
-从 OpenAI 的公开发布顺序看，**先有区分用户与助手的对话模型，再有公开的聊天 API**：[2022 年 11 月 30 日发布 ChatGPT 时](https://openai.com/index/chatgpt/)，已介绍由训练人员分别扮演用户和助手提供对话数据；[2023 年 3 月 1 日](https://community.openai.com/t/introducing-chatgpt-and-whisper-apis/80485)才开放 ChatGPT API。公开时间线不能证明内部设计的先后，也不意味着当时的模型直接接收今天的 `role/content` JSON。
+```mermaid
+flowchart LR
+    T["输入文本"] --> K["Tokenizer 编码"]
+    K --> I["Token IDs"]
+    I --> M["模型前向计算"]
+    M --> L["下一个 token 的 logits"]
+    L --> S["生成程序选择 token"]
+    S --> D["解码为可读文字"]
+    S -->|"追加到序列，继续生成"| M
+```
 
-## 同一份 messages，需要不同的模型输入
+这里有两个不同的对象：**模型执行张量计算，生成程序负责调用模型并组织生成过程。** Transformers 的 `model.generate(...)` 把生成循环封装成了一个方便调用的方法；它不需要先启动 HTTP 服务。
 
-HTTP 服务能解析这份 JSON，不代表模型能直接读取它。**常见的因果语言模型计算的是 token 序列；聊天微调让模型学会按序列中的角色与边界继续生成。** 不同模型的训练格式不同，服务必须据此转换输入。
+同样的计算也可以用于打分。Qwen3 Reranker 接收包含问题与文档的输入，在指定位置读取 `yes` 和 `no` 的 logits，再计算两者之间的归一化分数。这个路径不必把 `yes` 或 `no` 真正生成成一段文字。[Qwen 官方示例](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B/blob/e61197ed45024b0ed8a2d74b80b4d909f1255473/README.md#using-transformers)就是直接调用模型并提取 logits。
 
-[Chat Template](https://huggingface.co/docs/transformers/chat_templating)负责把消息正文、角色、边界和助手回答起点排列成模型熟悉的格式，再由 tokenizer 编码为 token IDs。
+**模型能够执行什么任务，取决于结构、训练、输入组织与输出读取方式。URL 名字不参与这次张量计算。**
 
-Transformers 的 `tokenizer.apply_chat_template(messages, ...)` 就能在本地完成模板渲染，并可继续分词。**它复用 `role/content` 数据结构，不需要经过 OpenAI HTTP API，也不依赖 vLLM 或模型权重。** 模板通常随 tokenizer 配置发布，由软件执行；模型学习的是对应序列的含义，不会直接解析 Python 字典。vLLM 等服务则把这套输入准备流程接到 HTTP 请求和推理执行上。
+## 聊天需要把角色与边界写进序列
 
-下面将前面相同的两条消息交给三个模型的格式。代码块展示可读拼写，不是整数 ID；本次只检查输入，没有运行模型生成回答。Qwen 与 DeepSeek 使用固定版本模板实际渲染，Llama 按官方参考实现重建。
+普通续写只需要一段前文。聊天还需要告诉模型：哪些是应用规则，哪些是用户的话，哪些是此前的回答，以及现在应该从哪里开始回复。
 
-### Qwen3：消息边界加角色名称
+如果把所有正文直接拼在一起，这些边界就丢失了。聊天模型的训练数据会按一定格式组织角色和消息；推理时也需要提供与训练相匹配的格式。**Chat Template 的工作，是把结构化对话转换成模型熟悉的序列。**
 
-使用[固定版本的 Qwen3-8B 模板](https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json)，传入 `add_generation_prompt=True`、`enable_thinking=False`：
+### 从消息列表到可读文本，再到整数 ID
+
+下面是一个可以独立运行的输入准备示例。它只加载 Qwen3-0.6B 的 tokenizer，不加载模型权重，也不调用任何 HTTP 推理服务。固定版本与运行环境来自[输入实测记录](/posts/2026/10/19/transformers-direct-chat-template-tokenizer/)。
+
+```python
+from transformers import AutoTokenizer
+
+# 固定 tokenizer 版本；不需要下载模型权重。
+tokenizer = AutoTokenizer.from_pretrained(
+    "Qwen/Qwen3-0.6B",
+    revision="c1899de289a04d12100db370d81485cdf75e47ca",
+)
+messages = [
+    {"role": "system", "content": "用中文简洁回答。"},
+    {"role": "user", "content": "你好。"},
+]
+
+# 先执行模板，只生成字符串。
+text = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True,
+    enable_thinking=False,
+)
+print(repr(text))
+
+# 再编码。模板已放入消息边界，不再自动追加特殊标记。
+ids = tokenizer.encode(text, add_special_tokens=False)
+print(ids)
+```
+
+第一个输出是字符串，`repr()` 把换行明确显示出来：
+
+```python
+'<|im_start|>system\n用中文简洁回答。<|im_end|>\n<|im_start|>user\n你好。<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'
+```
+
+展开后是：
 
 ```text
 <|im_start|>system
@@ -57,138 +102,231 @@ Transformers 的 `tokenizer.apply_chat_template(messages, ...)` 就能在本地�
 
 ```
 
-`<|im_start|>` 开启消息，后接角色名称；`<|im_end|>` 结束消息。末尾开启 assistant 消息，让模型接着生成。关闭 thinking 时出现的空思考块是**模板预填的输入**，精确尾部为：
+`<|im_start|>` 与 `<|im_end|>` 划定消息边界，`system`、`user` 和 `assistant` 表示角色。末尾开启助手消息；在这份 Qwen 模板中，关闭 thinking 还会预填空思考块。**此时模型尚未运行，这些标记都是软件根据模板添加的。**
+
+第二个输出是 24 个整数 ID：
 
 ```python
-'<|im_start|>assistant\n<think>\n\n</think>\n\n'
+[151644, 8948, 198, 11622, 104811, 110485, 102104, 1773,
+ 151645, 198, 151644, 872, 198, 108386, 1773, 151645, 198,
+ 151644, 77091, 198, 151667, 271, 151668, 271]
 ```
 
-### Llama 3.1：角色头与正文分别定界
+例如，`151644` 对应 `<|im_start|>`，`198` 对应一个换行，`271` 对应两个换行。把 IDs 和 attention mask 等信息组织成张量后，才是通常传给模型前向计算的输入。
 
-按 [Meta 官方格式](https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3_1/prompt_format.md)和 [ChatFormat 实现](https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3/chat_format.py)重建：
+[Transformers 的 `apply_chat_template`](https://huggingface.co/docs/transformers/chat_templating#using-apply_chat_template)也可以通过 `tokenize=True` 一次完成渲染与编码。它是本地库函数：输入 Python 消息列表，执行模板与 tokenizer。**使用 `role/content` 数据结构，并不意味着调用了 OpenAI API。**
 
-```text
-<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+### 不同模型使用不同的输入格式
 
-用中文简洁回答。<|eot_id|><|start_header_id|>user<|end_header_id|>
+上面的格式属于所选 Qwen 模型。其他模型可能用完全不同的标记表达同样的两条消息：
 
-你好。<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+| 模型与格式 | 如何表示角色和消息边界 |
+|---|---|
+| Qwen3 | <code>&lt;&#124;im_start&#124;&gt;system</code> 开启消息，<code>&lt;&#124;im_end&#124;&gt;</code> 结束消息 |
+| Llama 3.1 | <code>&lt;&#124;start_header_id&#124;&gt;system&lt;&#124;end_header_id&#124;&gt;</code> 包住角色，<code>&lt;&#124;eot_id&#124;&gt;</code> 结束消息 |
+| DeepSeek V3-0324 | system 正文放在序列开头，用户和助手分别用 `<｜User｜>`、`<｜Assistant｜>` 标识 |
 
+这些格式可以从 [Qwen tokenizer 配置](https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json)、[Meta 官方格式](https://github.com/meta-llama/llama-models/blob/0e0b8c519242d5833d8c11bffc1232b77ad7f301/models/llama3_1/prompt_format.md)和 [DeepSeek tokenizer 配置](https://huggingface.co/deepseek-ai/DeepSeek-V3-0324/blob/e9b33add76883f293d6bf61f6bd89b497e80e335/tokenizer_config.json)核对。[格式对照脚本](/assets/code/openai-chat-templates/compare_templates.py)保留了完整输出的复核方式：Qwen 与 DeepSeek 渲染固定版本模板，Llama 按 Meta 参考格式重建。
+
+**Chat Template 对齐的是模型的输入约定。** 它通常随 tokenizer 配置发布，由客户端库或服务端软件执行；模型不会自己读取 Jinja 模板文件。相同的 `messages` 因而可以转换为不同的 token 序列，交给不同模型。
+
+## 把本地计算变成 HTTP 服务：OpenAI 聊天 API
+
+本地脚本已经能完成输入准备与生成。但其他应用想调用这个能力时，不适合每个应用都加载一份权重、管理设备、处理生成循环。提供者可以把这些工作放进一个常驻服务，通过网络接收任务，再把结果返回。
+
+这时才需要定义：请求发到哪个地址、如何认证、正文包含哪些字段、结果怎样表示。**这些是 HTTP API 的契约，属于服务软件。**
+
+### 用 messages 表达聊天任务
+
+OpenAI 的 [Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)就是这样的服务接口。下面展示请求方法、地址、相关请求头与完整 JSON 正文；模型 ID 和密钥需要替换为实际值：
+
+```http
+POST https://api.openai.com/v1/chat/completions
+Authorization: Bearer <API_KEY>
+Content-Type: application/json
+
+{
+  "model": "<支持该接口的模型 ID>",
+  "messages": [
+    {"role": "system", "content": "用中文简洁回答。"},
+    {"role": "user", "content": "你好。"}
+  ],
+  "stream": false
+}
 ```
 
-`<|begin_of_text|>` 开始序列，两个 header 标记包住角色名称，之后两个换行引出正文，`<|eot_id|>` 结束消息。末尾只留下助手头和两个换行。
+这里用 `system` 与前面的本地示例对照；具体模型支持哪些角色和参数，要按文档核对，部分模型使用 `developer` 表达应用指令。
 
-这是**官方参考格式的重建，不是 Hugging Face 模板实测**；具体部署可能额外加入日期、工具说明等内容。
-
-### DeepSeek V3：system 正文直接置于开头
-
-[DeepSeek-V3-0324 的固定版本模板](https://huggingface.co/deepseek-ai/DeepSeek-V3-0324/blob/e9b33add76883f293d6bf61f6bd89b497e80e335/tokenizer_config.json)在 `add_generation_prompt=True` 时输出一整行：
-
-```text
-<｜begin▁of▁sentence｜>用中文简洁回答。<｜User｜>你好。<｜Assistant｜>
-```
-
-system 正文直接放在序列起点后面，没有单独的 `<｜System｜>`；用户和助手使用各自的标记。这里的 `｜` 是全角竖线，`▁` 也不是普通下划线。
-
-### 格式差异会影响模型行为
-
-这些例子中，角色名称可能是普通文本；有独立 ID 的标记，也不一定在 tokenizer 元数据中标为 `special`。**应检查实际模板与编码，不能凭符号外观判断。** [格式复核脚本](/assets/code/openai-chat-templates/compare_templates.py)固定了上述来源，可用 `uv run compare_templates.py` 打印完整结果。
-
-[Qwen3 Reranker 的评分实验](/posts/2026/10/15/qwen3-reranker-scoring-chat-template/)展示了这种差异的后果：输入末尾少一个换行，就会改变预测与排序。那里的评分输入只保留一个末尾换行，不能套用上面的通用聊天模板。HTTP 请求成功，只证明外部接口接受了请求，不能证明模型输入正确。
-
-## 自部署：由 vLLM/SGLang 接通整条链路
-
-模板只能准备输入。要把模型提供给多个应用，还需要接收 HTTP 请求、加载权重、调度计算、生成结果并组装响应。[vLLM](https://docs.vllm.ai/en/stable/serving/online_serving/openai_compatible_server/) 和 [SGLang](https://docs.sglang.io/docs/basic_usage/openai_api_completions)提供这些能力，包括 OpenAI-compatible 服务与模型格式适配。
-
-分工是：**模型开发者约定训练格式，框架执行转换与推理，部署者选择匹配的 tokenizer、模板和解析器。** [SGLang](https://docs.sglang.io/docs/references/custom_chat_template)例如默认使用 Hugging Face tokenizer 的 chat template，也允许覆盖。平台可以复用这些实现，但仍需验证配置是否与模型匹配。
-
-### 一次纯文本聊天请求的完整时序
-
-以下假设应用已提供本轮完整上下文；图中是逻辑职责，不要求分属独立进程：
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as 应用 / SDK
-    participant S as API 服务入口
-    participant F as 格式适配与分词
-    participant E as 推理引擎 / 模型
-    A->>S: HTTP JSON：model、messages、生成参数
-    S->>S: 校验请求，选择模型与配置
-    S->>F: 本轮上下文与模型模板
-    F->>F: 组织角色、边界、助手回答起点
-    F->>F: Tokenizer 编码为 token IDs
-    F-->>S: 模型输入及生成配置
-    S->>E: 提交推理任务
-    E->>E: 调度、上下文计算、逐步生成
-    E-->>S: 生成的 token IDs 与状态
-    S->>F: 解码并按模型格式解析输出
-    F-->>S: 正文、工具调用等结构
-    S-->>A: 兼容 API 的响应对象
-    Note over S,E: 流式模式按增量重复返回与解析过程
-```
-
-OpenAI 自身也需把公开接口转换为内部输入，但其闭源实现不能据此推定为相同的 Jinja 模板或组件。要直接观察本地转换过程，可看[用一个程序看清 LLM 的输入](/posts/2026/10/19/transformers-direct-chat-template-tokenizer/)：打印消息、模板文本、token IDs 和最终输入张量，并对比参数变化。
-
-**转换由谁执行，取决于入口。** Reranker 实验中，`/v1/rerank` 接收问题与文档，由服务套用评分模板；raw `/pooling` 路径接收已拼好的输入，格式责任就在客户端。
-
-## 多轮对话需要保存和恢复历史
-
-用户先说“你好”，再问“我刚才说了什么”，第二次调用就需要前文。聊天界面显示着历史，不代表模型已取得它；模板也只能排列收到的内容。
-
-使用 Chat Completions 时，通常由应用保存先前消息，把选定的历史和新问题一起放进下一次 `messages`。应用可以先删减、摘要或补入检索材料。**上下文管理决定提供哪些信息，Chat Template 决定这些信息怎样排列。**
-
-### Responses 可以接手一部分历史管理
-
-如果每次都只想继续上轮对话，手动保存、组装和重传历史会增加应用负担。Responses 提供可选的状态托管，同时保留手动控制方式。[会话状态文档](https://developers.openai.com/api/docs/guides/conversation-state)介绍了三种用法：
-
-| 方式 | 下一轮提交什么 | 历史由谁组织 |
-|---|---|---|
-| 手动回传 | 所需历史记录和新输入 | 应用 |
-| `previous_response_id` | 某次响应 ID 和新输入 | 服务按响应关系取得上下文 |
-| `conversation` | 会话 ID 和新输入 | 服务维护持续使用的会话容器 |
-
-例如，向 `POST /v1/responses` 提交：
+服务端解析 JSON、选择模型、准备输入、执行生成，并组装响应。响应中与本例有关的部分如下，文字只是示意，省略了 ID、时间与 usage 等字段：
 
 ```json
 {
-  "model": "<模型 ID>",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！有什么可以帮你的？"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+`choices`、`message` 和 `finish_reason` 由服务软件组织。模型本身没有生成这整个 HTTP 响应。`Authorization` 用来认证，`model` 用来路由请求，`stream` 控制交付方式；它们也不需要原样拼进模型的提示词。
+
+**API 让调用方表达“要完成什么任务”，输入适配让服务知道“怎样把任务交给这个模型”。** API 不必要求用户手写 `<|im_start|>`，更不必暴露整套 tokenizer。
+
+OpenAI 自身也需要把公开请求转换为内部计算所需的输入，但其闭源服务的具体格式和实现不能由这里的 Qwen 示例推断。Qwen 的 Jinja 模板展示的是一条可观察的开源实现路径。这里按技术依赖关系展开，也不代表 OpenAI 内部研发的历史先后顺序。
+
+### 会话历史也是外围软件管理的
+
+一次回答之后再问“我刚才说了什么”，下一次推理需要取得前文。模型权重不会因为一次普通聊天就自动保存这段对话；模板也只能排列交给它的内容。
+
+Chat Completions 通常由应用选取历史，连同新问题一起放入 `messages`。[Responses 的会话状态机制](https://developers.openai.com/api/docs/guides/conversation-state)则可以让服务承担一部分历史保存与恢复工作：
+
+| 方式 | 调用方提交什么 | 如何取得本轮历史 |
+|---|---|---|
+| 手动组织上下文 | 所需历史和新输入 | 应用组织 |
+| `previous_response_id` | 上一次响应 ID 和新输入 | 服务根据响应关系恢复 |
+| `conversation` | 会话 ID 和新输入 | 服务从会话容器中取得 |
+
+例如，下面是 `POST /v1/responses` 的请求正文：
+
+```json
+{
+  "model": "<支持该接口的模型 ID>",
   "previous_response_id": "resp_上一轮响应",
   "instructions": "用中文简洁回答。",
   "input": "我刚才说了什么？"
 }
 ```
 
-这里重新传入 `instructions`，因为使用 `previous_response_id` 时，上一次请求的顶层指令不会自动继承。
+这里重新传入 `instructions`，因为通过 `previous_response_id` 接续时，上一次的顶层指令不会自动继承。这些 ID 可以帮助服务找回状态，但不会让模型拥有一个用户专属的 Session。KV cache 用来复用计算，也不等于持久对话记录。
 
-### 类似 Session，但状态保存在 API 服务层
+工具调用同理：服务接口可以表达函数名、参数和执行结果。对于[自定义函数调用](https://developers.openai.com/api/docs/guides/function-calling)，应用仍需执行函数，再把结果交回。**API 可以提供比一次模型前向计算更丰富的功能；丰富的是外围工作流。**
 
-这可以类比 Servlet Session：调用方提交标识，服务端找回状态。`conversation` ID 更像持续使用的 Session ID；`previous_response_id` 指向一次具体响应，也可以从旧响应接续出分支。它们是显式 API 参数，不是自动发送的浏览器 Cookie。
+## 把相关性计算变成 HTTP 服务：Rerank API
 
-**历史由模型外围的服务系统保存，再组织成本轮上下文。** 历史没有写进模型权重，用户也不需要独占一份常驻模型。KV cache 用于复用推理计算，同样不等于持久对话记录。
+搜索应用通常已经召回了一批文档，接下来需要判断哪些最能回答问题。它希望提交“问题 + 候选文档”，拿回分数和顺序，而不必了解模型内部怎样打分。
 
-少传历史只减少客户端的传输和管理工作：上下文窗口仍有限，使用 `previous_response_id` 时，历史输入仍参与 token 计费。托管状态也不替应用决定所有业务信息该不该进入上下文。
+这正是 [Cohere Rerank API](https://docs.cohere.com/reference/rerank)和 [Jina Reranker API](https://jina.ai/reranker/)提供的抽象。两者核心字段相近，版本路径、可选参数与元数据并不完全相同。
 
-## Responses 还要表达工具与多步任务
+### 用 query 与 documents 表达重排序任务
 
-用户要求“查询订单并解释延迟原因”时，模型需要请求查询、取得结果，再生成回答。历史里需要保存的不只是聊天正文，还有调用名称、参数和执行结果。
+以下以本地已部署好的兼容服务为例。`model` 必须匹配服务公布的名称；这里假设它加载的是 Qwen3-Reranker-0.6B：
 
-Chat Completions 已通过 `tool_calls` 和 `role: tool` 支持这种往返。Responses 则把不同记录表示为独立的 **Items**：
+```http
+POST http://127.0.0.1:8000/v1/rerank
+Content-Type: application/json
 
-| Item 类型 | 用途 |
-|---|---|
-| `message` | 用户或助手消息 |
-| `function_call` | 请求调用函数，携带名称、参数和 `call_id` |
-| `function_call_output` | 回传执行结果，用 `call_id` 匹配调用 |
+{
+  "model": "Qwen/Qwen3-Reranker-0.6B",
+  "query": "中国的首都是哪里？",
+  "documents": [
+    "上海是中国的一座城市。",
+    "中国的首都是北京。"
+  ],
+  "top_n": 1
+}
+```
 
-对于[自定义函数](https://developers.openai.com/api/docs/guides/function-calling)，模型返回调用请求，由应用执行并把结果交回；平台托管工具可由平台执行。`call_id` 只负责配对，接续任务仍需状态引用或所需历史。自行管理上下文时，还应按[模型要求](https://developers.openai.com/api/docs/guides/reasoning)保留必要的推理状态 Items，不能只存界面上显示的文字。
+服务返回排序结果，核心字段如下。分数是示意值，省略了其他元数据：
 
-因此，[Chat Completions 到 Responses 的演进](https://developers.openai.com/api/docs/guides/migrate-to-responses)有两条主线：**用状态引用减少历史管理工作，用有类型的 Items 和事件表达多步任务。** 它没有让模型本身变成管理用户 Session 的服务器。
+```json
+{
+  "results": [
+    {
+      "index": 1,
+      "relevance_score": 0.98
+    }
+  ]
+}
+```
 
-更换模型或平台时，也应分别检查这三件事：
+`index: 1` 指输入列表的第二篇文档；`top_n: 1` 表示只返回排在最前面的一条。在这个逐对打分的例子中，服务仍需比较候选文档，`top_n` 不是只让模型看一篇。
 
-- **接口兼容**：请求、响应、流式事件和所用状态能力能否继续使用。
-- **输入对齐**：tokenizer、模板、生成起点和输出解析器是否匹配模型。
-- **任务有效**：相同业务材料下，答案、工具选择或评分结果是否仍符合要求。
+接入代码只需处理这一套请求与响应。模型内部却可以不同：BERT 类 Cross-Encoder 可以通过分类头计算相关性，Qwen3 Reranker 则可以从 `yes/no` logits 得到分数。**相同的 `relevance_score` 字段，不保证不同模型使用相同的计算方式、数值分布或判断阈值。**
 
-OpenAI-compatible 降低的是接入成本；它本身不保证模型行为一致，也不保证平台提供相同的会话存储和恢复能力。
+### API 字段还要转换成评分输入
+
+对于 Qwen3 Reranker，问题和每篇文档会按评分任务的格式组织。任务正文形如：
+
+```text
+<Instruct>: 给定一个问题，检索知识库中能够直接回答该问题的段落。
+<Query>: 中国的首都是哪里？
+<Document>: 中国的首都是北京。
+```
+
+这只是中间的任务正文；外围还需要系统指令、消息边界和指定的助手回答起点。模型在完整输入后计算 logits，评分代码提取 `yes/no`，服务再把分数组装成 `results` 并排序。[完整的评分模板与计算实验](/posts/2026/10/15/qwen3-reranker-scoring-chat-template/)展示了这条路径。
+
+因此，Cohere/Jina 风格的 API 不会规定所有模型都使用 Qwen 模板，也不会要求所有模型都读 `yes/no`。任务指令可以由部署配置给定；某些实现还提供 `instruction` 等扩展参数，不能把扩展字段直接当作所有提供者的通用协议。
+
+这些接口也不是重排序技术的起点。2019 年已有 [BERT 段落重排序研究](https://arxiv.org/abs/1901.04085)；Cohere 在 [2023 年的发布文章](https://cohere.com/blog/rerank)中介绍了自己的 Rerank endpoint。能确定的是，厂商把能力包装成 API，其他软件可以选择兼容这些约定；不能由此推断某家公司发明了所有 rerank 接口。
+
+## vLLM 将接口、输入适配和模型计算接起来
+
+自部署时，除了下载权重，还需要实现 HTTP 入口、请求调度、输入转换、推理执行和响应组装。vLLM 提供了这些服务能力，避免每个应用从头实现。
+
+它在两端承担不同的适配：**对外接受应用熟悉的 API，对内使用所部署模型需要的输入与计算方式。**
+
+| 服务入口 | 外部接口约定 | 内部工作示例 |
+|---|---|---|
+| `/v1/chat/completions` | OpenAI-compatible 聊天 API | 渲染所选模型的聊天模板，生成并解析回答 |
+| `/rerank`、`/v1/rerank`、`/v2/rerank` | Cohere/Jina 兼容重排序 API | 准备评分输入，运行模型，返回排序结果 |
+| raw `/pooling` 输入路径 | vLLM 的通用 pooling 接口 | 接收客户端已准备的输入，执行配置的 pooling 任务 |
+
+[vLLM 的聊天接口文档](https://docs.vllm.ai/en/v0.26.0/serving/online_serving/openai_compatible_server/)说明了对 OpenAI API 的兼容范围；[评分接口文档](https://docs.vllm.ai/en/v0.26.0/models/pooling_models/scoring/#cohere-rerank-api)明确说明，兼容 Jina 与 Cohere 的目的是便于接入已有开源工具。支持哪些入口仍取决于模型、配置与 vLLM 版本。
+
+### 兼容请求格式，就能复用客户端代码
+
+假设一个应用已经会向聊天服务提交 `messages`、从 `choices` 中取出答案。它接入另一个 OpenAI-compatible 服务时，在所用功能均兼容的前提下，通常只需调整地址、认证与模型名称。
+
+同理，原本会调用 Cohere/Jina 风格 rerank API 的应用，也可以把请求发给加载了 Qwen 或 BGE 的本地服务。**这里复用的是接口契约，不需要调用 Cohere、Jina 或 OpenAI 的远程模型。**
+
+一次调用的逻辑职责可以画成下面的时序。格式准备与结果处理属于软件，图中不要求它们是独立进程：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as 应用
+    participant S as vLLM API 与调度
+    participant F as 输入适配与结果处理
+    participant M as 模型计算
+    A->>S: HTTP JSON：聊天消息或问题与文档
+    S->>S: 校验请求，选择模型与配置
+    S->>F: 任务内容与输入格式配置
+    F->>F: 渲染模板或组织输入，编码为 token IDs
+    F-->>S: 模型输入张量
+    S->>M: 调度执行
+    M-->>S: logits、表示或分类输出
+    alt 聊天生成
+        S->>S: 选择下一个 token，按需继续推理
+        S->>F: 生成结果
+        F-->>S: 解码、解析后的助手消息
+    else 重排序
+        S->>F: 模型输出与评分配置
+        F-->>S: 文档相关性分数
+        S->>S: 排序，选取 top_n
+    end
+    S-->>A: 按接口契约组织 JSON 响应
+```
+
+不同实现可能把部分后处理融合进模型执行流程；这里强调的是职责边界，而不是某个版本的类调用顺序。
+
+### 接口兼容之后，仍要验证模型输入
+
+聊天 JSON 被正确解析，只说明调用格式通过了这一关。Qwen 仍需要 Qwen 的输入约定，Llama 仍需要 Llama 的输入约定；一个接口名称不能消除这些差别。
+
+[Qwen3 Reranker 的换行故障](/posts/2026/10/15/qwen3-reranker-scoring-chat-template/)就是具体例子：切换入口后，请求仍能成功，分数仍然正常返回，但服务端模板少了末尾换行，最终模型输入发生变化，排序效果随之下降。
+
+当时的 raw `/pooling` 路径由客户端拼好完整评分输入；`/v1/rerank` 路径则由服务端模板完成这一步。**更换接口时，输入格式的责任从客户端移到了服务端。** 如果两边最终输入与评分处理一致，接口的名字本身不会改变相关性计算。
+
+迁移服务时可以据此分别检查：
+
+- **请求与响应**：应用使用的字段、流式事件和状态能力是否兼容。
+- **模型输入与评分方式**：实际上下文、模板、tokenizer、截断和输出读取位置是否匹配。
+- **任务效果**：在相同业务材料上，答案、排序或工具选择是否达到预期。
+
+模型权重提供计算能力，模板与 tokenizer 准备输入，服务软件负责远程调用和外围状态。把这几层分清楚，才能判断一次变化究竟发生在接口、格式、模型，还是任务工作流中。
