@@ -25,6 +25,8 @@ description: "从接入模型、适配输入、多轮对话和工具任务的实
 
 例如，“用中文简洁回答”是应用的固定要求，“你好”是用户刚发送的内容。若接口只接收一段文字，这两种身份只能通过调用方约定的文本格式表达。**把对话直接建模为带角色的消息，可以让应用显式提交这些区别。** Chat Completions 采用的就是这种交互方式。[OpenAI 对接口演进的说明](https://developers.openai.com/blog/responses-api)将文本续写与角色化对话作为两个不同阶段的抽象。
 
+从 OpenAI 的公开发布顺序看，**先有区分用户与助手的对话模型，再有公开的聊天 API**。[2022 年 11 月 30 日发布 ChatGPT 时](https://openai.com/index/chatgpt/)，OpenAI 已介绍让训练人员分别扮演用户和助手来提供对话数据；[2023 年 3 月 1 日](https://community.openai.com/t/introducing-chatgpt-and-whisper-apis/80485)才宣布开放 ChatGPT API。这不能证明内部设计的先后，也不意味着 2022 年的模型就直接接收今天的 `role/content` JSON。
+
 ### 用兼容接口复用请求与响应处理
 
 有了消息结构，再让不同服务接受相同的请求约定，应用就可以复用接入代码。Chat Completions 的典型入口是 `POST /v1/chat/completions`，例如：
@@ -56,6 +58,10 @@ description: "从接入模型、适配输入、多轮对话和工具任务的实
 对常见的因果语言模型而言，计算的对象是 token 序列。[Hugging Face 的 Chat Template 文档](https://huggingface.co/docs/transformers/chat_templating)指出：聊天微调后的模型仍然续写序列，只是训练数据使用了带角色和边界的格式。即便来自同一基座，不同微调模型也可能采用不同标记。
 
 因此，服务不能仅凭 `{"role": "user"}` 这个 JSON 属性，就假定所有模型都已正确获得用户角色。它需要把这层应用语义写进每个模型熟悉的输入结构。**Chat Template 承担的就是这项序列化工作：放入消息正文，同时确定角色、消息边界和接下来从哪里继续生成。**
+
+**复用消息数据结构，不等于实现 HTTP API。** Transformers 的 `tokenizer.apply_chat_template(messages, ...)` 也接受 `role/content` 字典列表，但它是本地的模板处理方法：按模板渲染消息，并可继续分词得到 token IDs。这个过程不依赖 vLLM，也不需要加载模型权重。模板通常随 tokenizer 配置发布，由软件执行；模型在训练中学到的是对应 token 序列的含义，并不直接解析这些字典。
+
+因此，同一份 `messages` 可以直接交给 Transformers，也可以作为 HTTP 请求体的一部分发给 vLLM 等服务。前者由应用调用库完成输入转换，后者由服务承接转换和推理；**模型最终接收的都是符合自身格式约定的 token 序列**。
 
 ### 用相同消息观察三种转换结果
 
