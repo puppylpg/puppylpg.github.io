@@ -632,180 +632,55 @@ MCP 与 REST 可以共用一套业务实现。工具定义中的 `_meta.method` 
 
 ## 拓展：stdio 怎样通信，HTTP 怎样支持流式消息
 
-同一份 MCP 消息可以通过不同的传输方式送达：本地使用进程管道，远程使用 HTTP。下面继续用示例适配器的 `memo_list_memos` 演示。
+同一份 MCP 消息可以通过不同的传输方式送达：stdio 使用本地子进程管道，HTTP 既可以访问本机共享服务，也可以访问远程服务。下面继续用示例适配器的 `memo_list_memos` 对照消息传输、认证与进程组织方式，再展开 HTTP 的流式响应。
 
 ### stdio：通过子进程的标准输入输出通信
 
-**stdio 使用操作系统的进程管道。** Host 内的 MCP Client 启动本地 Server 子进程，并在启动时接好两条管道：一条把请求送进 Server，另一条把响应送回 Client。这里的 `stdin`、`stdout` 都是 **Server 子进程的标准流**，两端由程序读写，不需要用户在终端输入。
+**同一条 MCP 请求，HTTP body 中的 JSON 对象与 stdio 发送的 JSON 对象完全一样。** 前文 `tools/call` 的方法、参数和元数据都可以保持不变，区别在传输方式：
 
-#### 启动时，怎样把两个进程接起来
+| | HTTP | stdio |
+|---|---|---|
+| 连接入口 | Agent 配置服务 URL | Agent 配置启动命令<br>启动子进程并接好管道 |
+| 请求 | JSON 放在 HTTP body 中<br>外层有 URL 和请求头 | 单行 JSON 加换行，写入 `stdin`<br>没有 HTTP URL 和请求头 |
+| 响应 | HTTP 响应中的 JSON 或 SSE | 子进程 `stdout` 中的 MCP 消息 |
 
-以 Linux/macOS 为例，每个进程都有自己的文件描述符表。[标准输入、标准输出、标准错误](https://man7.org/linux/man-pages/man3/stdin.3.html)分别使用约定的描述符 `0`、`1`、`2`。在终端里直接运行程序时，它们通常连接到终端；启动子进程时也可以将它们重定向到管道。**标准输入输出只是约定的读写入口，实际连接到哪里，由启动方式决定。**
+stdio 不需要 URL，是因为**启动时建立的管道已经连接到指定子进程**。标准输入输出由程序自动读写，不需要用户敲键盘；同一个子进程可以处理多次调用。[stdio 规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio)
 
-Python 的 [`subprocess.Popen`](https://docs.python.org/3/library/subprocess.html#subprocess.Popen) 可以完成启动和重定向。指定 `stdin=PIPE, stdout=PIPE` 后，会得到以下连接：
+#### token 怎样传
+
+**HTTP 的 Bearer token 放在 `Authorization` 请求头；stdio 程序所需的凭据通常在启动时通过环境变量提供。** 如果子进程代理远程 Memos 或公司 MCP，它读取环境中的 token，再添加到下游 HTTP 请求头，token 无需放进 `tools/call` 参数。环境变量名由程序约定；只执行本地任务的程序可能不需要 token。[授权规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#protocol-requirements)
+
+#### 几种使用场景与取舍
+
+MCP 用于让 Agent 发现和调用外部能力，包括本地文件与开发工具、个人数据服务，以及公司系统。**stdio 程序可以自己执行任务，也可以只是远程服务的代理。**
+
+| 场景 | 进程与调用关系 | 优点与代价 |
+|---|---|---|
+| stdio 本地工具 | 每个宿主一个子进程<br>直接读文件、执行工具 | 随宿主启停，按项目配置<br>多实例重复占用资源 |
+| stdio 远程代理 | 每个宿主一个代理子进程<br>连接同一个公司 MCP | 封装认证，无需监听端口<br>代理进程各有一份 |
+| 共享本地 HTTP | 多个 Agent 连接本地 URL<br>共用一个 MCP 服务或代理进程 | 复用进程、缓存和连接<br>需独立维护，故障共同承担 |
+| 直连远程 HTTP | 多个 Agent 连接远程 URL<br>无本地 MCP 服务进程 | 接入环节少<br>宿主需支持远程传输与认证 |
+
+以 Claude Code 和 Codex 各建立一条连接为例，**stdio 通常是两个子进程；共享本地 HTTP 则可以是一个独立服务进程**。两种代理方式都能访问同一个公司后端：
 
 ```mermaid
-flowchart TB
-    CW["Client 父进程<br/>proc.stdin.write(...)：管道 A 写端"] --> A["操作系统管道 A：请求字节"]
-    A --> SR["Server 子进程<br/>sys.stdin.buffer.readline()<br/>stdin / fd 0：管道 A 读端"]
-    SR -->|"解析请求，处理业务，构造响应"| SW["Server 子进程<br/>sys.stdout.buffer.write(...)<br/>stdout / fd 1：管道 B 写端"]
-    SW --> B["操作系统管道 B：响应字节"]
-    B --> CR["Client 父进程<br/>proc.stdout.readline()：管道 B 读端"]
+flowchart LR
+    subgraph stdio["各自启动 stdio 代理"]
+        A["Claude Code"] <-->|stdio| P1["子进程 A"]
+        B["Codex"] <-->|stdio| P2["子进程 B"]
+    end
+    subgraph http["共享本地 HTTP 代理"]
+        C["Claude Code"] <-->|HTTP| P["独立代理进程<br/>127.0.0.1:端口/mcp"]
+        D["Codex"] <-->|HTTP| P
+    end
+    P1 <-->|HTTPS| S["公司 MCP 服务"]
+    P2 <-->|HTTPS| S
+    P <-->|HTTPS| S
 ```
 
-`proc` 是父进程中代表这个子进程的 Python 对象。它的属性按所连接的**子进程标准流**命名，所以 `proc.stdin` 在父进程这一侧是可写的，`proc.stdout` 是可读的：
+共享进程也可以直接承载业务：Memos `v0.30.0` 的[内置 MCP 入口](https://github.com/usememos/memos/blob/v0.30.0/server/router/mcp/service.go)使用 HTTP，部署在本机后，多个 Agent 可直接连接 `http://127.0.0.1:5230/mcp`。本地部署不等于支持 stdio，需要程序实现相应入口。
 
-| 代码所在进程 | 操作 | 字节去向 |
-|---|---|---|
-| Client 父进程 | `proc.stdin.write(...)` | 写入管道 A，供 Server 从自己的 `stdin` 读取 |
-| Server 子进程 | `sys.stdin.buffer.readline()` | 从管道 A 读取一行请求 |
-| Server 子进程 | `sys.stdout.buffer.write(...)` | 写入管道 B，供 Client 读取 |
-| Client 父进程 | `proc.stdout.readline()` | 从管道 B 读取一行响应 |
-
-因此，Client 写 `proc.stdin` 不会修改它自己的 `sys.stdin`；Server 写 `sys.stdout` 时，内容也会进入已接好的管道，而不是直接显示在屏幕上。两边无需监听端口或通过文件路径找到对方，启动时建立的管道已经把它们连接起来。
-
-#### 管道传的是字节，MCP 用换行划分消息
-
-[操作系统管道](https://man7.org/linux/man-pages/man7/pipe.7.html)提供的是**字节流，没有 JSON 消息边界**。一次写入的字节可能分几次读到，连续写入的几条消息也可能一起到达；不能把底层的一次 `read` 当成一条完整请求。
-
-[MCP stdio 规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio)在这条字节流上约定：**UTF-8 编码，一行一条完整 JSON-RPC 消息，末尾追加换行符。** 发送方先把对象序列化为单行 JSON，再编码、追加真实的 LF 字节 `0x0A`；接收方累积到换行符后，才解码并解析 JSON。
-
-JSON 字符串内的换行会由序列化器转义为 `\n`，它是反斜杠和字母 `n`，不会提前结束这条消息。协议报文不能用 `indent=2` 美化成多行；排版用的真实换行会被接收端当成消息分隔符。
-
-#### 两个 Python 文件，跑通一次请求和响应
-
-下面只演示一次 `tools/call` 的管道往返：Server 固定返回示例数据 `{"memos":[]}`，不连接 Memos。这是传输机制的最小演示，尚未实现完整 MCP Server 所需的发现、参数校验等逻辑。
-
-先保存子进程程序为 `memo_stdio_demo.py`：
-
-```python
-import json
-import sys
-
-# 逐行读取自己的标准输入；本例中，它已经连接到父进程的管道。
-# 暂时没有完整一行时会等待，读到 EOF 后循环结束。
-for line in sys.stdin.buffer:
-    request = json.loads(line.decode("utf-8"))
-
-    # 演示程序只处理约定的这一个工具，不访问真实 Memos。
-    if (request["method"] != "tools/call"
-            or request["params"]["name"] != "memo_list_memos"):
-        raise ValueError("This demo only handles memo_list_memos")
-
-    # 日志写入 stderr，不能污染 stdout 中的协议消息。
-    print("server: received tools/call", file=sys.stderr, flush=True)
-    data = {"memos": []}
-    response = {
-        "jsonrpc": "2.0",
-        "id": request["id"],
-        "result": {
-            "resultType": "complete",
-            "content": [{"type": "text", "text": json.dumps(data)}],
-            "structuredContent": data,
-            "_meta": {
-                "io.modelcontextprotocol/serverInfo": {
-                    "name": "memos-example-adapter",
-                    "version": "1.0.0",
-                },
-            },
-        },
-    }
-
-    # 先得到一整行 UTF-8 字节；末尾 b"\n" 才是真实的消息分隔符。
-    payload = json.dumps(response, ensure_ascii=False, separators=(",", ":"))
-    sys.stdout.buffer.write(payload.encode("utf-8") + b"\n")
-    # 把 Python 缓冲区里的数据提交给底层管道，让父进程及时读到。
-    sys.stdout.buffer.flush()
-```
-
-再在同一目录保存父进程程序为 `client.py`：
-
-```python
-import json
-from pathlib import Path
-import subprocess
-import sys
-
-request = {
-    "jsonrpc": "2.0",
-    "id": 6,
-    "method": "tools/call",
-    "params": {
-        "name": "memo_list_memos",
-        "arguments": {"pageSize": 1, "filter": 'visibility != "PRIVATE"'},
-        "_meta": {
-            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-            "io.modelcontextprotocol/clientCapabilities": {},
-            "io.modelcontextprotocol/clientInfo": {
-                "name": "memos-demo-client",
-                "version": "1.0.0",
-            },
-        },
-    },
-}
-
-# 以当前 Python 解释器启动子进程，两个 PIPE 建立双向通信所需的两条管道。
-# 默认使用二进制模式，由代码明确处理 UTF-8 和 LF。
-server = Path(__file__).with_name("memo_stdio_demo.py")
-proc = subprocess.Popen(
-    [sys.executable, str(server)],
-    stdin=subprocess.PIPE,
-    stdout=subprocess.PIPE,
-    # 继承父进程的 stderr；在终端运行本例时，Server 日志直接显示在终端。
-    stderr=None,
-)
-
-try:
-    payload = json.dumps(request, ensure_ascii=False, separators=(",", ":"))
-    proc.stdin.write(payload.encode("utf-8") + b"\n")
-    proc.stdin.flush()
-
-    # 从子进程 stdout 所连接的管道读一行，而不是读取终端输入。
-    line = proc.stdout.readline()
-    if not line:
-        raise RuntimeError("Server closed stdout before sending a response")
-    if not line.endswith(b"\n"):
-        raise RuntimeError("Server closed stdout with an incomplete message")
-    response = json.loads(line.decode("utf-8"))
-    if response.get("id") != request["id"]:
-        raise RuntimeError("Unexpected response id")
-
-    # Client 自己的 stdout 没有重定向到 Server，可以用来展示结果。
-    print(json.dumps(response["result"]["structuredContent"]))
-finally:
-    # 本例不再发请求，关闭写端，让子进程读到 EOF 并结束循环。
-    proc.stdin.close()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-    proc.stdout.close()
-```
-
-只需要启动 Client；Server 会由它自动启动：
-
-```bash
-python3 client.py
-```
-
-终端可看到两行内容。第一行来自 Server 的 `stderr`；第二行是 Client 解析协议响应后，写到自己 `stdout` 的业务结果：
-
-```text
-server: received tools/call
-{"memos": []}
-```
-
-这里没有 HTTP 请求头；协议版本和客户端能力仍在请求的 `params._meta` 中。代码虽然把 Python 字典排成多行，实际通过管道发送的 `payload` 始终是一行 JSON。
-
-这次往返还包含几个需要区分的动作：
-
-- **`write` 写入，`flush` 刷新缓冲，`readline` 等待一行。** `flush()` 把语言运行时缓冲区里的字节提交给底层管道，不代表 Server 已经处理完成。忘记换行或刷新，双方就可能一直等待。
-- **[`readline()`](https://docs.python.org/3/library/io.html#io.IOBase.readline) 等换行或 EOF，`read()` 不带长度会一直等到 EOF。** 常驻 Server 通常不会在一条响应后关闭输出，所以这里不能用 `read()` 读取单条响应。返回 `b""` 表示输出流已结束，不是工具返回了空结果。
-- **结束通信时才关闭 `stdin`。** 本例只有一个管道写端，关闭后，子进程读完剩余数据就会读到 EOF 并退出。实际 Client 可以保持同一子进程运行，多次执行发送和接收。
-- **协议输出与日志分别消费。** 本例让 `stderr` 继承终端；如果 Host 改用 `stderr=PIPE` 收集日志，也要持续读取，避免日志填满管道后阻塞 Server。不能用 `stderr=STDOUT` 把日志合并进协议流。
-
-示例串行发送一条请求，且 Server 不发送通知，所以读一行就能拿到这次响应。实际 MCP Client 需要持续读取 `stdout`，按 `id` 分发响应，另外处理进度和订阅通知；“下一行”未必对应刚发出的请求。示例中的 `readline()` 是阻塞读取，末尾的 `wait(timeout=5)` 只限制等待子进程退出的时间；请求超时、并发读写和异常清理由实际客户端或 SDK 负责。
+**stdio 不保证程序轻量。** 轻量代理适合各启动一份；需要加载大型索引或维护昂贵资源时，共享 HTTP 服务更值得考虑。实际子进程数量由宿主的连接管理决定，宿主内部的多个子 Agent 也可以复用连接。
 
 ### Streamable HTTP：由 HTTP 响应选择 JSON 或 SSE
 
