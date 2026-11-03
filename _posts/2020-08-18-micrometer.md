@@ -359,6 +359,8 @@ Timers and distribution summaries support collecting data to observe their perce
 ## pull/publish
 prometheus是主动从服务保留的endpoint上拉取metric，而graphite则是被动接收，需要服务主动把metric发过去。
 
+Prometheus 抓取的是当前累计统计，通常不会在抓取后清空。Timer 是否导出 Histogram 桶或客户端分位数取决于配置和后端；累计桶如何转换为时间窗口分布、计算 P99，以及处理重启和多实例聚合，详见[Prometheus 如何计算 P99：累计桶、时间窗口与多实例聚合]({% post_url 2026-11-03-prometheus-histogram-p99-rate-increase %})。
+
 # spring boot + micrometer
 spring boot最大的优点（缺陷:D）就是自动配置。
 

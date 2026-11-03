@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="550" viewBox="0 0 920 550" role="img" aria-labelledby="title description">
+<title id="title">P99：目标桶内的线性插值</title>
+<desc id="description">在总共一千次请求中，累计计数为九百五十时耗时上界为二百毫秒，累计计数为九百九十五时上界为五百毫秒。假设桶内均匀分布，第九百九十个位置对应的 P99 估计为四百六十六点七毫秒。连线表示估计关系，不代表真实样本。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#f4c57b" stroke-width="1.3"/></marker></defs>
+<rect width="920" height="550" fill="#151b28"/>
+<g font-family="Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif">
+<text x="112.000" y="51.000" font-size="25" fill="#e6edf3" text-anchor="start">P99：目标桶内的线性插值</text>
+<text x="112.000" y="88.000" font-size="15" fill="#a6b2c5" text-anchor="start">总请求数 1,000；目标位置 990；桶内位置 (990 − 950) / (995 − 950) = 40 / 45</text>
+<line x1="112.000" y1="390.000" x2="872.000" y2="390.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="390.000" x2="112.000" y2="390.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="395.000" font-size="15" fill="#a6b2c5" text-anchor="end">950</text>
+<line x1="112.000" y1="340.000" x2="872.000" y2="340.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="340.000" x2="112.000" y2="340.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="345.000" font-size="15" fill="#a6b2c5" text-anchor="end">960</text>
+<line x1="112.000" y1="290.000" x2="872.000" y2="290.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="290.000" x2="112.000" y2="290.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="295.000" font-size="15" fill="#a6b2c5" text-anchor="end">970</text>
+<line x1="112.000" y1="240.000" x2="872.000" y2="240.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="240.000" x2="112.000" y2="240.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="245.000" font-size="15" fill="#a6b2c5" text-anchor="end">980</text>
+<line x1="112.000" y1="190.000" x2="872.000" y2="190.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="190.000" x2="112.000" y2="190.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="195.000" font-size="15" fill="#f4c57b" text-anchor="end">990</text>
+<line x1="112.000" y1="165.000" x2="872.000" y2="165.000" stroke="#2b3546" stroke-width="0.8"/>
+<line x1="107.000" y1="165.000" x2="112.000" y2="165.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="98.000" y="170.000" font-size="15" fill="#a6b2c5" text-anchor="end">995</text>
+<rect x="112" y="125" width="760" height="300" fill="none" stroke="#354054"/>
+<line x1="164.778" y1="425.000" x2="164.778" y2="430.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="164.778" y="452.000" font-size="15" fill="#a6b2c5" text-anchor="middle">200</text>
+<line x1="375.889" y1="425.000" x2="375.889" y2="430.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="375.889" y="452.000" font-size="15" fill="#a6b2c5" text-anchor="middle">300</text>
+<line x1="587.000" y1="425.000" x2="587.000" y2="430.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="587.000" y="452.000" font-size="15" fill="#a6b2c5" text-anchor="middle">400</text>
+<line x1="727.741" y1="425.000" x2="727.741" y2="430.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="727.741" y="452.000" font-size="15" fill="#f4c57b" text-anchor="middle">466.7</text>
+<line x1="798.111" y1="425.000" x2="798.111" y2="430.000" stroke="#a6b2c5" stroke-width="1"/>
+<text x="798.111" y="452.000" font-size="15" fill="#a6b2c5" text-anchor="middle">500</text>
+<line x1="112.000" y1="190.000" x2="727.741" y2="190.000" stroke="#f4c57b" stroke-width="1.7" stroke-dasharray="7 6"/>
+<line x1="727.741" y1="425.000" x2="727.741" y2="190.000" stroke="#f4c57b" stroke-width="1.7" stroke-dasharray="7 6"/>
+<line x1="164.778" y1="390.000" x2="798.111" y2="165.000" stroke="#6ed5df" stroke-width="3"/>
+<circle cx="164.778" cy="390.000" r="5.5" fill="#6ed5df"/>
+<circle cx="798.111" cy="165.000" r="5.5" fill="#6ed5df"/>
+<circle cx="727.741" cy="190.000" r="7" fill="#f4c57b" stroke="#151b28" stroke-width="1.5"/>
+<text x="178.778" y="414.000" font-size="15" fill="#e6edf3" text-anchor="start">(200 ms, 950)</text>
+<text x="792.111" y="148.000" font-size="15" fill="#e6edf3" text-anchor="end">(500 ms, 995)</text>
+<text x="485.000" y="273.000" font-size="20" fill="#f4c57b" text-anchor="start">P99 ≈ 466.7 ms</text>
+<text x="485.000" y="305.000" font-size="17" fill="#f4c57b" text-anchor="start">目标累计数：990</text>
+<path d="M 663 269 L 719.741 197.000" fill="none" stroke="#f4c57b" stroke-width="1.3" marker-end="url(#arrow)"/>
+<text x="492.000" y="484.000" font-size="17" fill="#e6edf3" text-anchor="middle">耗时 / ms</text>
+<text transform="translate(35 275) rotate(-90)" font-size="17" fill="#e6edf3" text-anchor="middle">累计请求数 / 次</text>
+<text x="112.000" y="526.000" font-size="15" fill="#a6b2c5" text-anchor="start">线段表示桶内均匀分布假设下的估计关系，不代表真实请求样本。</text>
+</g></svg>
